@@ -742,6 +742,20 @@ a.portrait:hover img { transform: scale(1.06); }
 .gouter-classement li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gouter-classement li small { font-family: var(--fort); font-size: 11px; color: var(--brume); font-weight: 800; }
 
+/* ---------- les vidéos : teasers des events ---------- */
+.video-cadre { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 16px; background: #000; border: 3px solid var(--encre); box-shadow: 6px 6px 0 var(--ombre); }
+.video-cadre video { width: 100%; height: 100%; display: block; object-fit: cover; background: #000; }
+.teaser { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(20px, 3vw, 36px); align-items: center; padding: clamp(18px, 2.4vw, 28px); }
+.teaser-texte h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: clamp(22px, 2.4vw, 30px); line-height: 1.15; }
+.teaser-texte p:not(.surtitre) { margin: 12px 0 0; color: var(--brume); }
+.prochain-video { grid-column: 1 / -1; width: 100%; max-width: 760px; justify-self: center; margin-top: 8px; }
+.prochain-video .legende { margin: 12px 0 0; text-align: center; font-size: 13.5px; color: var(--terne); }
+.lien-video { padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.evenement .lien.lien-video { font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ff9cc8; }
+.evenement .lien.lien-video::before { content: "▶"; font-size: 10px; }
+.evenement .lien.lien-video::after { content: none; }
+.visionneuse video { width: min(92vw, 1100px); max-height: 82vh; aspect-ratio: 16 / 9; border: 6px solid #fff7fb; border-radius: 12px; box-shadow: 10px 12px 0 var(--ombre); background: #000; cursor: auto; }
+
 /* ---------- les mèmes : des autocollants posés au hasard ---------- */
 .autocollant {
   --r: 0deg;
@@ -870,6 +884,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .yt-grand { grid-template-columns: minmax(0, 1fr); }
   .chopper-grille { grid-template-columns: minmax(0, 1fr); }
   .tournoi-une, .tournoi-une.une-direct { grid-template-columns: minmax(0, 1fr); }
+  .teaser { grid-template-columns: minmax(0, 1fr); }
   .gouter { grid-template-columns: minmax(0, 1fr); }
   .gouter-jeu { aspect-ratio: 4 / 5; max-height: 72vh; width: 100%; border-right: 0; border-bottom: 1px solid var(--ligne-douce); }
   .frise::before { left: 7px; }

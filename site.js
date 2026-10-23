@@ -35,6 +35,11 @@
   const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
   // la musique du site : « Charger » (Triangle des Bermudes, MC Yoshi, Mauvais djo, Kokosvoice), un fichier du site
   const MUSIQUE = "/musique/charger.mp3";
+  // les vidéos des events (dossier videos/) : le teaser s'affiche avec l'event qui a cet identifiant (/evenement)
+  const VIDEOS = {
+    live12h: { src: "/videos/live-12h.mp4", affiche: "/videos/live-12h.jpg", titre: "Le teaser du live 12 h sur Chained Together" },
+    tournoi: { src: "/videos/teaser-tournoi.mp4", affiche: "/videos/teaser-tournoi.jpg", titre: "Le teaser du TOURNOI BARHAW" },
+  };
   // les mèmes, posés au hasard sur la page à chaque visite (img/memes)
   const MEMES = [
     { src: "/img/memes/meme-01.jpg", l: 135, h: 185 },
@@ -359,6 +364,9 @@
       try { await audio.play(); } catch { afficher(false); }
     });
     audio.addEventListener("error", () => { afficher(false); zone.hidden = true; });
+    document.addEventListener("play", (e) => {
+      if (e.target instanceof HTMLVideoElement && !audio.paused) { audio.pause(); audio.currentTime = 0; afficher(false); }
+    }, true);
     fetch(MUSIQUE, { method: "HEAD" }).then((r) => { if (!r.ok) zone.hidden = true; }).catch(() => {});
   }
 
@@ -375,18 +383,27 @@
     return rects.length ? Math.max(...rects.map((x) => x.right)) : e.getBoundingClientRect().left;
   }
 
-  function agrandir(m, depuis) {
-    const fermer = () => { v.remove(); window.removeEventListener("keydown", touche); depuis.focus({ preventScroll: true }); };
+  // l'écran sombre qui montre un mème ou une vidéo en grand ; un clic à côté, ✕ ou Échap le ferme
+  function visionneuse(contenu, etiquette, depuis) {
+    const fermer = () => {
+      contenu.pause?.();
+      v.remove();
+      window.removeEventListener("keydown", touche);
+      depuis?.focus({ preventScroll: true });
+    };
     const touche = (e) => { if (e.key === "Escape") fermer(); };
-    const v = el("div", { class: "visionneuse", role: "dialog", "aria-modal": "true", "aria-label": "Le mème en grand" },
-      el("img", { src: m.src, alt: "Un mème de Liliano", width: m.l, height: m.h }),
+    const v = el("div", { class: "visionneuse", role: "dialog", "aria-modal": "true", "aria-label": etiquette },
+      contenu,
       el("button", { class: "visionneuse-fermer", type: "button", "aria-label": "Fermer", text: "✕" }),
     );
-    v.addEventListener("click", fermer);
+    v.addEventListener("click", (e) => { if (e.target !== contenu || contenu.tagName === "IMG") fermer(); });
     window.addEventListener("keydown", touche);
     document.body.append(v);
     v.querySelector("button").focus();
   }
+  const agrandir = (m, depuis) => visionneuse(el("img", { src: m.src, alt: "Un mème de Liliano", width: m.l, height: m.h }), "Le mème en grand", depuis);
+  const lecteurVideo = (v, extra = {}) => el("video", { src: v.src, poster: v.affiche, controls: true, playsinline: true, preload: "none", width: 1920, height: 1080, "aria-label": v.titre, ...extra });
+  const visionner = (v, depuis) => visionneuse(lecteurVideo(v, { autoplay: true, preload: "auto" }), v.titre, depuis);
 
   function autocollants() {
     const places = [];
@@ -589,6 +606,7 @@
         el("p", { class: "quand", text: periode }),
         e.description ? el("p", { text: e.description }) : null,
         lien && !passe ? el("a", { class: "lien", href: lien, ...externe, text: lienEvenement(lien) }) : null,
+        VIDEOS[e.id] ? el("button", { class: "lien lien-video", type: "button", onclick: (ev) => visionner(VIDEOS[e.id], ev.currentTarget), text: passe ? "Revoir le teaser" : "Voir le teaser" }) : null,
       ),
     );
   }
@@ -633,6 +651,10 @@
         lien ? el("div", { class: "boutons" }, el("a", { class: "btn btn-plein btn-petit", href: lien, ...externe, text: `${lienEvenement(lien)} →` })) : null,
       ),
       e.enCours ? null : rebours,
+      VIDEOS[e.id] ? el("div", { class: "prochain-video" },
+        el("div", { class: "video-cadre" }, lecteurVideo(VIDEOS[e.id])),
+        el("p", { class: "legende", text: VIDEOS[e.id].titre }),
+      ) : null,
     );
     if (!e.enCours) { tic(); minuteur = setInterval(tic, 1000); }
   }
@@ -1236,6 +1258,8 @@
   function rendreTournoi() {
     const t = donnees?.tournoi;
     const etat = $("etat-tournoi");
+    // sans données du bot : on garde l'en-tête, le teaser et le message, sans cases vides
+    for (const e of [document.querySelector(".tournoi-grille"), ...document.querySelectorAll("#tournoi .sous-titre")]) if (e) e.hidden = !t;
     if (!t) {
       etat.textContent = "Février 2027";
       etat.className = "etiquette";
