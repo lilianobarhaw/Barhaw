@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="fr" class="sans-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barhaw</title>
+<meta name="description" content="La commu de LilianoBarhaw : les lives, les events (Osiris RP, TOURNOI BARHAW, live de 12 h), les potes, les vidéos, le Discord, et Chopper, la mascotte qu'on fait vivre ensemble.">
+<meta name="theme-color" content="#07050b">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Barhaw">
+<meta property="og:description" content="Lives, events, Osiris RP… et Chopper, la mascotte à faire vivre ensemble.">
+<meta property="og:image" content="/img/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/img/favicon-32.png" type="image/png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Outfit:wght@300;400;500;600&family=Space+Mono&display=swap">
+<!-- les onomatopées et les kanji (Dela Gothic One), seulement les caractères utilisés -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&text=%E3%80%9C%E3%82%A5%E3%82%AD%E3%82%AF%E3%82%B0%E3%82%B4%E3%82%B7%E3%82%BA%E3%83%83%E3%83%89%E3%83%94%E3%83%A2%E3%83%A7%E3%83%A9%E3%83%AF%E3%83%B3%E3%83%BC%E4%BA%88%E4%BB%B2%E4%BF%A1%E5%8B%95%E5%8C%BB%E5%90%88%E5%AE%9A%E7%94%BB%E8%88%B9%E9%85%8D%E9%96%93%E9%9B%86%EF%BC%81&display=swap">
+<link rel="stylesheet" href="/site.css">
+<script src="/site.js" defer></script>
+</head>
+<body>
+<canvas id="ciel" aria-hidden="true"></canvas>
+<div class="orbes" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="grain" aria-hidden="true"></div>
+<a class="sauter" href="#contenu">Aller au contenu</a>
+
+<header class="entete" id="entete">
+  <a class="logo" href="#accueil" aria-label="Barhaw, retour en haut">
+    <img src="/img/chopper-visage.jpg" alt="" width="36" height="36">
+    <span>BARHAW</span>
+  </a>
+  <nav class="nav" id="nav" aria-label="Sections du site">
+    <a href="#accueil" data-lien="accueil">Accueil</a>
+    <a href="#evenements" data-lien="evenements">Events</a>
+    <a href="#chaine" data-lien="chaine">Ma chaîne <span class="pastille-live" id="pastille-live" hidden>Live</span></a>
+    <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
+    <a href="#youtube" data-lien="youtube">YouTube</a>
+    <a href="#chopper" data-lien="chopper">Chopper</a>
+    <a href="#discord" data-lien="discord" class="nav-discord">Discord</a>
+    <div class="compte compte-menu" id="compte-menu"></div>
+  </nav>
+  <div class="entete-droite">
+    <div class="compte" id="compte"></div>
+    <a class="btn btn-plein btn-petit cta-discord" href="#discord">Discord</a>
+    <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Ouvrir le menu"><span></span><span></span></button>
+  </div>
+</header>
+
+<div class="musique-zone">
+  <div class="musique-lecteur" id="musique-lecteur" hidden>
+    <p class="musique-titre"><span>Charger</span> · Triangle des Bermudes, MC Yoshi, Mauvais djo, Kokosvoice</p>
+    <div id="spotify-zone"><div id="spotify"></div></div>
+    <p class="musique-note" id="musique-note" hidden></p>
+  </div>
+  <button class="musique" id="musique" type="button" aria-pressed="false" aria-controls="musique-lecteur" aria-label="Musique du site : Charger">
+    <span class="egaliseur" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span class="musique-texte" id="musique-texte">Musique</span>
+  </button>
+</div>
+
+<a class="flottant-live" id="flottant-live" href="#chaine" hidden>
+  <span class="point" aria-hidden="true"></span>
+  <span><strong>En live</strong> <span id="flottant-titre"></span></span>
+</a>
+
+<main id="contenu">
+
+  <!-- ===================== ACCUEIL ===================== -->
+  <section class="hero" id="accueil" data-section aria-labelledby="titre-accueil">
+    <div class="hero-texte">
+      <p class="surtitre revele">Streams · Events · Osiris RP</p>
+      <h1 class="titre revele" id="titre-accueil"><span class="titre-petit">Bienvenue chez</span> <span class="mot-don"><span class="degrade">Barhaw.</span><span class="sfx sfx-don" aria-hidden="true">ドン！</span></span></h1>
+      <p class="accroche revele">La commu de LilianoBarhaw. Les lives, les events, Osiris RP… et Chopper, la mascotte qu'on fait vivre tous ensemble.</p>
+      <div class="boutons revele">
+        <a class="btn btn-plein" href="#chaine" id="hero-live">Voir la chaîne</a>
+        <a class="btn btn-contour" href="#discord">Rejoindre le Discord</a>
+      </div>
+    </div>
+    <div class="hero-chopper revele">
+      <span class="concentration" aria-hidden="true"></span>
+      <div class="orbite">
+        <span class="anneau" aria-hidden="true"></span>
+        <span class="satellite" aria-hidden="true"><i></i></span>
+        <a href="#chopper" class="portrait" aria-label="Aller voir Chopper">
+          <img src="/img/chopper-visage.jpg" alt="Chopper, la mascotte de Barhaw" width="480" height="480">
+        </a>
+      </div>
+      <p class="bulle bulle-hero" id="bulle-hero" aria-live="polite">Yo ! Plein d'events arrivent, descends voir !</p>
+      <span class="etincelle e1" aria-hidden="true">✦</span>
+      <span class="etincelle e2" aria-hidden="true">✦</span>
+      <span class="etincelle e3" aria-hidden="true">✧</span>
+      <span class="sfx sfx-hero" aria-hidden="true">キラッ</span>
+    </div>
+    <a class="defiler" href="#evenements" aria-label="Descendre vers les events">Défiler</a>
+  </section>
+
+  <div class="raccourcis" id="maintenant" aria-label="En ce moment"></div>
+
+  <!-- ===================== ÉVÉNEMENTS ===================== -->
+  <section id="evenements" data-section aria-labelledby="titre-evenements">
+    <span class="kanji" aria-hidden="true">予定</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Au programme</p>
+      <h2 class="titre-section revele" id="titre-evenements">Les prochains <span class="degrade">events.</span></h2>
+      <p class="sous revele">Lives, tournoi, Osiris : tout ce qui arrive, dans l'ordre.</p>
+    </div>
+    <div class="prochain revele" id="prochain"></div>
+    <ol class="frise" id="evenements-liste"></ol>
+    <details class="passes" id="passes" hidden>
+      <summary>Les events déjà passés</summary>
+      <ol class="frise frise-passee" id="evenements-passes"></ol>
+    </details>
+  </section>
+
+  <!-- ===================== MA CHAÎNE ===================== -->
+  <section id="chaine" data-section aria-labelledby="titre-chaine">
+    <span class="kanji" aria-hidden="true">配信</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Sur Twitch</p>
+      <h2 class="titre-section revele" id="titre-chaine">Ma <span class="degrade">chaîne.</span> <span class="etiquette" id="etat-chaine"></span></h2>
+    </div>
+    <div class="lecteur-zone revele" id="lecteur-zone">
+      <div class="lecteur" id="lecteur"><div class="lecteur-attente">Le lecteur se charge quand tu arrives ici…</div></div>
+      <div class="tchat" id="tchat" hidden></div>
+    </div>
+    <div class="carte infos-live revele" id="infos-live"></div>
+  </section>
+
+  <!-- ===================== POTES ===================== -->
+  <section id="potes" data-section aria-labelledby="titre-potes">
+    <span class="kanji" aria-hidden="true">仲間</span>
+    <div class="entete-section">
+      <p class="surtitre revele">La commu</p>
+      <h2 class="titre-section revele" id="titre-potes">Les <span class="degrade">potes.</span></h2>
+      <p class="sous revele">Les chaînes Twitch de la commu. Ceux qui sont en live passent en premier.</p>
+    </div>
+    <div class="potes" id="potes-liste"></div>
+  </section>
+
+  <!-- ===================== YOUTUBE ===================== -->
+  <section id="youtube" data-section aria-labelledby="titre-youtube">
+    <span class="kanji" aria-hidden="true">動画</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Vidéos</p>
+      <h2 class="titre-section revele" id="titre-youtube">Sur <span class="degrade">YouTube.</span></h2>
+      <a class="btn btn-contour btn-petit revele" id="lien-youtube" href="#" target="_blank" rel="noopener" hidden>S'abonner</a>
+    </div>
+    <div id="youtube-contenu"></div>
+  </section>
+
+  <!-- ===================== CHOPPER ===================== -->
+  <section id="chopper" data-section aria-labelledby="titre-chopper">
+    <span class="kanji" aria-hidden="true">船医</span>
+    <div class="entete-section">
+      <p class="surtitre revele">La mascotte</p>
+      <h2 class="titre-section revele" id="titre-chopper">Chopper<span class="degrade">.</span> <span class="etiquette" id="niveau-chopper"></span></h2>
+      <p class="sous revele">Un tamagotchi commun : toute la commu le fait vivre, ici et sur le Discord.</p>
+    </div>
+    <div class="chopper-grille">
+      <div class="carte scene revele" id="chopper-scene">
+        <span class="concentration" aria-hidden="true"></span>
+        <span class="tristesse" aria-hidden="true"></span>
+        <div class="orbite orbite-petite">
+          <span class="anneau" aria-hidden="true"></span>
+          <div class="portrait"><img src="/img/chopper-visage.jpg" alt="Chopper" width="480" height="480" id="chopper-photo"></div>
+        </div>
+        <p class="bulle bulle-chopper" id="bulle-chopper" aria-live="polite">…</p>
+        <span class="sfx sfx-chopper" id="sfx-chopper" aria-hidden="true"></span>
+      </div>
+      <div class="chopper-cote">
+        <div class="carte jauges revele" id="jauges"></div>
+        <div class="carte actions revele" id="actions"></div>
+      </div>
+    </div>
+    <div class="carte resultat" id="resultat" hidden>
+      <div class="resultat-anim"><img id="resultat-gif" alt="" width="400" height="400"></div>
+      <p class="bulle bulle-resultat" id="resultat-texte"></p>
+    </div>
+    <div class="chopper-bas">
+      <div class="carte defi revele" id="defi" hidden></div>
+      <div class="carte classement revele" id="classement"></div>
+      <div class="carte regles revele">
+        <h3>Comment le faire vivre</h3>
+        <ul>
+          <li><strong>Faim</strong> : chaque message sur le Discord le nourrit (une fois toutes les 5 minutes par personne). Elle baisse toute seule.</li>
+          <li><strong>Moral</strong> : il monte quand des gens sont en vocal ensemble, pendant les lives, avec les subs, bits et raids.</li>
+          <li><strong>XP</strong> : messages, vocal, follows, subs, défis réussis. Il grandit : Bébé, Petit (niv. 5), Grand (niv. 10), Légendaire (niv. 20).</li>
+          <li><strong>Nourrir et jouer</strong> : une fois par jour chacun, ici ou sur Discord (c'est le même compteur).</li>
+          <li><strong>Attention</strong> : si le serveur est mort trois jours, il déprime. Il ne meurt jamais, il se remet quand vous revenez.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DISCORD ===================== -->
+  <section id="discord" data-section aria-labelledby="titre-discord">
+    <span class="kanji" aria-hidden="true">集合</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Le serveur</p>
+      <h2 class="titre-section revele" id="titre-discord">Rejoins le <span class="degrade">Discord.</span></h2>
+    </div>
+    <div class="carte discord-carte revele" id="discord-carte"></div>
+    <ul class="discord-plus">
+      <li class="carte revele"><span class="symbole" aria-hidden="true">▶</span><strong>Les lives en direct</strong><span>Une annonce dès que Liliano lance un live, et les lives des potes dans leur salon.</span></li>
+      <li class="carte revele"><span class="symbole" aria-hidden="true">◆</span><strong>Des jeux en vocal</strong><span>Blind test, loup-garou, Questions pour un champion : le bot anime, vous jouez.</span></li>
+      <li class="carte revele"><span class="symbole" aria-hidden="true">✦</span><strong>BarhawBot</strong><span>L'IA du serveur, qui répond à tout… en te chambrant un peu.</span></li>
+      <li class="carte revele"><span class="symbole" aria-hidden="true">✧</span><strong>Chopper</strong><span>La mascotte : chaque message le nourrit, chaque vocal lui remonte le moral.</span></li>
+      <li class="carte revele"><span class="symbole" aria-hidden="true">◇</span><strong>Le TOURNOI BARHAW</strong><span>Les infos, les équipes et les résultats du tournoi Valorant.</span></li>
+      <li class="carte revele"><span class="symbole" aria-hidden="true">○</span><strong>Ton propre vocal</strong><span>Un salon vocal à toi en un clic, que tu règles comme tu veux.</span></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="pied">
+  <a class="logo" href="#accueil"><img src="/img/chopper-visage.jpg" alt="" width="36" height="36" loading="lazy"><span>BARHAW</span></a>
+  <p class="pied-liens">
+    <a href="https://www.twitch.tv/lilianobarhaw" target="_blank" rel="noopener">Twitch</a>
+    <a href="#youtube">YouTube</a>
+    <a href="#discord">Discord</a>
+    <a href="https://osiriswl.vercel.app" target="_blank" rel="noopener">Osiris RP</a>
+    <a href="/mentions">Mentions</a>
+  </p>
+  <p class="pied-petit">© 2026 · La commu de LilianoBarhaw. Chopper est un personnage de One Piece (© Eiichiro Oda, Shueisha, Toei Animation), utilisé ici par un fan, sans lien officiel.</p>
+</footer>
+</body>
+</html>
