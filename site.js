@@ -33,8 +33,8 @@
   };
   // l'onomatopée en coin du prochain event, selon son type
   const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
-  // la musique du site : « Charger » (Triangle des Bermudes, MC Yoshi, Mauvais djo, Kokosvoice), un fichier du site
-  const MUSIQUE = "/musique/charger.mp3";
+  // la musique du site : « The World's Number One Oden Store » (bande originale de One Piece), un fichier du site
+  const MUSIQUE = "/musique/oden.mp3";
   // les vidéos des events (dossier videos/) : le teaser s'affiche avec l'event qui a cet identifiant (/evenement)
   const VIDEOS = {
     live12h: { src: "/videos/live-12h.mp4", affiche: "/videos/live-12h.jpg", titre: "Le teaser du live 12 h sur Chained Together" },
@@ -322,8 +322,8 @@
     window.addEventListener("scroll", () => { if (!attente) { attente = true; requestAnimationFrame(maj); } }, { passive: true });
   }
 
-  // ---------- la musique : un clic lance « Charger », un autre la coupe, et un réglage du volume ----------
-  // Le morceau est un fichier du site : musique/charger.mp3. S'il n'y est pas, le bouton ne s'affiche pas.
+  // ---------- la musique : un clic lance le morceau, un autre le coupe, et un réglage du volume ----------
+  // Le morceau est un fichier du site : musique/oden.mp3. S'il n'y est pas, le bouton ne s'affiche pas.
   function musique() {
     const bouton = $("musique");
     if (!bouton) return;
@@ -350,7 +350,7 @@
     bouton.addEventListener("touchstart", preparer, { passive: true });
     const afficher = (on) => {
       bouton.setAttribute("aria-pressed", String(on));
-      $("musique-texte").textContent = on ? "Charger" : "Musique";
+      $("musique-texte").textContent = on ? "Oden Store" : "Musique";
       reglage.hidden = !on || !reglable;
     };
     bouton.addEventListener("click", async () => {

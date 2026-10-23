@@ -1,1 +1,1 @@
-Mets ici le morceau du bouton « Musique », sous le nom charger.mp3.
+Mets ici le morceau du bouton « Musique », sous le nom oden.mp3 (en minuscules).
