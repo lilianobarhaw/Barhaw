@@ -101,6 +101,7 @@
     return `${Number(h)} h${mi !== "00" ? ` ${mi}` : ""}`;
   }
   const dateLongue = (t, avecHeure) => fmtJour.format(new Date(t)) + (avecHeure ? ` à ${heure(t)}` : "");
+  const dateCourte = (t) => `${fmtCourt.format(new Date(t))} à ${heure(t)}`; // « 22 décembre à 0 h »
   function dansCombien(t) {
     const d = ms(t) - Date.now();
     if (d <= 0) return "maintenant";
@@ -728,7 +729,7 @@
             vider($("lecteur"), el("div", { class: "hors-ligne" },
               el("div", {},
                 el("span", { class: "sfx sfx-silence", "aria-hidden": "true", text: "シーン" }),
-                el("div", { class: "portrait" }, el("img", { src: "/img/chopper-visage.jpg", alt: "" })),
+                el("div", { class: "portrait" }, ppLiliano(640, "")),
                 el("p", { text: "Liliano n'est pas en live pour l'instant." }),
                 el("a", { class: "btn btn-contour btn-petit", href: `https://www.twitch.tv/${MA_CHAINE}`, ...externe, text: "Suivre sur Twitch" }),
               ),
@@ -741,7 +742,7 @@
     const suivre = el("a", { class: "btn btn-plein btn-petit", href: `https://www.twitch.tv/${MA_CHAINE}`, ...externe, text: c.enLive ? "Ouvrir sur Twitch" : "Suivre sur Twitch" });
     if (c.enLive) {
       vider($("infos-live"),
-        el("div", {},
+        quiChaine(
           el("h3", { text: c.titre || "En live" }),
           el("div", { class: "details" },
             c.jeu ? el("span", { class: "chip", text: c.jeu }) : null,
@@ -753,7 +754,7 @@
       );
     } else if (r?.enCours) {
       vider($("infos-live"),
-        el("div", {},
+        quiChaine(
           el("h3", { text: "Pas de live : la rediff tourne" }),
           el("p", { text: `Sur la chaîne ${r.login}, les anciens lives de Liliano passent en boucle, 24 h/24.` }),
           r.titre ? el("div", { class: "details" }, el("span", { class: "chip", text: r.titre }), r.jeu ? el("span", { class: "chip", text: r.jeu }) : null) : null,
@@ -762,7 +763,7 @@
       );
     } else {
       vider($("infos-live"),
-        el("div", {},
+        quiChaine(
           el("h3", { text: "Pas de live pour l'instant" }),
           el("p", { text: "Suis la chaîne pour être prévenu, ou rejoins le Discord : une annonce part dès que Liliano lance un live." }),
         ),
@@ -770,6 +771,10 @@
       );
     }
   }
+
+  // la pp de Liliano (celle de sa chaîne Twitch et YouTube), dessinée par Maelle Henry
+  const ppLiliano = (taille, classe = "pp") => el("img", { class: classe, src: taille > 200 ? "/img/pp-liliano-640.webp" : "/img/pp-liliano-200.webp", alt: "", width: taille, height: taille, loading: "lazy", decoding: "async" });
+  const quiChaine = (...contenu) => el("div", { class: "chaine-qui" }, ppLiliano(64), el("div", {}, ...contenu));
 
   // ---------- potes ----------
   function rendrePotes() {
@@ -834,6 +839,7 @@
     const grand = el("div", { class: "yt-grand" },
       lecteur,
       el("div", { class: "carte yt-infos" },
+        el("div", { class: "chaine-qui petite" }, ppLiliano(44), el("span", {}, el("strong", { text: "LilianoBarhaw" }), el("small", { text: "sur YouTube" }))),
         el("span", { class: "etiquette", text: "La dernière" }),
         el("h3", { text: derniere.titre }),
         derniere.publie ? el("p", { text: `Sortie le ${fmtCourt.format(new Date(derniere.publie))}` }) : null,
@@ -1068,7 +1074,7 @@
   let tournoiProche = false; // le lecteur du match en direct se charge en arrivant près de la partie Tournoi
   let cleLecteurTournoi = "";
   let cleUne = "";
-  let minuteurFinale = null;
+  const minuteurs = {}; // les comptes à rebours : celui de la finale, celui de la révélation des équipes
   const nomEquipe = (x, attente) => x?.nom || attente || "À définir";
   const quandMatch = (m) => (m.date ? majuscule(dateLongue(m.date, m.heure)) : "Date à venir");
 
@@ -1077,11 +1083,11 @@
     return el("span", { class: "manches", "aria-label": `${n} manche${n > 1 ? "s" : ""}` }, [0, 1].map((k) => el("i", { class: k < n ? "gagnee" : "" })));
   }
 
-  function rebours(cible, avecHeure) {
+  function rebours(cible, avecHeure, nom = "finale", { fin = null, texteFin = "C'est le jour J !" } = {}) {
     const z = el("div", { class: "rebours", role: "timer" });
     const tic = () => {
       const reste = cible - Date.now();
-      if (reste <= 0) { vider(z, el("span", { class: "tampon", text: "C'est le jour J !" })); return false; }
+      if (reste <= 0) { vider(z, el("span", { class: "tampon", text: texteFin })); return false; }
       if (!avecHeure) {
         const j = Math.ceil(reste / 86_400_000);
         vider(z, el("div", { class: "jour-j" }, el("b", { text: `J-${j}` }), el("small", { text: j > 1 ? "jours" : "jour" })));
@@ -1092,8 +1098,9 @@
       vider(z, parts.map(([v, u]) => el("div", {}, el("b", { text: String(v).padStart(2, "0") }), el("small", { text: u }))));
       return true;
     };
-    clearInterval(minuteurFinale);
-    if (tic()) minuteurFinale = setInterval(() => { if (!tic()) clearInterval(minuteurFinale); }, 1000);
+    clearInterval(minuteurs[nom]);
+    if (tic()) minuteurs[nom] = setInterval(() => { if (!tic()) { clearInterval(minuteurs[nom]); fin?.(); } }, 1000);
+    else fin?.();
     return z;
   }
 
@@ -1109,7 +1116,7 @@
     z.className = `tournoi-une revele vu une-${etat.split(":")[0]}`;
 
     if (t.champion) {
-      clearInterval(minuteurFinale);
+      clearInterval(minuteurs.finale);
       const f = finale;
       vider(z,
         el("span", { class: "sfx sfx-champion eclat", "aria-hidden": "true", text: "優勝" }),
@@ -1123,7 +1130,7 @@
     }
 
     if (direct) {
-      clearInterval(minuteurFinale);
+      clearInterval(minuteurs.finale);
       const lecteur = el("div", { class: "tournoi-lecteur", id: "tournoi-lecteur" }, el("div", { class: "lecteur-attente", text: "Le lecteur se charge quand tu arrives ici…" }));
       cleLecteurTournoi = "";
       vider(z,
@@ -1240,17 +1247,85 @@
     apparaitre(cartes, vu);
   }
 
+  // les agents Valorant (images de Riot Games, voir les mentions) : en pied pour la bande de la révélation,
+  // en buste sur les cartes des équipes. [largeur en pied (hauteur 900), largeur du buste (hauteur 360)]
+  const AGENTS = [[413, 344], [505, 420], [617, 433], [640, 328], [572, 476], [504, 404], [585, 324]];
+  const ORDRE_AGENTS = [2, 7, 1, 5, 4, 6, 3]; // de gauche à droite, le violet au milieu
+  const busteDe = (id) => ((id - 1) % AGENTS.length) + 1; // l'équipe 1 a l'agent 1, etc. (un décor, pas un choix des joueurs)
+  function buste(id) {
+    const k = busteDe(id);
+    return el("span", { class: "equipe-buste", "aria-hidden": "true" },
+      el("img", { src: `/img/agents/buste-${k}.webp`, alt: "", width: AGENTS[k - 1][1], height: 360, loading: "lazy", decoding: "async" }));
+  }
+
+  // la bande de la révélation : les agents en ombres chinoises tant que des équipes sont scellées, en couleur après
+  let cleRevelation = "";
+  let etatRevelation = "";
+  let guetteRevelation = null;
+  function guetterRevelation() {
+    // l'heure est passée : on redemande les données jusqu'à voir les équipes (le cache du site peut avoir quelques secondes de retard)
+    if (guetteRevelation) return;
+    let essais = 0;
+    const essai = async () => {
+      essais++;
+      await charger();
+      guetteRevelation = donnees?.tournoi?.scellees && essais < 25 ? setTimeout(essai, 4000) : null;
+    };
+    guetteRevelation = setTimeout(essai, 1200);
+  }
+
+  function rendreRevelation(t) {
+    const z = $("tournoi-revelation");
+    if (!z) return;
+    const scellees = t.equipes.filter((e) => e.scellee).length;
+    const etat = !scellees ? "revelees" : t.revelation ? "compte" : "bientot";
+    const cle = JSON.stringify([etat, t.revelation, scellees, t.equipes.length]);
+    if (cle === cleRevelation) return;
+    cleRevelation = cle;
+    const devoilement = etat === "revelees" && (etatRevelation === "compte" || etatRevelation === "bientot");
+    etatRevelation = etat;
+    z.classList.toggle("scellee", etat !== "revelees");
+    z.classList.toggle("devoilement", devoilement);
+
+    const joueurs = t.equipes.reduce((n, e) => n + e.joueurs.length, 0);
+    const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+    const texte = etat === "revelees"
+      ? `${pluriel(t.equipes.length, "équipe")}${joueurs ? `, ${pluriel(joueurs, "joueur")}` : ""}. Tous les matchs en BO3 et en direct, du 4 au 20 février 2027.`
+      : scellees === t.equipes.length
+        ? `Les ${t.equipes.length} équipes, leurs noms et leurs joueurs, se dévoilent ${etat === "compte" ? "à cette heure-là" : "bientôt"}, ici et sur le Discord.`
+        : `Encore ${pluriel(scellees, "équipe")} ${scellees > 1 ? "scellées" : "scellée"} : ${scellees > 1 ? "elles se dévoilent" : "elle se dévoile"} ${etat === "compte" ? "à cette heure-là" : "bientôt"}, ici et sur le Discord.`;
+    const date = etat === "compte" ? majuscule(dateLongue(t.revelation, true)) : etat === "bientot" ? "Bientôt" : "Les équipes sont là";
+
+    vider(z,
+      el("div", { class: "revelation-texte" },
+        el("p", { class: "surtitre", text: etat === "revelees" ? "C'est officiel" : "Révélation des équipes" }),
+        el("p", { class: "une-date", text: date }),
+        el("p", { class: "une-texte", text: texte }),
+      ),
+      etat === "compte" ? rebours(t.revelation, true, "revelation", { fin: guetterRevelation, texteFin: "C'est l'heure !" }) : null,
+      el("div", { class: "agents-ligne", "aria-hidden": "true" },
+        ORDRE_AGENTS.map((k, n) => el("img", {
+          src: `/img/agents/agent-${k}.webp`, alt: "", width: AGENTS[k - 1][0], height: 900, loading: "lazy", decoding: "async",
+          class: n % 2 ? "devant" : "", style: `--n:${n};--z:${10 - Math.abs(n - 3)}`,
+        })),
+      ),
+      el("span", { class: `sfx sfx-revelation${etat === "revelees" ? " eclat" : " tremble"}`, "aria-hidden": "true", text: etat === "revelees" ? "ドン！" : "？？？" }),
+    );
+    if (etat !== "compte") clearInterval(minuteurs.revelation);
+  }
+
   function rendreEquipes(t) {
     const z = $("tournoi-equipes");
     const cartes = t.equipes.map((e) => (e.scellee
       // une équipe scellée : ni nom ni joueurs, juste son numéro et le sceau
-      ? el("article", { class: "carte equipe-carte scellee", "aria-label": `Équipe ${e.id} : scellée, révélée bientôt` },
+      ? el("article", { class: "carte equipe-carte scellee", "aria-label": `Équipe ${e.id} : scellée, révélée ${t.revelation ? `le ${dateLongue(t.revelation, true)}` : "bientôt"}` },
         el("span", { class: "equipe-numero", "aria-hidden": "true", text: String(e.id) }),
         el("div", {},
           el("strong", { text: `Équipe ${e.id}` }),
           el("div", { class: "joueurs", "aria-hidden": "true" }, [0, 1, 2].map(() => el("span", { class: "chip mystere", text: "? ? ?" }))),
-          el("p", { class: "scelle-texte", text: "Scellée · révélée bientôt" }),
+          el("p", { class: "scelle-texte", text: t.revelation ? `Scellée · révélée le ${dateCourte(t.revelation)}` : "Scellée · révélée bientôt" }),
         ),
+        buste(e.id),
         el("span", { class: "sceau", "aria-hidden": "true", text: "封" }),
         e.poule ? el("span", { class: "poule-badge", text: `Poule ${e.poule}` }) : null,
       )
@@ -1260,6 +1335,7 @@
           el("strong", { text: e.nom }),
           el("div", { class: "joueurs" }, e.joueurs.length ? e.joueurs.map((j) => el("span", { class: "chip", text: j })) : el("span", { class: "note", text: "Joueurs à venir" })),
         ),
+        buste(e.id),
         e.poule ? el("span", { class: "poule-badge", text: `Poule ${e.poule}` }) : null,
       )));
     const titre = document.querySelector("#tournoi .titre-equipes");
@@ -1273,7 +1349,7 @@
     const t = donnees?.tournoi;
     const etat = $("etat-tournoi");
     // sans données du bot : on garde l'en-tête, le teaser et le message, sans cases vides
-    for (const e of [document.querySelector(".tournoi-grille"), ...document.querySelectorAll("#tournoi .sous-titre")]) if (e) e.hidden = !t;
+    for (const e of [document.querySelector(".tournoi-grille"), $("tournoi-revelation"), ...document.querySelectorAll("#tournoi .sous-titre")]) if (e) e.hidden = !t;
     if (!t) {
       etat.textContent = "Février 2027";
       etat.className = "etiquette";
@@ -1282,6 +1358,8 @@
       vider($("tournoi-arbre"));
       vider($("tournoi-matchs"));
       vider($("tournoi-equipes"));
+      clearInterval(minuteurs.revelation);
+      cleRevelation = "";
       return;
     }
     const direct = Boolean(t.direct);
@@ -1292,6 +1370,7 @@
     rendrePoules(t);
     rendreArbre(t);
     rendreMatchs(t);
+    rendreRevelation(t);
     rendreEquipes(t);
   }
 
