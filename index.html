@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Outfit:wght@300;400;500;600&family=Space+Mono&display=swap">
 <!-- les onomatopées et les kanji (Dela Gothic One), seulement les caractères utilisés -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&text=%E3%80%9C%E3%82%A5%E3%82%AD%E3%82%AF%E3%82%B0%E3%82%B4%E3%82%B7%E3%82%BA%E3%83%83%E3%83%89%E3%83%94%E3%83%A2%E3%83%A7%E3%83%A9%E3%83%AF%E3%83%B3%E3%83%BC%E4%BA%88%E4%BB%B2%E4%BF%A1%E5%8B%95%E5%8C%BB%E5%90%88%E5%AE%9A%E7%94%BB%E8%88%B9%E9%85%8D%E9%96%93%E9%9B%86%EF%BC%81&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&text=%E3%80%9C%E3%82%A4%E3%82%A5%E3%82%AB%E3%82%AD%E3%82%AF%E3%82%B0%E3%82%B4%E3%82%B7%E3%82%B9%E3%82%BA%E3%83%83%E3%83%89%E3%83%91%E3%83%94%E3%83%A2%E3%83%A7%E3%83%A9%E3%83%AF%E3%83%B3%E3%83%BC%E4%BA%88%E4%BB%B2%E4%BC%9A%E4%BF%A1%E5%84%AA%E5%8B%95%E5%8B%9D%E5%8C%BB%E5%90%88%E5%A4%A7%E5%AE%9A%E7%94%BB%E8%88%B9%E9%85%8D%E9%96%93%E9%9B%86%EF%BC%81&display=swap">
 <link rel="stylesheet" href="/site.css">
 <script src="/site.js" defer></script>
 </head>
@@ -33,8 +33,9 @@
     <span>BARHAW</span>
   </a>
   <nav class="nav" id="nav" aria-label="Sections du site">
-    <a href="#accueil" data-lien="accueil">Accueil</a>
+    <a href="#accueil" data-lien="accueil" class="nav-accueil">Accueil</a>
     <a href="#evenements" data-lien="evenements">Events</a>
+    <a href="#tournoi" data-lien="tournoi">Tournoi <span class="pastille-live" id="pastille-tournoi" hidden>Live</span></a>
     <a href="#chaine" data-lien="chaine">Ma chaîne <span class="pastille-live" id="pastille-live" hidden>Live</span></a>
     <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
     <a href="#youtube" data-lien="youtube">YouTube</a>
@@ -115,6 +116,25 @@
     </details>
   </section>
 
+  <!-- ===================== TOURNOI ===================== -->
+  <section id="tournoi" data-section aria-labelledby="titre-tournoi">
+    <span class="kanji" aria-hidden="true">大会</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Valorant · 2e édition</p>
+      <h2 class="titre-section revele" id="titre-tournoi">TOURNOI <span class="degrade">BARHAW.</span> <span class="etiquette" id="etat-tournoi"></span></h2>
+      <p class="sous revele" id="tournoi-sous">6 équipes de 3, tous les matchs en BO3 et en direct, 1 000 € de cashprize. Du 4 au 20 février 2027.</p>
+    </div>
+    <div class="tournoi-une revele" id="tournoi-une"></div>
+    <div class="tournoi-grille">
+      <div class="carte tournoi-poules revele" id="tournoi-poules"></div>
+      <div class="carte tournoi-arbre revele" id="tournoi-arbre"></div>
+    </div>
+    <h3 class="sous-titre revele">Les matchs</h3>
+    <div class="tournoi-matchs" id="tournoi-matchs"></div>
+    <h3 class="sous-titre revele">Les équipes</h3>
+    <div class="tournoi-equipes" id="tournoi-equipes"></div>
+  </section>
+
   <!-- ===================== MA CHAÎNE ===================== -->
   <section id="chaine" data-section aria-labelledby="titre-chaine">
     <span class="kanji" aria-hidden="true">配信</span>
@@ -178,6 +198,30 @@
     <div class="carte resultat" id="resultat" hidden>
       <div class="resultat-anim"><img id="resultat-gif" alt="" width="400" height="400"></div>
       <p class="bulle bulle-resultat" id="resultat-texte"></p>
+    </div>
+    <div class="carte gouter revele" id="gouter">
+      <div class="gouter-jeu" id="gouter-jeu">
+        <canvas id="gouter-canvas" role="img" aria-label="Le goûter de Chopper : Chopper attrape les bonbons qui tombent"></canvas>
+        <div class="gouter-hud" id="gouter-hud" hidden>
+          <span class="gouter-score"><b id="gouter-score">0</b> pts</span>
+          <span class="gouter-combo" id="gouter-combo"></span>
+          <span class="gouter-temps"><b id="gouter-temps">45</b> s</span>
+        </div>
+        <div class="gouter-ecran" id="gouter-ecran"></div>
+      </div>
+      <div class="gouter-cote">
+        <p class="surtitre">Mini-jeu</p>
+        <h3>Le goûter de Chopper</h3>
+        <p>Bouge Chopper avec la souris, le doigt ou les flèches : attrape les bonbons, évite les bombes. <span id="gouter-duree">45</span> secondes.</p>
+        <ul class="gouter-legende">
+          <li><span class="bonbon-mini rose" aria-hidden="true"></span>Bonbon <b>+1</b></li>
+          <li><span class="bonbon-mini choco" aria-hidden="true"></span>Chocolat <b>+2</b></li>
+          <li><span class="bonbon-mini barbe" aria-hidden="true"></span>Barbe à papa <b>+5</b></li>
+          <li><span class="bonbon-mini bombe" aria-hidden="true"></span>Bombe <b>−5</b></li>
+        </ul>
+        <div class="gouter-classement" id="gouter-classement"></div>
+        <p class="note" id="gouter-note"></p>
+      </div>
     </div>
     <div class="chopper-bas">
       <div class="carte defi revele" id="defi" hidden></div>

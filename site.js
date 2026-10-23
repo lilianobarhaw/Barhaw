@@ -267,7 +267,7 @@
     burger.addEventListener("click", () => menu(!nav.classList.contains("ouvert")));
     nav.addEventListener("click", (ev) => { if (ev.target.closest("a")) menu(false); });
     window.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && nav.classList.contains("ouvert")) { menu(false); burger.focus(); } });
-    window.matchMedia("(min-width: 901px)").addEventListener?.("change", (m) => { if (m.matches) menu(false); });
+    window.matchMedia("(min-width: 1181px)").addEventListener?.("change", (m) => { if (m.matches) menu(false); });
   }
 
   // le grand kanji de chaque partie glisse un peu moins vite que la page
@@ -383,6 +383,11 @@
     }, { rootMargin: "-45% 0px -50% 0px" });
     sections.forEach((s) => io.observe(s));
 
+    // le lecteur du match en direct, pareil, près de la partie Tournoi
+    const partieTournoi = $("tournoi");
+    if (partieTournoi) new IntersectionObserver((entrees) => {
+      if (entrees.some((e) => e.isIntersecting) && !tournoiProche) { tournoiProche = true; chargerLecteurTournoi(); }
+    }, { rootMargin: "400px 0px" }).observe(partieTournoi);
     // le lecteur Twitch se prépare un peu avant d'arriver sur « Ma chaîne »
     const chaine = $("chaine");
     if (!chaine) return;
@@ -930,6 +935,7 @@
       donnees = { ...(donnees || {}), chopper: { ...(donnees?.chopper || {}), ...d.chopper } };
       chopperMoi = d.chopper.moi || chopperMoi;
       rendreChopper();
+      rendreClassementJeu();
     }
     const scene = $("chopper-scene");
     if ((action === "nourrir" || action === "jouer") && d.ok) {
@@ -956,6 +962,636 @@
     if (action === "etat") rendreActions();
   }
 
+  // ---------- le TOURNOI BARHAW ----------
+  let tournoiProche = false; // le lecteur du match en direct se charge en arrivant près de la partie Tournoi
+  let cleLecteurTournoi = "";
+  let cleUne = "";
+  let minuteurFinale = null;
+  const nomEquipe = (x, attente) => x?.nom || attente || "À définir";
+  const quandMatch = (m) => (m.date ? majuscule(dateLongue(m.date, m.heure)) : "Date à venir");
+
+  // des petites manches, comme des points de vie : ●●○
+  function manches(n) {
+    return el("span", { class: "manches", "aria-label": `${n} manche${n > 1 ? "s" : ""}` }, [0, 1].map((k) => el("i", { class: k < n ? "gagnee" : "" })));
+  }
+
+  function rebours(cible, avecHeure) {
+    const z = el("div", { class: "rebours", role: "timer" });
+    const tic = () => {
+      const reste = cible - Date.now();
+      if (reste <= 0) { vider(z, el("span", { class: "tampon", text: "C'est le jour J !" })); return false; }
+      if (!avecHeure) {
+        const j = Math.ceil(reste / 86_400_000);
+        vider(z, el("div", { class: "jour-j" }, el("b", { text: `J-${j}` }), el("small", { text: j > 1 ? "jours" : "jour" })));
+        return true;
+      }
+      const s = Math.floor(reste / 1000);
+      const parts = [[Math.floor(s / 86400), "jours"], [Math.floor((s % 86400) / 3600), "heures"], [Math.floor((s % 3600) / 60), "min"], [s % 60, "sec"]];
+      vider(z, parts.map(([v, u]) => el("div", {}, el("b", { text: String(v).padStart(2, "0") }), el("small", { text: u }))));
+      return true;
+    };
+    clearInterval(minuteurFinale);
+    if (tic()) minuteurFinale = setInterval(() => { if (!tic()) clearInterval(minuteurFinale); }, 1000);
+    return z;
+  }
+
+  function rendreUne(t) {
+    const z = $("tournoi-une");
+    const direct = t.direct ? t.matchs.find((m) => m.id === t.direct) : null;
+    const finale = t.matchs.find((m) => m.id === "F");
+    const prochain = t.matchs.find((m) => !m.fini && m.date && m.a && m.b && m.id !== t.direct);
+    const etat = t.champion ? "champion" : direct ? `direct:${direct.id}` : "finale";
+    const cle = JSON.stringify([etat, t.champion, direct?.score, direct?.cartes, direct?.a, direct?.b, finale?.date, finale?.heure, prochain?.id, prochain?.date]);
+    if (cle === cleUne) return;
+    cleUne = cle;
+    z.className = `tournoi-une revele vu une-${etat.split(":")[0]}`;
+
+    if (t.champion) {
+      clearInterval(minuteurFinale);
+      const f = finale;
+      vider(z,
+        el("span", { class: "sfx sfx-champion eclat", "aria-hidden": "true", text: "優勝" }),
+        el("p", { class: "surtitre", text: `Champions du ${t.nom}` }),
+        el("p", { class: "champion-nom degrade", text: t.champion.nom }),
+        el("p", { class: "champion-joueurs", text: t.champion.joueurs.join(" · ") }),
+        f ? el("p", { class: "champion-finale", text: `Finale : ${nomEquipe(f.a)} ${f.score[0]} – ${f.score[1]} ${nomEquipe(f.b)}${f.cartes ? ` · ${f.cartes}` : ""}` }) : null,
+        el("span", { class: "etiquette", text: `${t.cashprize} de cashprize` }),
+      );
+      return;
+    }
+
+    if (direct) {
+      clearInterval(minuteurFinale);
+      const lecteur = el("div", { class: "tournoi-lecteur", id: "tournoi-lecteur" }, el("div", { class: "lecteur-attente", text: "Le lecteur se charge quand tu arrives ici…" }));
+      cleLecteurTournoi = "";
+      vider(z,
+        el("div", { class: "une-info" },
+          el("p", { class: "surtitre" }, el("span", { class: "point", "aria-hidden": "true" }), `En direct · ${direct.titre}`),
+          el("div", { class: "tableau-score" },
+            el("div", { class: "camp" }, el("strong", { text: nomEquipe(direct.a) }), manches(direct.score[0])),
+            el("div", { class: "score-geant" }, el("b", { text: String(direct.score[0]) }), el("span", { text: "–" }), el("b", { text: String(direct.score[1]) })),
+            el("div", { class: "camp" }, el("strong", { text: nomEquipe(direct.b) }), manches(direct.score[1])),
+          ),
+          direct.cartes ? el("div", { class: "details" }, direct.cartes.split(",").map((c) => el("span", { class: "chip", text: c.trim() }))) : null,
+          el("a", { class: "btn btn-plein btn-petit", href: `https://www.twitch.tv/${MA_CHAINE}`, ...externe, text: "Ouvrir sur Twitch" }),
+        ),
+        lecteur,
+        el("span", { class: "sfx sfx-coin violet tremble eclat", "aria-hidden": "true", text: "ゴゴゴ" }),
+      );
+      chargerLecteurTournoi();
+      return;
+    }
+
+    // la finale arrive : compte à rebours
+    vider(z,
+      el("div", { class: "une-info" },
+        el("p", { class: "surtitre", text: "La grande finale" }),
+        el("p", { class: "une-date", text: finale?.date ? majuscule(dateLongue(finale.date, finale.heure)) : "Samedi 20 février 2027" }),
+        el("p", { class: "une-texte", text: `En BO3 et en direct, avec ${t.cashprize} de cashprize sur le tournoi. Le soir même, ouverture du casting d'Osiris.` }),
+        prochain ? el("p", { class: "une-prochain" }, el("span", { text: "Prochain match" }), `${nomEquipe(prochain.a)} contre ${nomEquipe(prochain.b)} · ${quandMatch(prochain)}`) : null,
+      ),
+      finale?.date ? rebours(finale.date, finale.heure) : null,
+      el("span", { class: "sfx sfx-coin tremble eclat", "aria-hidden": "true", text: "ドドド" }),
+    );
+  }
+
+  function chargerLecteurTournoi() {
+    const z = $("tournoi-lecteur");
+    if (!z || !tournoiProche || cleLecteurTournoi === "ok") return;
+    cleLecteurTournoi = "ok";
+    vider(z, lecteurTwitch(MA_CHAINE));
+  }
+
+  function rendrePoules(t) {
+    const z = $("tournoi-poules");
+    if (!t.poules) {
+      vider(z,
+        el("h3", { text: "Les poules" }),
+        el("p", { class: "note", text: "Le tirage au sort des deux poules de 3 se fera en live. Chacun contre chacun, les deux premiers vont en demi-finale." }),
+        el("div", { class: "poules-vides" }, ["A", "B"].map((l) => el("div", { class: "poule-vide" }, el("b", { text: l }), el("span", { text: "? · ? · ?" })))),
+      );
+      return;
+    }
+    const table = (lettre, lignes) => el("div", { class: "poule" },
+      el("p", { class: "poule-titre" }, el("b", { text: lettre, "aria-hidden": "true" }), `Poule ${lettre}`),
+      el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "#" }), el("th", { scope: "col", text: "Équipe" }), el("th", { scope: "col", text: "V" }), el("th", { scope: "col", text: "D" }), el("th", { scope: "col", text: "Manches" }))),
+        el("tbody", {}, lignes.map((x, k) => el("tr", { class: k < 2 ? "qualifie" : "" },
+          el("td", { text: String(k + 1) }),
+          el("td", { class: "nom", text: x.nom }),
+          el("td", { text: String(x.v) }),
+          el("td", { text: String(x.d) }),
+          el("td", { text: `${x.mp}-${x.mc}` }),
+        ))),
+      ),
+    );
+    vider(z, el("h3", { text: "Les poules" }), el("div", { class: "poules" }, table("A", t.poules.A), table("B", t.poules.B)), el("p", { class: "note", text: "Les deux premiers de chaque poule vont en demi-finale." }));
+  }
+
+  function boiteMatch(m) {
+    const ligne = (equipe, attente, score, gagnant) => el("div", { class: `ligne-match${gagnant ? " gagnant" : ""}${equipe ? "" : " attente"}` },
+      el("span", { class: "nom", text: nomEquipe(equipe, attente) }),
+      el("b", { text: m.fini || m.score[0] + m.score[1] > 0 ? String(score) : "–" }),
+    );
+    return el("div", { class: `boite-match${m.enDirect ? " direct" : ""}${m.fini ? " fini" : ""}` },
+      el("p", { class: "boite-titre" }, m.titre, m.enDirect ? el("span", { class: "etiquette live", text: "● Live" }) : null),
+      ligne(m.a, m.attenteA, m.score[0], m.fini && m.vainqueur === m.a?.id),
+      ligne(m.b, m.attenteB, m.score[1], m.fini && m.vainqueur === m.b?.id),
+      el("p", { class: "boite-date", text: quandMatch(m) }),
+    );
+  }
+
+  function rendreArbre(t) {
+    const m = (id) => t.matchs.find((x) => x.id === id);
+    vider($("tournoi-arbre"),
+      el("h3", { text: "La phase finale" }),
+      el("div", { class: "arbre" },
+        el("div", { class: "arbre-demis" }, boiteMatch(m("D1")), boiteMatch(m("D2"))),
+        el("div", { class: "arbre-liens", "aria-hidden": "true" }),
+        el("div", { class: "arbre-finale" }, boiteMatch(m("F"))),
+      ),
+    );
+  }
+
+  function rendreMatchs(t) {
+    const z = $("tournoi-matchs");
+    const poules = t.matchs.filter((m) => m.phase === "poule");
+    if (!poules.length) {
+      vider(z, el("p", { class: "vide carte", text: "Les matchs de poule apparaîtront après le tirage au sort." }));
+      return;
+    }
+    const cartes = poules.map((m) => el("article", { class: `carte match${m.enDirect ? " direct" : ""}${m.fini ? " fini" : ""}` },
+      el("div", { class: "haut" },
+        el("span", { class: "type", text: m.titre }),
+        el("span", { class: `statut${m.enDirect ? " live" : ""}`, text: m.enDirect ? "● En direct" : m.fini ? "Terminé" : m.score[0] + m.score[1] > 0 ? "En cours" : "À venir" }),
+      ),
+      el("div", { class: "affiche" },
+        el("span", { class: `equipe${m.fini && m.vainqueur === m.a?.id ? " gagnant" : ""}`, text: nomEquipe(m.a) }),
+        el("span", { class: "score", text: m.fini || m.score[0] + m.score[1] > 0 ? `${m.score[0]} – ${m.score[1]}` : "VS" }),
+        el("span", { class: `equipe${m.fini && m.vainqueur === m.b?.id ? " gagnant" : ""}`, text: nomEquipe(m.b) }),
+      ),
+      el("p", { class: "quand", text: quandMatch(m) }),
+      m.cartes ? el("div", { class: "details" }, m.cartes.split(",").map((c) => el("span", { class: "chip", text: c.trim() }))) : null,
+    ));
+    const vu = dejaVu(z);
+    vider(z, cartes);
+    apparaitre(cartes, vu);
+  }
+
+  function rendreEquipes(t) {
+    const z = $("tournoi-equipes");
+    const cartes = t.equipes.map((e) => el("article", { class: `carte equipe-carte${t.champion?.id === e.id ? " championne" : ""}` },
+      el("span", { class: "equipe-numero", "aria-hidden": "true", text: String(e.id) }),
+      el("div", {},
+        el("strong", { text: e.nom }),
+        el("div", { class: "joueurs" }, e.joueurs.length ? e.joueurs.map((j) => el("span", { class: "chip", text: j })) : el("span", { class: "note", text: "Joueurs à venir" })),
+      ),
+      e.poule ? el("span", { class: "poule-badge", text: `Poule ${e.poule}` }) : null,
+    ));
+    const vu = dejaVu(z);
+    vider(z, cartes);
+    apparaitre(cartes, vu);
+  }
+
+  function rendreTournoi() {
+    const t = donnees?.tournoi;
+    const etat = $("etat-tournoi");
+    if (!t) {
+      etat.textContent = "Février 2027";
+      etat.className = "etiquette";
+      vider($("tournoi-une"), el("p", { class: "vide", text: donnees?.horsLigne ? "Le tableau du tournoi revient dans un instant." : "Le tableau du tournoi arrive bientôt." }));
+      vider($("tournoi-poules"));
+      vider($("tournoi-arbre"));
+      vider($("tournoi-matchs"));
+      vider($("tournoi-equipes"));
+      return;
+    }
+    const direct = Boolean(t.direct);
+    etat.textContent = t.champion ? "Terminé" : direct ? "● En direct" : t.enCours ? "En cours" : "Février 2027";
+    etat.className = `etiquette${direct ? " live" : ""}`;
+    $("pastille-tournoi").hidden = !direct;
+    rendreUne(t);
+    rendrePoules(t);
+    rendreArbre(t);
+    rendreMatchs(t);
+    rendreEquipes(t);
+  }
+
+  // ---------- le goûter de Chopper (mini-jeu) ----------
+  const GOUTER = {
+    bonbon: { points: 1, poids: 55 },
+    chocolat: { points: 2, poids: 22 },
+    barbe: { points: 5, poids: 6 },
+    bombe: { points: -5, poids: 17 },
+  };
+  let jeu = null; // l'état du goûter, une fois la partie prête
+  function gouter() {
+    const zone = $("gouter");
+    const canvas = $("gouter-canvas");
+    if (!zone || !canvas?.getContext) return;
+    const ctx = canvas.getContext("2d");
+    const photo = new Image();
+    photo.src = "/img/chopper-visage.jpg";
+    const COULEURS = ["#ff7ab0", "#bf9bff", "#ffd166", "#7ee0f5", "#ff9a6b"];
+    let L = 0;
+    let H = 0;
+    let cibleX = null;
+    const touches = { gauche: false, droite: false };
+    let boucle = 0;
+    let dernier = 0;
+    let decor = 0;
+    let meilleurLocal = 0;
+    try { meilleurLocal = Number(localStorage.getItem("barhaw-gouter")) || 0; } catch {}
+
+    const s = {
+      etat: "accueil", score: 0, combo: 0, temps: 45_000, duree: 45_000, x: 0, objets: [], effets: [], prochain: 0,
+      secousse: 0, flash: 0, mord: 0, partie: "", envoi: false,
+    };
+    jeu = s;
+
+    function taille() {
+      const r = canvas.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      L = Math.max(200, r.width);
+      H = Math.max(200, r.height);
+      canvas.width = Math.round(L * dpr);
+      canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      s.x = s.x ? Math.min(Math.max(s.x, 0), L) : L / 2;
+      dessiner(performance.now());
+    }
+    const rayon = () => Math.max(28, Math.min(46, L * 0.055));
+    const taillesObjet = () => Math.max(16, Math.min(26, L * 0.03));
+
+    // ---------- les écrans ----------
+    function ecran(...contenu) { vider($("gouter-ecran"), ...contenu); $("gouter-ecran").hidden = false; }
+    function ecranAccueil() {
+      ecran(
+        el("p", { class: "gouter-titre" }, "Le goûter", el("br"), el("span", { class: "degrade", text: "de Chopper" })),
+        el("p", { class: "gouter-texte", text: "Chopper a un petit creux. Attrape un maximum de bonbons… et pas les bombes !" }),
+        el("button", { class: "btn btn-plein", type: "button", onclick: () => lancer(), text: "Jouer" }),
+        el("p", { class: "note", text: compteJeu() ? "Ton score compte pour le classement des potes de Chopper." : "Connecte-toi avec Discord pour que ton score compte." }),
+      );
+    }
+    const compteJeu = () => Boolean(moi?.connecte && !chopperMoi?.pasMembre && donnees?.chopper?.actif);
+
+    // ---------- une partie ----------
+    async function lancer() {
+      if (s.etat === "jeu" || s.etat === "pret") return;
+      s.etat = "pret";
+      s.partie = "";
+      s.duree = Math.max(5, Number(donnees?.chopper?.jeu?.duree) || 45) * 1000;
+      if (compteJeu()) {
+        try {
+          const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "jeu-debut" }) });
+          const d = await r.json().catch(() => ({}));
+          if (d.ok && d.partie) { s.partie = d.partie; s.duree = Math.max(5, Number(d.duree) || 45) * 1000; }
+        } catch {}
+      }
+      Object.assign(s, { etat: "jeu", score: 0, combo: 0, temps: s.duree, objets: [], effets: [], prochain: 600, secousse: 0, flash: 0, x: L / 2 });
+      cibleX = null;
+      $("gouter-ecran").hidden = true;
+      $("gouter-hud").hidden = false;
+      $("gouter-temps").textContent = String(Math.ceil(s.temps / 1000));
+      majHud();
+      canvas.focus?.({ preventScroll: true });
+      demarrerBoucle();
+    }
+
+    function majHud() {
+      $("gouter-score").textContent = String(s.score);
+      $("gouter-combo").textContent = s.combo >= 3 ? `Combo ×${s.combo}` : "";
+    }
+
+    async function finir() {
+      s.etat = "fin";
+      $("gouter-hud").hidden = true;
+      const score = s.score;
+      const record = score > meilleurLocal;
+      if (record) { meilleurLocal = score; try { localStorage.setItem("barhaw-gouter", String(score)); } catch {} }
+      const resultat = el("p", { class: "gouter-texte", text: s.partie ? "J'envoie ton score à Chopper…" : record && score > 0 ? "Nouveau record perso !" : `Ton record : ${meilleurLocal} points.` });
+      ecran(
+        el("p", { class: "gouter-fin", text: "Fin du goûter !" }),
+        el("p", { class: "gouter-points" }, el("b", { class: "degrade", text: String(score) }), " points"),
+        resultat,
+        el("button", { class: "btn btn-plein", type: "button", onclick: () => lancer(), text: "Rejouer" }),
+      );
+      if (!s.partie) return;
+      const partie = s.partie;
+      s.partie = "";
+      try {
+        const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "jeu-fin", partie, score }) });
+        const d = await r.json().catch(() => ({}));
+        if (d.chopper) {
+          donnees = { ...(donnees || {}), chopper: { ...(donnees?.chopper || {}), ...d.chopper } };
+          rendreClassementJeu();
+        }
+        if (d.ok) {
+          resultat.textContent = [
+            d.record ? "Nouveau record du goûter, bravo !" : d.perso ? "Nouveau record perso cette semaine !" : `Ton meilleur cette semaine : ${d.meilleur} points.`,
+            d.recompense ? `Chopper est content : ${d.recompense}.` : d.restant > 0 ? "Attrape au moins un bonbon pour que la partie rapporte." : "Tes 3 parties qui rapportent sont faites pour aujourd'hui.",
+          ].join(" ");
+        } else {
+          resultat.textContent = d.texte || d.erreur || "Ton score n'a pas pu être envoyé.";
+        }
+      } catch {
+        resultat.textContent = "Ton score n'a pas pu être envoyé (pas de connexion).";
+      }
+    }
+
+    // ---------- ce qui tombe ----------
+    function tirer() {
+      const p = 1 - s.temps / s.duree;
+      const poids = Object.entries(GOUTER).map(([k, v]) => [k, k === "bombe" ? v.poids + 8 * p : v.poids]);
+      let n = Math.random() * poids.reduce((a, [, w]) => a + w, 0);
+      for (const [k, w] of poids) { n -= w; if (n <= 0) return k; }
+      return "bonbon";
+    }
+    function ajouterObjet() {
+      const type = tirer();
+      const t = taillesObjet() * (type === "barbe" ? 1.25 : type === "bombe" ? 1.1 : 1);
+      const p = 1 - s.temps / s.duree;
+      s.objets.push({
+        type, t, x: t + Math.random() * (L - 2 * t), y: -t,
+        v: H * (0.32 + 0.42 * p + Math.random() * 0.14), // pixels par seconde
+        a: Math.random() * Math.PI * 2, va: (Math.random() - 0.5) * 3,
+        couleur: COULEURS[Math.floor(Math.random() * COULEURS.length)],
+      });
+    }
+    function effet(texte, x, y, { sfx = false, couleur = "#fff", taille = 18 } = {}) {
+      s.effets.push({ texte, x, y, sfx, couleur, taille, vie: 1 });
+    }
+
+    function avancer(dt) {
+      if (s.etat !== "jeu") return;
+      s.temps -= dt;
+      $("gouter-temps").textContent = String(Math.max(0, Math.ceil(s.temps / 1000)));
+      // Chopper suit la souris ou le doigt, ou les flèches
+      const vitesse = L * 1.3 * (dt / 1000);
+      if (touches.gauche) { cibleX = null; s.x -= vitesse; }
+      if (touches.droite) { cibleX = null; s.x += vitesse; }
+      if (cibleX !== null) s.x += (cibleX - s.x) * Math.min(1, dt / 70);
+      const R = rayon();
+      s.x = Math.max(R, Math.min(L - R, s.x));
+      // apparitions, de plus en plus serrées
+      const p = 1 - s.temps / s.duree;
+      s.prochain -= dt;
+      if (s.prochain <= 0) { ajouterObjet(); s.prochain = 1000 / (0.9 + 1.4 * p) * (0.7 + Math.random() * 0.6); }
+      const yChopper = H - R - 16;
+      for (const o of s.objets) {
+        o.y += o.v * (dt / 1000);
+        o.a += o.va * (dt / 1000);
+        if (!o.fini && Math.abs(o.y - yChopper) < R * 0.75 + o.t * 0.5 && Math.abs(o.x - s.x) < R * 0.9 + o.t * 0.6) {
+          o.fini = true;
+          const g = GOUTER[o.type];
+          if (o.type === "bombe") {
+            s.score = Math.max(0, s.score + g.points);
+            s.combo = 0;
+            s.secousse = reduit.matches ? 0 : 1;
+            s.flash = 1;
+            effet("ドカーン", o.x, yChopper - R * 1.6, { sfx: true, couleur: "#ff9a6b", taille: 34 });
+            effet("−5", o.x + 30, yChopper - R, { couleur: "#ff8fb4" });
+          } else {
+            s.combo++;
+            s.score += g.points;
+            s.mord = 1;
+            effet(`+${g.points}`, o.x, yChopper - R, { couleur: o.type === "barbe" ? "#ffb3d9" : "#fff" });
+            if (o.type === "barbe") effet("キラッ", s.x, yChopper - R * 2, { sfx: true, couleur: "#ffb3d9", taille: 28 });
+            else if (s.combo % 10 === 0) { s.score += 5; effet("スゴイ！", s.x, yChopper - R * 2.1, { sfx: true, couleur: "#ffd166", taille: 32 }); effet("+5", s.x + 40, yChopper - R * 1.4, { couleur: "#ffd166" }); }
+            else if (Math.random() < 0.18) effet("パクッ", s.x, yChopper - R * 1.8, { sfx: true, couleur: "#ff7ab0", taille: 24 });
+          }
+          majHud();
+        }
+        if (!o.fini && o.y > H + o.t) {
+          o.fini = true;
+          if (o.type !== "bombe" && s.combo) { s.combo = 0; majHud(); }
+        }
+      }
+      s.objets = s.objets.filter((o) => !o.fini);
+      for (const e of s.effets) { e.vie -= dt / 900; e.y -= dt * 0.04; }
+      s.effets = s.effets.filter((e) => e.vie > 0);
+      s.secousse = Math.max(0, s.secousse - dt / 350);
+      s.flash = Math.max(0, s.flash - dt / 250);
+      s.mord = Math.max(0, s.mord - dt / 180);
+      if (s.temps <= 0) finir();
+    }
+
+    // ---------- le dessin ----------
+    function dessinerObjet(o) {
+      const t = o.t;
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      if (o.type === "bonbon") {
+        ctx.rotate(o.a);
+        ctx.fillStyle = o.couleur;
+        for (const sens of [-1, 1]) { // les papillotes
+          ctx.beginPath();
+          ctx.moveTo(sens * t * 0.55, 0);
+          ctx.lineTo(sens * t * 1.15, -t * 0.45);
+          ctx.lineTo(sens * t * 1.15, t * 0.45);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.ellipse(0, 0, t * 0.65, t * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.55)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-t * 0.25, -t * 0.4);
+        ctx.lineTo(t * 0.05, t * 0.45);
+        ctx.stroke();
+      } else if (o.type === "chocolat") {
+        ctx.rotate(o.a * 0.3);
+        ctx.fillStyle = "#6b3a2a";
+        ctx.beginPath();
+        ctx.roundRect(-t * 0.75, -t * 0.55, t * 1.5, t * 1.1, 4);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,.35)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -t * 0.55); ctx.lineTo(0, t * 0.55);
+        ctx.moveTo(-t * 0.75, 0); ctx.lineTo(t * 0.75, 0);
+        ctx.stroke();
+        ctx.fillStyle = "#d9d4e4"; // le papier alu
+        ctx.beginPath();
+        ctx.moveTo(t * 0.2, t * 0.55); ctx.lineTo(t * 0.75, t * 0.05); ctx.lineTo(t * 0.75, t * 0.55); ctx.closePath();
+        ctx.fill();
+      } else if (o.type === "barbe") {
+        ctx.strokeStyle = "#f5f0fb";
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(0, t * 0.3); ctx.lineTo(0, t * 1.3); ctx.stroke();
+        ctx.shadowColor = "rgba(255,150,200,.8)";
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = "#ffb3d9";
+        for (const [dx, dy, r] of [[0, -t * 0.25, 0.6], [-t * 0.45, 0, 0.45], [t * 0.45, 0, 0.45], [-t * 0.2, t * 0.25, 0.4], [t * 0.2, t * 0.25, 0.4]]) {
+          ctx.beginPath(); ctx.arc(dx, dy, t * r, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        ctx.fillStyle = "#15111d";
+        ctx.strokeStyle = "#3a2f4d";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, t * 0.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,.25)";
+        ctx.beginPath(); ctx.arc(-t * 0.25, -t * 0.25, t * 0.18, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#c9b38a";
+        ctx.beginPath(); ctx.moveTo(t * 0.35, -t * 0.55); ctx.quadraticCurveTo(t * 0.6, -t * 1.05, t * 0.95, -t * 0.95); ctx.stroke();
+        ctx.fillStyle = Math.random() < 0.5 ? "#ffd166" : "#ff7a3d"; // l'étincelle de la mèche
+        ctx.beginPath(); ctx.arc(t * 0.95, -t * 0.95, t * 0.16 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function dessiner(t) {
+      if (!L) return;
+      ctx.save();
+      ctx.clearRect(0, 0, L, H);
+      if (s.secousse) ctx.translate((Math.random() - 0.5) * 12 * s.secousse, (Math.random() - 0.5) * 12 * s.secousse);
+      // le fond : la nuit, et des lignes de vitesse qui partent de Chopper
+      const fond = ctx.createLinearGradient(0, 0, 0, H);
+      fond.addColorStop(0, "#110b1c");
+      fond.addColorStop(1, "#1d1030");
+      ctx.fillStyle = fond;
+      ctx.fillRect(-20, -20, L + 40, H + 40);
+      const R = rayon();
+      const yC = H - R - 16;
+      decor = t / 1000;
+      ctx.save();
+      ctx.translate(s.x || L / 2, yC);
+      ctx.strokeStyle = s.etat === "jeu" && s.combo >= 10 ? "rgba(255,180,220,.16)" : "rgba(191,155,255,.09)";
+      ctx.lineWidth = 1;
+      const n = 48;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + Math.sin(decor * 0.6) * 0.02 + (Math.floor(decor * 8) % 2) * 0.01;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * R * 2.2, Math.sin(a) * R * 2.2);
+        ctx.lineTo(Math.cos(a) * Math.max(L, H) * 1.2, Math.sin(a) * Math.max(L, H) * 1.2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // le sol
+      ctx.fillStyle = "rgba(155,92,255,.12)";
+      ctx.fillRect(-20, H - 10, L + 40, 30);
+
+      for (const o of s.objets) dessinerObjet(o);
+
+      // Chopper : sa photo dans un anneau violet-rose
+      const echelle = 1 + 0.12 * s.mord;
+      ctx.save();
+      ctx.translate(s.x || L / 2, yC + Math.sin(decor * 4) * 2);
+      ctx.scale(echelle, 1 / echelle);
+      const anneau = ctx.createLinearGradient(-R, -R, R, R);
+      anneau.addColorStop(0, "#c7a6ff");
+      anneau.addColorStop(0.5, "#9b5cff");
+      anneau.addColorStop(1, "#e3447f");
+      ctx.shadowColor = "rgba(155,92,255,.7)";
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = anneau;
+      ctx.beginPath(); ctx.arc(0, 0, R + 4, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+      if (photo.complete && photo.naturalWidth) ctx.drawImage(photo, -R, -R, R * 2, R * 2);
+      else { ctx.fillStyle = "#e8b48a"; ctx.fillRect(-R, -R, R * 2, R * 2); }
+      ctx.restore();
+
+      // les effets : +1, onomatopées
+      for (const e of s.effets) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, e.vie * 1.5));
+        ctx.textAlign = "center";
+        if (e.sfx) {
+          ctx.translate(e.x, e.y);
+          ctx.rotate(-0.12);
+          ctx.font = `${e.taille}px "Dela Gothic One", "Unbounded", sans-serif`;
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = "#0b0712";
+          ctx.strokeText(e.texte, 3, 3);
+          ctx.fillStyle = "#9b5cff";
+          ctx.fillText(e.texte, 3, 3);
+          ctx.strokeText(e.texte, 0, 0);
+          ctx.fillStyle = e.couleur;
+          ctx.fillText(e.texte, 0, 0);
+        } else {
+          ctx.font = `700 ${e.taille}px "Unbounded", "Outfit", sans-serif`;
+          ctx.fillStyle = e.couleur;
+          ctx.fillText(e.texte, e.x, e.y);
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+      if (s.flash) { ctx.fillStyle = `rgba(255,255,255,${0.35 * s.flash})`; ctx.fillRect(0, 0, L, H); }
+    }
+
+    function image(t) {
+      boucle = 0;
+      const dt = dernier ? Math.min(50, t - dernier) : 16;
+      dernier = t;
+      if (!document.hidden) avancer(dt);
+      dessiner(t);
+      if (s.etat === "jeu" || s.effets.length) boucle = requestAnimationFrame(image);
+    }
+    function demarrerBoucle() {
+      if (boucle) return;
+      dernier = 0;
+      boucle = requestAnimationFrame(image);
+    }
+
+    // ---------- les commandes ----------
+    const viser = (clientX) => { const r = canvas.getBoundingClientRect(); cibleX = clientX - r.left; };
+    canvas.addEventListener("pointermove", (e) => { if (s.etat === "jeu") viser(e.clientX); });
+    canvas.addEventListener("pointerdown", (e) => { if (s.etat === "jeu") { viser(e.clientX); canvas.setPointerCapture?.(e.pointerId); } });
+    canvas.tabIndex = 0;
+    const touche = (e, bas) => {
+      if (s.etat !== "jeu") return;
+      const k = e.key.toLowerCase();
+      if (k === "arrowleft" || k === "q" || k === "a") { touches.gauche = bas; e.preventDefault(); }
+      if (k === "arrowright" || k === "d") { touches.droite = bas; e.preventDefault(); }
+    };
+    window.addEventListener("keydown", (e) => touche(e, true));
+    window.addEventListener("keyup", (e) => touche(e, false));
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && s.etat === "jeu") demarrerBoucle(); });
+    let attente = 0;
+    window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(taille, 150); });
+    photo.addEventListener("load", () => dessiner(performance.now()));
+
+    // la zone de jeu peut changer de taille sans que la fenêtre change (mise en page, polices) : on suit le canvas
+    if ("ResizeObserver" in window) {
+      let dernierL = 0;
+      let dernierH = 0;
+      new ResizeObserver(() => {
+        const r = canvas.getBoundingClientRect();
+        if (Math.abs(r.width - dernierL) < 1 && Math.abs(r.height - dernierH) < 1) return;
+        dernierL = r.width;
+        dernierH = r.height;
+        taille();
+      }).observe(canvas);
+    }
+    taille();
+    ecranAccueil();
+    s.rafraichirAccueil = () => { if (s.etat === "accueil") ecranAccueil(); };
+  }
+
+  // le classement du goûter, à côté du jeu
+  function rendreClassementJeu() {
+    const z = $("gouter-classement");
+    if (!z) return;
+    const j = donnees?.chopper?.jeu;
+    $("gouter-duree").textContent = String(j?.duree || 45);
+    jeu?.rafraichirAccueil?.();
+    if (!j) { vider(z); $("gouter-note").textContent = ""; return; }
+    vider(z,
+      j.record ? el("p", { class: "gouter-record" }, el("span", { text: "Record" }), el("b", { text: `${j.record.score} pts` }), el("span", { class: "qui", text: j.record.nom })) : null,
+      el("p", { class: "sous-titre-jeu", text: "Cette semaine" }),
+      j.semaine?.length
+        ? el("ol", {}, j.semaine.map((x) => el("li", {}, el("span", { text: x.nom }), el("small", { text: `${x.score} pts` }))))
+        : el("p", { class: "note", text: "Personne pour l'instant : à toi de jouer !" }),
+    );
+    const m = j.moi;
+    $("gouter-note").textContent = m
+      ? `Ton meilleur cette semaine : ${m.meilleur} pts · parties qui rapportent aujourd'hui : ${m.restant}/3.`
+      : moi?.connecte ? "" : "Connecte-toi avec Discord pour que ton score compte.";
+  }
+
   // ---------- chargement ----------
   function rendreTout() {
     rendreEntete();
@@ -967,6 +1603,8 @@
     rendreYoutube();
     rendreDiscord();
     rendreChopper();
+    rendreTournoi();
+    rendreClassementJeu();
   }
 
   async function charger() {
@@ -989,6 +1627,7 @@
     }
     rendreCompte();
     rendreActions();
+    rendreClassementJeu();
     if (moi?.connecte) agir("etat");
   }
 
@@ -1006,12 +1645,15 @@
       u.searchParams.delete("connexion");
       history.replaceState(null, "", u.pathname + u.search + u.hash);
     }
-    if (!("IntersectionObserver" in window)) chaineProche = true;
+    if (!("IntersectionObserver" in window)) { chaineProche = true; tournoiProche = true; }
     suiviSections();
     window.matchMedia("(min-width: 901px)").addEventListener?.("change", () => rendreChaine());
     rendreMaintenant();
     rendreEvenements();
+    rendreTournoi();
     rendreCompte();
+    gouter();
+    rendreClassementJeu();
     charger();
     chargerMoi();
     setInterval(charger, 60_000);

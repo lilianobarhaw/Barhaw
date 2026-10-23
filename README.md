@@ -8,7 +8,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 
 | Fichier | Rôle |
 | --- | --- |
-| `index.html`, `site.css`, `site.js` | La page (parties Accueil, Events, Ma chaîne, Potes, YouTube, Chopper, Discord) |
+| `index.html`, `site.css`, `site.js` | La page (parties Accueil, Events, Tournoi, Ma chaîne, Potes, YouTube, Chopper avec son mini-jeu, Discord) |
 | `mentions.html` | Mentions, données personnelles, cookies, crédits (adresse `/mentions`) |
 | `api/public.js` | Ce que la page affiche, demandé au bot (gardé 20 s par Vercel) |
 | `api/chopper.js` | La carte et les animations de Chopper ; nourrir, jouer et parler au nom du membre connecté |
@@ -46,6 +46,9 @@ Si le site change d'adresse (domaine à toi, autre nom de projet) : changer `SIT
 - **Si le bot ne répond pas** (VPS éteint) : la page s'affiche quand même, avec les événements prévus (une copie est dans `site.js`, `SECOURS`) ; les lives, les potes et Chopper reviennent dès que le bot répond.
 - **Ma chaîne** : en live, le lecteur Twitch et le chat ; sinon, la chaîne rediff du bot (tes anciens lives en boucle) ; sinon, un message « pas de live ». Le lecteur se charge seulement quand on arrive près de cette partie, sans le son.
 - **YouTube** : la dernière vidéo (chargée seulement au clic, mode « confidentialité renforcée »), les autres, et les Shorts à part.
+- **Le tournoi** : tout vient du bot (`/tournoi` sur Discord : équipes, tirage des poules, dates, scores). Pendant un match, la partie Tournoi affiche le score en direct et le lecteur de ta chaîne ; sinon le compte à rebours de la finale. L'adresse directe : `/#tournoi`.
+- **Le goûter de Chopper** : le mini-jeu, dans la partie Chopper (adresse directe : `/#gouter`). Tout le monde peut jouer ; pour les membres connectés, le bot ouvre la partie, vérifie le score à la fin et le compte pour le classement (voir le LISEZMOI du bot).
+- **Le salon du site sur Discord** : `/site salon` poste une carte avec des boutons qui ouvrent le site, le tournoi et le goûter.
 - **Chopper** : la connexion Discord ouvre une session de 30 jours. Le bot vérifie que la personne est sur le serveur Barhaw (sinon : « Rejoins le Discord »). Nourrir et jouer, c'est une fois par jour, avec le même compteur que sur Discord ; la scène est aussi postée dans le salon de Chopper, avec son animation. Parler : une fois toutes les 2 minutes (réponse de l'IA du bot si `CLE_IA` est rempli, sinon des phrases toutes prêtes).
 - **Sécurité** : les demandes du site au bot sont signées avec `BOT_CLE` et l'heure ; une demande trop vieille ou déjà vue est refusée, et la clé ne circule jamais. Aucun texte venu de l'extérieur (titres de live, événements, pseudos) n'est inséré comme du HTML. La politique de sécurité (`vercel.json`) n'autorise que les lecteurs Twitch et YouTube dans la page.
 - **La musique** : le bouton « Musique » (en bas à gauche) lance « Charger » dans le lecteur officiel de Spotify, chargé seulement au clic. Pour changer de morceau : `MUSIQUE` en haut de `site.js` (l'identifiant est dans le lien Spotify, après `/track/`) et le titre dans `index.html`. Sans compte Spotify connecté, Spotify ne joue qu'un extrait.

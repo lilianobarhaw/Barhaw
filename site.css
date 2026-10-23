@@ -87,9 +87,9 @@ strong { font-weight: 600; }
 .logo { display: inline-flex; align-items: center; gap: 12px; flex: none; }
 .logo img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1.5px var(--violet), 0 0 18px rgba(155, 92, 255, 0.55); }
 .logo span { font-family: var(--titre); font-weight: 800; font-size: 17px; letter-spacing: 0.06em; }
-.nav { display: flex; align-items: center; gap: clamp(14px, 2vw, 26px); flex: 1; justify-content: center; }
+.nav { display: flex; align-items: center; gap: clamp(14px, 1.7vw, 26px); flex: 1; justify-content: center; }
 .nav a {
-  position: relative; padding: 6px 0;
+  position: relative; padding: 6px 0; white-space: nowrap;
   font-size: 13px; font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brume);
   transition: color 0.25s;
 }
@@ -106,6 +106,7 @@ strong { font-weight: 600; }
 .entete-droite { display: flex; align-items: center; gap: 12px; flex: none; margin-left: auto; }
 .compte { display: flex; align-items: center; gap: 10px; }
 .compte img { width: 32px; height: 32px; border-radius: 50%; box-shadow: 0 0 0 1px var(--ligne); }
+@media (max-width: 1440px) { .entete-droite .compte .nom-compte { display: none; } }
 .compte .nom-compte { font-size: 14px; font-weight: 500; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compte .sortir { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--terne); }
 .compte .sortir:hover { color: var(--blanc); }
@@ -592,6 +593,167 @@ a.portrait:hover img { transform: scale(1.06); }
 .hors-ligne > div { position: relative; }
 .sfx-silence { --r: -6deg; left: -36px; top: -18px; font-size: 34px; background-image: linear-gradient(175deg, #fff, #cfc3e3 60%, #84769a); filter: drop-shadow(3px 3px 0 #2a1f3d); }
 
+/* ---------- le TOURNOI BARHAW ---------- */
+.tournoi-une {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(20px, 3vw, 40px); align-items: center;
+  padding: clamp(24px, 3.4vw, 40px); border-radius: 26px;
+  background: linear-gradient(var(--nuit), var(--nuit)) padding-box, var(--degrade) border-box; border: 1px solid transparent;
+  box-shadow: 0 30px 90px -40px rgba(227, 68, 127, 0.6);
+}
+.tournoi-une::after {
+  content: ""; position: absolute; left: 0; bottom: 0; width: 45%; height: 100%; border-radius: 26px 0 0 26px; pointer-events: none; opacity: 0.5;
+  background-image: radial-gradient(rgba(255, 140, 190, 0.38) 1.15px, transparent 1.6px); background-size: 9px 9px;
+  -webkit-mask: radial-gradient(circle at 0 100%, #000, transparent 65%); mask: radial-gradient(circle at 0 100%, #000, transparent 65%);
+}
+.tournoi-une > :not(.sfx) { position: relative; z-index: 1; }
+.tournoi-une .surtitre { margin-bottom: 12px; color: #ff9cc1; }
+.tournoi-une .surtitre .point { margin-right: 4px; }
+.une-date { margin: 0; font-family: var(--titre); font-weight: 800; font-size: clamp(24px, 3.2vw, 38px); line-height: 1.1; letter-spacing: -0.02em; }
+.une-texte { margin: 12px 0 0; max-width: 52ch; color: var(--brume); }
+.une-prochain { margin: 16px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: 15.5px; }
+.une-prochain span { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--violet-clair); }
+.jour-j { min-width: 120px; padding: 16px 18px 12px; text-align: center; border-radius: 18px; background: var(--verre); border: 1px solid var(--ligne-douce); }
+.jour-j b { display: block; font-family: var(--titre); font-weight: 800; font-size: 44px; line-height: 1; }
+.jour-j small { display: block; margin-top: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--terne); }
+/* en direct : le tableau d'affichage et le lecteur */
+.tournoi-une.une-direct { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); box-shadow: 0 30px 90px -36px rgba(227, 68, 127, 0.85); }
+.tableau-score { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; margin: 6px 0 18px; }
+.camp { display: grid; justify-items: center; gap: 10px; text-align: center; }
+.camp strong { font-family: var(--titre); font-weight: 700; font-size: clamp(15px, 1.6vw, 20px); line-height: 1.2; overflow-wrap: anywhere; }
+.manches { display: inline-flex; gap: 6px; }
+.manches i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(227, 68, 127, 0.6); }
+.manches i.gagnee { background: var(--degrade); border-color: transparent; box-shadow: 0 0 10px rgba(227, 68, 127, 0.7); }
+.score-geant { display: flex; align-items: center; gap: 10px; font-family: var(--titre); }
+.score-geant b { font-weight: 800; font-size: clamp(48px, 6vw, 76px); line-height: 1; background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent; font-variant-numeric: tabular-nums; }
+.score-geant span { color: var(--terne); font-size: 30px; }
+.tournoi-une .details { margin: 0 0 18px; }
+.tournoi-lecteur { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 18px; background: #0a0710; border: 1px solid var(--ligne); }
+.tournoi-lecteur iframe { width: 100%; height: 100%; border: 0; display: block; }
+/* le champion */
+.tournoi-une.une-champion { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; padding-block: clamp(40px, 6vw, 70px); background: linear-gradient(160deg, #1c1226, #130d1d) padding-box, linear-gradient(100deg, #ffe08a, #ff7ab0, #9b5cff) border-box; }
+.une-champion .surtitre { justify-content: center; color: #ffe08a; }
+.une-champion .surtitre::before { display: none; }
+.champion-nom { margin: 0; font-family: var(--titre); font-weight: 800; font-size: clamp(38px, 7vw, 84px); line-height: 1.05; letter-spacing: -0.03em; }
+.champion-joueurs { margin: 14px 0 0; font-family: var(--mono); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--brume); }
+.champion-finale { margin: 10px 0 18px; color: var(--terne); }
+.sfx-champion { --r: 8deg; right: 6%; top: -34px; font-size: 66px; background-image: linear-gradient(175deg, #fff, #ffe08a 45%, #ff9a6b); filter: drop-shadow(4px 4px 0 var(--rose-fonce)); }
+.sfx-coin.eclat { animation: sfx-pop 0.65s var(--rebond) 0.3s both; }
+.sfx-coin.tremble.eclat { animation: sfx-pop 0.65s var(--rebond) 0.3s both, trembler 0.32s steps(2) 0.95s infinite; }
+
+/* les poules et la phase finale */
+.tournoi-grille { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; align-items: stretch; }
+.tournoi-poules, .tournoi-arbre { padding: 24px 26px; }
+.tournoi-arbre { display: flex; flex-direction: column; }
+.tournoi-arbre .arbre { flex: 1; align-content: center; }
+.tournoi-poules h3, .tournoi-arbre h3 { margin: 0 0 16px; font-family: var(--titre); font-weight: 600; font-size: 18px; }
+.poules { display: grid; gap: 18px; }
+.poule-titre { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--terne); }
+.poule-titre b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--degrade); color: #fff; font-family: var(--titre); font-size: 14px; letter-spacing: 0; box-shadow: 3px 3px 0 rgba(155, 92, 255, 0.45); }
+.poule table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.poule th { padding: 6px 8px; text-align: center; font-family: var(--mono); font-weight: 400; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--terne); border-bottom: 1px solid var(--ligne-douce); }
+.poule td { padding: 9px 8px; text-align: center; border-bottom: 1px solid var(--ligne-douce); color: var(--brume); }
+.poule th:nth-child(2), .poule td.nom { text-align: left; }
+.poule td.nom { color: var(--blanc); font-weight: 500; overflow-wrap: anywhere; }
+.poule tr:last-child td { border-bottom: 0; }
+.poule tr.qualifie td:first-child { color: #ff9cc1; font-weight: 600; box-shadow: inset 3px 0 0 var(--rose); }
+.poules-vides { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.poule-vide { display: grid; justify-items: center; gap: 8px; padding: 20px; border-radius: 16px; border: 1px dashed var(--ligne); }
+.poule-vide b { font-family: var(--titre); font-size: 34px; background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.poule-vide span { font-family: var(--mono); letter-spacing: 0.3em; color: var(--terne); }
+.arbre { display: grid; grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr); align-items: center; }
+.arbre-demis { display: grid; gap: 16px; }
+.arbre-liens { position: relative; align-self: stretch; }
+.arbre-liens::before { content: ""; position: absolute; left: 0; right: 50%; top: 25%; bottom: 25%; border: 2px solid var(--ligne); border-left: 0; border-radius: 0 12px 12px 0; }
+.arbre-liens::after { content: ""; position: absolute; left: 50%; right: 0; top: 50%; border-top: 2px solid var(--ligne); }
+.boite-match { padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--ligne-douce); }
+.boite-match.direct { border-color: rgba(227, 68, 127, 0.55); box-shadow: 0 0 0 1px rgba(227, 68, 127, 0.25), 0 16px 40px -20px rgba(227, 68, 127, 0.8); }
+.arbre-finale .boite-match { border-color: rgba(255, 224, 138, 0.35); background: linear-gradient(160deg, rgba(255, 224, 138, 0.07), rgba(255, 255, 255, 0.02)); }
+.boite-titre { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--violet-clair); }
+.boite-titre .etiquette { padding: 2px 8px; font-size: 9px; }
+.ligne-match { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; }
+.ligne-match .nom { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
+.ligne-match b { font-family: var(--titre); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--terne); }
+.ligne-match.gagnant .nom { color: var(--blanc); font-weight: 600; }
+.ligne-match.gagnant b { color: #ff9cc1; }
+.ligne-match.attente .nom { color: var(--terne); font-style: italic; font-size: 13px; }
+.boite-match.fini .ligne-match:not(.gagnant) .nom { color: var(--terne); }
+.boite-date { margin: 6px 0 0; font-size: 12.5px; color: var(--terne); }
+
+/* les matchs de poule */
+.tournoi-matchs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.match { padding: 18px 20px 20px; display: grid; gap: 6px; align-content: start; }
+.match .haut { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.match .type { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--violet-clair); }
+.match .statut { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--terne); }
+.match .statut.live { color: #ff9cc1; }
+.match .affiche { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 8px 0 4px; }
+.match .equipe { font-weight: 500; font-size: 15.5px; line-height: 1.25; overflow-wrap: anywhere; }
+.match .equipe:last-child { text-align: right; }
+.match.fini .equipe:not(.gagnant) { color: var(--terne); }
+.match .equipe.gagnant { color: var(--blanc); font-weight: 600; }
+.match .score { font-family: var(--titre); font-weight: 800; font-size: 22px; white-space: nowrap; background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent; font-variant-numeric: tabular-nums; }
+.match .quand { margin: 0; font-size: 13px; color: var(--terne); }
+.match .details { margin-top: 6px; }
+.match.direct { border-color: rgba(227, 68, 127, 0.5); box-shadow: 0 20px 60px -30px rgba(227, 68, 127, 0.8); }
+.match .chip, .tournoi-une .chip { font-size: 12.5px; }
+
+/* les équipes */
+.tournoi-equipes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.equipe-carte { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; padding: 20px 22px; }
+.equipe-numero { font-family: var(--titre); font-weight: 800; font-size: 44px; line-height: 0.9; color: transparent; -webkit-text-stroke: 1.5px var(--violet-clair); }
+.equipe-carte strong { display: block; font-family: var(--titre); font-weight: 600; font-size: 17px; line-height: 1.25; padding-right: 64px; overflow-wrap: anywhere; }
+.equipe-carte .joueurs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.equipe-carte .chip { font-size: 13px; }
+.poule-badge { position: absolute; right: 16px; top: 16px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #ff9cc1; }
+.equipe-carte.championne { border-color: rgba(255, 224, 138, 0.55); box-shadow: 5px 6px 0 rgba(255, 224, 138, 0.3), 0 24px 60px -30px rgba(255, 224, 138, 0.6); }
+.equipe-carte.championne .equipe-numero { -webkit-text-stroke-color: #ffe08a; }
+#tournoi .sous-titre { margin-top: 48px; }
+
+/* ---------- le goûter de Chopper (mini-jeu) ---------- */
+.gouter { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); overflow: hidden; }
+.gouter-jeu { position: relative; aspect-ratio: 16 / 10; min-height: 320px; background: #110b1c; border-right: 1px solid var(--ligne-douce); }
+.gouter-jeu canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; outline: none; }
+.gouter-jeu canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--violet-clair); }
+.gouter-hud { position: absolute; left: 14px; right: 14px; top: 12px; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; }
+.gouter-hud > span { padding: 6px 12px; border-radius: 99px; background: rgba(7, 5, 11, 0.6); border: 1px solid var(--ligne); font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brume); }
+.gouter-hud b { font-family: var(--titre); font-size: 17px; color: var(--blanc); letter-spacing: 0; margin-right: 4px; font-variant-numeric: tabular-nums; }
+.gouter-combo:empty { display: none; }
+.gouter-combo { color: #ffd166 !important; border-color: rgba(255, 209, 102, 0.5) !important; }
+.gouter-ecran {
+  position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 24px; text-align: center;
+  background: radial-gradient(circle at 50% 45%, rgba(19, 13, 29, 0.55), rgba(7, 5, 11, 0.88));
+}
+.gouter-ecran .note { max-width: 34ch; }
+.gouter-titre { margin: 0; font-family: var(--titre); font-weight: 800; font-size: clamp(28px, 3.6vw, 44px); line-height: 1.05; letter-spacing: -0.02em; }
+.gouter-texte { margin: 0; max-width: 36ch; color: var(--brume); }
+.gouter-fin { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: #ff9cc1; }
+.gouter-points { margin: 0; font-size: 18px; color: var(--brume); }
+.gouter-points b { font-family: var(--titre); font-weight: 800; font-size: clamp(54px, 7vw, 76px); line-height: 1; margin-right: 6px; }
+.gouter-cote { padding: 26px 28px; display: grid; gap: 12px; align-content: start; }
+.gouter-cote .surtitre { margin: 0; }
+.gouter-cote h3 { margin: 0; font-family: var(--titre); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; }
+.gouter-cote > p { margin: 0; color: var(--brume); font-size: 15.5px; }
+.gouter-legende { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; font-size: 14px; color: var(--brume); }
+.gouter-legende li { display: flex; align-items: center; gap: 10px; }
+.gouter-legende b { margin-left: auto; font-family: var(--titre); font-size: 13px; color: var(--blanc); }
+.bonbon-mini { flex: none; width: 18px; height: 18px; border-radius: 50%; }
+.bonbon-mini.rose { background: #ff7ab0; border-radius: 40%; box-shadow: -6px 0 0 -3px #ff7ab0, 6px 0 0 -3px #ff7ab0; }
+.bonbon-mini.choco { background: #6b3a2a; border-radius: 4px; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25); }
+.bonbon-mini.barbe { background: #ffb3d9; box-shadow: 0 0 10px rgba(255, 150, 200, 0.8); }
+.bonbon-mini.bombe { background: #15111d; border: 2px solid #3a2f4d; box-shadow: 4px -4px 0 -3px #ffd166; }
+.gouter-record { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--degrade-doux); border: 1px solid var(--ligne); }
+.gouter-record span:first-child { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--violet-clair); }
+.gouter-record b { font-family: var(--titre); font-size: 20px; }
+.gouter-record .qui { margin-left: auto; color: var(--brume); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sous-titre-jeu { margin: 6px 0 0; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--terne); }
+.gouter-classement ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; counter-reset: rang; }
+.gouter-classement li { display: flex; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--ligne-douce); counter-increment: rang; }
+.gouter-classement li:last-child { border-bottom: 0; }
+.gouter-classement li::before { content: counter(rang, decimal-leading-zero); font-family: var(--mono); font-size: 11px; color: var(--terne); width: 22px; }
+.gouter-classement li:nth-child(1)::before { color: #ffd479; }
+.gouter-classement li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gouter-classement li small { font-family: var(--mono); font-size: 11px; color: var(--brume); }
+
 /* ---------- la musique ---------- */
 .musique-zone { position: fixed; left: clamp(14px, 3vw, 32px); bottom: clamp(14px, 3vw, 28px); z-index: 31; display: grid; justify-items: start; gap: 10px; }
 .musique {
@@ -664,17 +826,17 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 
 /* ---------- tablette et téléphone ---------- */
 @media (max-width: 1080px) {
-  .nav { gap: 16px; }
-  .nav a { font-size: 12px; letter-spacing: 0.12em; }
   .raccourcis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tournoi-matchs, .tournoi-equipes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tournoi-grille { grid-template-columns: minmax(0, 1fr); }
   .prochain { grid-template-columns: auto minmax(0, 1fr); }
   .prochain .rebours { grid-column: 1 / -1; justify-content: start; }
 }
-@media (max-width: 900px) {
+@media (max-width: 1180px) {
   .burger { display: inline-block; }
   .cta-discord { display: none; }
   .nav {
-    position: fixed; inset: 0; z-index: -1; flex-direction: column; justify-content: center; gap: 22px;
+    position: fixed; inset: 0; z-index: -1; flex-direction: column; justify-content: center; gap: 20px; overflow-y: auto; padding: calc(var(--entete) + 10px) 20px 30px;
     background: rgba(7, 5, 11, 0.94); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
     opacity: 0; visibility: hidden; transition: opacity 0.4s var(--doux), visibility 0.4s;
   }
@@ -686,6 +848,9 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .nav .nav-discord { display: block; }
   .entete { justify-content: space-between; }
   .entete.menu { background: transparent; border-bottom-color: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .nav.ouvert a:nth-child(8) { transition-delay: 0.28s; }
+}
+@media (max-width: 900px) {
   .hero { grid-template-columns: minmax(0, 1fr); padding-top: calc(var(--entete) + 20px); min-height: auto; gap: 10px; }
   .hero-chopper { order: -1; min-height: 340px; }
   .orbite { width: min(270px, 70%); }
@@ -698,6 +863,9 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .lecteur-zone.avec-tchat { grid-template-columns: minmax(0, 1fr); }
   .yt-grand { grid-template-columns: minmax(0, 1fr); }
   .chopper-grille { grid-template-columns: minmax(0, 1fr); }
+  .tournoi-une, .tournoi-une.une-direct { grid-template-columns: minmax(0, 1fr); }
+  .gouter { grid-template-columns: minmax(0, 1fr); }
+  .gouter-jeu { aspect-ratio: 4 / 5; max-height: 72vh; width: 100%; border-right: 0; border-bottom: 1px solid var(--ligne-douce); }
   .frise::before { left: 7px; }
   .evenement { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-left: 30px; }
   .evenement::before { left: -2px; top: 2px; }
@@ -725,6 +893,12 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .rebours div { min-width: 0; }
   .rebours b { font-size: 22px; }
   .resultat { grid-template-columns: minmax(0, 1fr); }
+  .tournoi-matchs, .tournoi-equipes { grid-template-columns: minmax(0, 1fr); }
+  .arbre { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .arbre-liens { display: none; }
+  .score-geant b { font-size: 46px; }
+  .gouter-cote { padding: 22px 20px; }
+  .sfx-champion { font-size: 44px; top: -24px; }
   .resultat-anim { max-width: 240px; margin: 0 auto; }
   .bulle-resultat::after { left: 40px; top: -7px; transform: rotate(225deg); }
   .discord-carte { grid-template-columns: minmax(0, 1fr); justify-items: start; }

@@ -1,14 +1,15 @@
 // Chopper sur le site.
 //   GET  /api/chopper?image=carte                 → sa carte (PNG)
 //   GET  /api/chopper?image=anim&type=nourrir     → une de ses animations (GIF) ; aussi jouer, niveau, grandit, defi, deprime, gueri
-//   POST /api/chopper  { action: "etat" | "nourrir" | "jouer" | "parler", message }
+//   POST /api/chopper  { action: "etat" | "nourrir" | "jouer" | "parler" | "jeu-debut" | "jeu-fin", message, partie, score }
 //        → au nom du membre connecté avec Discord ; le bot vérifie qu'il est sur le serveur Barhaw
 //          et applique les mêmes règles que sur Discord (une fois par jour pour nourrir et jouer).
+//          Le goûter de Chopper : jeu-debut ouvre une partie chez le bot, jeu-fin rend le score (vérifié par le bot).
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin"]);
 
 export async function GET(req) {
   const u = new URL(req.url);
@@ -48,6 +49,10 @@ export async function POST(req) {
   const action = ACTIONS.has(d?.action) ? d.action : "etat";
   const corps = { id: String(session.id), action };
   if (action === "parler") corps.message = String(d.message || "").slice(0, 300);
+  if (action === "jeu-fin") {
+    corps.partie = /^[0-9a-f]{24}$/.test(String(d.partie || "")) ? String(d.partie) : "";
+    corps.score = Number.isInteger(d.score) ? d.score : -1;
+  }
   try {
     const r = await demanderBot("/chopper", { methode: "POST", corps, delai: 25000 });
     const reponse = await r.json().catch(() => ({ erreur: "Réponse du bot illisible." }));
