@@ -696,6 +696,18 @@ a.portrait:hover img { transform: scale(1.06); }
 .equipe-carte.championne { border-color: rgba(255, 224, 138, 0.55); box-shadow: 5px 6px 0 rgba(255, 224, 138, 0.3), 0 24px 60px -30px rgba(255, 224, 138, 0.6); }
 .equipe-carte.championne .equipe-numero { -webkit-text-stroke-color: #ffe08a; }
 #tournoi .sous-titre { margin-top: 48px; }
+/* une équipe scellée : le sceau rouge, une bande « scellée » et les joueurs masqués */
+.equipe-carte.scellee { overflow: hidden; background: repeating-linear-gradient(135deg, rgba(255, 79, 154, 0.05) 0 12px, transparent 12px 24px), var(--panneau); border-style: dashed; border-color: rgba(255, 110, 180, 0.3); }
+.equipe-carte.scellee strong { color: var(--brume); }
+.equipe-carte.scellee .equipe-numero { -webkit-text-stroke-color: var(--terne); }
+.chip.mystere { color: transparent; text-shadow: 0 0 7px rgba(255, 190, 230, 0.85); user-select: none; }
+.scelle-texte { margin: 10px 0 0; font-family: var(--fort); font-weight: 800; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: #ff9cc8; }
+.sceau {
+  position: absolute; right: 14px; bottom: 12px; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; rotate: -14deg;
+  border: 3px solid rgba(255, 79, 154, 0.85); color: rgba(255, 79, 154, 0.9); font-family: var(--titre); font-size: 26px; line-height: 1;
+  box-shadow: inset 0 0 0 3px rgba(18, 5, 13, 0.6); opacity: 0.85;
+}
+.equipe-carte.scellee:hover .sceau { animation: trembler 0.3s steps(2) 2; }
 
 /* ---------- le goûter de Chopper (mini-jeu) ---------- */
 .gouter { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); overflow: hidden; }

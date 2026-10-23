@@ -1242,14 +1242,28 @@
 
   function rendreEquipes(t) {
     const z = $("tournoi-equipes");
-    const cartes = t.equipes.map((e) => el("article", { class: `carte equipe-carte${t.champion?.id === e.id ? " championne" : ""}` },
-      el("span", { class: "equipe-numero", "aria-hidden": "true", text: String(e.id) }),
-      el("div", {},
-        el("strong", { text: e.nom }),
-        el("div", { class: "joueurs" }, e.joueurs.length ? e.joueurs.map((j) => el("span", { class: "chip", text: j })) : el("span", { class: "note", text: "Joueurs à venir" })),
-      ),
-      e.poule ? el("span", { class: "poule-badge", text: `Poule ${e.poule}` }) : null,
-    ));
+    const cartes = t.equipes.map((e) => (e.scellee
+      // une équipe scellée : ni nom ni joueurs, juste son numéro et le sceau
+      ? el("article", { class: "carte equipe-carte scellee", "aria-label": `Équipe ${e.id} : scellée, révélée bientôt` },
+        el("span", { class: "equipe-numero", "aria-hidden": "true", text: String(e.id) }),
+        el("div", {},
+          el("strong", { text: `Équipe ${e.id}` }),
+          el("div", { class: "joueurs", "aria-hidden": "true" }, [0, 1, 2].map(() => el("span", { class: "chip mystere", text: "? ? ?" }))),
+          el("p", { class: "scelle-texte", text: "Scellée · révélée bientôt" }),
+        ),
+        el("span", { class: "sceau", "aria-hidden": "true", text: "封" }),
+        e.poule ? el("span", { class: "poule-badge", text: `Poule ${e.poule}` }) : null,
+      )
+      : el("article", { class: `carte equipe-carte${t.champion?.id === e.id ? " championne" : ""}` },
+        el("span", { class: "equipe-numero", "aria-hidden": "true", text: String(e.id) }),
+        el("div", {},
+          el("strong", { text: e.nom }),
+          el("div", { class: "joueurs" }, e.joueurs.length ? e.joueurs.map((j) => el("span", { class: "chip", text: j })) : el("span", { class: "note", text: "Joueurs à venir" })),
+        ),
+        e.poule ? el("span", { class: "poule-badge", text: `Poule ${e.poule}` }) : null,
+      )));
+    const titre = document.querySelector("#tournoi .titre-equipes");
+    if (titre) titre.textContent = t.scellees === t.equipes.length ? "Les équipes · scellées" : t.scellees ? `Les équipes · ${t.equipes.length - t.scellees} révélée${t.equipes.length - t.scellees > 1 ? "s" : ""} sur ${t.equipes.length}` : "Les équipes";
     const vu = dejaVu(z);
     vider(z, cartes);
     apparaitre(cartes, vu);
