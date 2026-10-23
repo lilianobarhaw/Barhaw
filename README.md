@@ -16,7 +16,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `api/auth/login.js`, `api/auth/callback.js` | La connexion avec Discord (seulement le pseudo et l'image de profil) ; `/api/auth/logout` pour sortir |
 | `lib/session.js` | Session signée (cookie HttpOnly, 30 jours), cookies |
 | `lib/bot.js` | Les demandes au bot, signées avec `BOT_CLE` |
-| `img/` | Chopper (ta photo), les icônes, l'aperçu des liens (`og.png`) |
+| `img/` | Chopper (ta photo), les icônes, l'aperçu des liens (`og-barhaw.png`, ta pp dans une case de manga : c'est l'image qui s'affiche quand on colle le lien du site sur Discord ou ailleurs) |
 | `vercel.json` | Adresses propres, en-têtes de sécurité, accès bloqué à `/lib`, `/README.md`, `/package.json` |
 
 ## Mise en ligne
