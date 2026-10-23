@@ -125,6 +125,46 @@ strong { font-weight: 800; }
 }
 .flottant-live strong { font-family: var(--fort); font-weight: 800; text-transform: uppercase; font-size: 12px; color: #ff9cc8; margin-right: 6px; }
 .flottant-live > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ---------- le mode live : la grosse case manga en haut de l'écran ---------- */
+.case-live {
+  position: fixed; left: 50%; top: calc(var(--entete) + 12px); z-index: 45; translate: -50% 0; width: min(780px, calc(100vw - 28px));
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 22px; padding: 22px 26px 22px 22px; overflow: hidden;
+  background: radial-gradient(120% 140% at 0% 50%, rgba(255, 45, 85, 0.28), transparent 60%), linear-gradient(160deg, #2a0f26, #18081a);
+  border: 3px solid var(--encre); border-radius: 20px; box-shadow: 0 0 0 2px var(--rose), 8px 9px 0 2px var(--ombre), 0 30px 80px -20px rgba(0, 0, 0, 0.9);
+  animation: case-arrive 0.6s var(--rebond) both;
+}
+.case-live.impact { animation: case-arrive 0.6s var(--rebond) both, vibrer 0.14s steps(2) 0.6s 6; }
+.case-live.impact::after { content: ""; position: absolute; inset: 0; z-index: 6; background: #fff; pointer-events: none; animation: flash 0.45s ease-out 0.25s both; }
+.case-live-lignes {
+  position: absolute; inset: -60%; z-index: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg at 18% 50%, rgba(255, 220, 240, 0.12) 0deg 0.8deg, transparent 0.8deg 5.5deg);
+  -webkit-mask: radial-gradient(circle at 18% 50%, transparent 8%, #000 22%, transparent 55%); mask: radial-gradient(circle at 18% 50%, transparent 8%, #000 22%, transparent 55%);
+  animation: vibrer 1.1s steps(3) infinite;
+}
+.case-live-chopper, .case-live-texte { position: relative; z-index: 1; }
+.case-live-chopper { position: relative; width: 120px; }
+.case-live-chopper img { width: 96px; height: 96px; margin: 34px 0 0 12px; border-radius: 50%; object-fit: cover; border: 3px solid var(--encre); box-shadow: 0 0 0 3px var(--papier), 5px 6px 0 3px var(--rose); animation: sauter 0.5s var(--doux) infinite; }
+.case-live-cri {
+  position: absolute; left: -4px; top: -10px; margin: 0; padding: 4px 10px; white-space: nowrap; rotate: -8deg;
+  background: var(--papier); color: var(--encre); border: 2.5px solid var(--encre); border-radius: 10px; box-shadow: 3px 3px 0 var(--rose);
+  font-family: var(--titre); font-size: 14px; line-height: 1.2; animation: trembler 0.25s steps(2) infinite;
+}
+.case-live-sur { display: flex; align-items: center; gap: 8px; margin: 0; font-family: var(--fort); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #ff9cc8; font-weight: 800; }
+.case-live-gros { margin: 6px 0 0; font-family: var(--titre); font-size: clamp(24px, 3.4vw, 34px); line-height: 1.05; background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.case-live-titre { margin: 8px 0 0; color: var(--blanc); font-size: 15.5px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.case-live .details { margin-top: 10px; }
+.case-live .chip { font-size: 12.5px; }
+.case-live-boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.sfx-case-live { right: 46px; bottom: 10px; --r: -8deg; font-size: 40px; opacity: 0.9; }
+.case-live-fermer {
+  position: absolute; right: 12px; top: 12px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  background: rgba(18, 5, 13, 0.6); border: 2px solid var(--ligne); color: var(--brume); font-size: 15px; line-height: 1;
+}
+.case-live-fermer:hover { color: #fff; border-color: var(--rose); }
+@keyframes case-arrive { 0% { opacity: 0; transform: translateY(-40px) scale(0.9) rotate(-2deg); } 70% { opacity: 1; transform: translateY(4px) scale(1.02) rotate(0.5deg); } 100% { opacity: 1; transform: none; } }
+/* la bulle de Chopper qui crie */
+.bulle.crie { font-weight: 800; font-size: 16.5px; box-shadow: 5px 5px 0 var(--rose), 0 20px 50px -20px rgba(0, 0, 0, 0.9); animation: bulle-pop 0.5s var(--rebond), trembler 0.3s steps(2) 0.5s 4; }
+
 .point { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 0 rgba(255, 79, 154, 0.7); animation: onde 1.6s infinite; }
 
 /* ---------- mise en page ---------- */
@@ -789,6 +829,107 @@ a.portrait:hover img { transform: scale(1.06); }
   100% { filter: none; transform: none; }
 }
 
+/* ---------- les cartes à collectionner ---------- */
+.cartes-grille { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 22px; align-items: stretch; }
+.cartes-bas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; margin-top: 22px; align-items: start; }
+/* une carte, face visible : cadre papier, contour d'encre, couleur de sa rareté */
+.cc {
+  --bord: #c9b3c9; position: relative; width: 100%; aspect-ratio: 5 / 7; display: flex; flex-direction: column; overflow: hidden; padding: 8px; border-radius: 14px;
+  background: var(--papier); color: var(--encre); border: 3px solid var(--encre); box-shadow: 0 0 0 3px var(--bord), 6px 7px 0 3px var(--ombre);
+}
+.cc-art {
+  position: relative; flex: 1; min-height: 0; overflow: hidden; border: 2.5px solid var(--encre); border-radius: 8px;
+  background: #24102a radial-gradient(rgba(255, 140, 200, 0.35) 1.1px, transparent 1.6px) 0 0 / 8px 8px;
+}
+.cc-art img { width: 100%; height: 100%; object-fit: cover; }
+.cc-art.large img { object-fit: contain; }
+.cc-pied { display: grid; gap: 2px; padding: 8px 4px 2px; }
+.cc-num { font-family: var(--fort); font-weight: 800; font-size: 10px; letter-spacing: 0.08em; color: #7a5a72; }
+.cc-nom { font-family: var(--titre); font-weight: 400; font-size: 15px; line-height: 1.15; color: var(--encre); }
+.cc-rarete { justify-self: start; margin-top: 4px; padding: 2px 9px; border-radius: 99px; background: var(--bord); color: #fff; border: 1.5px solid var(--encre); font-family: var(--fort); font-weight: 800; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.cc-double { position: absolute; right: 12px; top: 12px; z-index: 2; padding: 2px 8px; border-radius: 99px; background: var(--encre); color: #fff; border: 2px solid var(--papier); font-family: var(--fort); font-weight: 800; font-size: 12px; }
+.cc.rarete-rare { --bord: var(--violet); }
+.cc.rarete-epique { --bord: var(--rose); }
+.cc.rarete-legendaire { --bord: #ffc94d; background: linear-gradient(160deg, #fff8dc, #ffe39a); box-shadow: 0 0 0 3px var(--bord), 6px 7px 0 3px var(--rose-fonce), 0 0 46px rgba(255, 201, 77, 0.45); }
+.cc.rarete-legendaire .cc-rarete { color: var(--encre); }
+/* le reflet holographique des épiques et des légendaires */
+.cc.rarete-epique::after, .cc.rarete-legendaire::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.6) 45%, rgba(255, 150, 220, 0.4) 50%, rgba(170, 120, 255, 0.35) 55%, transparent 68%);
+  background-size: 260% 100%; animation: holo 3.6s linear infinite;
+}
+.cc.rarete-legendaire::after { background-image: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.75) 44%, rgba(255, 215, 120, 0.55) 50%, rgba(255, 140, 200, 0.4) 56%, transparent 70%); animation-duration: 2.6s; }
+@keyframes holo { from { background-position: 160% 0; } to { background-position: -100% 0; } }
+/* le dos d'une carte */
+.cc-dos {
+  position: relative; width: 100%; aspect-ratio: 5 / 7; display: grid; place-items: center; overflow: hidden; border-radius: 14px;
+  border: 3px solid var(--encre); box-shadow: 0 0 0 3px var(--rose), 6px 7px 0 3px var(--ombre);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.09) 0deg 5deg, transparent 5deg 10deg), radial-gradient(circle, #ff4f9a 0%, #9b4dff 55%, #4a1585 100%);
+}
+.cc-dos::before { content: ""; position: absolute; inset: 9px; border: 2px dashed rgba(255, 242, 248, 0.55); border-radius: 9px; }
+.cc-dos-kanji { font-family: var(--titre); font-size: 64px; line-height: 1; color: var(--papier); -webkit-text-stroke: 2px var(--encre); text-shadow: 4px 4px 0 var(--encre); }
+.cc-dos-nom { position: absolute; left: 0; right: 0; bottom: 16px; text-align: center; font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.22em; color: var(--papier); }
+
+/* le tirage : la carte se retourne */
+.tirage { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 30px; align-items: center; padding: 30px; overflow: hidden; }
+.tirage-scene { position: relative; width: clamp(180px, 19vw, 230px); perspective: 1200px; }
+.tirage-scene .concentration { width: 260%; opacity: 0; transition: opacity 0.6s; }
+.tirage-scene.retourne.rarete-epique .concentration, .tirage-scene.retourne.rarete-legendaire .concentration { opacity: 1; }
+.tirage-carte { position: relative; z-index: 1; transform-style: preserve-3d; transition: transform 1s var(--rebond); }
+.tirage-carte > .cc-dos { backface-visibility: hidden; }
+.tirage-face { position: absolute; inset: 0; transform: rotateY(180deg); backface-visibility: hidden; }
+.tirage-face .cc { cursor: zoom-in; }
+.tirage-scene.retourne .tirage-carte { transform: rotateY(180deg); }
+.tirage-scene.fixe .tirage-carte { transition: none; }
+.tirage-scene.fixe .concentration { transition: none; }
+.tirage-carte.cliquable { cursor: pointer; }
+.tirage-carte.cliquable:hover { transform: translateY(-6px) rotate(-2deg); }
+.tirage-carte.cliquable .cc-dos { animation: flotter 3.5s ease-in-out infinite; }
+.tirage-scene.secoue .tirage-carte { animation: vibrer 0.12s steps(2) infinite; }
+.tirage-scene.retourne:not(.fixe).rarete-legendaire::after { content: ""; position: fixed; inset: 0; z-index: 50; background: #fff; pointer-events: none; animation: flash 0.7s ease-out 0.45s both; }
+.sfx-tirage { left: -18px; top: -26px; --r: -10deg; font-size: 44px; z-index: 3; animation-delay: 0.6s !important; }
+.tirage-infos h3 { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 20px; }
+.tirage-infos p { margin: 10px 0 0; color: var(--brume); }
+.tirage-infos .btn { margin-top: 18px; }
+.tirage-resultat { font-family: var(--fort); font-weight: 800; font-size: 17px; color: var(--blanc) !important; }
+.tirage-resultat.nouvelle { font-family: var(--titre); font-weight: 400; font-size: 22px; line-height: 1.2; background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+.tirage-attente b { font-family: var(--fort); font-weight: 800; color: var(--blanc); font-variant-numeric: tabular-nums; }
+.eclats { display: flex; align-items: center; gap: 12px; margin-top: 18px; font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--terne); }
+.eclats-points { display: inline-flex; gap: 8px; }
+.eclats-points i { width: 13px; height: 13px; rotate: 45deg; border-radius: 3px; border: 2px solid rgba(209, 166, 255, 0.6); }
+.eclats-points i.plein { background: var(--degrade); border-color: var(--encre); box-shadow: 0 0 10px rgba(255, 79, 154, 0.7); }
+
+/* l'album */
+.album { padding: 24px 26px 26px; }
+.album-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.album-tete h3 { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 17px; }
+.album-compte { font-family: var(--fort); font-weight: 800; font-size: 14px; color: var(--brume); }
+.album-compte b { font-family: var(--titre); font-weight: 400; font-size: 26px; color: var(--blanc); }
+.album-barre { height: 8px; margin: 10px 0 20px; overflow: hidden; border-radius: 99px; background: var(--verre-fort); border: 1px solid var(--ligne-douce); }
+.album-barre i { display: block; height: 100%; background: var(--degrade); transition: width 0.8s var(--doux); }
+.album-cases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px 14px; }
+.case-album { display: block; padding: 0; border: 0; background: none; font: inherit; transition: transform 0.3s var(--rebond); }
+button.case-album { cursor: zoom-in; }
+button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
+.case-album .cc, .case-album .cc-dos { padding: 4px; border-width: 2px; border-radius: 9px; box-shadow: 0 0 0 2px var(--bord, var(--rose)), 3px 4px 0 2px var(--ombre); }
+.case-album .cc-art { border-width: 2px; border-radius: 6px; }
+.case-album .cc-pied { padding: 4px 1px 0; }
+.case-album .cc-num, .case-album .cc-rarete { display: none; }
+.case-album .cc-nom { font-size: 10px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.case-album .cc-double { right: 5px; top: 5px; padding: 0 5px; font-size: 10px; border-width: 1.5px; }
+.case-album.vide .cc-dos { box-shadow: 0 0 0 2px rgba(255, 190, 230, 0.15); filter: saturate(0.3) brightness(0.5); }
+.case-album.vide.rarete-rare .cc-dos { box-shadow: 0 0 0 2px rgba(155, 77, 255, 0.45); }
+.case-album.vide.rarete-epique .cc-dos { box-shadow: 0 0 0 2px rgba(255, 79, 154, 0.5); }
+.case-album.vide.rarete-legendaire .cc-dos { box-shadow: 0 0 0 2px rgba(255, 201, 77, 0.6), 0 0 18px rgba(255, 201, 77, 0.25); }
+.case-album.vide .cc-dos::before { inset: 4px; border-width: 1.5px; border-radius: 5px; }
+.case-album .cc-dos-kanji { font-size: clamp(22px, 2.6vw, 32px); -webkit-text-stroke-width: 1.5px; text-shadow: 2px 2px 0 var(--encre); }
+.case-album .cc-dos-nom { bottom: 7px; font-size: 9px; letter-spacing: 0.1em; }
+.case-album.fraiche .cc { animation: bulle-pop 0.6s var(--rebond) 3; }
+.pastille-rarete { display: inline-block; padding: 0 8px; border-radius: 99px; font-family: var(--fort); font-weight: 800; font-size: 11px; color: #fff; background: #a58ba5; border: 1.5px solid var(--encre); }
+.pastille-rarete.rarete-rare { background: var(--violet); }
+.pastille-rarete.rarete-epique { background: var(--rose); }
+.pastille-rarete.rarete-legendaire { background: #ffc94d; color: var(--encre); }
+
 /* ---------- le goûter de Chopper (mini-jeu) ---------- */
 .gouter { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); overflow: hidden; }
 .gouter-jeu { position: relative; aspect-ratio: 16 / 10; min-height: 320px; background: #110b1c; border-right: 1px solid var(--ligne-douce); }
@@ -873,6 +1014,10 @@ a.portrait:hover img { transform: scale(1.06); }
   background: rgba(18, 7, 15, 0.92); animation: monter 0.25s var(--doux);
 }
 .visionneuse img { max-width: min(92vw, 760px); max-height: 84vh; width: auto; height: auto; border: 8px solid #fff7fb; border-radius: 12px; rotate: -1.5deg; box-shadow: 10px 12px 0 var(--ombre); }
+/* une carte en grand */
+.visionneuse > .cc { width: min(360px, 82vw, calc(78vh * 5 / 7)); rotate: -2deg; cursor: auto; animation: bulle-pop 0.4s var(--rebond); }
+.visionneuse .cc img { max-width: none; max-height: none; width: 100%; height: 100%; border: 0; border-radius: 0; rotate: none; box-shadow: none; }
+.visionneuse .cc .cc-nom { font-size: 20px; }
 .visionneuse-fermer { position: absolute; top: 18px; right: 18px; width: 46px; height: 46px; border-radius: 12px; border: 2px solid var(--encre); background: var(--rose); color: #fff; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 3px 3px 0 var(--ombre); }
 
 /* ---------- la musique : un bouton, un volume ---------- */
@@ -977,6 +1122,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .chopper-grille { grid-template-columns: minmax(0, 1fr); }
   .tournoi-une, .tournoi-une.une-direct { grid-template-columns: minmax(0, 1fr); }
   .teaser { grid-template-columns: minmax(0, 1fr); }
+  .cartes-grille { grid-template-columns: minmax(0, 1fr); }
   .revelation-bande { grid-template-columns: minmax(0, 1fr); grid-template-areas: "texte" "rebours" "agents"; }
   .revelation-bande > .rebours { margin-top: 20px; justify-content: start; }
   .revelation-bande .sfx-revelation, .revelation-bande:not(.scellee) .sfx-revelation { font-size: 38px; top: auto; right: 5%; bottom: calc(clamp(170px, 25vw, 310px) - 34px); }
@@ -992,6 +1138,12 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 }
 @media (max-width: 560px) {
   body { font-size: 16px; }
+  .case-live { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px 18px 18px; }
+  .case-live-chopper { display: flex; align-items: center; gap: 12px; width: auto; padding-right: 42px; }
+  .case-live-chopper img { flex: none; width: 56px; height: 56px; margin: 0; box-shadow: 0 0 0 2px var(--papier), 3px 4px 0 2px var(--rose); }
+  .case-live-cri { position: static; rotate: -4deg; font-size: 13px; }
+  .case-live-boutons .btn { flex: 1 1 auto; text-align: center; }
+  .sfx-case-live { display: none; }
   .logo span { font-size: 15px; }
   .compte .nom-compte { display: none; }
   .raccourcis { grid-template-columns: minmax(0, 1fr); }
@@ -1011,6 +1163,12 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .resultat { grid-template-columns: minmax(0, 1fr); }
   .tournoi-matchs, .tournoi-equipes { grid-template-columns: minmax(0, 1fr); }
   .equipe-carte { padding-right: 96px; }
+  .tirage { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; gap: 22px; padding: 30px 22px 26px; }
+  .tirage-scene { width: min(220px, 64vw); }
+  .eclats { justify-content: center; }
+  .album { padding: 22px 18px; }
+  .album-cases { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; }
+  .case-album .cc-nom { font-size: 11px; }
   .equipe-buste { width: 100px; }
   .equipe-carte .sceau { right: 22px; }
   .agents-ligne { height: 190px; grid-template-columns: repeat(5, minmax(0, 1fr)); }

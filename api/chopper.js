@@ -5,11 +5,12 @@
 //        → au nom du membre connecté avec Discord ; le bot vérifie qu'il est sur le serveur Barhaw
 //          et applique les mêmes règles que sur Discord (une fois par jour pour nourrir et jouer).
 //          Le goûter de Chopper : jeu-debut ouvre une partie chez le bot, jeu-fin rend le score (vérifié par le bot).
+//   POST /api/chopper  { action: "cartes" | "carte-tirer" } → l'album du membre, ou sa carte du jour (tirée par le bot)
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer"]);
 
 export async function GET(req) {
   const u = new URL(req.url);

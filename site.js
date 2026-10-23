@@ -42,19 +42,19 @@
   };
   // les mèmes, posés au hasard sur la page à chaque visite (img/memes)
   const MEMES = [
-    { src: "/img/memes/meme-01.jpg", l: 135, h: 185 },
-    { src: "/img/memes/meme-02.jpg", l: 439, h: 272 },
-    { src: "/img/memes/meme-03.jpg", l: 272, h: 246 },
-    { src: "/img/memes/meme-04.jpg", l: 560, h: 447 },
-    { src: "/img/memes/meme-05.jpg", l: 560, h: 483 },
-    { src: "/img/memes/meme-06.jpg", l: 560, h: 550 },
-    { src: "/img/memes/meme-07.jpg", l: 560, h: 154 },
-    { src: "/img/memes/meme-08.jpg", l: 560, h: 317 },
-    { src: "/img/memes/meme-09.jpg", l: 560, h: 386 },
-    { src: "/img/memes/meme-10.jpg", l: 393, h: 433 },
-    { src: "/img/memes/meme-11.jpg", l: 342, h: 460 },
-    { src: "/img/memes/meme-12.jpg", l: 340, h: 460 },
-    { src: "/img/memes/meme-13.jpg", l: 427, h: 460 },
+    { id: "meme-01", src: "/img/memes/meme-01.jpg", l: 135, h: 185 },
+    { id: "meme-02", src: "/img/memes/meme-02.jpg", l: 439, h: 272 },
+    { id: "meme-03", src: "/img/memes/meme-03.jpg", l: 272, h: 246 },
+    { id: "meme-04", src: "/img/memes/meme-04.jpg", l: 560, h: 447 },
+    { id: "meme-05", src: "/img/memes/meme-05.jpg", l: 560, h: 483 },
+    { id: "meme-06", src: "/img/memes/meme-06.jpg", l: 560, h: 550 },
+    { id: "meme-07", src: "/img/memes/meme-07.jpg", l: 560, h: 154 },
+    { id: "meme-08", src: "/img/memes/meme-08.jpg", l: 560, h: 317 },
+    { id: "meme-09", src: "/img/memes/meme-09.jpg", l: 560, h: 386 },
+    { id: "meme-10", src: "/img/memes/meme-10.jpg", l: 393, h: 433 },
+    { id: "meme-11", src: "/img/memes/meme-11.jpg", l: 342, h: 460 },
+    { id: "meme-12", src: "/img/memes/meme-12.jpg", l: 340, h: 460 },
+    { id: "meme-13", src: "/img/memes/meme-13.jpg", l: 427, h: 460 },
   ];
 
   let donnees = null;
@@ -518,6 +518,90 @@
     $("compteur-potes").textContent = n;
     $("hero-live").textContent = live ? "Regarder le live" : "Voir la chaîne";
     rendreFlottant();
+    rendreModeLive();
+  }
+
+  // ---------- le mode live : l'onglet, l'icône, et une grosse case manga en haut de l'écran ----------
+  const titreNormal = document.title;
+  let liveAvant = null; // null : on ne sait pas encore (premier chargement)
+  let cleCaseLive = "";
+  let iconeNormale = "";
+  let iconeLive = "";
+  const lireSession = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
+  const ecrireSession = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
+
+  // l'icône de l'onglet avec un point rouge, dessinée une fois
+  function iconeAvecPoint() {
+    const lien = document.querySelector('link[rel="icon"]');
+    if (!lien) return;
+    if (!iconeNormale) iconeNormale = lien.getAttribute("href");
+    if (iconeLive) { lien.setAttribute("href", iconeLive); return; }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = c.height = 64;
+        const x = c.getContext("2d");
+        x.drawImage(img, 0, 0, 64, 64);
+        x.beginPath(); x.arc(47, 47, 15, 0, Math.PI * 2);
+        x.fillStyle = "#ff2d55"; x.fill();
+        x.lineWidth = 5; x.strokeStyle = "#12050d"; x.stroke();
+        iconeLive = c.toDataURL("image/png");
+        if (donnees?.chaine?.enLive) lien.setAttribute("href", iconeLive);
+      } catch {}
+    };
+    img.src = iconeNormale;
+  }
+
+  function rendreModeLive() {
+    const c = donnees?.chaine;
+    const live = Boolean(c?.enLive);
+    const z = $("case-live");
+    document.documentElement.classList.toggle("mode-live", live);
+    document.title = live ? `🔴 EN LIVE · ${titreNormal}` : titreNormal;
+    if (live) iconeAvecPoint();
+    else if (iconeNormale) document.querySelector('link[rel="icon"]')?.setAttribute("href", iconeNormale);
+    if (!z) return;
+    if (!live) {
+      z.hidden = true;
+      cleCaseLive = "";
+      if (donnees && !donnees.horsLigne) liveAvant = false;
+      return;
+    }
+    const vientDeCommencer = liveAvant === false; // le live a commencé pendant que la page était ouverte
+    liveAvant = true;
+    const cle = `barhaw-live:${c.depuis || "live"}`;
+    if (lireSession(cle) === "ferme") { z.hidden = true; return; }
+    const details = [c.jeu, c.viewers ? `${nombre(c.viewers)} viewers` : ""].filter(Boolean);
+    if (cle === cleCaseLive) {
+      // la case est déjà là : on met juste à jour le titre, le jeu et les viewers
+      $("case-live-titre").textContent = c.titre || "Viens faire un tour !";
+      vider($("case-live-details"), details.map((t) => el("span", { class: "chip", text: t })));
+      return;
+    }
+    cleCaseLive = cle;
+    const fermer = () => { ecrireSession(cle, "ferme"); z.hidden = true; };
+    vider(z,
+      el("span", { class: "case-live-lignes", "aria-hidden": "true" }),
+      el("div", { class: "case-live-chopper", "aria-hidden": "true" },
+        el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 96, height: 96 }),
+        el("p", { class: "case-live-cri", text: "IL EST EN LIIIVE !!" }),
+      ),
+      el("div", { class: "case-live-texte" },
+        el("p", { class: "case-live-sur" }, el("span", { class: "point", "aria-hidden": "true" }), "En direct sur Twitch"),
+        el("p", { class: "case-live-gros", text: "Liliano est en live !" }),
+        el("p", { class: "case-live-titre", id: "case-live-titre", text: c.titre || "Viens faire un tour !" }),
+        el("div", { class: "details", id: "case-live-details" }, details.map((t) => el("span", { class: "chip", text: t }))),
+        el("div", { class: "case-live-boutons" },
+          el("a", { class: "btn btn-plein btn-petit", href: "#chaine", onclick: fermer, text: "Regarder ici" }),
+          el("a", { class: "btn btn-contour btn-petit", href: `https://www.twitch.tv/${MA_CHAINE}`, ...externe, text: "Ouvrir sur Twitch" }),
+        ),
+      ),
+      el("span", { class: "sfx sfx-case-live tremble", "aria-hidden": "true", text: "ドドド" }),
+      el("button", { class: "case-live-fermer", type: "button", "aria-label": "Fermer", onclick: fermer, text: "✕" }),
+    );
+    z.classList.toggle("impact", vientDeCommencer);
+    z.hidden = false;
   }
 
   // le compte : dans l'en-tête, et dans le menu sur téléphone
@@ -679,14 +763,16 @@
   let tour = 0;
   function bulleAccueil() {
     const phrases = [];
-    if (donnees?.chaine?.enLive) phrases.push("Liliano est en live là, fonce !");
+    const b = $("bulle-hero");
+    const live = Boolean(donnees?.chaine?.enLive);
+    b.classList.toggle("crie", live);
+    if (live) phrases.push("IL EST EN LIIIVE !! Fonce !", "Liliano est en live, viens vite !!", "C'EST MAINTENANT ! Le live a commencé !");
     const prochain = (donnees?.evenements || evenementsSecours()).aVenir?.[0];
     if (prochain) phrases.push(prochain.enCours ? `${prochain.titre} : c'est maintenant !` : `Prochain event : ${prochain.titre}, ${dansCombien(prochain.debut)} !`);
     const ch = donnees?.chopper;
     if (ch?.actif && ch.faim < 40) phrases.push("J'ai faim… Viens me nourrir, plus bas !");
     if (ch?.actif && ch.deprime) phrases.push("Le serveur est tout calme… Venez me voir…");
-    phrases.push("Yo ! Moi c'est Chopper, la mascotte de Barhaw.", "Connecte-toi avec Discord pour jouer avec moi !");
-    const b = $("bulle-hero");
+    if (!live) phrases.push("Yo ! Moi c'est Chopper, la mascotte de Barhaw.", "Connecte-toi avec Discord pour jouer avec moi !");
     const texte = phrases[tour++ % phrases.length];
     if (b.textContent === texte) return;
     b.textContent = texte;
@@ -1789,6 +1875,210 @@
       : moi?.connecte ? "" : "Connecte-toi avec Discord pour que ton score compte.";
   }
 
+  // ---------- les cartes à collectionner ----------
+  // Le tirage est fait par le bot (une carte par jour et par membre) : la page ne fait qu'afficher.
+  let mesCartes = null; // l'album du membre connecté : { possede, nb, total, tirageDuJour, eclats, bonus, prochain, derniere, complet }
+  let cartesPasMembre = false;
+  let tirageEnCours = false;
+  let derniereTiree = null; // { carte, nouvelle, exemplaires, bonus, complet }
+  let minuteurCartes = null;
+  const RARETES_SECOURS = { commune: { nom: "Commune", chance: 50 }, rare: { nom: "Rare", chance: 30 }, epique: { nom: "Épique", chance: 15 }, legendaire: { nom: "Légendaire", chance: 5 } };
+  const imageCarte = (id) => {
+    if (id === "chopper") return { src: "/img/chopper-visage.jpg", l: 480, h: 480 };
+    if (id === "liliano") return { src: "/img/pp-liliano-640.webp", l: 640, h: 640 };
+    return MEMES.find((m) => m.id === id) || null;
+  };
+  const catalogue = () => donnees?.cartes?.catalogue || [];
+  const raretes = () => donnees?.cartes?.raretes || RARETES_SECOURS;
+
+  // une carte, face visible
+  function faceCarte(c, { exemplaires = 0, petite = false } = {}) {
+    const img = imageCarte(c.id);
+    const large = img && img.l / img.h > 1.55; // les mèmes très larges : en entier, sur la trame
+    return el("article", { class: `cc rarete-${c.rarete}${petite ? " petite" : ""}`, "aria-label": `Carte n° ${c.numero} : ${c.nom}, ${raretes()[c.rarete]?.nom || ""}` },
+      el("div", { class: `cc-art${large ? " large" : ""}` }, img ? el("img", { src: img.src, alt: "", width: img.l, height: img.h, loading: petite ? "lazy" : "eager", decoding: "async" }) : null),
+      el("div", { class: "cc-pied" },
+        el("span", { class: "cc-num", text: `n° ${String(c.numero).padStart(2, "0")}` }),
+        el("strong", { class: "cc-nom", text: c.nom }),
+        el("span", { class: "cc-rarete", text: raretes()[c.rarete]?.nom || "" }),
+      ),
+      exemplaires > 1 ? el("span", { class: "cc-double", text: `×${exemplaires}` }) : null,
+    );
+  }
+  // le dos d'une carte
+  const dosCarte = (numero = null) => el("div", { class: "cc-dos", "aria-hidden": "true" },
+    el("span", { class: "cc-dos-kanji", text: "札" }),
+    el("span", { class: "cc-dos-nom", text: numero ? `n° ${String(numero).padStart(2, "0")}` : "BARHAW" }),
+  );
+
+  async function demanderCartes(action) {
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      return { status: r.status, d: await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." })) };
+    } catch {
+      return { status: 0, d: { erreur: "Impossible de joindre le bot. Vérifie ta connexion." } };
+    }
+  }
+
+  async function chargerMesCartes() {
+    if (!moi?.connecte) { mesCartes = null; rendreCartes(); return; }
+    const { status, d } = await demanderCartes("cartes");
+    if (status === 401) { moi = { connecte: false }; rendreCompte(); }
+    cartesPasMembre = d.erreur === "pas-membre";
+    if (d.cartes) mesCartes = d.cartes;
+    rendreCartes();
+  }
+
+  async function tirerCarte() {
+    if (tirageEnCours) return;
+    tirageEnCours = true;
+    const z = $("tirage");
+    const scene = z.querySelector(".tirage-scene");
+    scene?.classList.add("secoue");
+    const [{ status, d }] = await Promise.all([demanderCartes("carte-tirer"), new Promise((ok) => setTimeout(ok, reduit.matches ? 0 : 900))]);
+    tirageEnCours = false;
+    if (status === 401) { moi = { connecte: false }; rendreCompte(); rendreCartes(); return; }
+    if (d.erreur === "pas-membre") { cartesPasMembre = true; rendreCartes(); return; }
+    if (d.cartes) mesCartes = d.cartes;
+    if (!d.ok) { rendreCartes({ message: d.texte || d.erreur || "Le tirage n'a pas marché, réessaie." }); return; }
+    derniereTiree = d;
+    rendreCartes({ revele: true });
+    // les nouvelles du classement arrivent avec le prochain chargement ; on le demande tout de suite
+    setTimeout(charger, 1500);
+  }
+
+  function rendreTirage({ revele = false, message = "" } = {}) {
+    const z = $("tirage");
+    if (!z) return;
+    // déjà tirée aujourd'hui (et pas de tirage bonus) : la carte du jour reste face visible
+    const duJour = !revele && moi?.connecte && mesCartes && !mesCartes.tirageDuJour && !mesCartes.bonus && mesCartes.derniere
+      ? catalogue().find((x) => x.id === mesCartes.derniere) || null : null;
+    const c = revele ? derniereTiree?.carte : duJour;
+    const exemplaires = revele ? derniereTiree?.exemplaires : mesCartes?.possede?.[c?.id] || 1;
+    const scene = el("div", { class: `tirage-scene${c ? ` rarete-${c.rarete}` : ""}${duJour ? " retourne fixe" : ""}` },
+      el("span", { class: "concentration", "aria-hidden": "true" }),
+      el("div", { class: "tirage-carte" },
+        dosCarte(),
+        c ? el("div", { class: "tirage-face" }, faceCarte(c, { exemplaires })) : null,
+      ),
+      revele && c ? el("span", { class: `sfx sfx-tirage eclat${c.rarete === "legendaire" ? " violet" : ""}`, "aria-hidden": "true", text: c.rarete === "legendaire" ? "キラッ！" : c.rarete === "epique" ? "ドン！" : derniereTiree.nouvelle ? "ジャーン" : "ポン" }) : null,
+    );
+    let infos;
+    if (!moi?.connecte) {
+      infos = [
+        el("h3", { text: "Ta carte du jour" }),
+        el("p", { text: "Connecte-toi avec ton compte Discord pour tirer une carte par jour et remplir ton album." }),
+        el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord" }),
+      ];
+    } else if (cartesPasMembre) {
+      infos = [el("h3", { text: "Ta carte du jour" }), el("p", { text: "Rejoins le Discord Barhaw pour collectionner les cartes." }), el("a", { class: "btn btn-plein", href: "#discord", text: "Rejoindre le Discord" })];
+    } else if (!mesCartes) {
+      infos = [el("h3", { text: "Ta carte du jour" }), el("p", { class: "note", text: message || "Ton album arrive…" })];
+    } else {
+      const m = mesCartes;
+      const peut = m.tirageDuJour || m.bonus;
+      const resultat = revele && derniereTiree
+        ? el("p", { class: `tirage-resultat${derniereTiree.nouvelle ? " nouvelle" : ""}`, text: derniereTiree.complet ? `Album complet\u00a0! ${m.total}/${m.total}, bravo\u00a0!` : derniereTiree.nouvelle ? `Nouvelle carte\u00a0: ${c.nom}\u00a0!` : `Doublon (×${derniereTiree.exemplaires})\u00a0: +1\u00a0éclat` })
+        : null;
+      infos = [
+        el("h3", { text: peut ? (m.tirageDuJour ? "Ta carte du jour t'attend" : "Tirage bonus\u00a0!") : "Carte du jour tirée" }),
+        resultat,
+        duJour ? el("p", { text: `Aujourd'hui\u00a0: ${duJour.nom}.` }) : null,
+        message ? el("p", { class: "note", text: message }) : null,
+        peut
+          ? el("button", { class: "btn btn-plein", type: "button", onclick: tirerCarte, text: m.tirageDuJour ? "Tirer ma carte" : `Tirage bonus (${donnees?.cartes?.eclatsBonus || 5} éclats)` })
+          : el("p", { class: "tirage-attente" }, "Prochaine carte dans ", el("b", { id: "cartes-rebours", text: "…" })),
+        el("div", { class: "eclats", "aria-label": `${m.eclats} éclat${m.eclats > 1 ? "s" : ""} sur ${donnees?.cartes?.eclatsBonus || 5}` },
+          el("span", { text: "Éclats" }),
+          el("span", { class: "eclats-points", "aria-hidden": "true" }, Array.from({ length: donnees?.cartes?.eclatsBonus || 5 }, (_, k) => el("i", { class: k < Math.min(m.eclats, donnees?.cartes?.eclatsBonus || 5) ? "plein" : "" }))),
+        ),
+      ];
+    }
+    vider(z, scene, el("div", { class: "tirage-infos" }, infos));
+    if (revele && c) requestAnimationFrame(() => requestAnimationFrame(() => scene.classList.add("retourne")));
+    if (c) {
+      const face = z.querySelector(".tirage-face .cc");
+      face?.addEventListener("click", () => visionneuse(faceCarte(c, { exemplaires }), `Carte : ${c.nom}`, face));
+    } else if (moi?.connecte && mesCartes && (mesCartes.tirageDuJour || mesCartes.bonus) && !tirageEnCours) {
+      z.querySelector(".tirage-carte").addEventListener("click", tirerCarte);
+      z.querySelector(".tirage-carte").classList.add("cliquable");
+    }
+    // le compte à rebours jusqu'à minuit (heure de Paris)
+    clearInterval(minuteurCartes);
+    const b = $("cartes-rebours");
+    if (b && mesCartes?.prochain) {
+      const tic = () => {
+        const reste = mesCartes.prochain - Date.now();
+        if (reste <= 0) { clearInterval(minuteurCartes); chargerMesCartes(); return; }
+        const s = Math.floor(reste / 1000);
+        b.textContent = [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, "0")).join(":");
+      };
+      tic();
+      minuteurCartes = setInterval(tic, 1000);
+    }
+  }
+
+  function rendreAlbum() {
+    const z = $("album");
+    if (!z) return;
+    const cat = catalogue();
+    if (!cat.length) { vider(z, el("h3", { text: "L'album" }), el("p", { class: "vide", text: donnees?.horsLigne ? "L'album revient dans un instant." : "L'album arrive bientôt." })); return; }
+    const possede = mesCartes?.possede || {};
+    const nb = cat.filter((c) => possede[c.id]).length;
+    const cases = cat.map((c) => {
+      const n = possede[c.id] || 0;
+      if (!n) return el("div", { class: `case-album vide rarete-${c.rarete}`, title: `n° ${c.numero} · ${raretes()[c.rarete]?.nom || ""}` }, dosCarte(c.numero));
+      const face = faceCarte(c, { exemplaires: n, petite: true });
+      const b = el("button", { class: `case-album${derniereTiree?.carte?.id === c.id ? " fraiche" : ""}`, type: "button", "aria-label": `Voir la carte ${c.nom}` }, face);
+      b.addEventListener("click", () => visionneuse(faceCarte(c, { exemplaires: n }), `Carte : ${c.nom}`, b));
+      return b;
+    });
+    vider(z,
+      el("div", { class: "album-tete" },
+        el("h3", { text: moi?.connecte ? "Ton album" : "L'album" }),
+        el("span", { class: "album-compte" }, el("b", { text: String(nb) }), ` / ${cat.length}`),
+      ),
+      el("div", { class: "album-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round((nb / cat.length) * 100)}%` })),
+      el("div", { class: "album-cases" }, cases),
+      !moi?.connecte ? el("p", { class: "note", text: "Les cartes que tu tires apparaissent ici. Les cases vides gardent leur secret." }) : null,
+    );
+  }
+
+  function rendreCollectionneurs() {
+    const z = $("collectionneurs");
+    const r = $("regles-cartes");
+    if (!z || !r) return;
+    const s = donnees?.cartes;
+    const liste = s?.classement || [];
+    vider(z,
+      el("h3", { text: "Les collectionneurs" }),
+      liste.length
+        ? el("ol", {}, liste.map((x) => el("li", {},
+          el("span", { text: x.nom }),
+          el("small", { text: x.complet ? `👑 ${x.nb}/${s.total}` : `${x.nb}/${s.total}` }),
+        )))
+        : el("p", { class: "note", text: "Personne n'a encore tiré de carte. Sois le premier !" }),
+      s?.collectionneurs ? el("p", { class: "note", text: `${s.collectionneurs} collectionneur${s.collectionneurs > 1 ? "s" : ""} en tout.` }) : null,
+    );
+    const rar = raretes();
+    vider(r,
+      el("h3", { text: "Comment ça marche" }),
+      el("ul", {},
+        el("li", {}, el("strong", { text: "Une carte par jour" }), " : la prochaine arrive à minuit, heure de Paris."),
+        el("li", {}, el("strong", { text: "Les raretés" }), "\u00a0: ", Object.entries(rar).flatMap(([k, v], i) => [i ? ", " : "", el("span", { class: `pastille-rarete rarete-${k}`, text: v.nom }), `\u00a0${v.chance}\u00a0%`])),
+        el("li", {}, el("strong", { text: "Les doublons" }), ` donnent un éclat. ${s?.eclatsBonus || 5} éclats = un tirage bonus.`),
+        el("li", {}, el("strong", { text: "Pas de malchance" }), " : après 4 doublons d'affilée, la carte suivante est forcément nouvelle."),
+        el("li", {}, el("strong", { text: "Les légendaires" }), " et les albums complets sont annoncés sur le Discord."),
+      ),
+    );
+  }
+
+  function rendreCartes(opts = {}) {
+    rendreTirage(opts);
+    rendreAlbum();
+    rendreCollectionneurs();
+  }
+
   // ---------- chargement ----------
   function rendreTout() {
     rendreEntete();
@@ -1802,6 +2092,7 @@
     rendreChopper();
     rendreTournoi();
     rendreClassementJeu();
+    if (!tirageEnCours) { rendreAlbum(); rendreCollectionneurs(); if (!$("tirage")?.querySelector(".retourne")) rendreTirage(); }
   }
 
   async function charger() {
@@ -1826,6 +2117,7 @@
     rendreActions();
     rendreClassementJeu();
     if (moi?.connecte) agir("etat");
+    chargerMesCartes();
   }
 
   function demarrer() {
@@ -1855,6 +2147,12 @@
     charger();
     chargerMoi();
     setInterval(charger, 60_000);
+    let dernierRetour = Date.now();
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden || Date.now() - dernierRetour < 15_000) return;
+      dernierRetour = Date.now();
+      charger();
+    });
     setInterval(bulleAccueil, 6500);
   }
 

@@ -40,6 +40,7 @@
     <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
     <a href="#youtube" data-lien="youtube">YouTube</a>
     <a href="#chopper" data-lien="chopper">Chopper</a>
+    <a href="#cartes" data-lien="cartes">Cartes</a>
     <a href="#discord" data-lien="discord" class="nav-discord">Discord</a>
     <div class="compte compte-menu" id="compte-menu"></div>
   </nav>
@@ -49,6 +50,8 @@
     <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Ouvrir le menu"><span></span><span></span></button>
   </div>
 </header>
+
+<div class="case-live" id="case-live" role="status" aria-live="polite" hidden></div>
 
 <div class="musique-zone">
   <button class="musique" id="musique" type="button" aria-pressed="false" aria-label="Musique du site : The World's Number One Oden Store, de la bande originale de One Piece">
@@ -247,6 +250,24 @@
           <li><strong>Attention</strong> : si le serveur est mort trois jours, il déprime. Il ne meurt jamais, il se remet quand vous revenez.</li>
         </ul>
       </div>
+    </div>
+  </section>
+
+  <!-- ===================== CARTES ===================== -->
+  <section id="cartes" data-section aria-labelledby="titre-cartes">
+    <span class="kanji" aria-hidden="true">札</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Collection</p>
+      <h2 class="titre-section revele" id="titre-cartes">Les cartes de la <span class="degrade">commu.</span></h2>
+      <p class="sous revele">Une carte par jour avec ton compte Discord. 15 à collectionner, des doublons qui donnent des éclats, et deux légendaires très rares.</p>
+    </div>
+    <div class="cartes-grille">
+      <div class="carte tirage revele" id="tirage"></div>
+      <div class="carte album revele" id="album"></div>
+    </div>
+    <div class="cartes-bas">
+      <div class="carte classement revele" id="collectionneurs"></div>
+      <div class="carte regles revele" id="regles-cartes"></div>
     </div>
   </section>
 
