@@ -15,15 +15,12 @@
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Outfit:wght@300;400;500;600&family=Space+Mono&display=swap">
-<!-- les onomatopées et les kanji (Dela Gothic One), seulement les caractères utilisés -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&text=%E3%80%9C%E3%82%A4%E3%82%A5%E3%82%AB%E3%82%AD%E3%82%AF%E3%82%B0%E3%82%B4%E3%82%B7%E3%82%B9%E3%82%BA%E3%83%83%E3%83%89%E3%83%91%E3%83%94%E3%83%A2%E3%83%A7%E3%83%A9%E3%83%AF%E3%83%B3%E3%83%BC%E4%BA%88%E4%BB%B2%E4%BC%9A%E4%BF%A1%E5%84%AA%E5%8B%95%E5%8B%9D%E5%8C%BB%E5%90%88%E5%A4%A7%E5%AE%9A%E7%94%BB%E8%88%B9%E9%85%8D%E9%96%93%E9%9B%86%EF%BC%81&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
 <link rel="stylesheet" href="/site.css">
 <script src="/site.js" defer></script>
 </head>
 <body>
 <canvas id="ciel" aria-hidden="true"></canvas>
-<div class="orbes" aria-hidden="true"><span></span><span></span><span></span></div>
 <div class="grain" aria-hidden="true"></div>
 <a class="sauter" href="#contenu">Aller au contenu</a>
 
@@ -51,12 +48,7 @@
 </header>
 
 <div class="musique-zone">
-  <div class="musique-lecteur" id="musique-lecteur" hidden>
-    <p class="musique-titre"><span>Charger</span> · Triangle des Bermudes, MC Yoshi, Mauvais djo, Kokosvoice</p>
-    <div id="spotify-zone"><div id="spotify"></div></div>
-    <p class="musique-note" id="musique-note" hidden></p>
-  </div>
-  <button class="musique" id="musique" type="button" aria-pressed="false" aria-controls="musique-lecteur" aria-label="Musique du site : Charger">
+  <button class="musique" id="musique" type="button" aria-pressed="false" aria-label="Musique du site : Charger, de Triangle des Bermudes, MC Yoshi, Mauvais djo et Kokosvoice">
     <span class="egaliseur" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
     <span class="musique-texte" id="musique-texte">Musique</span>
   </button>
@@ -95,7 +87,6 @@
       <span class="etincelle e3" aria-hidden="true">✧</span>
       <span class="sfx sfx-hero" aria-hidden="true">キラッ</span>
     </div>
-    <a class="defiler" href="#evenements" aria-label="Descendre vers les events">Défiler</a>
   </section>
 
   <div class="raccourcis" id="maintenant" aria-label="En ce moment"></div>

@@ -1,6 +1,6 @@
 # Site Barhaw (Vercel)
 
-Le site de la commu de LilianoBarhaw, sur une seule page qui se dévoile au défilement, en « nuit manga » (fond noir étoilé, violet et rose sombre, lignes de vitesse, onomatopées, bulles de manga) : les événements à venir (Osiris, le TOURNOI BARHAW, le live de 12 h…), ta chaîne Twitch (le live, ou la rediff quand tu n'es pas en live), les chaînes des potes, tes vidéos YouTube, le Discord, et Chopper, jouable en se connectant avec Discord.
+Le site de la commu de LilianoBarhaw, sur une seule page qui se dévoile au défilement, aux couleurs prune, rose et violet, en style manga (lignes de vitesse, onomatopées, bulles, autocollants de mèmes) : les événements à venir (Osiris, le TOURNOI BARHAW, le live de 12 h…), ta chaîne Twitch (le live, ou la rediff quand tu n'es pas en live), les chaînes des potes, tes vidéos YouTube, le Discord, et Chopper, jouable en se connectant avec Discord.
 
 Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son « API du site », `lib/site.js` du bot). Les événements se gèrent depuis Discord avec `/evenement`, les potes avec `/reseaux`, comme d'habitude.
 
@@ -51,8 +51,9 @@ Si le site change d'adresse (domaine à toi, autre nom de projet) : changer `SIT
 - **Le salon du site sur Discord** : `/site salon` poste une carte avec des boutons qui ouvrent le site, le tournoi et le goûter.
 - **Chopper** : la connexion Discord ouvre une session de 30 jours. Le bot vérifie que la personne est sur le serveur Barhaw (sinon : « Rejoins le Discord »). Nourrir et jouer, c'est une fois par jour, avec le même compteur que sur Discord ; la scène est aussi postée dans le salon de Chopper, avec son animation. Parler : une fois toutes les 2 minutes (réponse de l'IA du bot si `CLE_IA` est rempli, sinon des phrases toutes prêtes).
 - **Sécurité** : les demandes du site au bot sont signées avec `BOT_CLE` et l'heure ; une demande trop vieille ou déjà vue est refusée, et la clé ne circule jamais. Aucun texte venu de l'extérieur (titres de live, événements, pseudos) n'est inséré comme du HTML. La politique de sécurité (`vercel.json`) n'autorise que les lecteurs Twitch et YouTube dans la page.
-- **La musique** : le bouton « Musique » (en bas à gauche) lance « Charger » dans le lecteur officiel de Spotify, chargé seulement au clic. Pour changer de morceau : `MUSIQUE` en haut de `site.js` (l'identifiant est dans le lien Spotify, après `/track/`) et le titre dans `index.html`. Sans compte Spotify connecté, Spotify ne joue qu'un extrait.
-- **Polices et images** : Unbounded, Outfit, Space Mono et Dela Gothic One (onomatopées et kanji, seulement les caractères utilisés), chargées depuis Google Fonts (autorisé dans `vercel.json`, signalé dans les mentions). Chopper est un personnage de One Piece (crédit en bas de page et dans les mentions).
+- **La musique** : le bouton « Musique » (en bas à gauche, dans l'en-tête sur téléphone) lance « Charger » d'un clic, avec un réglage du volume ; un second clic la coupe. Le morceau est le fichier `musique/charger.mp3` : ajoute-le dans le dossier `musique/` du dépôt (tant qu'il n'y est pas, le bouton ne s'affiche pas). Pour changer de morceau, remplace ce fichier en gardant le même nom.
+- **Les mèmes** : les images de `img/memes/` sont collées au hasard sur la page à chaque visite (une en haut, une par partie, une en bas) ; un clic les affiche en grand. Pour en ajouter : mets l'image dans `img/memes/` et ajoute une ligne dans `MEMES`, en haut de `site.js` (avec sa largeur et sa hauteur).
+- **Polices et images** : Dela Gothic One (titres, onomatopées, kanji) et M PLUS Rounded 1c (texte), chargées depuis Google Fonts (autorisé dans `vercel.json`, signalé dans les mentions). Chopper est un personnage de One Piece (crédit en bas de page et dans les mentions).
 
 ## Limites
 

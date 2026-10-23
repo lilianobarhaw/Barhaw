@@ -33,8 +33,24 @@
   };
   // l'onomatopée en coin du prochain event, selon son type
   const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
-  // la musique du site : le lecteur Spotify officiel, chargé seulement quand on appuie sur le bouton
-  const MUSIQUE = { id: "1mvzvLW9nFujgS2VNKnToJ", titre: "Charger" };
+  // la musique du site : « Charger » (Triangle des Bermudes, MC Yoshi, Mauvais djo, Kokosvoice), un fichier du site
+  const MUSIQUE = "/musique/charger.mp3";
+  // les mèmes, posés au hasard sur la page à chaque visite (img/memes)
+  const MEMES = [
+    { src: "/img/memes/meme-01.jpg", l: 135, h: 185 },
+    { src: "/img/memes/meme-02.jpg", l: 439, h: 272 },
+    { src: "/img/memes/meme-03.jpg", l: 272, h: 246 },
+    { src: "/img/memes/meme-04.jpg", l: 560, h: 447 },
+    { src: "/img/memes/meme-05.jpg", l: 560, h: 483 },
+    { src: "/img/memes/meme-06.jpg", l: 560, h: 550 },
+    { src: "/img/memes/meme-07.jpg", l: 560, h: 154 },
+    { src: "/img/memes/meme-08.jpg", l: 560, h: 317 },
+    { src: "/img/memes/meme-09.jpg", l: 560, h: 386 },
+    { src: "/img/memes/meme-10.jpg", l: 393, h: 433 },
+    { src: "/img/memes/meme-11.jpg", l: 342, h: 460 },
+    { src: "/img/memes/meme-12.jpg", l: 340, h: 460 },
+    { src: "/img/memes/meme-13.jpg", l: 427, h: 460 },
+  ];
 
   let donnees = null;
   let moi = null; // { connecte, nom, avatar }
@@ -165,17 +181,19 @@
     for (const liste of groupes.values()) apparaitre(liste);
   }
 
-  // ---------- le ciel étoilé ----------
+  // ---------- le fond : des étincelles de manga et des traits de vitesse ----------
   function ciel() {
     const c = $("ciel");
     if (!c || !c.getContext) return;
     const ctx = c.getContext("2d");
-    const teintes = ["#f5f0fb", "#f5f0fb", "#cdb6ff", "#ff9cc1"];
-    let etoiles = [];
+    const teintes = ["255,143,203", "255,79,154", "209,166,255", "255,240,247"];
+    let eclats = [];
+    let traits = [];
     let l = 0;
     let h = 0;
     let boucle = 0;
     let dernier = 0;
+    let prochainTrait = 0;
 
     function taille() {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -184,50 +202,62 @@
       c.width = Math.round(l * dpr);
       c.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const n = Math.min(160, Math.round((l * h) / 9000));
-      etoiles = Array.from({ length: n }, () => ({
+      const n = Math.max(10, Math.min(30, Math.round((l * h) / 45000)));
+      eclats = Array.from({ length: n }, () => ({
         x: Math.random() * l,
         y: Math.random() * h,
-        r: Math.random() < 0.08 ? 1.3 + Math.random() * 0.8 : 0.3 + Math.random() * 0.9,
+        r: 3 + Math.random() * 6,
         phase: Math.random() * Math.PI * 2,
-        vitesse: 0.35 + Math.random() * 1.3,
-        profondeur: 0.15 + Math.random() * 0.85,
+        vitesse: 0.4 + Math.random() * 1.1,
         teinte: teintes[Math.floor(Math.random() * teintes.length)],
       }));
     }
 
-    function dessiner(t) {
+    // l'étincelle à quatre branches des mangas
+    function etincelle(x, y, r) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.quadraticCurveTo(x, y, x, y + r);
+      ctx.quadraticCurveTo(x, y, x - r, y);
+      ctx.quadraticCurveTo(x, y, x, y - r);
+      ctx.fill();
+    }
+
+    function dessiner(t, dt) {
       ctx.clearRect(0, 0, l, h);
-      const defile = window.scrollY || 0;
-      for (const e of etoiles) {
-        const lueur = reduit.matches ? 0.65 : 0.25 + 0.75 * (0.5 + 0.5 * Math.sin((t / 1000) * e.vitesse + e.phase));
-        let y = (e.y - defile * e.profondeur * 0.06) % h;
-        if (y < 0) y += h;
-        ctx.globalAlpha = lueur;
-        ctx.fillStyle = e.teinte;
-        ctx.beginPath();
-        ctx.arc(e.x, y, e.r, 0, Math.PI * 2);
-        ctx.fill();
-        if (e.r > 1.3) {
-          ctx.globalAlpha = lueur * 0.18;
-          ctx.beginPath();
-          ctx.arc(e.x, y, e.r * 3.2, 0, Math.PI * 2);
-          ctx.fill();
-          if (lueur > 0.8) { // l'étincelle en croix, au plus fort
-            const l = e.r * 9 * (lueur - 0.8) * 5;
-            ctx.globalAlpha = (lueur - 0.8) * 4;
-            ctx.fillRect(e.x - l, y - 0.5, l * 2, 1);
-            ctx.fillRect(e.x - 0.5, y - l, 1, l * 2);
-          }
-        }
+      for (const e of eclats) {
+        const lueur = reduit.matches ? 0.35 : 0.5 + 0.5 * Math.sin((t / 1000) * e.vitesse + e.phase);
+        if (lueur < 0.05) continue;
+        ctx.fillStyle = `rgba(${e.teinte},${(0.12 + 0.5 * lueur).toFixed(3)})`;
+        etincelle(e.x, e.y, e.r * (0.5 + 0.6 * lueur));
       }
-      ctx.globalAlpha = 1;
+      if (reduit.matches) return;
+      // de temps en temps, un trait de vitesse traverse l'écran
+      if (t > prochainTrait) {
+        const n = 1 + Math.floor(Math.random() * 3);
+        const y0 = Math.random() * h;
+        for (let k = 0; k < n; k++) {
+          traits.push({ x: -400 - Math.random() * 200, y: y0 + (k - 1) * (10 + Math.random() * 14), long: 180 + Math.random() * 320, v: 1.4 + Math.random() * 1.2, ep: 1 + Math.random() * 1.5, teinte: teintes[Math.floor(Math.random() * 3)] });
+        }
+        prochainTrait = t + 2200 + Math.random() * 3200;
+      }
+      for (const tr of traits) {
+        tr.x += tr.v * dt;
+        const g = ctx.createLinearGradient(tr.x, 0, tr.x + tr.long, 0);
+        g.addColorStop(0, `rgba(${tr.teinte},0)`);
+        g.addColorStop(0.7, `rgba(${tr.teinte},0.32)`);
+        g.addColorStop(1, `rgba(${tr.teinte},0)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(tr.x, tr.y, tr.long, tr.ep);
+      }
+      traits = traits.filter((tr) => tr.x < l + 50);
     }
 
     function image(t) {
       boucle = 0;
       if (document.hidden) return;
-      if (t - dernier > 33) { dernier = t; dessiner(t); } // ~30 images par seconde suffisent
+      if (t - dernier > 33) { const dt = dernier ? Math.min(60, t - dernier) : 16; dernier = t; dessiner(t, dt); } // ~30 images par seconde suffisent
       if (!reduit.matches) boucle = requestAnimationFrame(image);
     }
     const relancer = () => {
@@ -241,7 +271,6 @@
     let attente = 0;
     window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(() => { taille(); relancer(); }, 150); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) relancer(); });
-    if (reduit.matches) window.addEventListener("scroll", () => requestAnimationFrame(dessiner), { passive: true });
     reduit.addEventListener?.("change", relancer);
   }
 
@@ -287,84 +316,135 @@
     window.addEventListener("scroll", () => { if (!attente) { attente = true; requestAnimationFrame(maj); } }, { passive: true });
   }
 
-  // ---------- la musique ----------
+  // ---------- la musique : un clic lance « Charger », un autre la coupe, et un réglage du volume ----------
+  // Le morceau est un fichier du site : musique/charger.mp3. S'il n'y est pas, le bouton ne s'affiche pas.
   function musique() {
     const bouton = $("musique");
     if (!bouton) return;
-    const panneau = $("musique-lecteur");
-    const note = $("musique-note");
-    let actif = false;
-    let controleur = null;
-    let chargement = null;
-    let fin = false;
-    let essaiLecture = 0;
-
-    const afficher = (joue) => {
-      bouton.classList.toggle("joue", joue);
-      bouton.setAttribute("aria-pressed", String(actif));
-      $("musique-texte").textContent = actif ? MUSIQUE.titre : "Musique";
-      if (joue) { note.hidden = true; clearTimeout(essaiLecture); }
-    };
-
-    // l'API officielle du lecteur Spotify (open.spotify.com), chargée au premier clic seulement
-    function chargerSpotify() {
-      if (chargement) return chargement;
-      chargement = new Promise((ok, ko) => {
-        const delai = setTimeout(() => ko(new Error("Spotify ne répond pas")), 9000);
-        window.onSpotifyIframeApiReady = (api) => {
-          api.createController($("spotify"), { uri: `spotify:track:${MUSIQUE.id}`, width: "100%", height: 80 }, (c) => {
-            controleur = c;
-            c.addListener("playback_update", (ev) => {
-              const d = ev?.data || {};
-              afficher(actif && !d.isPaused && !d.isBuffering);
-              // à la fin du morceau, il repart du début
-              if (d.duration && d.position >= d.duration - 900) { if (!fin && actif) { fin = true; c.restart(); } }
-              else if (d.duration && d.position < d.duration - 3000) fin = false;
-            });
-            let pret = false;
-            const go = () => { if (!pret) { pret = true; clearTimeout(delai); ok(c); } };
-            c.addListener("ready", go);
-            setTimeout(go, 1500);
-          });
-        };
-        const s = document.createElement("script");
-        s.src = "https://open.spotify.com/embed/iframe-api/v1";
-        s.async = true;
-        s.onerror = () => { clearTimeout(delai); ko(new Error("Spotify bloqué")); };
-        document.head.append(s);
-      });
-      return chargement;
-    }
-
-    // si l'API ne répond pas : le lecteur Spotify simple, on appuie sur ▶ dedans
-    function lecteurSimple() {
-      if ($("spotify-zone").querySelector("iframe")) return;
-      vider($("spotify-zone"), el("iframe", {
-        src: `https://open.spotify.com/embed/track/${MUSIQUE.id}?utm_source=generator&theme=0`,
-        title: `Lecteur Spotify : ${MUSIQUE.titre}`,
-        allow: "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture",
-        loading: "lazy",
-      }));
-    }
-    const dire = (texte) => { note.textContent = texte; note.hidden = false; };
-
-    bouton.addEventListener("click", async () => {
-      actif = !actif;
-      panneau.hidden = !actif;
-      afficher(false);
-      if (!actif) { try { controleur?.pause(); } catch {} return; }
-      try {
-        const c = await chargerSpotify();
-        if (!actif) return;
-        c.resume();
-        // certains navigateurs (Safari) refusent de lancer le son tout seuls : on le dit
-        clearTimeout(essaiLecture);
-        essaiLecture = setTimeout(() => { if (actif && !bouton.classList.contains("joue")) dire("Appuie sur ▶ dans le lecteur pour lancer la musique."); }, 2500);
-      } catch {
-        lecteurSimple();
-        dire("Appuie sur ▶ dans le lecteur pour lancer la musique.");
-      }
+    const zone = bouton.parentElement;
+    const audio = new Audio();
+    audio.loop = true;
+    audio.preload = "none";
+    let volume = 0.6;
+    try { const v = parseFloat(localStorage.getItem("barhaw-volume")); if (v >= 0 && v <= 1) volume = v; } catch {}
+    audio.volume = volume;
+    // sur iPhone, le volume ne se règle qu'avec les boutons du téléphone : pas de réglage à l'écran
+    const reglable = (() => { const a = new Audio(); a.volume = 0.5; return a.volume === 0.5; })();
+    const curseur = el("input", { type: "range", min: 0, max: 1, step: 0.01, value: volume, "aria-label": "Volume de la musique", id: "musique-volume" });
+    const reglage = el("label", { class: "volume", hidden: true }, el("span", { "aria-hidden": "true", text: "🔊" }), curseur);
+    zone.append(reglage);
+    curseur.addEventListener("input", () => {
+      audio.volume = Number(curseur.value);
+      try { localStorage.setItem("barhaw-volume", curseur.value); } catch {}
     });
+    // on commence à charger le morceau dès que la souris (ou le doigt) arrive sur le bouton : le clic le lance tout de suite
+    const preparer = () => { if (!audio.getAttribute("src")) { audio.src = MUSIQUE; audio.preload = "auto"; } };
+    bouton.addEventListener("pointerenter", preparer);
+    bouton.addEventListener("focus", preparer);
+    bouton.addEventListener("touchstart", preparer, { passive: true });
+    const afficher = (on) => {
+      bouton.setAttribute("aria-pressed", String(on));
+      $("musique-texte").textContent = on ? "Charger" : "Musique";
+      reglage.hidden = !on || !reglable;
+    };
+    bouton.addEventListener("click", async () => {
+      if (!audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+        afficher(false);
+        return;
+      }
+      preparer();
+      afficher(true);
+      try { await audio.play(); } catch { afficher(false); }
+    });
+    audio.addEventListener("error", () => { afficher(false); zone.hidden = true; });
+    fetch(MUSIQUE, { method: "HEAD" }).then((r) => { if (!r.ok) zone.hidden = true; }).catch(() => {});
+  }
+
+  // ---------- les mèmes : des autocollants posés au hasard, différents à chaque visite ----------
+  function melanger(liste) {
+    for (let k = liste.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [liste[k], liste[j]] = [liste[j], liste[k]]; }
+    return liste;
+  }
+  // le bord droit du texte d'un élément (là où ses lignes s'arrêtent vraiment)
+  function bordTexte(e) {
+    const r = document.createRange();
+    r.selectNodeContents(e);
+    const rects = [...r.getClientRects()];
+    return rects.length ? Math.max(...rects.map((x) => x.right)) : e.getBoundingClientRect().left;
+  }
+
+  function agrandir(m, depuis) {
+    const fermer = () => { v.remove(); window.removeEventListener("keydown", touche); depuis.focus({ preventScroll: true }); };
+    const touche = (e) => { if (e.key === "Escape") fermer(); };
+    const v = el("div", { class: "visionneuse", role: "dialog", "aria-modal": "true", "aria-label": "Le mème en grand" },
+      el("img", { src: m.src, alt: "Un mème de Liliano", width: m.l, height: m.h }),
+      el("button", { class: "visionneuse-fermer", type: "button", "aria-label": "Fermer", text: "✕" }),
+    );
+    v.addEventListener("click", fermer);
+    window.addEventListener("keydown", touche);
+    document.body.append(v);
+    v.querySelector("button").focus();
+  }
+
+  function autocollants() {
+    const places = [];
+    const hero = document.querySelector(".hero-chopper");
+    if (hero) places.push({ type: "hero", parent: hero });
+    for (const t of document.querySelectorAll("section[data-section]:not(.hero) > .entete-section")) places.push({ type: "entete", parent: t });
+    const pied = document.querySelector(".pied");
+    if (pied) places.push({ type: "pied", parent: pied });
+    if (!places.length) return;
+    const tirage = melanger([...MEMES]);
+    const collants = places.map((place, k) => {
+      const m = tirage[k % tirage.length];
+      const b = el("button", { class: "autocollant", type: "button", "aria-label": "Voir ce mème en grand" },
+        el("img", { src: m.src, alt: "Un mème de Liliano", width: m.l, height: m.h, loading: "lazy", decoding: "async" }));
+      b.addEventListener("click", () => agrandir(m, b));
+      place.parent.prepend(b);
+      // le hasard est tiré une fois : l'autocollant ne saute pas quand la fenêtre change de taille
+      return { place, m, b, r: (Math.random() * 22 - 11).toFixed(1), rx: Math.random(), ry: Math.random() };
+    });
+
+    function placer() {
+      const etroit = window.innerWidth <= 900;
+      for (const s of collants) {
+        const { b, m, place } = s;
+        const ratio = m.h / m.l;
+        b.className = `autocollant${b.classList.contains("revele") ? " revele" : ""}${b.classList.contains("vu") ? " vu" : ""}`;
+        b.removeAttribute("style");
+        b.style.setProperty("--r", `${s.r}deg`);
+        if (place.type === "pied") { b.classList.add("au-pied"); b.style.width = `${ratio > 1.15 ? 130 : ratio > 0.8 ? 160 : 220}px`; continue; }
+        if (place.type === "hero") {
+          b.classList.add("au-hero");
+          b.style.width = `${etroit ? (ratio > 1.15 ? 78 : ratio > 0.8 ? 96 : 130) : (ratio > 1.15 ? 120 : ratio > 0.8 ? 150 : 200)}px`;
+          continue;
+        }
+        // dans l'en-tête d'une partie : à droite du titre, là où il y a de la place
+        const boite = place.parent.getBoundingClientRect();
+        const textes = [...place.parent.querySelectorAll(".titre-section, .sous, .surtitre")];
+        const droite = Math.max(0, ...textes.map((e) => bordTexte(e) - boite.left));
+        let w = ratio > 1.15 ? 150 : ratio > 0.8 ? 180 : 250;
+        const libre = boite.width - droite - 40;
+        if (etroit || libre < 120) {
+          b.classList.add("flottant");
+          b.style.width = `${ratio > 1.15 ? 86 : ratio > 0.8 ? 104 : 150}px`;
+          continue;
+        }
+        w = Math.min(w, libre);
+        const haut = w * ratio + 12;
+        b.style.width = `${Math.round(w)}px`;
+        b.style.left = `${Math.round(droite + 28 + s.rx * Math.max(0, libre - w))}px`;
+        b.style.top = `${Math.round(-12 + s.ry * Math.max(0, boite.height - haut * 0.75))}px`;
+      }
+    }
+    placer();
+    apparaitre(collants.map((s) => s.b));
+    let attente = 0;
+    window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(placer, 200); });
+    // les polices arrivent après : les titres changent de largeur, on replace
+    document.fonts?.ready?.then(placer);
   }
 
   // la section en cours est soulignée dans le menu
@@ -1502,7 +1582,7 @@
         if (e.sfx) {
           ctx.translate(e.x, e.y);
           ctx.rotate(-0.12);
-          ctx.font = `${e.taille}px "Dela Gothic One", "Unbounded", sans-serif`;
+          ctx.font = `${e.taille}px "Dela Gothic One", "M PLUS Rounded 1c", sans-serif`;
           ctx.lineWidth = 5;
           ctx.strokeStyle = "#0b0712";
           ctx.strokeText(e.texte, 3, 3);
@@ -1512,7 +1592,7 @@
           ctx.fillStyle = e.couleur;
           ctx.fillText(e.texte, 0, 0);
         } else {
-          ctx.font = `700 ${e.taille}px "Unbounded", "Outfit", sans-serif`;
+          ctx.font = `800 ${e.taille}px "M PLUS Rounded 1c", sans-serif`;
           ctx.fillStyle = e.couleur;
           ctx.fillText(e.texte, e.x, e.y);
         }
@@ -1637,6 +1717,7 @@
     apparitionsFixes();
     kanjis();
     musique();
+    autocollants();
     if (!$("accueil")) return; // la page des mentions : juste le décor
 
     const u = new URL(location.href);
