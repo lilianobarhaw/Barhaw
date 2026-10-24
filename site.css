@@ -930,6 +930,82 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .pastille-rarete.rarete-epique { background: var(--rose); }
 .pastille-rarete.rarete-legendaire { background: #ffc94d; color: var(--encre); }
 
+/* ---------- les jeux de Chopper : la Rumble Ball et le quiz One Piece ---------- */
+.jeux-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+.jeu-panneau { padding: 24px 26px 26px; display: grid; gap: 16px; }
+.jeu-tete { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.jeu-tete h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: 22px; }
+.jeu-emoji { font-size: 26px; }
+.jeu-ecran { display: grid; justify-items: center; gap: 10px; text-align: center; }
+.jeu-ecran .note { margin: 0; }
+.jeu-regle { margin: 0; color: var(--brume); font-size: 15px; max-width: 46ch; }
+.jeu-gros { margin: 0; font-family: var(--titre); font-size: clamp(30px, 4vw, 42px); line-height: 1.05; }
+.jeu-score { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 18px; }
+.jeu-bravo { margin: 0; padding: 4px 12px; border-radius: 99px; background: rgba(255, 79, 154, 0.16); border: 1.5px solid var(--rose); color: #ffd3e6; font-family: var(--fort); font-weight: 800; font-size: 14px; }
+.jeu-classement { border-top: 1px solid var(--ligne-douce); padding-top: 12px; }
+.jeu-record { display: flex; gap: 10px; align-items: baseline; margin: 0 0 6px; font-size: 14.5px; }
+.jeu-record span { font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #ffd479; }
+.jeu-classement ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; counter-reset: rang; }
+.jeu-classement li { display: flex; gap: 10px; align-items: center; padding: 5px 0; font-size: 14.5px; counter-increment: rang; }
+.jeu-classement li::before { content: counter(rang); width: 16px; font-family: var(--fort); font-weight: 800; font-size: 11px; color: var(--terne); }
+.jeu-classement li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jeu-classement li small { font-family: var(--fort); font-weight: 800; font-size: 12px; color: var(--brume); }
+
+/* la Rumble Ball : le cadran, l'aiguille, et Chopper qui se transforme */
+.rb-scene { position: relative; display: grid; place-items: center; padding: 8px 0; overflow: hidden; border-radius: 16px; background: radial-gradient(circle, rgba(155, 77, 255, 0.22), transparent 70%); }
+.rb-scene .concentration { width: 140%; opacity: 0.35; }
+.rb-scene.choc .concentration { opacity: 1; animation: vibrer 0.12s steps(2) 5; }
+.rb-scene.choc .rb-cadran { animation: vibrer 0.1s steps(2) 4; }
+.rb-cadran { position: relative; z-index: 1; width: min(280px, 72vw); aspect-ratio: 1; touch-action: manipulation; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.rb-cadran svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rb-piste { fill: rgba(18, 5, 13, 0.55); stroke: rgba(255, 190, 230, 0.25); stroke-width: 10; }
+.rb-zone { fill: none; stroke: var(--rose); stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(255, 79, 154, 0.9)); }
+.rb-aiguille line { stroke: var(--papier); stroke-width: 5; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)); }
+.rb-aiguille circle { fill: #ffd479; stroke: var(--encre); stroke-width: 2.5; }
+.rb-chopper { position: absolute; left: 50%; top: 50%; width: 46%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; overflow: hidden; border: 3px solid var(--encre);
+  box-shadow: 0 0 0 3px var(--papier), 0 0 0 7px var(--aura, transparent), 0 0 34px var(--aura, transparent); transition: scale 0.45s var(--rebond), filter 0.45s, box-shadow 0.45s; }
+.rb-chopper img { width: 100%; height: 100%; object-fit: cover; }
+.rb-chopper.forme-1 { --aura: #ff9cc8; scale: 1.06; }
+.rb-chopper.forme-2 { --aura: #ff6fb0; scale: 1.1; filter: saturate(1.2); }
+.rb-chopper.forme-3 { --aura: #d58bff; scale: 1.14; filter: saturate(1.3) hue-rotate(-10deg); }
+.rb-chopper.forme-4 { --aura: #9b4dff; scale: 1.18; filter: saturate(1.4) hue-rotate(-20deg); }
+.rb-chopper.forme-5 { --aura: #6fd3ff; scale: 1.22; filter: saturate(1.5) hue-rotate(-35deg) contrast(1.05); }
+.rb-chopper.forme-6 { --aura: #ffd479; scale: 1.27; filter: saturate(1.6) hue-rotate(-50deg) contrast(1.1); }
+.rb-chopper.forme-7 { --aura: #ff9a3c; scale: 1.32; filter: saturate(1.8) hue-rotate(-70deg) contrast(1.15); }
+.rb-chopper.forme-8 { --aura: #ff2d55; scale: 1.5; filter: saturate(2.2) contrast(1.3) brightness(0.95) sepia(0.2) hue-rotate(-20deg); animation: rb-tremble 0.12s steps(2) infinite; }
+@keyframes rb-tremble { 0% { rotate: 0deg; } 50% { rotate: 2.5deg; } 100% { rotate: -2deg; } }
+.rb-sfx { left: 50%; top: 4%; translate: -50% 0; --r: -8deg; font-size: 34px; z-index: 3; opacity: 0; }
+.rb-sfx.eclat { opacity: 1; }
+.rb-hud { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-family: var(--fort); font-weight: 800; font-size: 13px; letter-spacing: 0.04em; color: var(--brume); }
+.rb-hud b { font-family: var(--titre); font-weight: 400; font-size: 22px; color: var(--blanc); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.rb-bouton { min-width: 200px; font-size: 18px; }
+
+/* le quiz : l'avis de recherche, le chrono, les choix */
+.qz-affiche { justify-self: center; display: grid; justify-items: center; gap: 6px; width: 150px; padding: 10px 12px 12px; rotate: -3deg; background: #f3e1bf; border: 3px solid var(--encre); box-shadow: 6px 7px 0 var(--ombre); color: #3b2414; }
+.qz-wanted { font-family: var(--titre); font-size: 24px; letter-spacing: 0.08em; line-height: 1; }
+.qz-affiche img { width: 110px; height: 110px; object-fit: cover; border: 2px solid #3b2414; filter: sepia(0.45) contrast(1.05); }
+.qz-prime { font-family: var(--titre); font-size: 18px; line-height: 1; }
+.qz-haut { display: flex; justify-content: space-between; font-family: var(--fort); font-weight: 800; font-size: 13px; letter-spacing: 0.04em; color: var(--brume); }
+.qz-haut b { color: #ff9cc8; }
+.qz-temps { height: 8px; overflow: hidden; border-radius: 99px; background: var(--verre-fort); border: 1px solid var(--ligne-douce); }
+.qz-temps i { display: block; height: 100%; background: var(--degrade); transform-origin: left; animation: qz-chrono linear both; }
+.qz-temps i.arret { animation-play-state: paused; }
+@keyframes qz-chrono { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.qz-question { margin: 0; padding: 16px 18px; border-radius: 18px; background: var(--papier); color: var(--encre); border: 2.5px solid var(--encre); box-shadow: 5px 5px 0 var(--violet); font-family: var(--fort); font-weight: 800; font-size: 17px; line-height: 1.35; }
+.qz-choix-liste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.qz-choix {
+  padding: 12px 14px; min-height: 56px; border-radius: 14px; cursor: pointer; text-align: left; font-family: var(--fort); font-weight: 700; font-size: 15px; line-height: 1.25;
+  background: var(--nuit); color: var(--blanc); border: 2px solid var(--ligne); box-shadow: 3px 3px 0 var(--ombre); transition: transform 0.15s, border-color 0.2s, background 0.2s;
+}
+.qz-choix:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--rose); }
+.qz-choix:disabled { cursor: default; }
+.qz-choix.choisi { border-color: var(--violet-clair); }
+.qz-choix.bonne { background: #1f6b46; border-color: #6fe3a5; color: #fff; }
+.qz-choix.fausse { background: #7a1730; border-color: #ff6f8f; color: #fff; animation: trembler 0.12s steps(2) 3; }
+.qz-verdict { margin: 0; text-align: center; font-family: var(--titre); font-size: 22px; animation: bulle-pop 0.4s var(--rebond); }
+.qz-verdict.juste { color: #6fe3a5; }
+.qz-verdict.faux { color: #ff8fa8; }
+
 /* ---------- le goûter de Chopper (mini-jeu) ---------- */
 .gouter { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); overflow: hidden; }
 .gouter-jeu { position: relative; aspect-ratio: 16 / 10; min-height: 320px; background: #110b1c; border-right: 1px solid var(--ligne-douce); }
@@ -1123,6 +1199,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .tournoi-une, .tournoi-une.une-direct { grid-template-columns: minmax(0, 1fr); }
   .teaser { grid-template-columns: minmax(0, 1fr); }
   .cartes-grille { grid-template-columns: minmax(0, 1fr); }
+  .jeux-grille { grid-template-columns: minmax(0, 1fr); }
   .revelation-bande { grid-template-columns: minmax(0, 1fr); grid-template-areas: "texte" "rebours" "agents"; }
   .revelation-bande > .rebours { margin-top: 20px; justify-content: start; }
   .revelation-bande .sfx-revelation, .revelation-bande:not(.scellee) .sfx-revelation { font-size: 38px; top: auto; right: 5%; bottom: calc(clamp(170px, 25vw, 310px) - 34px); }
@@ -1168,6 +1245,9 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .eclats { justify-content: center; }
   .album { padding: 22px 18px; }
   .album-cases { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; }
+  .jeu-panneau { padding: 22px 18px; }
+  .qz-choix-liste { grid-template-columns: minmax(0, 1fr); }
+  .qz-question { font-size: 16px; }
   .case-album .cc-nom { font-size: 11px; }
   .equipe-buste { width: 100px; }
   .equipe-carte .sceau { right: 22px; }

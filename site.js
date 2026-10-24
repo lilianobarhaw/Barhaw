@@ -2079,6 +2079,290 @@
     rendreCollectionneurs();
   }
 
+  // ---------- les jeux de Chopper : la Rumble Ball et le quiz One Piece ----------
+  // Le bot ouvre chaque partie, vérifie la Rumble Ball et corrige le quiz lui-même (la page ne reçoit jamais les réponses).
+  let mesJeux = null; // { rumble: { meilleur, eclatRecu }, quiz: { meilleur, temps, eclatRecu } }
+  const POINTS_RUMBLE = ["Heavy Point", "Brain Point", "Walk Point", "Jumping Point", "Arm Point", "Guard Point", "Horn Point"];
+  const SFX_RUMBLE = ["ドン！", "ボン！", "ゴゴゴ", "バーン！", "ドドド", "ズン！", "ガッ！"];
+  const infosJeux = () => donnees?.jeux || null;
+
+  async function demanderJeux(action, extra = {}) {
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      const d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+      if (d.jeux) mesJeux = d.jeux;
+      if (d.cartes) { mesCartes = d.cartes; if (!$("tirage")?.querySelector(".retourne")) rendreTirage(); }
+      return { status: r.status, d };
+    } catch {
+      return { status: 0, d: { erreur: "Impossible de joindre le bot. Vérifie ta connexion." } };
+    }
+  }
+  async function chargerMesJeux() {
+    if (!moi?.connecte) { mesJeux = null; rendreJeux(); return; }
+    await demanderJeux("jeux");
+    rendreJeux();
+  }
+
+  // le classement d'un jeu (record + top 5 de la semaine)
+  function tableauJeu(jeu) {
+    const s = infosJeux()?.[jeu];
+    const texte = (x) => (jeu === "quiz" ? `${x.score}/10 · ${Math.round((x.temps || 0) / 1000)} s` : `${nombre(x.score)} pts`);
+    return el("div", { class: "jeu-classement" },
+      el("p", { class: "jeu-record" }, el("span", { text: "Record" }), s?.record ? `${texte(s.record)} · ${s.record.nom}` : "à prendre !"),
+      s?.semaine?.length
+        ? el("ol", {}, s.semaine.map((x) => el("li", {}, el("span", { text: x.nom }), el("small", { text: texte(x) }))))
+        : el("p", { class: "note", text: "Personne n'a encore joué cette semaine." }),
+    );
+  }
+
+  // --- la Rumble Ball ---
+  const rb = { etat: "accueil", manche: 0, score: 0, angle: 0, vitesse: 0, zone: 0, largeur: 0, t0: 0, boucle: 0, partie: "", fin: null, dernier: null };
+  function rumbleScene() {
+    const svg = `<svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="84" class="rb-piste"/><path class="rb-zone" d=""/><g class="rb-aiguille"><line x1="100" y1="100" x2="100" y2="22"/><circle cx="100" cy="22" r="6"/></g></svg>`;
+    const cadran = el("div", { class: "rb-cadran" });
+    cadran.innerHTML = svg;
+    cadran.append(
+      el("div", { class: `rb-chopper forme-${rb.etat === "fin" && rb.fin ? (rb.fin.transformations === 7 ? 8 : rb.fin.transformations) : 0}`, id: "rb-chopper" }, el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 })),
+      el("span", { class: "sfx rb-sfx", id: "rb-sfx", "aria-hidden": "true" }),
+    );
+    cadran.addEventListener("pointerdown", (e) => { if (rb.etat === "jeu") { e.preventDefault(); appuyerRumble(); } });
+    return el("div", { class: "rb-scene" }, el("span", { class: "concentration", "aria-hidden": "true" }), cadran);
+  }
+  function rendreRumble() {
+    const z = $("rumble");
+    if (!z || rb.etat === "jeu") return;
+    const s = infosJeux()?.rumble;
+    const moiR = mesJeux?.rumble;
+    let ecran;
+    if (rb.etat === "fin" && rb.fin) {
+      const f = rb.fin;
+      ecran = el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-gros degrade", text: f.transformations === 7 ? "MONSTER POINT !!" : `${f.transformations}/7` }),
+        el("p", { class: "jeu-score", text: `${nombre(f.score)} points` }),
+        f.message ? el("p", { class: "note", text: f.message }) : null,
+        f.record ? el("p", { class: "jeu-bravo", text: "Nouveau record du site !" }) : f.perso ? el("p", { class: "jeu-bravo", text: "Nouveau record perso !" }) : null,
+        f.eclat ? el("p", { class: "jeu-bravo", text: "+1 éclat pour tes cartes 💎" }) : null,
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerRumble, text: "Rejouer" }),
+      );
+    } else {
+      ecran = el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-regle", text: "Appuie quand l'aiguille passe dans la zone rose. 7 transformations de plus en plus dures : réussis-les toutes pour le MONSTER POINT." }),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerRumble, text: "Avaler la Rumble Ball" }),
+        el("p", { class: "note", text: moi?.connecte
+          ? `${moiR?.meilleur ? `Ton meilleur score de la semaine : ${nombre(moiR.meilleur)} pts. ` : ""}${moiR?.eclatRecu ? "Éclat du jour déjà gagné." : `5 transformations = 1 éclat pour tes cartes.`}`
+          : "Connecte-toi avec Discord pour que ton score compte." }),
+      );
+    }
+    vider(z,
+      el("div", { class: "jeu-tete" }, el("h3", { text: "La Rumble Ball" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "💊" })),
+      rumbleScene(),
+      el("div", { class: "rb-hud" }, el("span", { id: "rb-manche", text: rb.etat === "fin" ? "Partie finie" : "Prêt ?" }), el("b", { id: "rb-score", text: `${nombre(rb.score)} pts` })),
+      ecran,
+      s ? tableauJeu("rumble") : null,
+    );
+    dessinerRumble();
+  }
+  function arcZone(debut, fin) {
+    const p = (a) => { const r = ((a - 90) * Math.PI) / 180; return [100 + 84 * Math.cos(r), 100 + 84 * Math.sin(r)]; };
+    const [x1, y1] = p(debut);
+    const [x2, y2] = p(fin);
+    return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A 84 84 0 ${fin - debut > 180 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+  }
+  function dessinerRumble() {
+    const z = $("rumble");
+    const a = z?.querySelector(".rb-aiguille");
+    const zone = z?.querySelector(".rb-zone");
+    if (!a || !zone) return;
+    a.setAttribute("transform", `rotate(${rb.angle % 360} 100 100)`);
+    zone.setAttribute("d", rb.largeur ? arcZone(rb.zone - rb.largeur / 2, rb.zone + rb.largeur / 2) : "");
+  }
+  function mancheRumble() {
+    const k = rb.manche;
+    rb.vitesse = 0.72 * Math.pow(1.17, k); // tours par seconde
+    rb.largeur = Math.max(22, 74 * Math.pow(0.82, k)); // degrés
+    rb.angle = 0;
+    rb.zone = 110 + Math.random() * 200;
+    rb.t0 = performance.now();
+    $("rb-manche").textContent = `Transformation ${k + 1}/7 · ${POINTS_RUMBLE[k]}`;
+    dessinerRumble();
+    cancelAnimationFrame(rb.boucle);
+    const image = (t) => {
+      if (rb.etat !== "jeu") return;
+      const dt = (t - rb.t0) / 1000;
+      rb.angle = 360 * rb.vitesse * dt;
+      dessinerRumble();
+      if (t - rb.t0 > 6500) { finirRumble("Trop tard ! Chopper s'est endormi…"); return; }
+      rb.boucle = requestAnimationFrame(image);
+    };
+    rb.boucle = requestAnimationFrame(image);
+  }
+  async function lancerRumble() {
+    rb.etat = "jeu"; rb.manche = 0; rb.score = 0; rb.fin = null; rb.partie = "";
+    const z = $("rumble");
+    vider(z,
+      el("div", { class: "jeu-tete" }, el("h3", { text: "La Rumble Ball" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "💊" })),
+      rumbleScene(),
+      el("div", { class: "rb-hud" }, el("span", { id: "rb-manche", text: "" }), el("b", { id: "rb-score", text: "0 pts" })),
+      el("div", { class: "jeu-ecran" }, el("button", { class: "btn btn-plein rb-bouton", type: "button", onclick: appuyerRumble, text: "Appuie !" }), el("p", { class: "note", text: "Ou la barre espace, ou un tap sur le cadran." })),
+    );
+    z.querySelector(".rb-bouton").focus({ preventScroll: true });
+    if (moi?.connecte) {
+      const { d } = await demanderJeux("jeu-ouvrir", { jeu: "rumble" });
+      if (d.partie) rb.partie = d.partie;
+    }
+    mancheRumble();
+  }
+  function appuyerRumble() {
+    if (rb.etat !== "jeu" || performance.now() - rb.t0 < 150) return;
+    const a = ((rb.angle % 360) + 360) % 360;
+    const ecart = Math.abs((((a - rb.zone) % 360) + 540) % 360 - 180);
+    if (ecart > rb.largeur / 2) { finirRumble("Raté ! Chopper n'a pas tenu le choc."); return; }
+    const precision = 1 - ecart / (rb.largeur / 2);
+    rb.score += Math.round(50 + 50 * precision);
+    rb.manche++;
+    $("rb-score").textContent = `${nombre(rb.score)} pts`;
+    const ch = $("rb-chopper");
+    ch.className = `rb-chopper forme-${rb.manche}`;
+    const sfx = $("rb-sfx");
+    sfx.textContent = precision > 0.8 ? "パーフェクト！" : SFX_RUMBLE[rb.manche % SFX_RUMBLE.length];
+    sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
+    const scene = $("rumble").querySelector(".rb-scene");
+    scene.classList.remove("choc"); void scene.offsetWidth; scene.classList.add("choc");
+    if (rb.manche >= 7) {
+      rb.score += 300;
+      ch.className = "rb-chopper forme-8";
+      sfx.textContent = "MONSTER POINT !!";
+      $("rb-score").textContent = `${nombre(rb.score)} pts`;
+      finirRumble("", 1400);
+      return;
+    }
+    rb.etat = "pause";
+    cancelAnimationFrame(rb.boucle);
+    setTimeout(() => { if (rb.etat === "pause") { rb.etat = "jeu"; mancheRumble(); } }, 650);
+  }
+  async function finirRumble(message, delai = 900) {
+    rb.etat = "envoi";
+    cancelAnimationFrame(rb.boucle);
+    const transformations = rb.manche;
+    const score = rb.score;
+    if (message) { const sfx = $("rb-sfx"); sfx.textContent = "ガーン"; sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat"); }
+    let fin = { transformations, score, message };
+    const attente = new Promise((ok) => setTimeout(ok, delai));
+    if (rb.partie) {
+      const { d } = await demanderJeux("rumble-fin", { partie: rb.partie, transformations, score });
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat };
+      else if (d.erreur) fin.message = [message, d.erreur].filter(Boolean).join(" ");
+    } else if (!moi?.connecte) {
+      fin.message = [message, "Connecte-toi avec Discord pour que ton score compte."].filter(Boolean).join(" ");
+    }
+    await attente;
+    rb.etat = "fin";
+    rb.fin = fin;
+    rendreRumble();
+    if (fin.record || fin.perso) setTimeout(charger, 1500);
+  }
+  window.addEventListener("keydown", (e) => {
+    if ((e.key === " " || e.key === "Enter") && rb.etat === "jeu" && !e.repeat) {
+      const r = $("rumble")?.getBoundingClientRect();
+      if (r && r.bottom > 0 && r.top < innerHeight) { e.preventDefault(); appuyerRumble(); }
+    }
+  });
+
+  // --- le quiz One Piece ---
+  const qz = { etat: "accueil", partie: "", question: null, numero: 0, bonnes: 0, fin: null, minuteur: 0, t0: 0, verrou: false };
+  function teteQuiz() {
+    return el("div", { class: "jeu-tete" }, el("h3", { text: "Le quiz One Piece" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏴‍☠️" }));
+  }
+  function rendreQuiz() {
+    const z = $("quiz");
+    if (!z || qz.etat === "question") return;
+    const moiQ = mesJeux?.quiz;
+    let ecran;
+    if (!moi?.connecte) {
+      ecran = el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-regle", text: "10 questions sur l'univers de One Piece, 15 secondes pour chacune. Les questions viennent du bot : connecte-toi avec Discord pour jouer." }),
+        el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord" }),
+      );
+    } else if (qz.etat === "fin" && qz.fin) {
+      const f = qz.fin;
+      ecran = el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-gros degrade", text: `${f.bonnes}/10` }),
+        el("p", { class: "jeu-score", text: `en ${Math.round(f.temps / 1000)} s` }),
+        el("p", { class: "note", text: f.bonnes === 10 ? "Sans faute ! Un vrai nakama." : f.bonnes >= 7 ? "Bien joué, tu connais ton One Piece !" : f.bonnes >= 4 ? "Pas mal… Relis quelques tomes !" : "Aïe. Chopper va devoir te soigner." }),
+        f.record ? el("p", { class: "jeu-bravo", text: "Nouveau record du site !" }) : f.perso ? el("p", { class: "jeu-bravo", text: "Nouveau record perso !" }) : null,
+        f.eclat ? el("p", { class: "jeu-bravo", text: "+1 éclat pour tes cartes 💎" }) : null,
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerQuiz, text: "Rejouer" }),
+      );
+    } else {
+      ecran = el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-regle", text: "10 questions sur l'univers de One Piece, 15 secondes pour chacune. Le classement se fait aux bonnes réponses, puis au temps." }),
+        qz.erreur ? el("p", { class: "note", text: qz.erreur }) : null,
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerQuiz, text: "Lancer le quiz" }),
+        el("p", { class: "note", text: `${moiQ?.meilleur ? `Ton meilleur de la semaine : ${moiQ.meilleur}/10. ` : ""}${moiQ?.eclatRecu ? "Éclat du jour déjà gagné." : "7 bonnes réponses = 1 éclat pour tes cartes."}` }),
+      );
+    }
+    vider(z, teteQuiz(), el("div", { class: "qz-affiche", "aria-hidden": "true" }, el("span", { class: "qz-wanted", text: "WANTED" }), el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 }), el("span", { class: "qz-prime", text: "50 ฿" })), ecran, infosJeux()?.quiz ? tableauJeu("quiz") : null);
+  }
+  async function lancerQuiz() {
+    if (qz.verrou) return;
+    qz.verrou = true;
+    qz.erreur = "";
+    const { d } = await demanderJeux("jeu-ouvrir", { jeu: "quiz" });
+    qz.verrou = false;
+    if (!d.ok || !d.question) { qz.etat = "accueil"; qz.erreur = d.texte || d.erreur || "Le quiz n'a pas pu démarrer, réessaie."; rendreQuiz(); return; }
+    qz.partie = d.partie; qz.bonnes = 0; qz.fin = null;
+    poserQuestion(d.question);
+  }
+  function poserQuestion(q) {
+    qz.etat = "question";
+    qz.question = q;
+    qz.t0 = performance.now();
+    const z = $("quiz");
+    const barre = el("i", {});
+    const boutons = q.choix.map((c, k) => el("button", { class: "qz-choix", type: "button", onclick: () => repondreQuiz(k), text: c }));
+    vider(z, teteQuiz(),
+      el("div", { class: "qz-haut" }, el("span", { text: `Question ${q.numero}/10` }), el("b", { text: `${qz.bonnes} bonne${qz.bonnes > 1 ? "s" : ""}` })),
+      el("div", { class: "qz-temps", "aria-hidden": "true" }, barre),
+      el("p", { class: "qz-question", text: q.q }),
+      el("div", { class: "qz-choix-liste" }, boutons),
+    );
+    barre.style.animationDuration = "15s";
+    clearTimeout(qz.minuteur);
+    qz.minuteur = setTimeout(() => repondreQuiz(null), 15_000);
+  }
+  async function repondreQuiz(k) {
+    if (qz.etat !== "question" || qz.verrou) return;
+    qz.verrou = true;
+    clearTimeout(qz.minuteur);
+    const z = $("quiz");
+    const boutons = [...z.querySelectorAll(".qz-choix")];
+    boutons.forEach((b) => { b.disabled = true; });
+    if (k !== null) boutons[k]?.classList.add("choisi");
+    z.querySelector(".qz-temps i")?.classList.add("arret");
+    const { d } = await demanderJeux("quiz-repondre", { partie: qz.partie, choix: k });
+    qz.verrou = false;
+    if (!d.ok) { qz.etat = "accueil"; qz.erreur = d.erreur || "Le quiz s'est arrêté, relance-le."; rendreQuiz(); return; }
+    boutons[d.bonne]?.classList.add("bonne");
+    if (k !== null && !d.juste) boutons[k]?.classList.add("fausse");
+    qz.bonnes = d.bonnes;
+    const verdict = el("p", { class: `qz-verdict ${d.juste ? "juste" : "faux"}`, text: d.juste ? "Bonne réponse !" : d.tropTard || k === null ? "Trop tard !" : "Raté !" });
+    z.append(verdict);
+    setTimeout(() => {
+      if (d.fin) {
+        qz.etat = "fin";
+        qz.fin = { bonnes: d.bonnes, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat };
+        rendreQuiz();
+        if (d.record || d.perso) setTimeout(charger, 1500);
+      } else poserQuestion(d.question);
+    }, d.juste ? 900 : 1500);
+  }
+
+  function rendreJeux() {
+    if (rb.etat !== "jeu" && rb.etat !== "pause" && rb.etat !== "envoi") rendreRumble();
+    rendreQuiz();
+  }
+
   // ---------- chargement ----------
   function rendreTout() {
     rendreEntete();
@@ -2093,6 +2377,7 @@
     rendreTournoi();
     rendreClassementJeu();
     if (!tirageEnCours) { rendreAlbum(); rendreCollectionneurs(); if (!$("tirage")?.querySelector(".retourne")) rendreTirage(); }
+    rendreJeux();
   }
 
   async function charger() {
@@ -2118,6 +2403,7 @@
     rendreClassementJeu();
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
+    chargerMesJeux();
   }
 
   function demarrer() {
