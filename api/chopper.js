@@ -1,6 +1,7 @@
 // Chopper sur le site.
 //   GET  /api/chopper?image=carte                 → sa carte (PNG)
 //   GET  /api/chopper?image=anim&type=nourrir     → une de ses animations (GIF) ; aussi jouer, niveau, grandit, defi, deprime, gueri
+//   GET  /api/chopper?image=wanted&cle=…          → l'affiche WANTED d'un chasseur (PNG), par la clé publique de son avis de recherche
 //   POST /api/chopper  { action: "etat" | "nourrir" | "jouer" | "parler" | "jeu-debut" | "jeu-fin", message, partie, score }
 //        → au nom du membre connecté avec Discord ; le bot vérifie qu'il est sur le serveur Barhaw
 //          et applique les mêmes règles que sur Discord (une fois par jour pour nourrir et jouer).
@@ -8,11 +9,13 @@
 //   POST /api/chopper  { action: "cartes" | "carte-tirer" } → l'album du membre, ou sa carte du jour (tirée par le bot)
 //   POST /api/chopper  { action: "jeux" | "jeu-ouvrir" | "rumble-fin" | "quiz-repondre" | "docteur-fin" | "memory-fin", jeu, niveau, partie, … }
 //        → les jeux du site (la Rumble Ball, le quiz One Piece, Docteur Chopper, le Memory), vérifiés et corrigés par le bot
+//   POST /api/chopper  { action: "chasse" | "prime-activer" | "prime-retirer" | "boss-attaquer" }
+//        → la chasse : son avis de recherche WANTED (créer, retirer) et l'attaque du jour contre le boss de la semaine
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
@@ -30,14 +33,18 @@ export async function GET(req) {
     if (/^[\p{L} ]{1,20}$/u.test(stade)) q.set("stade", stade);
     chemin = "/chopper/anim?" + q;
   }
+  const cle = String(u.searchParams.get("cle") || "");
+  if (image === "wanted" && /^[0-9a-f]{12}$/.test(cle)) chemin = "/wanted?cle=" + cle;
   if (!chemin) return json({ erreur: "Image inconnue." }, 404);
   try {
     const r = await demanderBot(chemin, { delai: 20000 });
     if (!r.ok) return json({ erreur: "Image indisponible pour l'instant." }, 404, { "Cache-Control": "public, s-maxage=30" });
     return new Response(await r.arrayBuffer(), {
       headers: {
-        "Content-Type": image === "carte" ? "image/png" : "image/gif",
-        "Cache-Control": image === "carte" ? "public, max-age=0, s-maxage=30, stale-while-revalidate=300" : "public, max-age=86400, s-maxage=604800",
+        "Content-Type": image === "anim" ? "image/gif" : "image/png",
+        "Cache-Control": image === "carte" ? "public, max-age=0, s-maxage=30, stale-while-revalidate=300"
+          : image === "wanted" ? "public, max-age=60, s-maxage=120"
+          : "public, max-age=86400, s-maxage=604800",
         "X-Content-Type-Options": "nosniff",
       },
     });
