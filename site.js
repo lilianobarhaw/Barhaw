@@ -202,7 +202,7 @@
     let prochainTrait = 0;
 
     function taille() {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const dpr = 1; // un décor doux : la résolution normale suffit, même sur les écrans de téléphone
       l = window.innerWidth;
       h = window.innerHeight;
       c.width = Math.round(l * dpr);
@@ -260,10 +260,12 @@
       traits = traits.filter((tr) => tr.x < l + 50);
     }
 
+    let defile = 0;
     function image(t) {
       boucle = 0;
-      if (document.hidden) return;
-      if (t - dernier > 33) { const dt = dernier ? Math.min(60, t - dernier) : 16; dernier = t; dessiner(t, dt); } // ~30 images par seconde suffisent
+      if (document.hidden || defile) return;
+      // les étincelles scintillent lentement : 12 images par seconde leur suffisent ; 30 quand un trait de vitesse passe
+      if (t - dernier > (traits.length ? 33 : 80)) { const dt = dernier ? Math.min(90, t - dernier) : 16; dernier = t; dessiner(t, dt); }
       if (!reduit.matches) boucle = requestAnimationFrame(image);
     }
     const relancer = () => {
@@ -278,6 +280,22 @@
     window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(() => { taille(); relancer(); }, 150); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) relancer(); });
     reduit.addEventListener?.("change", relancer);
+    // pendant le défilement, le navigateur a mieux à faire : le fond attend la fin du geste
+    window.addEventListener("scroll", () => {
+      if (boucle) { cancelAnimationFrame(boucle); boucle = 0; }
+      clearTimeout(defile);
+      defile = setTimeout(() => { defile = 0; if (!document.hidden) relancer(); }, 160);
+    }, { passive: true });
+  }
+
+  // ---------- les animations des parties qu'on ne voit pas sont mises en pause ----------
+  function animationsHorsVue() {
+    if (!("IntersectionObserver" in window)) return;
+    const parties = document.querySelectorAll("[data-section], footer");
+    const io = new IntersectionObserver((entrees) => {
+      for (const e of entrees) e.target.classList.toggle("hors-vue", !e.isIntersecting);
+    }, { rootMargin: "300px 0px" });
+    for (const p of parties) io.observe(p);
   }
 
   // ---------- l'en-tête et le menu ----------
@@ -2689,6 +2707,7 @@
 
   function demarrer() {
     ciel();
+    animationsHorsVue();
     entete();
     apparitionsFixes();
     kanjis();

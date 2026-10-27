@@ -49,12 +49,15 @@ body {
   line-height: 1.7;
   color: var(--blanc);
   background-color: var(--vide);
+  -webkit-font-smoothing: antialiased;
+}
+/* le dégradé du fond, sur un calque fixe à part : rien à redessiner pendant le défilement */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -4; pointer-events: none;
   background-image:
     radial-gradient(1100px 650px at 85% -8%, rgba(255, 79, 154, 0.2), transparent 62%),
     radial-gradient(900px 700px at -12% 35%, rgba(155, 77, 255, 0.16), transparent 60%),
     radial-gradient(900px 600px at 70% 110%, rgba(194, 40, 110, 0.18), transparent 60%);
-  background-attachment: fixed;
-  -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; display: block; }
 a { color: inherit; text-decoration: none; }
@@ -165,7 +168,8 @@ strong { font-weight: 800; }
 /* la bulle de Chopper qui crie */
 .bulle.crie { font-weight: 800; font-size: 16.5px; box-shadow: 5px 5px 0 var(--rose), 0 20px 50px -20px rgba(0, 0, 0, 0.9); animation: bulle-pop 0.5s var(--rebond), trembler 0.3s steps(2) 0.5s 4; }
 
-.point { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 0 rgba(255, 79, 154, 0.7); animation: onde 1.6s infinite; }
+.point { position: relative; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--rose); }
+.point::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: rgb(227, 68, 127); opacity: 0; animation: onde 1.6s infinite; }
 
 /* ---------- mise en page ---------- */
 main { width: min(1180px, 100%); margin: 0 auto; padding: 0 clamp(18px, 4vw, 40px) 40px; overflow-x: clip; }
@@ -181,6 +185,7 @@ section { position: relative; padding-top: clamp(90px, 12vw, 150px); }
 .surtitre::before { content: "◆"; flex: none; font-size: 9px; opacity: 0.85; }
 .surtitre:has(.point)::before { display: none; }
 .surtitre .point { width: 9px; height: 9px; background: #fff; box-shadow: none; animation: battre 1.4s ease-in-out infinite; }
+.surtitre .point::after { display: none; }
 .titre, .titre-section { margin: 0; font-family: var(--titre); font-weight: 400; letter-spacing: -0.005em; line-height: 1.1; text-wrap: balance; }
 .titre { font-size: clamp(52px, 7.4vw, 104px); }
 .titre .titre-petit { display: block; margin-bottom: 0.12em; font-family: var(--fort); font-size: 0.36em; font-weight: 800; letter-spacing: 0; color: var(--blanc); }
@@ -856,10 +861,10 @@ a.portrait:hover img { transform: scale(1.06); }
 .cc.rarete-epique::after, .cc.rarete-legendaire::after {
   content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.6) 45%, rgba(255, 150, 220, 0.4) 50%, rgba(170, 120, 255, 0.35) 55%, transparent 68%);
-  background-size: 260% 100%; animation: holo 3.6s linear infinite;
+  inset: 0 auto 0 0; width: 260%; animation: holo 3.6s linear infinite;
 }
 .cc.rarete-legendaire::after { background-image: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.75) 44%, rgba(255, 215, 120, 0.55) 50%, rgba(255, 140, 200, 0.4) 56%, transparent 70%); animation-duration: 2.6s; }
-@keyframes holo { from { background-position: 160% 0; } to { background-position: -100% 0; } }
+@keyframes holo { from { transform: translateX(-98.46%); } to { transform: translateX(61.54%); } }
 /* le dos d'une carte */
 .cc-dos {
   position: relative; width: 100%; aspect-ratio: 5 / 7; display: grid; place-items: center; overflow: hidden; border-radius: 14px;
@@ -1199,7 +1204,7 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .egaliseur { display: inline-flex; align-items: flex-end; gap: 3px; height: 16px; }
 .egaliseur i { width: 3px; border-radius: 2px; background: currentColor; }
 .egaliseur i:nth-child(1) { height: 45%; } .egaliseur i:nth-child(2) { height: 85%; } .egaliseur i:nth-child(3) { height: 60%; } .egaliseur i:nth-child(4) { height: 100%; }
-.musique[aria-pressed="true"] .egaliseur i { background: var(--degrade); animation: egaliser 0.9s ease-in-out infinite; }
+.musique[aria-pressed="true"] .egaliseur i { height: 100%; transform-origin: 50% 100%; background: var(--degrade); animation: egaliser 0.9s ease-in-out infinite; }
 .musique[aria-pressed="true"] .egaliseur i:nth-child(2) { animation-delay: -0.3s; }
 .musique[aria-pressed="true"] .egaliseur i:nth-child(3) { animation-delay: -0.6s; }
 .musique[aria-pressed="true"] .egaliseur i:nth-child(4) { animation-delay: -0.15s; }
@@ -1210,8 +1215,11 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .volume span { font-size: 15px; line-height: 1; }
 .volume input { width: 110px; accent-color: var(--rose); cursor: pointer; }
 
+/* ---------- les parties hors de l'écran : animations en pause ---------- */
+.hors-vue *, .hors-vue *::before, .hors-vue *::after { animation-play-state: paused !important; }
+
 /* ---------- apparitions au défilement ---------- */
-.revele { opacity: 0; transform: translateY(28px); filter: blur(4px); transition: opacity 0.9s var(--doux), transform 0.9s var(--doux), filter 0.9s var(--doux); }
+.revele { opacity: 0; transform: translateY(28px); transition: opacity 0.9s var(--doux), transform 0.9s var(--doux); }
 .revele.vu { opacity: 1; transform: none; filter: none; }
 a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3px, -4px); }
 .sans-js .revele { opacity: 1; transform: none; filter: none; }
@@ -1227,7 +1235,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 @keyframes monter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @keyframes descendre { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
 @keyframes battre { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-@keyframes onde { 0% { box-shadow: 0 0 0 0 rgba(227, 68, 127, 0.7); } 100% { box-shadow: 0 0 0 12px rgba(227, 68, 127, 0); } }
+@keyframes onde { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(3.4); } }
 @keyframes reflet { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
 
 @keyframes sfx-pop { 0% { opacity: 0; transform: scale(0.3) rotate(var(--r)); } 55% { opacity: 1; transform: scale(1.18) rotate(var(--r)); } 78% { transform: scale(0.94) rotate(var(--r)); } 100% { opacity: 1; transform: scale(1) rotate(var(--r)); } }
@@ -1237,7 +1245,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 @keyframes filer { 0% { transform: scaleX(0); opacity: 0.9; } 55% { transform: scaleX(1); opacity: 0.8; } 100% { transform: scaleX(1) translateX(12%); opacity: 0; } }
 @keyframes flash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
 @keyframes bulle-pop { 0% { transform: scale(0.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
-@keyframes egaliser { 0%, 100% { height: 25%; } 50% { height: 100%; } }
+@keyframes egaliser { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
