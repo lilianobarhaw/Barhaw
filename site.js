@@ -2683,11 +2683,420 @@
     if (fin.record || fin.perso) setTimeout(charger, 1500);
   }
 
+  // --- la course de Chopper : il court sur le pont du navire, on saute, et au premier choc c'est fini ---
+  // Le monde fait 640 × 280 (unités du jeu), 1 mètre = 32 unités. La vitesse suit les règles du bot :
+  // 9 m/s au départ, +0,2 m/s chaque seconde, 23 m/s au plus. Le bot vérifie que la distance est possible.
+  const CO = { L: 640, H: 280, SOL: 228, M: 32, R: 21, X: 96, G: 2300, SAUT: 780, COUPE: 0.55, TAMPON: 0.12, V0: 9, ACC: 0.2, VMAX: 23 };
+  const OBSTACLES = {
+    tonneau: { w: 30, h: 34, des: 0, poids: 5 },
+    double: { w: 64, h: 34, des: 80, poids: 2.5 },
+    mouette: { w: 34, h: 18, des: 120, poids: 2, vitesse: 50 },
+    caisse: { w: 38, h: 60, des: 160, poids: 2 },
+    boulet: { r: 12, haut: 66, des: 220, poids: 1.8, vitesse: 150 },
+  };
+  const CAUSES = { tonneau: "Un tonneau en pleine tête.", double: "Deux tonneaux, c'était un de trop.", caisse: "La caisse ne s'est pas poussée.", mouette: "Percuté par une mouette. La honte.", boulet: "Un boulet de canon. Fallait rester au sol !" };
+  // le moteur, sans dessin (il sert aussi à régler la difficulté hors du site)
+  function moteurCourse({ hasard = Math.random, v0 = CO.V0, acc = CO.ACC, vMax = CO.VMAX } = {}) {
+    const m = { t: 0, dist: 0, v: v0, y: 0, vy: 0, sol: true, tenu: false, coupe: true, tampon: 0, obstacles: [], prochain: 1.5, sauts: 0, choc: null, atterri: 0, palier: 0 };
+    const metres = () => Math.floor(m.dist / CO.M);
+    function choisir() {
+      const d = metres();
+      const liste = Object.entries(OBSTACLES).filter(([, o]) => d >= o.des);
+      let x = hasard() * liste.reduce((s, [, o]) => s + o.poids, 0);
+      for (const [k, o] of liste) { x -= o.poids; if (x < 0) return k; }
+      return "tonneau";
+    }
+    function apparaitre() {
+      const type = choisir();
+      const o = OBSTACLES[type];
+      const ob = { type, x: CO.L + 40, w: o.w || o.r * 2, h: o.h || o.r * 2, y: 0, phase: hasard() * 6.28, vitesse: o.vitesse || 0 };
+      // la mouette vole bas (il faut sauter) ; passé 300 m, une sur trois vole haut (il faut rester au sol)
+      if (type === "mouette") ob.y = metres() >= 300 && hasard() < 0.35 ? 54 + hasard() * 8 : 10 + hasard() * 16;
+      if (type === "boulet") { ob.y = o.haut - o.r; ob.x = CO.L + 220; }
+      m.obstacles.push(ob);
+      // l'écart avant le suivant : jamais moins que le temps d'un saut, et de plus en plus serré
+      const ecart = Math.max(0.7, 1.3 - 0.007 * m.t) + hasard() * Math.max(0.22, 1.4 - 0.018 * m.t);
+      m.prochain = ecart + (type === "boulet" || type === "caisse" ? 0.3 : 0);
+    }
+    function appuyer(oui) {
+      if (oui) {
+        m.tenu = true;
+        if (m.sol) sauter(); else m.tampon = CO.TAMPON;
+      } else {
+        m.tenu = false;
+        if (!m.sol && m.vy > 0 && !m.coupe) { m.vy *= CO.COUPE; m.coupe = true; }
+      }
+    }
+    function sauter() { m.vy = CO.SAUT; m.sol = false; m.coupe = false; m.tampon = 0; m.sauts++; }
+    // le cercle de Chopper (un peu plus petit que l'image, pour pardonner les frôlements) contre une boîte
+    function touche(ob) {
+      const cx = CO.X;
+      const cy = m.y + CO.R;
+      const r = CO.R * 0.76;
+      if (ob.type === "boulet") return Math.hypot(ob.x + ob.w / 2 - cx, ob.y + ob.h / 2 - cy) < r + ob.w / 2 * 0.85;
+      const marge = ob.type === "mouette" ? 4 : 2;
+      const x0 = ob.x + marge, x1 = ob.x + ob.w - marge, y0 = ob.y + marge, y1 = ob.y + ob.h - marge;
+      const px = Math.max(x0, Math.min(cx, x1));
+      const py = Math.max(y0, Math.min(cy, y1));
+      return Math.hypot(px - cx, py - cy) < r;
+    }
+    function avancer(dt) {
+      if (m.choc) return;
+      m.t += dt;
+      m.v = Math.min(vMax, v0 + acc * m.t);
+      const vx = m.v * CO.M;
+      m.dist += vx * dt;
+      if (!m.sol) {
+        m.vy -= CO.G * dt;
+        m.y += m.vy * dt;
+        if (m.tampon > 0) m.tampon -= dt;
+        if (m.y <= 0) {
+          m.y = 0; m.vy = 0; m.sol = true; m.atterri = m.t;
+          if (m.tampon > 0 && m.tenu) sauter();
+        }
+      }
+      for (const ob of m.obstacles) {
+        ob.x -= (vx + ob.vitesse) * dt;
+        if (ob.type === "mouette") ob.phase += dt * 9;
+      }
+      m.obstacles = m.obstacles.filter((ob) => ob.x + ob.w > -40);
+      m.prochain -= dt;
+      if (m.prochain <= 0) apparaitre();
+      for (const ob of m.obstacles) if (touche(ob)) { m.choc = ob; break; }
+      const p = Math.floor(metres() / 100);
+      if (p > m.palier) { m.palier = p; return "palier"; }
+      return null;
+    }
+    return { m, metres, appuyer, avancer };
+  }
+
+  const co = { etat: "accueil", partie: "", fin: null, boucle: 0, moteur: null, dernier: 0, secousse: 0, particules: [], pause: false, decor: 0, record: 0 };
+  try { co.record = Number(localStorage.getItem("barhaw-course")) || 0; } catch {}
+  const photoCourse = new Image();
+  photoCourse.src = "/img/chopper-visage.jpg";
+  const teteCourse = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La course de Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏃" }));
+  const texteCourse = (x) => `${nombre(x.score)} m`;
+  const reglesCourse = () => {
+    const c = infosJeux()?.course;
+    return { v0: Number(c?.v0) || CO.V0, acc: Number(c?.acceleration) || CO.ACC, vMax: Number(c?.vMax) || CO.VMAX };
+  };
+
+  function rendreCourse() {
+    const z = $("course");
+    if (!z || co.etat === "jeu" || co.etat === "choc" || co.etat === "envoi" || co.etat === "pret") return;
+    const moiC = mesJeux?.course;
+    const meilleur = Math.max(moiC?.meilleur || 0, co.record);
+    const ecran = co.etat === "fin" && co.fin
+      ? el("div", { class: "jeu-ecran co-ecran" },
+        el("p", { class: "jeu-gros degrade", text: `${nombre(co.fin.distance)} m` }),
+        el("p", { class: "jeu-score", text: CAUSES[co.fin.cause] || "Bonk !" }),
+        co.fin.message ? el("p", { class: "note", text: co.fin.message }) : null,
+        messagesFin(co.fin),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerCourse, text: "Recourir" }),
+      )
+      : el("div", { class: "jeu-ecran co-ecran" },
+        el("p", { class: "jeu-regle", text: "Chopper court tout seul, de plus en plus vite. Saute par-dessus les tonneaux, les caisses et les mouettes : clic, toucher ou Espace, et reste appuyé pour sauter plus haut. Les boulets de canon volent haut : reste au sol et ils passent au-dessus. Un seul choc et c'est fini." }),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerCourse, text: "Courir !" }),
+        el("p", { class: "note", text: `${meilleur ? `Ton meilleur : ${nombre(meilleur)} m. ` : ""}${noteEclat(moiC, `${infosJeux()?.course?.eclat || 600} m`)}` }),
+      );
+    const canvas = el("canvas", { class: "co-canvas", id: "co-canvas", role: "img", "aria-label": "La course de Chopper : Chopper court sur le pont d'un navire et saute par-dessus les obstacles" });
+    canvas.addEventListener("click", () => { if (co.etat === "accueil" || co.etat === "fin") lancerCourse(); });
+    vider(z, teteCourse(),
+      el("div", { class: "co-scene", id: "co-scene" }, canvas, el("span", { class: "sfx co-sfx", id: "co-sfx", "aria-hidden": "true" })),
+      ecran,
+      infosJeux()?.course ? tableauJeu(infosJeux().course, texteCourse) : null,
+    );
+    preparerCanvasCourse();
+    dessinerCourse(co.moteur?.m || null);
+  }
+
+  // le canvas : sa taille réelle suit la largeur du panneau (1,5 × au plus sur les écrans très fins)
+  let ctxCourse = null;
+  let echelleCourse = 1;
+  let echelleEcran = 1; // pixels de l'écran par unité du jeu (pour garder des compteurs lisibles sur téléphone)
+  function preparerCanvasCourse() {
+    const c = $("co-canvas");
+    if (!c?.getContext) { ctxCourse = null; return; }
+    const largeur = c.getBoundingClientRect().width || c.parentElement.clientWidth || CO.L;
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    c.width = Math.round(largeur * dpr);
+    c.height = Math.round((largeur * CO.H / CO.L) * dpr);
+    ctxCourse = c.getContext("2d");
+    echelleCourse = c.width / CO.L;
+    echelleEcran = largeur / CO.L;
+  }
+  window.addEventListener("resize", () => { if (co.etat !== "jeu") { preparerCanvasCourse(); dessinerCourse(co.moteur?.m || null); } else preparerCanvasCourse(); });
+
+  // ---------- le dessin ----------
+  const DECOR = { iles: Array.from({ length: 6 }, (_, k) => ({ x: k * 160 + Math.random() * 60, l: 90 + Math.random() * 120, h: 18 + Math.random() * 30 })), nuages: Array.from({ length: 4 }, (_, k) => ({ x: k * 190 + Math.random() * 80, y: 30 + Math.random() * 60, l: 60 + Math.random() * 50 })) };
+  let gradientsCourse = null;
+  function dessinerCourse(m) {
+    const ctx = ctxCourse;
+    if (!ctx) return;
+    const e = echelleCourse;
+    ctx.setTransform(e, 0, 0, e, 0, 0);
+    if (!gradientsCourse || gradientsCourse.ctx !== ctx) {
+      const ciel = ctx.createLinearGradient(0, 0, 0, 160);
+      ciel.addColorStop(0, "#1c0a26"); ciel.addColorStop(0.55, "#5a1d55"); ciel.addColorStop(1, "#ff8fb3");
+      const mer = ctx.createLinearGradient(0, 150, 0, CO.SOL);
+      mer.addColorStop(0, "#5b2a78"); mer.addColorStop(1, "#2a0f3e");
+      const soleil = ctx.createRadialGradient(470, 150, 4, 470, 150, 54);
+      soleil.addColorStop(0, "#fff0d6"); soleil.addColorStop(0.45, "#ffb37a"); soleil.addColorStop(1, "rgba(255, 120, 170, 0)");
+      gradientsCourse = { ctx, ciel, mer, soleil };
+    }
+    const g = gradientsCourse;
+    const d = m ? m.dist : co.decor;
+    // le ciel, le soleil couchant, les nuages et les îles au loin (ils défilent moins vite : la profondeur)
+    ctx.fillStyle = g.ciel; ctx.fillRect(0, 0, CO.L, 160);
+    ctx.fillStyle = g.soleil; ctx.beginPath(); ctx.arc(470, 150, 54, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255, 220, 240, 0.16)";
+    for (const n of DECOR.nuages) {
+      const x = ((n.x - d * 0.06) % 760 + 760) % 760 - 60;
+      ctx.beginPath(); ctx.ellipse(x, n.y, n.l / 2, 9, 0, 0, Math.PI * 2); ctx.ellipse(x + n.l * 0.2, n.y - 7, n.l / 3, 8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = "#2b1036";
+    for (const i of DECOR.iles) {
+      const x = ((i.x - d * 0.1) % 960 + 960) % 960 - 160;
+      ctx.beginPath(); ctx.moveTo(x, 152); ctx.quadraticCurveTo(x + i.l / 2, 152 - i.h * 2, x + i.l, 152); ctx.fill();
+    }
+    // la mer et ses vagues
+    ctx.fillStyle = g.mer; ctx.fillRect(0, 150, CO.L, CO.SOL - 150);
+    ctx.strokeStyle = "rgba(255, 190, 230, 0.22)"; ctx.lineWidth = 1.5;
+    for (let k = 0; k < 4; k++) {
+      const y = 162 + k * 16;
+      const decal = (d * (0.25 + k * 0.08)) % 80;
+      ctx.beginPath();
+      for (let x = -decal; x < CO.L; x += 80) { ctx.moveTo(x + k * 17, y); ctx.lineTo(x + k * 17 + 26, y); }
+      ctx.stroke();
+    }
+    // le pont du navire : des planches qui défilent
+    ctx.fillStyle = "#6e3a27"; ctx.fillRect(0, CO.SOL, CO.L, CO.H - CO.SOL);
+    ctx.fillStyle = "#a35c3b"; ctx.fillRect(0, CO.SOL, CO.L, 4);
+    ctx.fillStyle = "#4a2418";
+    for (let x = -(d % 56); x < CO.L; x += 56) ctx.fillRect(x, CO.SOL + 4, 3, CO.H - CO.SOL);
+    ctx.fillRect(0, CO.SOL + 26, CO.L, 2);
+    // les traits de vitesse quand ça va très vite
+    if (m && m.v > 14.5) {
+      ctx.strokeStyle = `rgba(255, 240, 250, ${Math.min(0.35, (m.v - 14.5) * 0.08)})`; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let k = 0; k < 7; k++) { const y = 20 + ((k * 37 + Math.floor(m.t * 20) * 13) % 190); const x = (k * 97 + m.dist * 1.6) % (CO.L + 120) ; ctx.moveTo(CO.L - x, y); ctx.lineTo(CO.L - x + 60 + k * 6, y); }
+      ctx.stroke();
+    }
+    // les obstacles
+    for (const ob of m ? m.obstacles : []) dessinerObstacle(ctx, ob);
+    // Chopper (sa photo en rond), son ombre, ses petits pieds
+    const y = m ? m.y : 0;
+    const t = m ? m.t : performance.now() / 1000;
+    const auSol = !m || m.sol;
+    const pas = auSol ? Math.abs(Math.sin(t * (m ? m.v : 6) * 0.9)) * 3 : 0;
+    const ecrase = m && m.t - m.atterri < 0.1 ? 0.86 : 1;
+    const cx = CO.X;
+    const cy = CO.SOL - y - CO.R - pas;
+    ctx.fillStyle = `rgba(20, 5, 12, ${Math.max(0.12, 0.4 - y / 300)})`;
+    ctx.beginPath(); ctx.ellipse(cx, CO.SOL + 3, CO.R * Math.max(0.5, 1 - y / 200), 5, 0, 0, Math.PI * 2); ctx.fill();
+    if (auSol) {
+      const p = Math.sin(t * (m ? m.v : 6) * 1.8);
+      ctx.fillStyle = "#5a2d1b";
+      ctx.beginPath(); ctx.ellipse(cx - 9 + p * 5, CO.SOL - 3, 7, 4, 0, 0, Math.PI * 2); ctx.ellipse(cx + 8 - p * 5, CO.SOL - 3, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(cx, cy + CO.R * (1 - ecrase));
+    ctx.rotate(m && !m.sol ? Math.max(-0.35, Math.min(0.35, -m.vy / 2400)) : 0);
+    ctx.scale(1 / ecrase > 1 ? 1.08 : 1, ecrase);
+    ctx.fillStyle = "#ff4f9a"; ctx.beginPath(); ctx.arc(2, 3, CO.R + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff0f7"; ctx.beginPath(); ctx.arc(0, 0, CO.R + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, CO.R, 0, Math.PI * 2); ctx.clip();
+    if (photoCourse.complete && photoCourse.naturalWidth) ctx.drawImage(photoCourse, -CO.R, -CO.R, CO.R * 2, CO.R * 2);
+    else { ctx.fillStyle = "#f4c48a"; ctx.fillRect(-CO.R, -CO.R, CO.R * 2, CO.R * 2); }
+    if (m?.choc) { ctx.fillStyle = "rgba(255, 45, 85, 0.35)"; ctx.fillRect(-CO.R, -CO.R, CO.R * 2, CO.R * 2); }
+    ctx.restore();
+    // la poussière
+    for (const p of co.particules) {
+      ctx.fillStyle = `rgba(255, 225, 200, ${p.a})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+    // les compteurs
+    if (m) {
+      ctx.textAlign = "right"; ctx.textBaseline = "top";
+      const gros = Math.max(26, 18 / echelleEcran);
+      const petit = Math.max(12, 11 / echelleEcran);
+      ctx.font = `400 ${gros}px 'Dela Gothic One', sans-serif`;
+      ctx.lineWidth = 5; ctx.strokeStyle = "#12050d"; ctx.fillStyle = "#fff0f7";
+      const txt = `${nombre(Math.floor(m.dist / CO.M))} m`;
+      ctx.strokeText(txt, CO.L - 16, 12); ctx.fillText(txt, CO.L - 16, 12);
+      ctx.font = `800 ${petit}px 'M PLUS Rounded 1c', sans-serif`;
+      ctx.fillStyle = "rgba(255, 240, 247, 0.85)";
+      const meilleur = Math.max(mesJeux?.course?.meilleur || 0, co.record);
+      if (meilleur) ctx.fillText(`Meilleur : ${nombre(meilleur)} m`, CO.L - 16, 18 + gros);
+      ctx.textAlign = "left";
+      ctx.fillText(`${m.v.toFixed(1).replace(".", ",")} m/s`, 16, 14);
+    }
+  }
+  function dessinerObstacle(ctx, ob) {
+    const bas = CO.SOL - ob.y;
+    if (!ctx.roundRect) ctx.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+    if (ob.type === "tonneau" || ob.type === "double") {
+      const n = ob.type === "double" ? 2 : 1;
+      const l = ob.w / n;
+      for (let k = 0; k < n; k++) {
+        const x = ob.x + k * l;
+        ctx.fillStyle = "#8a4b2b";
+        ctx.beginPath(); ctx.roundRect(x + 1, bas - ob.h, l - 2, ob.h, 7); ctx.fill();
+        ctx.fillStyle = "#3b2410";
+        ctx.fillRect(x + 1, bas - ob.h * 0.78, l - 2, 3); ctx.fillRect(x + 1, bas - ob.h * 0.3, l - 2, 3);
+        ctx.fillStyle = "rgba(255, 220, 180, 0.25)"; ctx.fillRect(x + 6, bas - ob.h + 4, 3, ob.h - 8);
+        ctx.strokeStyle = "#2a1508"; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(x + 1, bas - ob.h, l - 2, ob.h, 7); ctx.stroke();
+      }
+    } else if (ob.type === "caisse") {
+      ctx.fillStyle = "#b07a3c"; ctx.fillRect(ob.x, bas - ob.h, ob.w, ob.h);
+      ctx.strokeStyle = "#3b2410"; ctx.lineWidth = 3; ctx.strokeRect(ob.x + 1.5, bas - ob.h + 1.5, ob.w - 3, ob.h - 3);
+      ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ob.x + 4, bas - ob.h + 4); ctx.lineTo(ob.x + ob.w - 4, bas - 4); ctx.moveTo(ob.x + ob.w - 4, bas - ob.h + 4); ctx.lineTo(ob.x + 4, bas - 4); ctx.stroke();
+    } else if (ob.type === "mouette") {
+      const cx = ob.x + ob.w / 2;
+      const cy = bas - ob.h / 2;
+      const aile = Math.sin(ob.phase) * 8;
+      ctx.strokeStyle = "#fff8fb"; ctx.lineWidth = 3.5; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(cx - 17, cy - aile); ctx.quadraticCurveTo(cx - 8, cy - 9 - aile / 2, cx, cy); ctx.quadraticCurveTo(cx + 8, cy - 9 - aile / 2, cx + 17, cy - aile); ctx.stroke();
+      ctx.fillStyle = "#fff8fb"; ctx.beginPath(); ctx.ellipse(cx, cy + 1, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffb347"; ctx.beginPath(); ctx.moveTo(cx - 9, cy); ctx.lineTo(cx - 15, cy + 2); ctx.lineTo(cx - 9, cy + 3); ctx.fill();
+      ctx.lineCap = "butt";
+    } else if (ob.type === "boulet") {
+      const r = ob.w / 2;
+      const cx = ob.x + r;
+      const cy = bas - r;
+      if (ob.x > CO.L - 10) {
+        // il arrive : un « ! » au bord pour prévenir
+        ctx.fillStyle = "#ff2d55"; ctx.beginPath(); ctx.arc(CO.L - 18, cy, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.font = "800 15px 'M PLUS Rounded 1c', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("!", CO.L - 18, cy + 1);
+        return;
+      }
+      for (let k = 1; k <= 3; k++) { ctx.fillStyle = `rgba(230, 210, 230, ${0.28 - k * 0.07})`; ctx.beginPath(); ctx.arc(cx + k * 14, cy, r - k * 2, 0, Math.PI * 2); ctx.fill(); }
+      const gr = ctx.createRadialGradient(cx - 4, cy - 4, 1, cx, cy, r);
+      gr.addColorStop(0, "#7a6a78"); gr.addColorStop(1, "#140a12");
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // ---------- une course ----------
+  async function lancerCourse() {
+    if (co.etat === "jeu" || co.etat === "pret" || co.etat === "envoi") return;
+    co.etat = "pret";
+    co.partie = "";
+    co.fin = null;
+    co.pause = false;
+    co.particules = [];
+    co.moteur = moteurCourse(reglesCourse());
+    const z = $("course");
+    vider(z, teteCourse(),
+      el("div", { class: "co-scene en-jeu", id: "co-scene" },
+        el("canvas", { class: "co-canvas", id: "co-canvas", role: "img", "aria-label": "La course de Chopper en cours" }),
+        el("span", { class: "sfx co-sfx", id: "co-sfx", "aria-hidden": "true" }),
+        el("span", { class: "co-depart", id: "co-depart", "aria-hidden": "true", text: "3" }),
+      ),
+      el("p", { class: "note co-aide", text: "Clic, toucher ou Espace pour sauter · reste appuyé pour sauter plus haut" }),
+    );
+    preparerCanvasCourse();
+    const c = $("co-canvas");
+    c.addEventListener("pointerdown", (e) => { if (co.etat === "jeu") { e.preventDefault(); c.setPointerCapture?.(e.pointerId); appuiCourse(true); } });
+    for (const ev of ["pointerup", "pointercancel"]) c.addEventListener(ev, () => { if (co.etat === "jeu") appuiCourse(false); });
+    dessinerCourse(co.moteur.m);
+    const ouverture = moi?.connecte ? demanderJeux("jeu-ouvrir", { jeu: "course" }) : null;
+    // 3, 2, 1… partez !
+    const depart = $("co-depart");
+    for (const t of ["3", "2", "1"]) {
+      depart.textContent = t;
+      depart.classList.remove("pop"); void depart.offsetWidth; depart.classList.add("pop");
+      await new Promise((ok) => setTimeout(ok, reduit.matches ? 250 : 520));
+    }
+    depart.textContent = "";
+    if (ouverture) { const { d } = await ouverture; if (d.partie) co.partie = d.partie; }
+    co.etat = "jeu";
+    co.dernier = performance.now();
+    cancelAnimationFrame(co.boucle);
+    co.boucle = requestAnimationFrame(imageCourse);
+  }
+  // un appui : saute, ou reprend la course après une pause (sans sauter)
+  function appuiCourse(oui) {
+    if (co.pause) {
+      if (oui) { co.pause = false; const d = $("co-depart"); if (d) { d.textContent = ""; d.classList.remove("pause"); } }
+      return;
+    }
+    co.moteur.appuyer(oui);
+  }
+  function imageCourse(t) {
+    if (co.etat !== "jeu") return;
+    if (co.pause) { co.dernier = t; co.boucle = requestAnimationFrame(imageCourse); return; }
+    const dt = Math.min(0.05, Math.max(0, (t - co.dernier) / 1000));
+    co.dernier = t;
+    const m = co.moteur.m;
+    const etaitAuSol = m.sol;
+    const ev = co.moteur.avancer(dt);
+    // la poussière : quand il court, et un petit nuage quand il retombe
+    if (m.sol && Math.random() < dt * 9) co.particules.push({ x: CO.X - 14, y: CO.SOL - 3, r: 2 + Math.random() * 2, a: 0.5, vx: -60 - Math.random() * 40, vy: -20 - Math.random() * 20 });
+    if (m.sol && !etaitAuSol) for (let k = 0; k < 6; k++) co.particules.push({ x: CO.X + (k - 3) * 5, y: CO.SOL - 2, r: 2 + Math.random() * 3, a: 0.6, vx: (k - 3) * 30, vy: -30 - Math.random() * 30 });
+    for (const p of co.particules) { p.x += p.vx * dt; p.y += p.vy * dt; p.a -= dt * 1.4; }
+    co.particules = co.particules.filter((p) => p.a > 0).slice(-40);
+    if (ev === "palier") {
+      const sfx = $("co-sfx");
+      const metres = m.palier * 100;
+      sfx.textContent = metres % 500 === 0 ? "ゴゴゴ" : `${metres} m!`;
+      sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
+    }
+    dessinerCourse(m);
+    if (m.choc) { chocCourse(); return; }
+    co.boucle = requestAnimationFrame(imageCourse);
+  }
+  async function chocCourse() {
+    co.etat = "choc";
+    const m = co.moteur.m;
+    const distance = Math.floor(m.dist / CO.M);
+    const sfx = $("co-sfx");
+    sfx.textContent = m.choc.type === "boulet" ? "ドカーン！" : m.choc.type === "mouette" ? "グワッ！" : "ゴン！";
+    sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
+    $("co-scene")?.classList.add("choc");
+    if (distance > co.record) { co.record = distance; try { localStorage.setItem("barhaw-course", String(distance)); } catch {} }
+    let fin = { distance, cause: m.choc.type, message: "" };
+    const attente = new Promise((ok) => setTimeout(ok, reduit.matches ? 300 : 1100));
+    if (co.partie) {
+      co.etat = "envoi";
+      const { d } = await demanderJeux("course-fin", { partie: co.partie, distance });
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+      else if (d.erreur) fin.message = d.erreur;
+    } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ta distance compte.";
+    await attente;
+    co.etat = "fin";
+    co.fin = fin;
+    rendreCourse();
+    if (fin.record || fin.perso) setTimeout(charger, 1500);
+  }
+  // le clavier : Espace, flèche du haut, Z ou W, seulement quand la course est à l'écran
+  const toucheCourse = (e) => ["Space", "ArrowUp", "KeyW", "KeyZ"].includes(e.code);
+  window.addEventListener("keydown", (e) => {
+    if (!toucheCourse(e) || co.etat === "accueil" || e.target?.closest?.("input, textarea, select, button, a")) return;
+    const r = $("course")?.getBoundingClientRect();
+    if (!r || r.bottom < 0 || r.top > innerHeight) return;
+    // pendant la course (et juste avant, et juste après) : la barre d'espace ne fait pas défiler la page
+    e.preventDefault();
+    if (e.repeat) return;
+    if (co.etat === "jeu") appuiCourse(true);
+    else if (co.etat === "fin") lancerCourse(); // Espace pour recourir
+  });
+  window.addEventListener("keyup", (e) => { if (co.etat === "jeu" && toucheCourse(e)) appuiCourse(false); });
+  // un autre onglet : la course se met en pause, et reprend au prochain appui
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden || co.etat !== "jeu") return;
+    co.pause = true;
+    co.moteur.appuyer(false);
+    const d = $("co-depart");
+    if (d) { d.textContent = "Pause"; d.classList.add("pause"); }
+  });
+
   function rendreJeux() {
     if (rb.etat !== "jeu" && rb.etat !== "pause" && rb.etat !== "envoi") rendreRumble();
     rendreQuiz();
     rendreDocteur();
     rendreMemory();
+    rendreCourse();
   }
 
   // ---------- la chasse : le boss de la semaine et les avis de recherche WANTED ----------
