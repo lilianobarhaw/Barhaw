@@ -1006,6 +1006,95 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .qz-verdict.juste { color: #6fe3a5; }
 .qz-verdict.faux { color: #ff8fa8; }
 
+/* le quiz V2 : le choix du niveau, les paliers, la valeur de la question */
+.jeu-classement-titre { margin: 0 0 6px; font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--violet-clair); }
+.qz-niveaux { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.qz-niveau {
+  display: grid; gap: 2px; justify-items: center; padding: 8px 6px; border-radius: 12px; cursor: pointer; font: inherit; color: var(--brume);
+  background: var(--nuit); border: 2px solid var(--ligne-douce); box-shadow: 3px 3px 0 transparent; transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+}
+.qz-niveau b { font-family: var(--fort); font-weight: 800; font-size: 14.5px; color: var(--blanc); }
+.qz-niveau small { font-size: 11.5px; color: var(--terne); }
+.qz-niveau:hover { transform: translateY(-2px); }
+.qz-niveau.actif { border-color: var(--rose); box-shadow: 3px 3px 0 var(--ombre); background: linear-gradient(160deg, rgba(255, 79, 154, 0.16), rgba(155, 77, 255, 0.12)), var(--nuit); }
+.qz-niveau.niveau-facile.actif { border-color: #6fe3a5; }
+.qz-niveau.niveau-difficile.actif { border-color: #ff6f8f; }
+.qz-infos { display: flex; flex-wrap: wrap; gap: 8px; }
+.qz-pastille { padding: 3px 10px; border-radius: 99px; font-family: var(--fort); font-weight: 800; font-size: 11.5px; letter-spacing: 0.03em; border: 1.5px solid var(--encre); color: #fff; background: var(--violet); }
+.qz-pastille.palier-1 { background: #3d8a68; }
+.qz-pastille.palier-2 { background: var(--violet); }
+.qz-pastille.palier-3 { background: var(--rose-fonce); }
+.qz-pastille.dif-facile { background: #2f6d55; }
+.qz-pastille.dif-moyen { background: #6a3aa8; }
+.qz-pastille.dif-difficile { background: #b0244f; }
+.qz-banniere {
+  position: relative; overflow: hidden; display: grid; place-items: center; gap: 6px; min-height: 230px; padding: 24px; border-radius: 18px; text-align: center;
+  background: radial-gradient(circle, rgba(255, 79, 154, 0.35), transparent 70%), #160818; border: 3px solid var(--encre); box-shadow: 0 0 0 2px var(--rose), 6px 7px 0 2px var(--ombre);
+  animation: bulle-pop 0.45s var(--rebond);
+}
+.qz-banniere .concentration { width: 160%; opacity: 0.9; }
+.qz-banniere > :not(.concentration) { position: relative; z-index: 1; }
+.qz-banniere-num { font-family: var(--fort); font-weight: 800; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: #ffd3e6; }
+.qz-banniere b { font-family: var(--titre); font-weight: 400; font-size: clamp(30px, 4vw, 42px); line-height: 1.05; background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(3px 3px 0 var(--encre)); }
+.qz-banniere.palier-1 { box-shadow: 0 0 0 2px #6fe3a5, 6px 7px 0 2px var(--ombre); }
+.qz-banniere.palier-3 { box-shadow: 0 0 0 2px #ff2d55, 6px 7px 0 2px #6b0f2a; animation: bulle-pop 0.45s var(--rebond), vibrer 0.12s steps(2) 0.45s 5; }
+.qz-banniere-sfx { position: absolute; right: 8%; top: 10%; --r: 10deg; font-size: 36px; }
+
+/* Docteur Chopper : la salle d'attente, le patient, les remèdes */
+.dc-attente { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 6px 0; }
+.dc-docteur { position: relative; width: 96px; }
+.dc-docteur img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 3px solid var(--encre); box-shadow: 0 0 0 3px var(--papier), 4px 5px 0 3px var(--violet); }
+.dc-docteur span { position: absolute; right: -8px; bottom: -4px; font-size: 32px; rotate: -15deg; filter: drop-shadow(2px 2px 0 var(--encre)); }
+.dc-file { display: flex; }
+.dc-file img { width: 58px; height: 58px; object-fit: cover; border-radius: 10px; border: 2.5px solid var(--encre); box-shadow: 0 0 0 2px var(--papier); margin-left: -12px; rotate: -6deg; }
+.dc-file img:nth-child(2) { rotate: 4deg; margin-top: 10px; }
+.dc-file img:nth-child(3) { rotate: -2deg; }
+.dc-hud { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-family: var(--fort); font-weight: 800; font-size: 13px; color: var(--brume); font-variant-numeric: tabular-nums; }
+.dc-hud b { font-family: var(--titre); font-weight: 400; font-size: 22px; color: var(--blanc); }
+#dc-combo { color: #ffd479; }
+.dc-chrono i { animation: none; transform-origin: left; }
+.dc-scene { position: relative; min-height: 210px; display: grid; place-items: center; }
+.dc-scene.rate { animation: vibrer 0.1s steps(2) 5; }
+.dc-patient { display: grid; justify-items: center; gap: 12px; width: 100%; }
+.dc-patient.arrive { animation: dc-arrive 0.35s var(--rebond); }
+.dc-patient img { width: 128px; height: 128px; object-fit: cover; border-radius: 14px; border: 3px solid var(--encre); box-shadow: 0 0 0 3px var(--papier), 5px 6px 0 3px var(--ombre); rotate: -2deg; }
+.dc-symptome {
+  position: relative; margin: 0; padding: 12px 16px; max-width: 92%; border-radius: 16px; text-align: center;
+  background: var(--papier); color: var(--encre); border: 2.5px solid var(--encre); box-shadow: 4px 4px 0 var(--violet); font-family: var(--fort); font-weight: 800; font-size: 16px; line-height: 1.3;
+}
+.dc-symptome::before { content: ""; position: absolute; left: 50%; top: -9px; width: 14px; height: 14px; translate: -50% 0; rotate: 45deg; background: var(--papier); border-left: 2.5px solid var(--encre); border-top: 2.5px solid var(--encre); }
+.dc-sfx { right: 4%; top: 2%; --r: 10deg; font-size: 30px; opacity: 0; z-index: 3; }
+.dc-sfx.eclat { opacity: 1; }
+.dc-remedes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; transition: opacity 0.2s; }
+.dc-remedes.bloque { opacity: 0.45; }
+.dc-remede {
+  display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; cursor: pointer; font-family: var(--fort); font-weight: 800; font-size: 11.5px; line-height: 1.15; color: var(--blanc);
+  background: var(--nuit); border: 2px solid var(--ligne); box-shadow: 3px 3px 0 var(--ombre); transition: transform 0.12s, border-color 0.2s; touch-action: manipulation;
+}
+.dc-remede:hover { border-color: var(--rose); transform: translateY(-2px); }
+.dc-remede:active { transform: translateY(1px); }
+.dc-remede.faux { border-color: #ff6f8f; background: #5c1226; }
+.dc-emoji { font-size: 26px; line-height: 1.1; }
+@keyframes dc-arrive { from { opacity: 0; transform: translateX(40px) rotate(4deg); } to { opacity: 1; transform: none; } }
+
+/* le Memory des mèmes : des cartes qui se retournent */
+.mm-apercu { display: flex; justify-content: center; gap: 10px; }
+.mm-apercu .cc-dos { width: 64px; border-width: 2px; border-radius: 9px; box-shadow: 0 0 0 2px var(--rose), 3px 4px 0 2px var(--ombre); }
+.mm-apercu .cc-dos:nth-child(odd) { rotate: -5deg; } .mm-apercu .cc-dos:nth-child(even) { rotate: 4deg; margin-top: 8px; }
+.mm-apercu .cc-dos::before, .mm-grille .cc-dos::before { inset: 4px; border-width: 1.5px; border-radius: 5px; }
+.mm-apercu .cc-dos-kanji, .mm-grille .cc-dos-kanji { font-size: 24px; -webkit-text-stroke-width: 1.2px; text-shadow: 2px 2px 0 var(--encre); }
+.mm-apercu .cc-dos-nom, .mm-grille .cc-dos-nom { display: none; }
+.mm-grille { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; perspective: 900px; }
+.mm-carte { padding: 0; border: 0; background: none; cursor: pointer; aspect-ratio: 5 / 7; touch-action: manipulation; }
+.mm-interieur { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.45s var(--rebond); }
+.mm-carte.retournee .mm-interieur, .mm-carte.trouvee .mm-interieur { transform: rotateY(180deg); }
+.mm-interieur > .cc-dos, .mm-face { position: absolute; inset: 0; backface-visibility: hidden; }
+.mm-interieur > .cc-dos { width: 100%; height: 100%; aspect-ratio: auto; border-width: 2px; border-radius: 9px; box-shadow: 0 0 0 2px var(--rose), 3px 4px 0 2px var(--ombre); }
+.mm-face { transform: rotateY(180deg); overflow: hidden; border-radius: 9px; border: 2px solid var(--encre); background: var(--papier); box-shadow: 0 0 0 2px var(--violet-clair), 3px 4px 0 2px var(--ombre); padding: 3px; }
+.mm-face img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+.mm-carte.trouvee .mm-face { box-shadow: 0 0 0 2px #6fe3a5, 0 0 16px rgba(111, 227, 165, 0.6); animation: bulle-pop 0.4s var(--rebond); }
+.mm-carte:not(.retournee):not(.trouvee):hover .mm-interieur { transform: translateY(-3px) rotate(-2deg); }
+
 /* ---------- le goûter de Chopper (mini-jeu) ---------- */
 .gouter { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); overflow: hidden; }
 .gouter-jeu { position: relative; aspect-ratio: 16 / 10; min-height: 320px; background: #110b1c; border-right: 1px solid var(--ligne-douce); }
@@ -1247,6 +1336,11 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .album-cases { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; }
   .jeu-panneau { padding: 22px 18px; }
   .qz-choix-liste { grid-template-columns: minmax(0, 1fr); }
+  .dc-remedes { gap: 6px; }
+  .dc-remede { font-size: 10px; padding: 7px 2px; }
+  .dc-emoji { font-size: 22px; }
+  .mm-grille { gap: 7px; }
+  .qz-niveau b { font-size: 13.5px; }
   .qz-question { font-size: 16px; }
   .case-album .cc-nom { font-size: 11px; }
   .equipe-buste { width: 100px; }

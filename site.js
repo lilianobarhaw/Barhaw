@@ -2081,7 +2081,7 @@
 
   // ---------- les jeux de Chopper : la Rumble Ball et le quiz One Piece ----------
   // Le bot ouvre chaque partie, vérifie la Rumble Ball et corrige le quiz lui-même (la page ne reçoit jamais les réponses).
-  let mesJeux = null; // { rumble: { meilleur, eclatRecu }, quiz: { meilleur, temps, eclatRecu } }
+  let mesJeux = null; // { rumble, docteur, memory: { meilleur, detail, eclatRecu }, quiz: { facile, moyen, difficile }, eclatsDuJour, eclatsParJour }
   const POINTS_RUMBLE = ["Heavy Point", "Brain Point", "Walk Point", "Jumping Point", "Arm Point", "Guard Point", "Horn Point"];
   const SFX_RUMBLE = ["ドン！", "ボン！", "ゴゴゴ", "バーン！", "ドドド", "ズン！", "ガッ！"];
   const infosJeux = () => donnees?.jeux || null;
@@ -2105,16 +2105,27 @@
   }
 
   // le classement d'un jeu (record + top 5 de la semaine)
-  function tableauJeu(jeu) {
-    const s = infosJeux()?.[jeu];
-    const texte = (x) => (jeu === "quiz" ? `${x.score}/10 · ${Math.round((x.temps || 0) / 1000)} s` : `${nombre(x.score)} pts`);
+  function tableauJeu(s, texte, titre = "") {
     return el("div", { class: "jeu-classement" },
+      titre ? el("p", { class: "jeu-classement-titre", text: titre }) : null,
       el("p", { class: "jeu-record" }, el("span", { text: "Record" }), s?.record ? `${texte(s.record)} · ${s.record.nom}` : "à prendre !"),
       s?.semaine?.length
         ? el("ol", {}, s.semaine.map((x) => el("li", {}, el("span", { text: x.nom }), el("small", { text: texte(x) }))))
         : el("p", { class: "note", text: "Personne n'a encore joué cette semaine." }),
     );
   }
+  // les petits messages de fin de partie : record, éclat
+  const messagesFin = (f) => [
+    f.record ? el("p", { class: "jeu-bravo", text: "Nouveau record du site !" }) : f.perso ? el("p", { class: "jeu-bravo", text: "Nouveau record perso !" }) : null,
+    f.eclat ? el("p", { class: "jeu-bravo", text: "+1 éclat pour tes cartes 💎" }) : null,
+    f.eclatPlafond ? el("p", { class: "note", text: `Tu as déjà gagné tes ${infosJeux()?.eclatsParJour || 2} éclats du jour avec les jeux.` }) : null,
+  ];
+  const noteEclat = (jeu, seuil) => {
+    if (!moi?.connecte) return "Connecte-toi avec Discord pour que ton score compte.";
+    if (mesJeux && mesJeux.eclatsDuJour >= (mesJeux.eclatsParJour || 2)) return "Éclats du jour déjà gagnés avec les jeux.";
+    if (jeu?.eclatRecu) return "Éclat du jour déjà gagné avec ce jeu.";
+    return `${seuil} = 1 éclat pour tes cartes.`;
+  };
 
   // --- la Rumble Ball ---
   const rb = { etat: "accueil", manche: 0, score: 0, angle: 0, vitesse: 0, zone: 0, largeur: 0, t0: 0, boucle: 0, partie: "", fin: null, dernier: null };
@@ -2141,17 +2152,14 @@
         el("p", { class: "jeu-gros degrade", text: f.transformations === 7 ? "MONSTER POINT !!" : `${f.transformations}/7` }),
         el("p", { class: "jeu-score", text: `${nombre(f.score)} points` }),
         f.message ? el("p", { class: "note", text: f.message }) : null,
-        f.record ? el("p", { class: "jeu-bravo", text: "Nouveau record du site !" }) : f.perso ? el("p", { class: "jeu-bravo", text: "Nouveau record perso !" }) : null,
-        f.eclat ? el("p", { class: "jeu-bravo", text: "+1 éclat pour tes cartes 💎" }) : null,
+        messagesFin(f),
         el("button", { class: "btn btn-plein", type: "button", onclick: lancerRumble, text: "Rejouer" }),
       );
     } else {
       ecran = el("div", { class: "jeu-ecran" },
         el("p", { class: "jeu-regle", text: "Appuie quand l'aiguille passe dans la zone rose. 7 transformations de plus en plus dures : réussis-les toutes pour le MONSTER POINT." }),
         el("button", { class: "btn btn-plein", type: "button", onclick: lancerRumble, text: "Avaler la Rumble Ball" }),
-        el("p", { class: "note", text: moi?.connecte
-          ? `${moiR?.meilleur ? `Ton meilleur score de la semaine : ${nombre(moiR.meilleur)} pts. ` : ""}${moiR?.eclatRecu ? "Éclat du jour déjà gagné." : `5 transformations = 1 éclat pour tes cartes.`}`
-          : "Connecte-toi avec Discord pour que ton score compte." }),
+        el("p", { class: "note", text: `${moi?.connecte && moiR?.meilleur ? `Ton meilleur score de la semaine : ${nombre(moiR.meilleur)} pts. ` : ""}${noteEclat(moiR, "5 transformations")}` }),
       );
     }
     vider(z,
@@ -2159,7 +2167,7 @@
       rumbleScene(),
       el("div", { class: "rb-hud" }, el("span", { id: "rb-manche", text: rb.etat === "fin" ? "Partie finie" : "Prêt ?" }), el("b", { id: "rb-score", text: `${nombre(rb.score)} pts` })),
       ecran,
-      s ? tableauJeu("rumble") : null,
+      s ? tableauJeu(s, (x) => `${nombre(x.score)} pts`) : null,
     );
     dessinerRumble();
   }
@@ -2251,7 +2259,7 @@
     const attente = new Promise((ok) => setTimeout(ok, delai));
     if (rb.partie) {
       const { d } = await demanderJeux("rumble-fin", { partie: rb.partie, transformations, score });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
       else if (d.erreur) fin.message = [message, d.erreur].filter(Boolean).join(" ");
     } else if (!moi?.connecte) {
       fin.message = [message, "Connecte-toi avec Discord pour que ton score compte."].filter(Boolean).join(" ");
@@ -2269,60 +2277,94 @@
     }
   });
 
-  // --- le quiz One Piece ---
-  const qz = { etat: "accueil", partie: "", question: null, numero: 0, bonnes: 0, fin: null, minuteur: 0, t0: 0, verrou: false };
+  // --- le quiz One Piece : 3 niveaux, et 3 paliers qui montent dans chaque partie ---
+  const NIVEAUX_QUIZ = [["facile", "Facile", "1 à 2 pts"], ["moyen", "Moyen", "1 à 3 pts"], ["difficile", "Difficile", "2 à 3 pts"]];
+  const PALIERS = ["Échauffement", "Ça se corse", "Niveau Empereur"];
+  const nomNiveau = (k) => NIVEAUX_QUIZ.find((x) => x[0] === k)?.[1] || "Moyen";
+  let niveauSauve = "";
+  try { niveauSauve = localStorage.getItem("barhaw-quiz-niveau") || ""; } catch {}
+  const qz = { etat: "accueil", niveau: NIVEAUX_QUIZ.some((x) => x[0] === niveauSauve) ? niveauSauve : "moyen", partie: "", question: null, bonnes: 0, points: 0, palier: 0, fin: null, minuteur: 0, verrou: false, erreur: "" };
+  const texteQuiz = (x) => `${x.score} pt${x.score > 1 ? "s" : ""} ·${x.bonnes ?? "?"}/10 · ${Math.round((x.temps || 0) / 1000)} s`;
   function teteQuiz() {
     return el("div", { class: "jeu-tete" }, el("h3", { text: "Le quiz One Piece" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏴‍☠️" }));
   }
+  function choixNiveau() {
+    return el("div", { class: "qz-niveaux", role: "group", "aria-label": "Niveau du quiz" }, NIVEAUX_QUIZ.map(([k, nom, pts]) => el("button", {
+      class: `qz-niveau niveau-${k}${qz.niveau === k ? " actif" : ""}`, type: "button", "aria-pressed": String(qz.niveau === k),
+      onclick: () => { qz.niveau = k; try { localStorage.setItem("barhaw-quiz-niveau", k); } catch {} if (qz.etat === "fin") qz.etat = "accueil"; rendreQuiz(); },
+    }, el("b", { text: nom }), el("small", { text: pts }))));
+  }
   function rendreQuiz() {
     const z = $("quiz");
-    if (!z || qz.etat === "question") return;
-    const moiQ = mesJeux?.quiz;
+    if (!z || qz.etat === "question" || qz.etat === "palier") return;
+    const s = infosJeux()?.quiz?.niveaux?.[qz.niveau];
+    const moiQ = mesJeux?.quiz?.[qz.niveau];
     let ecran;
     if (!moi?.connecte) {
       ecran = el("div", { class: "jeu-ecran" },
-        el("p", { class: "jeu-regle", text: "10 questions sur l'univers de One Piece, 15 secondes pour chacune. Les questions viennent du bot : connecte-toi avec Discord pour jouer." }),
+        el("p", { class: "jeu-regle", text: "Choisis ton niveau : 10 questions en 3 paliers qui montent en difficulté, 15 secondes chacune. Les questions viennent du bot : connecte-toi avec Discord pour jouer." }),
         el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord" }),
       );
     } else if (qz.etat === "fin" && qz.fin) {
       const f = qz.fin;
       ecran = el("div", { class: "jeu-ecran" },
         el("p", { class: "jeu-gros degrade", text: `${f.bonnes}/10` }),
-        el("p", { class: "jeu-score", text: `en ${Math.round(f.temps / 1000)} s` }),
+        el("p", { class: "jeu-score", text: `${f.points} point${f.points > 1 ? "s" : ""} · ${Math.round(f.temps / 1000)} s · ${nomNiveau(f.niveau)}` }),
         el("p", { class: "note", text: f.bonnes === 10 ? "Sans faute ! Un vrai nakama." : f.bonnes >= 7 ? "Bien joué, tu connais ton One Piece !" : f.bonnes >= 4 ? "Pas mal… Relis quelques tomes !" : "Aïe. Chopper va devoir te soigner." }),
-        f.record ? el("p", { class: "jeu-bravo", text: "Nouveau record du site !" }) : f.perso ? el("p", { class: "jeu-bravo", text: "Nouveau record perso !" }) : null,
-        f.eclat ? el("p", { class: "jeu-bravo", text: "+1 éclat pour tes cartes 💎" }) : null,
-        el("button", { class: "btn btn-plein", type: "button", onclick: lancerQuiz, text: "Rejouer" }),
+        messagesFin(f),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerQuiz, text: `Rejouer en ${nomNiveau(qz.niveau).toLowerCase()}` }),
       );
     } else {
+      const seuil = infosJeux()?.quiz?.niveaux?.[qz.niveau]?.eclat || 7;
       ecran = el("div", { class: "jeu-ecran" },
-        el("p", { class: "jeu-regle", text: "10 questions sur l'univers de One Piece, 15 secondes pour chacune. Le classement se fait aux bonnes réponses, puis au temps." }),
+        el("p", { class: "jeu-regle", text: "10 questions en 3 paliers : Échauffement, Ça se corse, Niveau Empereur. Une question facile vaut 1 point, moyenne 2, difficile 3." }),
         qz.erreur ? el("p", { class: "note", text: qz.erreur }) : null,
-        el("button", { class: "btn btn-plein", type: "button", onclick: lancerQuiz, text: "Lancer le quiz" }),
-        el("p", { class: "note", text: `${moiQ?.meilleur ? `Ton meilleur de la semaine : ${moiQ.meilleur}/10. ` : ""}${moiQ?.eclatRecu ? "Éclat du jour déjà gagné." : "7 bonnes réponses = 1 éclat pour tes cartes."}` }),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerQuiz, text: `Lancer le quiz · ${nomNiveau(qz.niveau)}` }),
+        el("p", { class: "note", text: `${moiQ?.meilleur ? `Ton meilleur en ${nomNiveau(qz.niveau).toLowerCase()} cette semaine : ${moiQ.meilleur} pts. ` : ""}${noteEclat(moiQ, `${seuil} bonnes réponses`)}` }),
       );
     }
-    vider(z, teteQuiz(), el("div", { class: "qz-affiche", "aria-hidden": "true" }, el("span", { class: "qz-wanted", text: "WANTED" }), el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 }), el("span", { class: "qz-prime", text: "50 ฿" })), ecran, infosJeux()?.quiz ? tableauJeu("quiz") : null);
+    vider(z, teteQuiz(), choixNiveau(),
+      el("div", { class: "qz-affiche", "aria-hidden": "true" }, el("span", { class: "qz-wanted", text: "WANTED" }), el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 }), el("span", { class: "qz-prime", text: "50 ฿" })),
+      ecran,
+      infosJeux()?.quiz ? tableauJeu(s, texteQuiz, `Classement · ${nomNiveau(qz.niveau)}`) : null,
+    );
   }
   async function lancerQuiz() {
     if (qz.verrou) return;
     qz.verrou = true;
     qz.erreur = "";
-    const { d } = await demanderJeux("jeu-ouvrir", { jeu: "quiz" });
+    const { d } = await demanderJeux("jeu-ouvrir", { jeu: "quiz", niveau: qz.niveau });
     qz.verrou = false;
     if (!d.ok || !d.question) { qz.etat = "accueil"; qz.erreur = d.texte || d.erreur || "Le quiz n'a pas pu démarrer, réessaie."; rendreQuiz(); return; }
-    qz.partie = d.partie; qz.bonnes = 0; qz.fin = null;
+    qz.partie = d.partie; qz.bonnes = 0; qz.points = 0; qz.palier = 0; qz.fin = null;
+    if (d.niveau) qz.niveau = d.niveau;
     poserQuestion(d.question);
   }
+  // un nouveau palier : une case manga avant la question
   function poserQuestion(q) {
+    const z = $("quiz");
+    if (q.palier && q.palier !== qz.palier) {
+      qz.palier = q.palier;
+      qz.etat = "palier";
+      vider(z, teteQuiz(), el("div", { class: `qz-banniere palier-${q.palier}` },
+        el("span", { class: "concentration", "aria-hidden": "true" }),
+        el("span", { class: "qz-banniere-num", text: `Palier ${q.palier}` }),
+        el("b", { text: PALIERS[q.palier - 1] || "" }),
+        el("span", { class: "sfx eclat qz-banniere-sfx", "aria-hidden": "true", text: q.palier === 3 ? "ゴゴゴ" : q.palier === 2 ? "ドン！" : "スタート！" }),
+      ));
+      setTimeout(() => poserQuestion(q), reduit.matches ? 300 : 1100);
+      return;
+    }
     qz.etat = "question";
     qz.question = q;
-    qz.t0 = performance.now();
-    const z = $("quiz");
     const barre = el("i", {});
     const boutons = q.choix.map((c, k) => el("button", { class: "qz-choix", type: "button", onclick: () => repondreQuiz(k), text: c }));
     vider(z, teteQuiz(),
-      el("div", { class: "qz-haut" }, el("span", { text: `Question ${q.numero}/10` }), el("b", { text: `${qz.bonnes} bonne${qz.bonnes > 1 ? "s" : ""}` })),
+      el("div", { class: "qz-haut" }, el("span", { text: `${nomNiveau(qz.niveau)} · Question ${q.numero}/10` }), el("b", { text: `${qz.points} pts` })),
+      el("div", { class: "qz-infos" },
+        el("span", { class: `qz-pastille palier-${q.palier || 1}`, text: `Palier ${q.palier || 1} · ${PALIERS[(q.palier || 1) - 1]}` }),
+        el("span", { class: `qz-pastille dif-${q.difficulte || "moyen"}`, text: `+${q.valeur || 1} pt${(q.valeur || 1) > 1 ? "s" : ""}` }),
+      ),
       el("div", { class: "qz-temps", "aria-hidden": "true" }, barre),
       el("p", { class: "qz-question", text: q.q }),
       el("div", { class: "qz-choix-liste" }, boutons),
@@ -2346,21 +2388,260 @@
     boutons[d.bonne]?.classList.add("bonne");
     if (k !== null && !d.juste) boutons[k]?.classList.add("fausse");
     qz.bonnes = d.bonnes;
-    const verdict = el("p", { class: `qz-verdict ${d.juste ? "juste" : "faux"}`, text: d.juste ? "Bonne réponse !" : d.tropTard || k === null ? "Trop tard !" : "Raté !" });
-    z.append(verdict);
+    qz.points = d.points ?? qz.points;
+    const pts = z.querySelector(".qz-haut b");
+    if (pts) pts.textContent = `${qz.points} pts`;
+    z.append(el("p", { class: `qz-verdict ${d.juste ? "juste" : "faux"}`, text: d.juste ? `Bonne réponse ! +${qz.question?.valeur || 1}` : d.tropTard || k === null ? "Trop tard !" : "Raté !" }));
     setTimeout(() => {
       if (d.fin) {
         qz.etat = "fin";
-        qz.fin = { bonnes: d.bonnes, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat };
+        qz.fin = { bonnes: d.bonnes, points: d.points, temps: d.temps, niveau: d.niveau || qz.niveau, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
         rendreQuiz();
         if (d.record || d.perso) setTimeout(charger, 1500);
       } else poserQuestion(d.question);
     }, d.juste ? 900 : 1500);
   }
 
+  // --- Docteur Chopper : soigner un maximum de patients en 45 s ---
+  const REMEDES = [
+    { id: "pansement", e: "🩹", nom: "Pansement" },
+    { id: "glace", e: "🧊", nom: "Glace" },
+    { id: "sieste", e: "😴", nom: "Sieste" },
+    { id: "viande", e: "🍖", nom: "Viande" },
+    { id: "tisane", e: "🍵", nom: "Tisane" },
+    { id: "calin", e: "🤗", nom: "Câlin" },
+    { id: "creme", e: "🧴", nom: "Crème" },
+    { id: "bonbon", e: "🍭", nom: "Barbe à papa" },
+  ];
+  const SYMPTOMES = [
+    ["S'est coupé en épluchant des légumes", "pansement"], ["S'est égratigné le genou au bowling", "pansement"], ["A été griffé par un chat", "pansement"], ["S'est coupé avec un sabre de Zoro", "pansement"],
+    ["A une énorme bosse sur la tête", "glace"], ["A pris un poing de l'amour de Garp", "glace"], ["S'est tordu la cheville en dansant", "glace"], ["A la joue toute gonflée", "glace"],
+    ["A streamé 12 heures d'affilée", "sieste"], ["Bâille toutes les deux secondes", "sieste"], ["A joué en ranked jusqu'à 5 h du matin", "sieste"], ["Dort debout comme Zoro", "sieste"],
+    ["A faim comme Luffy", "viande"], ["Son ventre gargouille très fort", "viande"], ["N'a rien mangé depuis trois jours", "viande"], ["Réclame un festin de pirate", "viande"],
+    ["A mal à la gorge à force de crier en live", "tisane"], ["Tousse sans arrêt", "tisane"], ["A attrapé froid sur l'île de Drum", "tisane"], ["A la voix cassée", "tisane"],
+    ["A perdu sa ranked", "calin"], ["Pleure comme Chopper", "calin"], ["Son équipe l'a abandonné", "calin"], ["Se sent tout seul", "calin"],
+    ["A pris un coup de soleil à Alabasta", "creme"], ["Est rouge comme une écrevisse", "creme"], ["A la peau qui pèle", "creme"], ["S'est endormi au soleil sur le pont du Sunny", "creme"],
+    ["Boude et veut une récompense", "bonbon"], ["A besoin de sucre tout de suite", "bonbon"], ["Fait une crise de gourmandise", "bonbon"], ["Veut un goûter comme Chopper", "bonbon"],
+  ];
+  const dc = { etat: "accueil", fin: null, partie: "", fin_t: 0, score: 0, soignes: 0, combo: 0, patient: null, boucle: 0, bloque: 0, dernier: -1 };
+  const teteDocteur = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Docteur Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🩺" }));
+  const texteDocteur = (x) => `${x.soignes ?? "?"} patient${x.soignes > 1 ? "s" : ""} · ${nombre(x.score)} pts`;
+  function rendreDocteur() {
+    const z = $("docteur");
+    if (!z || dc.etat === "jeu" || dc.etat === "envoi") return;
+    const moiD = mesJeux?.docteur;
+    const ecran = dc.etat === "fin" && dc.fin
+      ? el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-gros degrade", text: `${dc.fin.soignes} patient${dc.fin.soignes > 1 ? "s" : ""}` }),
+        el("p", { class: "jeu-score", text: `${nombre(dc.fin.score)} points` }),
+        dc.fin.message ? el("p", { class: "note", text: dc.fin.message }) : null,
+        messagesFin(dc.fin),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerDocteur, text: "Rouvrir le cabinet" }),
+      )
+      : el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-regle", text: "45 secondes pour soigner un max de patients : lis le symptôme et donne le bon remède. Les bonnes réponses d'affilée font monter le combo ; un mauvais remède bloque Chopper un instant." }),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerDocteur, text: "Ouvrir le cabinet" }),
+        el("p", { class: "note", text: `${moiD?.meilleur ? `Ton meilleur score de la semaine : ${nombre(moiD.meilleur)} pts. ` : ""}${noteEclat(moiD, `${infosJeux()?.docteur?.eclat || 400} points`)}` }),
+      );
+    vider(z, teteDocteur(),
+      el("div", { class: "dc-attente", "aria-hidden": "true" },
+        el("div", { class: "dc-docteur" }, el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 }), el("span", { text: "🩺" })),
+        el("div", { class: "dc-file" }, melanger([...MEMES]).slice(0, 3).map((m) => el("img", { src: m.src, alt: "", loading: "lazy" }))),
+      ),
+      ecran,
+      infosJeux()?.docteur ? tableauJeu(infosJeux().docteur, texteDocteur) : null,
+    );
+  }
+  function nouveauPatient() {
+    let k;
+    do { k = Math.floor(Math.random() * SYMPTOMES.length); } while (k === dc.dernier && SYMPTOMES.length > 1);
+    dc.dernier = k;
+    const m = MEMES[Math.floor(Math.random() * MEMES.length)];
+    dc.patient = { symptome: SYMPTOMES[k][0], remede: SYMPTOMES[k][1], img: m };
+    const p = $("dc-patient");
+    if (!p) return;
+    vider(p,
+      el("img", { src: m.src, alt: "", width: m.l, height: m.h }),
+      el("p", { class: "dc-symptome", text: dc.patient.symptome }),
+    );
+    p.classList.remove("arrive"); void p.offsetWidth; p.classList.add("arrive");
+  }
+  async function lancerDocteur() {
+    dc.etat = "jeu"; dc.score = 0; dc.soignes = 0; dc.combo = 0; dc.fin = null; dc.partie = ""; dc.bloque = 0;
+    const z = $("docteur");
+    const barre = el("i", {});
+    vider(z, teteDocteur(),
+      el("div", { class: "dc-hud" }, el("span", { id: "dc-temps", text: "45 s" }), el("span", { id: "dc-combo", text: "" }), el("b", { id: "dc-score", text: "0 pts" })),
+      el("div", { class: "qz-temps dc-chrono", "aria-hidden": "true" }, barre),
+      el("div", { class: "dc-scene" },
+        el("div", { class: "dc-patient", id: "dc-patient" }),
+        el("span", { class: "sfx dc-sfx", id: "dc-sfx", "aria-hidden": "true" }),
+      ),
+      el("div", { class: "dc-remedes", id: "dc-remedes" }, REMEDES.map((x, k) => el("button", { class: "dc-remede", type: "button", "data-remede": x.id, onclick: () => soigner(x.id), title: `Touche ${k + 1}` }, el("span", { class: "dc-emoji", "aria-hidden": "true", text: x.e }), el("span", { text: x.nom })))),
+    );
+    nouveauPatient();
+    if (moi?.connecte) {
+      const { d } = await demanderJeux("jeu-ouvrir", { jeu: "docteur" });
+      if (d.partie) dc.partie = d.partie;
+    }
+    dc.fin_t = performance.now() + 45_000;
+    cancelAnimationFrame(dc.boucle);
+    const image = (t) => {
+      if (dc.etat !== "jeu") return;
+      const reste = Math.max(0, dc.fin_t - t);
+      barre.style.transform = `scaleX(${reste / 45_000})`;
+      $("dc-temps").textContent = `${Math.ceil(reste / 1000)} s`;
+      $("dc-remedes")?.classList.toggle("bloque", t < dc.bloque);
+      if (reste <= 0) { finirDocteur(); return; }
+      dc.boucle = requestAnimationFrame(image);
+    };
+    dc.boucle = requestAnimationFrame(image);
+  }
+  function soigner(id) {
+    if (dc.etat !== "jeu" || !dc.patient || performance.now() < dc.bloque) return;
+    const sfx = $("dc-sfx");
+    const scene = $("docteur").querySelector(".dc-scene");
+    if (id === dc.patient.remede) {
+      dc.score += 10 + Math.min(dc.combo, 10);
+      dc.soignes++;
+      dc.combo++;
+      sfx.textContent = dc.combo >= 10 ? "神ドクター！" : ["治った！", "ピカーン", "スッキリ"][dc.soignes % 3];
+      scene.classList.remove("rate");
+      nouveauPatient();
+    } else {
+      dc.combo = 0;
+      dc.bloque = performance.now() + 1200;
+      sfx.textContent = "ガーン";
+      scene.classList.remove("rate"); void scene.offsetWidth; scene.classList.add("rate");
+      $("docteur").querySelector(`[data-remede="${id}"]`)?.classList.add("faux");
+      setTimeout(() => $("docteur")?.querySelector(`[data-remede="${id}"]`)?.classList.remove("faux"), 1200);
+    }
+    sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
+    $("dc-score").textContent = `${nombre(dc.score)} pts`;
+    $("dc-combo").textContent = dc.combo >= 2 ? `Combo ×${dc.combo}` : "";
+  }
+  async function finirDocteur() {
+    dc.etat = "envoi";
+    cancelAnimationFrame(dc.boucle);
+    let fin = { soignes: dc.soignes, score: dc.score, message: "" };
+    if (dc.partie) {
+      const { d } = await demanderJeux("docteur-fin", { partie: dc.partie, soignes: dc.soignes, score: dc.score });
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
+      else if (d.erreur) fin.message = d.erreur;
+    } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
+    dc.etat = "fin";
+    dc.fin = fin;
+    rendreDocteur();
+    if (fin.record || fin.perso) setTimeout(charger, 1500);
+  }
+  window.addEventListener("keydown", (e) => {
+    if (dc.etat !== "jeu" || !/^[1-8]$/.test(e.key)) return;
+    const r = $("docteur")?.getBoundingClientRect();
+    if (r && r.bottom > 0 && r.top < innerHeight) { e.preventDefault(); soigner(REMEDES[Number(e.key) - 1].id); }
+  });
+
+  // --- le Memory des mèmes : 8 paires à retrouver ---
+  const mm = { etat: "accueil", cartes: [], retournees: [], trouvees: new Set(), coups: 0, t0: 0, partie: "", verrou: false, fin: null, minuteur: 0 };
+  const teteMemory = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Le Memory des mèmes" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🧠" }));
+  const texteMemory = (x) => `${nombre(x.score)} pts · ${x.coups ?? "?"} coups`;
+  const scoreMemoryLocal = (coups, ms) => Math.max(50, Math.round(1000 - 25 * (coups - 8) - (4 * ms) / 1000));
+  function rendreMemory() {
+    const z = $("memory");
+    if (!z || mm.etat === "jeu" || mm.etat === "envoi") return;
+    const moiM = mesJeux?.memory;
+    const ecran = mm.etat === "fin" && mm.fin
+      ? el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-gros degrade", text: `${nombre(mm.fin.score)} pts` }),
+        el("p", { class: "jeu-score", text: `${mm.fin.coups} coups · ${Math.round(mm.fin.temps / 1000)} s` }),
+        mm.fin.message ? el("p", { class: "note", text: mm.fin.message }) : null,
+        messagesFin(mm.fin),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerMemory, text: "Rejouer" }),
+      )
+      : el("div", { class: "jeu-ecran" },
+        el("p", { class: "jeu-regle", text: "16 cartes, 8 paires de mèmes de la commu. Retourne-les deux par deux et retrouve toutes les paires avec le moins de coups possible, le plus vite possible." }),
+        el("button", { class: "btn btn-plein", type: "button", onclick: lancerMemory, text: "Distribuer les cartes" }),
+        el("p", { class: "note", text: `${moiM?.meilleur ? `Ton meilleur score de la semaine : ${nombre(moiM.meilleur)} pts. ` : ""}${noteEclat(moiM, `${infosJeux()?.memory?.eclat || 650} points`)}` }),
+      );
+    vider(z, teteMemory(),
+      el("div", { class: "mm-apercu", "aria-hidden": "true" }, [0, 1, 2, 3].map(() => dosCarte())),
+      ecran,
+      infosJeux()?.memory ? tableauJeu(infosJeux().memory, texteMemory) : null,
+    );
+  }
+  async function lancerMemory() {
+    const ids = melanger(["chopper", "liliano", ...MEMES.map((m) => m.id)]).slice(0, 8);
+    mm.cartes = melanger([...ids, ...ids]);
+    mm.retournees = []; mm.trouvees = new Set(); mm.coups = 0; mm.verrou = false; mm.fin = null; mm.partie = "";
+    mm.etat = "jeu";
+    const z = $("memory");
+    vider(z, teteMemory(),
+      el("div", { class: "dc-hud" }, el("span", { id: "mm-coups", text: "0 coup" }), el("span", { id: "mm-paires", text: "0/8 paires" }), el("b", { id: "mm-temps", text: "0 s" })),
+      el("div", { class: "mm-grille" }, mm.cartes.map((id, k) => {
+        const img = imageCarte(id);
+        const b = el("button", { class: "mm-carte", type: "button", "aria-label": `Carte ${k + 1}`, onclick: () => retournerMemory(k, b) },
+          el("span", { class: "mm-interieur" },
+            dosCarte(),
+            el("span", { class: "mm-face" }, img ? el("img", { src: img.src, alt: "", loading: "eager", decoding: "async" }) : null),
+          ),
+        );
+        return b;
+      })),
+    );
+    mm.t0 = performance.now();
+    clearInterval(mm.minuteur);
+    mm.minuteur = setInterval(() => { const t = $("mm-temps"); if (t && mm.etat === "jeu") t.textContent = `${Math.floor((performance.now() - mm.t0) / 1000)} s`; }, 250);
+    if (moi?.connecte) {
+      const { d } = await demanderJeux("jeu-ouvrir", { jeu: "memory" });
+      if (d.partie) mm.partie = d.partie;
+    }
+  }
+  function retournerMemory(k, b) {
+    if (mm.etat !== "jeu" || mm.verrou || mm.trouvees.has(k) || mm.retournees.includes(k)) return;
+    b.classList.add("retournee");
+    mm.retournees.push(k);
+    if (mm.retournees.length < 2) return;
+    mm.coups++;
+    $("mm-coups").textContent = `${mm.coups} coup${mm.coups > 1 ? "s" : ""}`;
+    const [a, c] = mm.retournees;
+    const boutons = $("memory").querySelectorAll(".mm-carte");
+    if (mm.cartes[a] === mm.cartes[c]) {
+      mm.trouvees.add(a); mm.trouvees.add(c);
+      boutons[a].classList.add("trouvee"); boutons[c].classList.add("trouvee");
+      mm.retournees = [];
+      $("mm-paires").textContent = `${mm.trouvees.size / 2}/8 paires`;
+      if (mm.trouvees.size === mm.cartes.length) finirMemory();
+      return;
+    }
+    mm.verrou = true;
+    setTimeout(() => {
+      boutons[a].classList.remove("retournee"); boutons[c].classList.remove("retournee");
+      mm.retournees = [];
+      mm.verrou = false;
+    }, 800);
+  }
+  async function finirMemory() {
+    mm.etat = "envoi";
+    clearInterval(mm.minuteur);
+    const temps = performance.now() - mm.t0;
+    let fin = { coups: mm.coups, temps, score: scoreMemoryLocal(mm.coups, temps), message: "" };
+    const attente = new Promise((ok) => setTimeout(ok, 900));
+    if (mm.partie) {
+      const { d } = await demanderJeux("memory-fin", { partie: mm.partie, coups: mm.coups });
+      if (d.ok) fin = { ...fin, score: d.score, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
+      else if (d.erreur) fin.message = d.erreur;
+    } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
+    await attente;
+    mm.etat = "fin";
+    mm.fin = fin;
+    rendreMemory();
+    if (fin.record || fin.perso) setTimeout(charger, 1500);
+  }
+
   function rendreJeux() {
     if (rb.etat !== "jeu" && rb.etat !== "pause" && rb.etat !== "envoi") rendreRumble();
     rendreQuiz();
+    rendreDocteur();
+    rendreMemory();
   }
 
   // ---------- chargement ----------

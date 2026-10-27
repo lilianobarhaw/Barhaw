@@ -6,13 +6,15 @@
 //          et applique les mêmes règles que sur Discord (une fois par jour pour nourrir et jouer).
 //          Le goûter de Chopper : jeu-debut ouvre une partie chez le bot, jeu-fin rend le score (vérifié par le bot).
 //   POST /api/chopper  { action: "cartes" | "carte-tirer" } → l'album du membre, ou sa carte du jour (tirée par le bot)
-//   POST /api/chopper  { action: "jeux" | "jeu-ouvrir" | "rumble-fin" | "quiz-repondre", jeu, partie, transformations, score, choix }
-//        → les jeux du site (la Rumble Ball, le quiz One Piece), vérifiés et corrigés par le bot
+//   POST /api/chopper  { action: "jeux" | "jeu-ouvrir" | "rumble-fin" | "quiz-repondre" | "docteur-fin" | "memory-fin", jeu, niveau, partie, … }
+//        → les jeux du site (la Rumble Ball, le quiz One Piece, Docteur Chopper, le Memory), vérifiés et corrigés par le bot
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin"]);
+const JEUX = new Set(["rumble", "quiz", "docteur", "memory"]);
+const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
 
 export async function GET(req) {
@@ -57,8 +59,16 @@ export async function POST(req) {
     corps.partie = /^[0-9a-f]{24}$/.test(String(d.partie || "")) ? String(d.partie) : "";
     corps.score = Number.isInteger(d.score) ? d.score : -1;
   }
-  if (action === "jeu-ouvrir") corps.jeu = d.jeu === "quiz" ? "quiz" : "rumble";
-  if (action === "rumble-fin" || action === "quiz-repondre") corps.partie = /^[0-9a-f]{24}$/.test(String(d.partie || "")) ? String(d.partie) : "";
+  if (action === "jeu-ouvrir") {
+    corps.jeu = JEUX.has(d.jeu) ? d.jeu : "rumble";
+    if (corps.jeu === "quiz") corps.niveau = NIVEAUX.has(d.niveau) ? d.niveau : "moyen";
+  }
+  if (["rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin"].includes(action)) corps.partie = /^[0-9a-f]{24}$/.test(String(d.partie || "")) ? String(d.partie) : "";
+  if (action === "docteur-fin") {
+    corps.soignes = entier(d.soignes, 0, 500);
+    corps.score = entier(d.score, 0, 10000);
+  }
+  if (action === "memory-fin") corps.coups = entier(d.coups, 0, 500);
   if (action === "rumble-fin") {
     corps.transformations = entier(d.transformations, 0, 7);
     corps.score = entier(d.score, 0, 1000);
