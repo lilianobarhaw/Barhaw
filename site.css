@@ -1215,6 +1215,22 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .volume span { font-size: 15px; line-height: 1; }
 .volume input { width: 110px; accent-color: var(--rose); cursor: pointer; }
 
+/* ---------- la course de Chopper ---------- */
+.jeu-panneau.jeu-large { grid-column: 1 / -1; }
+.co-scene { position: relative; overflow: hidden; border-radius: 14px; background: #1c0a26; border: 3px solid var(--encre); box-shadow: 0 0 0 2px var(--ligne), 6px 6px 0 2px var(--ombre); }
+.co-canvas { display: block; width: 100%; height: auto; aspect-ratio: 640 / 280; cursor: pointer; touch-action: pan-y; -webkit-tap-highlight-color: transparent; user-select: none; }
+.co-scene.en-jeu .co-canvas { cursor: default; touch-action: none; }
+.co-sfx { right: 9%; top: 22%; --r: -8deg; font-size: 46px; }
+.co-depart {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  font-family: var(--sfx); font-size: clamp(54px, 9vw, 96px); line-height: 1; color: #fff; -webkit-text-stroke: 2px var(--encre); text-shadow: 5px 5px 0 var(--rose);
+}
+.co-depart:empty { display: none; }
+.co-depart.pop { animation: sfx-pop 0.5s var(--rebond) both; }
+.co-depart.pause { background: rgba(18, 5, 13, 0.55); font-size: clamp(30px, 5vw, 48px); }
+.co-scene.choc { animation: boss-touche 0.45s steps(6) both; }
+.co-aide { text-align: center; }
+
 /* ---------- la chasse : le boss de la semaine et les avis de recherche WANTED ---------- */
 .boss-panneau { padding: 26px 28px 28px; display: grid; gap: 24px; overflow: hidden; }
 .boss-haut { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 30px; align-items: center; }
@@ -1551,6 +1567,8 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .album { padding: 22px 18px; }
   .album-cases { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; }
   .jeu-panneau { padding: 22px 18px; }
+  /* la course : toute la largeur de l'écran, pour voir venir les obstacles */
+  .co-scene { margin-inline: calc(50% - 50vw); border-radius: 0; border-width: 3px 0; box-shadow: 0 6px 0 var(--ombre); }
   .qz-choix-liste { grid-template-columns: minmax(0, 1fr); }
   .dc-remedes { gap: 6px; }
   .dc-remede { font-size: 10px; padding: 7px 2px; }
