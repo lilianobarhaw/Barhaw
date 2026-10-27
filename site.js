@@ -320,7 +320,7 @@
     burger.addEventListener("click", () => menu(!nav.classList.contains("ouvert")));
     nav.addEventListener("click", (ev) => { if (ev.target.closest("a")) menu(false); });
     window.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && nav.classList.contains("ouvert")) { menu(false); burger.focus(); } });
-    window.matchMedia("(min-width: 1181px)").addEventListener?.("change", (m) => { if (m.matches) menu(false); });
+    window.matchMedia("(min-width: 1321px)").addEventListener?.("change", (m) => { if (m.matches) menu(false); });
   }
 
   // le grand kanji de chaque partie glisse un peu moins vite que la page
@@ -1158,7 +1158,8 @@
       onomatopee($("sfx-chopper"), action === "nourrir" ? "モグモグ" : "ピョン", true);
       setTimeout(() => scene.classList.remove("joie", "impact"), 1800);
       setTimeout(() => { delete scene.dataset.geste; rendreChopper(); }, 8000);
-      montrerResultat({ anim: d.anim, texte: `${d.texte} (${d.bonus})` });
+      if (d.butin) recevoirButin(d.butin);
+      montrerResultat({ anim: d.anim, texte: `${d.texte} (${d.bonus})${d.butin && (d.butin.degats || d.butin.berrys) ? ` · ${texteButin(d.butin)}` : ""}` });
       rendreActions({ texte: "C'est noté ! La scène est aussi postée dans le salon de Chopper sur Discord." });
       return;
     }
@@ -1588,10 +1589,12 @@
           rendreClassementJeu();
         }
         if (d.ok) {
+          if (d.butin) recevoirButin(d.butin);
           resultat.textContent = [
             d.record ? "Nouveau record du goûter, bravo !" : d.perso ? "Nouveau record perso cette semaine !" : `Ton meilleur cette semaine : ${d.meilleur} points.`,
             d.recompense ? `Chopper est content : ${d.recompense}.` : d.restant > 0 ? "Attrape au moins un bonbon pour que la partie rapporte." : "Tes 3 parties qui rapportent sont faites pour aujourd'hui.",
-          ].join(" ");
+            d.butin && (d.butin.degats || d.butin.berrys) ? texteButin(d.butin) : "",
+          ].filter(Boolean).join(" ");
         } else {
           resultat.textContent = d.texte || d.erreur || "Ton score n'a pas pu être envoyé.";
         }
@@ -1923,6 +1926,19 @@
       exemplaires > 1 ? el("span", { class: "cc-double", text: `×${exemplaires}` }) : null,
     );
   }
+  // une carte trophée : le boss de la semaine vaincu (elle ne compte pas dans les 15)
+  function faceTrophee(t, { petite = false } = {}) {
+    const img = imageCarte(t.image);
+    return el("article", { class: `cc trophee${petite ? " petite" : ""}`, "aria-label": `Carte trophée : ${t.nom}, boss n° ${t.numero}` },
+      el("div", { class: "cc-art" }, img ? el("img", { src: img.src, alt: "", width: img.l, height: img.h, loading: petite ? "lazy" : "eager", decoding: "async" }) : null),
+      el("div", { class: "cc-pied" },
+        el("span", { class: "cc-num", text: `Boss n° ${t.numero}` }),
+        el("strong", { class: "cc-nom", text: t.nom }),
+        el("span", { class: "cc-rarete", text: "Trophée" }),
+      ),
+      el("span", { class: "cc-sceau", "aria-hidden": "true", text: "討伐" }),
+    );
+  }
   // le dos d'une carte
   const dosCarte = (numero = null) => el("div", { class: "cc-dos", "aria-hidden": "true" },
     el("span", { class: "cc-dos-kanji", text: "札" }),
@@ -1960,6 +1976,7 @@
     if (d.cartes) mesCartes = d.cartes;
     if (!d.ok) { rendreCartes({ message: d.texte || d.erreur || "Le tirage n'a pas marché, réessaie." }); return; }
     derniereTiree = d;
+    if (d.butin) recevoirButin(d.butin);
     rendreCartes({ revele: true });
     // les nouvelles du classement arrivent avec le prochain chargement ; on le demande tout de suite
     setTimeout(charger, 1500);
@@ -2001,6 +2018,7 @@
       infos = [
         el("h3", { text: peut ? (m.tirageDuJour ? "Ta carte du jour t'attend" : "Tirage bonus\u00a0!") : "Carte du jour tirée" }),
         resultat,
+        revele && derniereTiree?.butin && (derniereTiree.butin.degats || derniereTiree.butin.berrys) ? el("p", { class: "jeu-butin", text: texteButin(derniereTiree.butin) }) : null,
         duJour ? el("p", { text: `Aujourd'hui\u00a0: ${duJour.nom}.` }) : null,
         message ? el("p", { class: "note", text: message }) : null,
         peut
@@ -2058,6 +2076,14 @@
       ),
       el("div", { class: "album-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round((nb / cat.length) * 100)}%` })),
       el("div", { class: "album-cases" }, cases),
+      mesCartes?.trophees?.length ? [
+        el("h4", { class: "album-trophees", text: `Trophées de chasse (${mesCartes.trophees.length})` }),
+        el("div", { class: "album-cases trophees" }, mesCartes.trophees.map((t) => {
+          const b = el("button", { class: "case-album", type: "button", "aria-label": `Voir la carte trophée ${t.nom}` }, faceTrophee(t, { petite: true }));
+          b.addEventListener("click", () => visionneuse(faceTrophee(t), `Carte trophée : ${t.nom}`, b));
+          return b;
+        })),
+      ] : null,
       !moi?.connecte ? el("p", { class: "note", text: "Les cartes que tu tires apparaissent ici. Les cases vides gardent leur secret." }) : null,
     );
   }
@@ -2111,6 +2137,7 @@
       if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
       if (d.jeux) mesJeux = d.jeux;
       if (d.cartes) { mesCartes = d.cartes; if (!$("tirage")?.querySelector(".retourne")) rendreTirage(); }
+      if (d.butin) recevoirButin(d.butin);
       return { status: r.status, d };
     } catch {
       return { status: 0, d: { erreur: "Impossible de joindre le bot. Vérifie ta connexion." } };
@@ -2137,6 +2164,7 @@
     f.record ? el("p", { class: "jeu-bravo", text: "Nouveau record du site !" }) : f.perso ? el("p", { class: "jeu-bravo", text: "Nouveau record perso !" }) : null,
     f.eclat ? el("p", { class: "jeu-bravo", text: "+1 éclat pour tes cartes 💎" }) : null,
     f.eclatPlafond ? el("p", { class: "note", text: `Tu as déjà gagné tes ${infosJeux()?.eclatsParJour || 2} éclats du jour avec les jeux.` }) : null,
+    f.butin && (f.butin.degats || f.butin.berrys) ? el("p", { class: "jeu-butin", text: texteButin(f.butin) }) : null,
   ];
   const noteEclat = (jeu, seuil) => {
     if (!moi?.connecte) return "Connecte-toi avec Discord pour que ton score compte.";
@@ -2277,7 +2305,7 @@
     const attente = new Promise((ok) => setTimeout(ok, delai));
     if (rb.partie) {
       const { d } = await demanderJeux("rumble-fin", { partie: rb.partie, transformations, score });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
       else if (d.erreur) fin.message = [message, d.erreur].filter(Boolean).join(" ");
     } else if (!moi?.connecte) {
       fin.message = [message, "Connecte-toi avec Discord pour que ton score compte."].filter(Boolean).join(" ");
@@ -2413,7 +2441,7 @@
     setTimeout(() => {
       if (d.fin) {
         qz.etat = "fin";
-        qz.fin = { bonnes: d.bonnes, points: d.points, temps: d.temps, niveau: d.niveau || qz.niveau, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
+        qz.fin = { bonnes: d.bonnes, points: d.points, temps: d.temps, niveau: d.niveau || qz.niveau, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
         rendreQuiz();
         if (d.record || d.perso) setTimeout(charger, 1500);
       } else poserQuestion(d.question);
@@ -2544,7 +2572,7 @@
     let fin = { soignes: dc.soignes, score: dc.score, message: "" };
     if (dc.partie) {
       const { d } = await demanderJeux("docteur-fin", { partie: dc.partie, soignes: dc.soignes, score: dc.score });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
       else if (d.erreur) fin.message = d.erreur;
     } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
     dc.etat = "fin";
@@ -2645,7 +2673,7 @@
     const attente = new Promise((ok) => setTimeout(ok, 900));
     if (mm.partie) {
       const { d } = await demanderJeux("memory-fin", { partie: mm.partie, coups: mm.coups });
-      if (d.ok) fin = { ...fin, score: d.score, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond };
+      if (d.ok) fin = { ...fin, score: d.score, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
       else if (d.erreur) fin.message = d.erreur;
     } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
     await attente;
@@ -2660,6 +2688,415 @@
     rendreQuiz();
     rendreDocteur();
     rendreMemory();
+  }
+
+  // ---------- la chasse : le boss de la semaine et les avis de recherche WANTED ----------
+  // Le bot tient les PV du boss et les primes. La page affiche tout, lance l'attaque du jour (une par jour)
+  // et crée (ou retire) l'avis de recherche du membre connecté : personne n'a d'affiche sans l'avoir voulu.
+  let maChasse = null; // { primes: { actif, prime, titre, rang… }, boss: { degats, rang, attaqueDispo, prochaineAttaque, trophee } }
+  let chassePasMembre = false;
+  let attaqueEnCours = false;
+  let dernierCoup = null; // la dernière attaque : { degats, critique, phrase, berrys }
+  let animBossJusqua = 0; // pendant l'animation d'un coup, la page ne redessine pas le boss
+  let ongletPrimes = "top";
+  let confirmerRetrait = false;
+  let creationEnCours = false;
+  let pvVu = null; // les PV affichés la dernière fois (pour que la barre descende en douceur)
+  let minuteurBoss = 0;
+  let chasseVue = false;
+  const infosChasse = () => donnees?.chasse || null;
+  const berrys = (n) => `${nombre(Math.round(Number(n) || 0))} ฿`;
+  const imageBoss = (id) => imageCarte(id) || { src: "/img/chopper-visage.jpg", l: 480, h: 480 };
+  const SOURCES_PRIME = { depart: "Création de l'avis", messages: "Messages sur le Discord", lives: "Présence aux lives", cartes: "Cartes", jeux: "Jeux", chopper: "Chopper", boss: "Coups au boss" };
+  const texteButin = (b) => [b.degats ? `⚔️ −${nombre(b.degats)} PV au boss` : "", b.berrys ? `+${berrys(b.berrys)}` : ""].filter(Boolean).join(" · ");
+
+  function dureeCourte(t) {
+    const s = Math.max(0, Math.floor((t - Date.now()) / 1000));
+    const j = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return j ? `${j} j ${h} h` : h ? `${h} h ${String(m).padStart(2, "0")}` : `${Math.max(1, m)} min`;
+  }
+
+  async function demanderChasse(action) {
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+      chassePasMembre = d.erreur === "pas-membre";
+      if (d.chasse) maChasse = d.chasse;
+      if (d.etatBoss && donnees) donnees.chasse = { ...(donnees.chasse || {}), boss: d.etatBoss };
+      return { status: r.status, d };
+    } catch {
+      return { status: 0, d: { erreur: "Impossible de joindre le bot. Vérifie ta connexion." } };
+    }
+  }
+  async function chargerMaChasse() {
+    if (!moi?.connecte) { maChasse = null; rendreChasse(); return; }
+    await demanderChasse("chasse");
+    rendreChasse();
+  }
+  // les données publiques sont gardées 20 s en cache : on ne laisse pas un boss « d'avant » remplacer celui qu'on vient de frapper
+  function bossLePlusFrais(ancien, nouveau) {
+    if (!ancien || !nouveau || ancien.numero !== nouveau.numero || ancien.pv >= nouveau.pv) return nouveau;
+    return { ...nouveau, pv: ancien.pv, etat: ancien.etat, coups: ancien.coups, top: ancien.top, chasseurs: ancien.chasseurs, total: ancien.total, vaincuLe: ancien.vaincuLe, coupFinal: ancien.coupFinal };
+  }
+  function recevoirPublic(d) {
+    const ancien = donnees?.chasse?.boss;
+    if (d?.chasse?.boss) d.chasse = { ...d.chasse, boss: bossLePlusFrais(ancien, d.chasse.boss) };
+    return d;
+  }
+  // le butin d'une partie, d'une carte ou de Chopper : le boss perd des PV tout de suite sur la page
+  function recevoirButin(b) {
+    if (!b) return;
+    if (b.boss && donnees?.chasse) donnees.chasse = { ...donnees.chasse, boss: { ...donnees.chasse.boss, ...b.boss } };
+    if (maChasse?.primes?.actif && b.berrys) maChasse.primes.prime += b.berrys;
+    if (maChasse?.boss && b.degats) maChasse.boss.degats += b.degats;
+    if (Date.now() > animBossJusqua) rendreBoss();
+    rendreWanted();
+  }
+
+  // --- le boss ---
+  function portraitBoss(b) {
+    const img = imageBoss(b.id);
+    return el("div", { class: `boss-portrait etat-${b.etat}`, id: "boss-portrait" },
+      el("span", { class: "concentration", "aria-hidden": "true" }),
+      el("div", { class: "boss-cadre" }, el("img", { src: img.src, alt: `Le boss : ${b.nom}`, width: img.l, height: img.h, decoding: "async" })),
+      el("span", { class: "boss-tampon", text: b.etat === "vaincu" ? "VAINCU" : b.etat === "enfui" ? "ENFUI" : `BOSS n° ${b.numero}` }),
+      el("span", { class: "boss-degat", id: "boss-degat", "aria-hidden": "true" }),
+      el("span", { class: "sfx boss-sfx", id: "boss-sfx", "aria-hidden": "true" }),
+    );
+  }
+  function actionBoss(b) {
+    const m = maChasse?.boss;
+    if (b.etat !== "vivant") {
+      return [
+        el("p", { class: "boss-fini", text: b.etat === "vaincu" ? `Vaincu ! Coup final : ${b.coupFinal?.nom || "?"}.` : "Il s'est enfui…" }),
+        m?.trophee ? el("p", { class: "jeu-bravo", text: "🏆 Tu as gagné sa carte trophée : elle est dans ton album." }) : null,
+        el("p", { class: "note", text: "Le prochain boss arrive lundi à 0 h." }),
+      ];
+    }
+    if (!moi?.connecte) return [el("a", { class: "btn btn-plein boss-attaque", href: "/api/auth/login", text: "Se connecter pour attaquer" })];
+    if (chassePasMembre) return [el("a", { class: "btn btn-plein", href: "#discord", text: "Rejoins le Discord pour entrer dans la chasse" })];
+    if (!m) return [el("button", { class: "btn btn-plein boss-attaque", type: "button", disabled: true, text: "…" })];
+    const coup = dernierCoup ? el("p", { class: `boss-coup${dernierCoup.critique ? " critique" : ""}`, role: "status" },
+      `${dernierCoup.critique ? "COUP CRITIQUE ! " : ""}${dernierCoup.phrase} `, el("b", { text: `−${nombre(dernierCoup.degats)} PV` }),
+      dernierCoup.berrys ? ` · +${berrys(dernierCoup.berrys)}` : "") : null;
+    if (m.attaqueDispo) {
+      return [coup, el("button", { class: "btn btn-plein boss-attaque", type: "button", onclick: attaquerBoss, disabled: attaqueEnCours, text: attaqueEnCours ? "…" : "⚔️ Attaquer !" })];
+    }
+    return [
+      coup,
+      el("p", { class: "boss-attente" }, "Attaque du jour faite. La prochaine dans ", el("b", { id: "boss-prochaine", text: dureeCourte(m.prochaineAttaque) }), "."),
+      el("p", { class: "note", text: "Tu peux encore le frapper en jouant aux jeux, en tirant ta carte ou en t'occupant de Chopper." }),
+    ];
+  }
+  function rendreBoss() {
+    const z = $("boss");
+    if (!z) return;
+    const b = infosChasse()?.boss;
+    if (!b) {
+      vider(z, el("h3", { text: "Le boss de la semaine" }), el("p", { class: "vide", text: donnees?.horsLigne ? "Le boss revient dans un instant." : "Le boss arrive bientôt." }));
+      return;
+    }
+    const pct = b.pvMax ? Math.max(0, Math.min(100, (b.pv / b.pvMax) * 100)) : 0;
+    // la barre part des PV vus la dernière fois, puis descend (avec la traînée des jeux de combat)
+    const depart = pvVu && pvVu.numero === b.numero && pvVu.pv > b.pv ? Math.min(100, (pvVu.pv / b.pvMax) * 100) : pct;
+    pvVu = { numero: b.numero, pv: b.pv };
+    const m = maChasse?.boss;
+    const plein = el("i", { class: "boss-pv-plein", style: `width:${depart}%` });
+    const traine = el("i", { class: "boss-pv-traine", style: `width:${depart}%` });
+    const D = b.degats || {};
+    vider(z,
+      el("div", { class: "boss-haut" },
+        portraitBoss(b),
+        el("div", { class: "boss-infos" },
+          el("p", { class: "boss-surtitre", text: b.etat === "vivant" ? "Le boss de la semaine" : b.etat === "vaincu" ? "Le boss de la semaine est tombé" : "Le boss s'est enfui" }),
+          el("h3", { class: "boss-nom", text: b.nom }),
+          el("div", { class: `boss-pv${pct <= 20 ? " critique" : ""}`, role: "meter", "aria-label": "Points de vie du boss", "aria-valuemin": "0", "aria-valuemax": String(b.pvMax), "aria-valuenow": String(b.pv) },
+            el("div", { class: "boss-pv-barre" }, traine, plein, el("span", { class: "boss-pv-graduation", "aria-hidden": "true" })),
+            el("div", { class: "boss-pv-texte" },
+              el("b", { text: `${nombre(b.pv)} / ${nombre(b.pvMax)} PV` }),
+              b.etat === "vivant" ? el("span", {}, "S'enfuit dans ", el("b", { id: "boss-fuite", text: dureeCourte(b.fin) })) : null,
+            ),
+          ),
+          el("div", { class: "boss-action" }, actionBoss(b)),
+          el("p", { class: "boss-recompense" },
+            el("strong", { text: b.etat === "vaincu" ? "La récompense" : "S'il tombe" }),
+            ` : sa carte trophée${b.role ? ` et le rôle Chasseur sur le Discord pendant ${b.roleJours || 7} jours` : ""}, pour ${b.etat === "vaincu" ? "" : "tous "}ceux qui lui ont fait au moins ${b.minTrophee || 10} dégâts.`,
+            m ? el("span", { class: "boss-moi" }, ` Toi : ${nombre(m.degats)} dégât${m.degats > 1 ? "s" : ""}${m.rang ? ` (n° ${m.rang})` : ""}${m.degats >= (b.minTrophee || 10) ? " ✓" : ""}.`) : null,
+          ),
+        ),
+      ),
+      el("div", { class: "boss-bas" },
+        el("div", { class: "boss-bloc" },
+          el("h4", { text: "Les derniers coups" }),
+          b.coups?.length
+            ? el("ul", { class: "boss-coups", "aria-live": "polite" }, b.coups.map((c) => el("li", { class: c.critique ? "critique" : "" },
+              el("span", { class: "boss-coups-nom", text: c.nom }),
+              el("span", { class: "boss-coups-source", text: `${(b.sources || {})[c.source] || ""}${c.critique ? " critique" : ""} · il y a ${depuis(c.t)}` }),
+              el("b", { text: `−${nombre(c.degats)}` }),
+            )))
+            : el("p", { class: "note", text: "Personne ne l'a encore frappé. À toi l'honneur !" }),
+        ),
+        el("div", { class: "boss-bloc" },
+          el("h4", { text: `Les chasseurs${b.chasseurs ? ` (${b.chasseurs})` : ""}` }),
+          b.top?.length
+            ? el("ol", {}, b.top.map((c) => el("li", {}, el("span", { text: c.nom }), el("small", { text: `${nombre(c.degats)} dégâts` }))))
+            : el("p", { class: "note", text: "Le classement des chasseurs de la semaine s'affiche ici." }),
+          b.precedent ? el("p", { class: "note", text: `La semaine dernière : ${b.precedent.nom} ${b.precedent.etat === "vaincu" ? "a été vaincu" : "s'est enfui"}.` }) : null,
+        ),
+        el("div", { class: "boss-bloc" },
+          el("h4", { text: "Comment le frapper" }),
+          el("ul", { class: "boss-regles" },
+            el("li", {}, el("span", { text: "L'attaque du jour (sur le site)" }), el("b", { text: `${(D.attaque || [8, 20]).join(" à ")} · critique ×3` })),
+            el("li", {}, el("span", { text: "Une partie de jeu finie" }), el("b", { text: `${D.partie ?? 3} (+${D.bonScore ?? 5} bon score, +${D.recordSite ?? 15} record)` })),
+            el("li", {}, el("span", { text: "Ta carte du jour" }), el("b", { text: `${D.carte ?? 3} (+${D.legendaire ?? 12} légendaire)` })),
+            el("li", {}, el("span", { text: "Nourrir ou jouer avec Chopper" }), el("b", { text: String(D.chopper ?? 2) })),
+            el("li", {}, el("span", { text: "Avec ton avis de recherche : un message sur le Discord" }), el("b", { text: `${D.message ?? 1} (15 par jour)` })),
+            el("li", {}, el("span", { text: "Avec ton avis de recherche : venir à un live" }), el("b", { text: String(D.live ?? 10) })),
+          ),
+        ),
+      ),
+    );
+    if (depart !== pct) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        plein.style.width = `${pct}%`;
+        traine.style.width = `${pct}%`;
+      }));
+    }
+    // les comptes à rebours (fuite du boss, prochaine attaque) : une fois par minute
+    clearInterval(minuteurBoss);
+    minuteurBoss = setInterval(() => {
+      const f = $("boss-fuite");
+      if (f) f.textContent = dureeCourte(b.fin);
+      const p = $("boss-prochaine");
+      if (p && m) {
+        if (m.prochaineAttaque <= Date.now()) { clearInterval(minuteurBoss); chargerMaChasse(); return; }
+        p.textContent = dureeCourte(m.prochaineAttaque);
+      }
+      if (b.etat === "vivant" && b.fin <= Date.now()) { clearInterval(minuteurBoss); charger(); }
+    }, 30_000);
+  }
+
+  async function attaquerBoss() {
+    if (attaqueEnCours) return;
+    attaqueEnCours = true;
+    dernierCoup = null;
+    rendreBoss();
+    const portrait = $("boss-portrait");
+    portrait?.classList.add("charge");
+    const [{ status, d }] = await Promise.all([demanderChasse("boss-attaquer"), new Promise((ok) => setTimeout(ok, reduit.matches ? 0 : 450))]);
+    attaqueEnCours = false;
+    if (status === 401) { rendreChasse(); return; }
+    if (d.ok) {
+      dernierCoup = { degats: d.degats, critique: d.critique, phrase: d.phrase, berrys: d.berrys || 0 };
+      animBossJusqua = Date.now() + 1600;
+      rendreBoss();
+      rendreWanted();
+      const p = $("boss-portrait");
+      const n = $("boss-degat");
+      if (p && n) {
+        n.textContent = `−${nombre(d.degats)}`;
+        p.classList.add("touche");
+        if (d.critique) p.classList.add("critique");
+        onomatopee($("boss-sfx"), d.critique ? "ズガーン！" : ["ドン！", "バキッ！", "ドカッ！", "ボコッ！"][Math.floor(Math.random() * 4)], true);
+        setTimeout(() => p.classList.remove("touche", "critique"), 1500);
+      }
+      if (d.vaincu) setTimeout(charger, 1200);
+      setTimeout(rafraichirChasse, 2500);
+      return;
+    }
+    dernierCoup = null;
+    rendreBoss();
+    const zone = $("boss")?.querySelector(".boss-action");
+    if (zone && (d.texte || d.erreur)) zone.prepend(el("p", { class: "note", role: "status", text: d.texte || d.erreur }));
+  }
+
+  // --- l'avis de recherche du membre ---
+  function affiche({ nom, avatar, prime, inconnu = false, petite = false }) {
+    return el("div", { class: `wanted-affiche${inconnu ? " inconnu" : ""}${petite ? " petite" : ""}` },
+      el("span", { class: "wanted-titre", text: "WANTED" }),
+      el("div", { class: "wanted-photo" }, avatar && !inconnu
+        ? el("img", { src: avatar, alt: "", width: 256, height: 256, loading: petite ? "lazy" : "eager", decoding: "async", referrerpolicy: "no-referrer" })
+        : el("span", { class: "wanted-qui", text: "?" })),
+      el("span", { class: "wanted-mort", text: "DEAD OR ALIVE" }),
+      el("strong", { class: "wanted-nom", text: (nom || "?").toUpperCase() }),
+      el("span", { class: "wanted-prime" }, el("b", { text: inconnu ? "???" : nombre(prime) }), el("span", { class: "wanted-berry", text: "฿" })),
+      petite ? null : el("span", { class: "wanted-pied", text: "BERRYS · BARHAW" }),
+    );
+  }
+  async function creerAvis() {
+    if (creationEnCours) return;
+    creationEnCours = true;
+    rendreWanted();
+    const { d } = await demanderChasse("prime-activer");
+    creationEnCours = false;
+    rendreWanted({ nouveau: Boolean(d.ok) });
+    if (d.ok) setTimeout(rafraichirChasse, 1500);
+  }
+  async function retirerAvis() {
+    if (!confirmerRetrait) { confirmerRetrait = true; rendreWanted(); return; }
+    confirmerRetrait = false;
+    await demanderChasse("prime-retirer");
+    rendreWanted();
+    setTimeout(rafraichirChasse, 1500);
+  }
+  async function partagerAffiche(p) {
+    const texte = `Ma prime sur Barhaw : ${berrys(p.prime)} (${p.titre}) 🏴‍☠️`;
+    const lien = `${location.origin}/#chasse`;
+    try {
+      const img = await fetch(`/api/chopper?image=wanted&cle=${p.cle}`);
+      const fichier = new File([await img.blob()], "wanted-barhaw.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [fichier] })) { await navigator.share({ files: [fichier], text: `${texte} ${lien}` }); return; }
+    } catch {}
+    try {
+      if (navigator.share) { await navigator.share({ text: texte, url: lien }); return; }
+      await navigator.clipboard.writeText(`${texte} ${lien}`);
+      const b = $("wanted-partager");
+      if (b) { b.textContent = "Lien copié !"; setTimeout(() => { b.textContent = "Partager"; }, 2000); }
+    } catch {}
+  }
+  function gainsListe() {
+    const G = infosChasse()?.primes?.gains || {};
+    const k = (n) => nombre(Math.round(n));
+    const l = [
+      ["Un message sur le Discord", `${berrys(G.message ?? 500)} (${k(G.messageLive ?? 1000)} en live)`],
+      ["Venir à un live", berrys(G.live ?? 30000)],
+      ["Une nouvelle carte", `${berrys(G.carteNouvelle ?? 10000)} (légendaire ${k(G.carteLegendaire ?? 50000)})`],
+      ["Une partie de jeu", `${berrys(G.partie ?? 2000)} (record +${k(G.recordSite ?? 100000)})`],
+      ["Un dégât au boss", berrys(G.degat ?? 500)],
+      ["Le boss vaincu", berrys(G.bossVaincu ?? 100000)],
+    ];
+    return el("ul", { class: "wanted-gains" }, l.map(([a, b]) => el("li", {}, el("span", { text: a }), el("b", { text: b }))));
+  }
+  function rendreWanted({ nouveau = false } = {}) {
+    const z = $("wanted");
+    if (!z) return;
+    const p = maChasse?.primes;
+    let contenu;
+    if (!moi?.connecte) {
+      contenu = [
+        affiche({ nom: "Toi ?", inconnu: true }),
+        el("div", { class: "wanted-infos" },
+          el("h3", { text: "Ton avis de recherche" }),
+          el("p", { text: "Ta photo de profil sur une affiche WANTED, avec une prime en berrys qui monte avec tout ce que tu fais sur le Discord et sur le site." }),
+          el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord" }),
+        ),
+      ];
+    } else if (chassePasMembre) {
+      contenu = [affiche({ nom: moi.nom, inconnu: true }), el("div", { class: "wanted-infos" }, el("h3", { text: "Ton avis de recherche" }), el("p", { text: "Rejoins le Discord Barhaw pour entrer dans la chasse." }), el("a", { class: "btn btn-plein", href: "#discord", text: "Rejoindre le Discord" }))];
+    } else if (!p) {
+      contenu = [affiche({ nom: moi.nom, inconnu: true }), el("div", { class: "wanted-infos" }, el("h3", { text: "Ton avis de recherche" }), el("p", { class: "note", text: "Ta prime arrive…" }))];
+    } else if (!p.actif) {
+      contenu = [
+        el("div", { class: "wanted-apercu" }, affiche({ nom: moi.nom, avatar: moi.avatar, prime: infosChasse()?.primes?.gains?.depart || 50000 })),
+        el("div", { class: "wanted-infos" },
+          el("h3", { text: "Crée ton avis de recherche" }),
+          el("p", { text: "Ta prime démarre à 50 000 ฿ (plus 10 000 par carte déjà dans ton album), puis elle monte avec :" }),
+          gainsListe(),
+          el("p", { class: "note", text: "Le bot compte seulement qui écrit, il ne lit jamais tes messages. Ton pseudo, ta photo et ta prime s'affichent sur le site et sur le Discord. Tu peux retirer ton avis quand tu veux." }),
+          el("button", { class: "btn btn-plein", type: "button", onclick: creerAvis, disabled: creationEnCours, text: creationEnCours ? "On imprime l'affiche…" : "📜 Créer mon avis de recherche" }),
+        ),
+      ];
+    } else {
+      const prochain = p.prochainPalier;
+      const part = prochain ? Math.min(1, p.prime / prochain) : 1;
+      const sources = Object.entries(p.sources || {}).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+      const maxSource = sources[0]?.[1] || 1;
+      contenu = [
+        el("div", { class: `wanted-apercu${nouveau ? " placarde" : ""}` }, affiche({ nom: p.nom, avatar: p.avatar || moi.avatar, prime: p.prime })),
+        el("div", { class: "wanted-infos" },
+          el("p", { class: "wanted-titre-pirate", text: p.titre }),
+          el("p", { class: "wanted-grosse-prime" }, el("b", { class: "degrade", text: berrys(p.prime) })),
+          el("p", { class: "wanted-rang", text: `N° ${p.rang} sur ${p.total} chasseur${p.total > 1 ? "s" : ""}${p.gainMois ? ` · ce mois-ci : +${berrys(p.gainMois)}${p.rangMois ? ` (n° ${p.rangMois})` : ""}` : ""}` }),
+          prochain ? el("div", { class: "wanted-palier" },
+            el("div", { class: "album-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round(part * 100)}%` })),
+            el("p", { class: "note", text: `Prochain palier : ${berrys(prochain)} (annoncé sur le Discord)` }),
+          ) : null,
+          el("ul", { class: "wanted-sources" }, sources.map(([k, v]) => el("li", {},
+            el("span", { text: SOURCES_PRIME[k] || k }),
+            el("i", { "aria-hidden": "true", style: `--part:${Math.max(4, Math.round((v / maxSource) * 100))}%` }),
+            el("b", { text: berrys(v) }),
+          ))),
+          el("div", { class: "wanted-boutons" },
+            el("a", { class: "btn btn-plein btn-petit", href: `/api/chopper?image=wanted&cle=${p.cle}&v=${p.prime}`, download: "wanted-barhaw.png", text: "Télécharger l'affiche" }),
+            el("button", { class: "btn btn-contour btn-petit", type: "button", id: "wanted-partager", onclick: () => partagerAffiche(p), text: "Partager" }),
+          ),
+          el("p", { class: "note" }, "Sur le Discord : ", el("code", { text: "/wanted" }), " affiche ton avis pour tout le monde."),
+          el("button", { class: `lien-discret${confirmerRetrait ? " danger" : ""}`, type: "button", onclick: retirerAvis, text: confirmerRetrait ? "Sûr ? Ta prime sera effacée. Clique encore pour retirer." : "Retirer mon avis de recherche" }),
+        ),
+      ];
+    }
+    vider(z, contenu);
+  }
+
+  // --- le mur des primes ---
+  function rendreMurPrimes() {
+    const z = $("mur-primes");
+    if (!z) return;
+    const s = infosChasse()?.primes;
+    const onglet = (k, t) => el("button", { class: `onglet${ongletPrimes === k ? " actif" : ""}`, type: "button", role: "tab", "aria-selected": String(ongletPrimes === k), onclick: () => { ongletPrimes = k; rendreMurPrimes(); }, text: t });
+    let corps;
+    if (!s) corps = el("p", { class: "vide", text: donnees?.horsLigne ? "Le mur revient dans un instant." : "Le mur des primes arrive bientôt." });
+    else if (ongletPrimes === "top") {
+      const l = s.top || [];
+      corps = l.length
+        ? [
+          el("div", { class: "mur" }, l.slice(0, 3).map((x, k) => el("div", { class: `mur-affiche rang-${k + 1}` },
+            el("span", { class: "mur-rang", text: ["1er", "2e", "3e"][k] }),
+            affiche({ nom: x.nom, avatar: x.avatar, prime: x.prime, petite: true }),
+            el("span", { class: "mur-titre", text: x.titre }),
+          ))),
+          l.length > 3 ? el("ol", { class: "mur-liste", start: "4" }, l.slice(3).map((x) => el("li", {},
+            x.avatar ? el("img", { src: x.avatar, alt: "", width: 32, height: 32, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
+            el("span", { class: "mur-nom", text: x.nom }),
+            el("small", { text: x.titre }),
+            el("b", { text: berrys(x.prime) }),
+          ))) : null,
+        ]
+        : el("p", { class: "note", text: "Aucun avis de recherche placardé pour l'instant. Sois le premier !" });
+    } else {
+      const l = s.mois || [];
+      corps = l.length
+        ? el("ol", { class: "mur-liste mois" }, l.map((x) => el("li", {},
+          x.avatar ? el("img", { src: x.avatar, alt: "", width: 32, height: 32, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
+          el("span", { class: "mur-nom", text: x.nom }),
+          el("small", { text: `prime : ${berrys(x.prime)}` }),
+          el("b", { text: `+${berrys(x.gain)}` }),
+        )))
+        : el("p", { class: "note", text: "Personne n'a encore gagné de berrys ce mois-ci." });
+    }
+    vider(z,
+      el("div", { class: "mur-tete" },
+        el("h3", { text: "Le mur des primes" }),
+        el("div", { class: "onglets", role: "tablist", "aria-label": "Classement" }, onglet("top", "De tous les temps"), onglet("mois", "Ce mois-ci")),
+      ),
+      corps,
+      s?.total ? el("p", { class: "note", text: `${s.total} avis de recherche placardé${s.total > 1 ? "s" : ""}. La prime ne baisse jamais ; le classement du mois repart à zéro le 1er.` }) : null,
+    );
+  }
+
+  function rendreChasse() {
+    if (Date.now() > animBossJusqua && !attaqueEnCours) rendreBoss();
+    rendreWanted();
+    rendreMurPrimes();
+  }
+  // pendant qu'on regarde la partie Chasse : les coups des autres arrivent toutes les 20 s
+  async function rafraichirChasse() {
+    try {
+      const r = await fetch("/api/public", { headers: { Accept: "application/json" } });
+      const d = await r.json();
+      if (d && typeof d === "object" && !d.horsLigne) donnees = recevoirPublic({ ...d, evenements: d.evenements || donnees?.evenements || evenementsSecours() });
+    } catch {}
+    if (Date.now() > animBossJusqua && !attaqueEnCours) rendreBoss();
+    rendreMurPrimes();
+  }
+  function suivreChasse() {
+    const s = $("chasse");
+    if (!s || !("IntersectionObserver" in window)) return;
+    new IntersectionObserver((e) => { chasseVue = e.some((x) => x.isIntersecting); }, { rootMargin: "200px 0px" }).observe(s);
+    setInterval(() => { if (chasseVue && !document.hidden) rafraichirChasse(); }, 20_000);
   }
 
   // ---------- chargement ----------
@@ -2677,12 +3114,13 @@
     rendreClassementJeu();
     if (!tirageEnCours) { rendreAlbum(); rendreCollectionneurs(); if (!$("tirage")?.querySelector(".retourne")) rendreTirage(); }
     rendreJeux();
+    rendreChasse();
   }
 
   async function charger() {
     try {
       const r = await fetch("/api/public", { headers: { Accept: "application/json" } });
-      donnees = await r.json();
+      donnees = recevoirPublic(await r.json());
     } catch {
       donnees = { horsLigne: true };
     }
@@ -2703,6 +3141,7 @@
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
     chargerMesJeux();
+    chargerMaChasse();
   }
 
   function demarrer() {
@@ -2733,6 +3172,7 @@
     charger();
     chargerMoi();
     setInterval(charger, 60_000);
+    suivreChasse();
     let dernierRetour = Date.now();
     document.addEventListener("visibilitychange", () => {
       if (document.hidden || Date.now() - dernierRetour < 15_000) return;
