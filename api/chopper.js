@@ -13,11 +13,13 @@
 //        → la chasse : son avis de recherche WANTED (créer, retirer) et l'attaque du jour contre le boss de la semaine
 //   POST /api/chopper  { action: "faille" | "faille-lier" | "faille-verifier" | "faille-retirer", riotId }
 //        → La Faille des potes : relier son compte LoL (Riot ID puis icône de profil), le retirer, voir ses games notées
+//   POST /api/chopper  { action: "grandline" | "grandline-voter" | "grandline-bouteille", choix }
+//        → La Grand Line : ce que le membre a ramé, son vote au carrefour (choix : l'île), ouvrir la bouteille à la mer
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
@@ -83,6 +85,7 @@ export async function POST(req) {
     corps.transformations = entier(d.transformations, 0, 7);
     corps.score = entier(d.score, 0, 1000);
   }
+  if (action === "grandline-voter") corps.choix = /^[a-z]{2,20}$/.test(String(d.choix || "")) ? String(d.choix) : "";
   if (action === "faille-lier") corps.riotId = String(d.riotId || "").replace(/[\u0000-\u001f]/g, "").slice(0, 40);
   if (action === "quiz-repondre") corps.choix = d.choix === null ? null : entier(d.choix, 0, 3);
   try {
