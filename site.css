@@ -1153,7 +1153,6 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .dc-remede:active { transform: translateY(1px); }
 .dc-remede.faux { border-color: #ff6f8f; background: #5c1226; }
 .dc-emoji { font-size: 26px; line-height: 1.1; }
-@keyframes dc-arrive { from { opacity: 0; transform: translateX(40px) rotate(4deg); } to { opacity: 1; transform: none; } }
 
 /* le Memory des mèmes : des cartes qui se retournent */
 .mm-apercu { display: flex; justify-content: center; gap: 10px; }
@@ -1170,8 +1169,85 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .mm-interieur > .cc-dos { width: 100%; height: 100%; aspect-ratio: auto; border-width: 2px; border-radius: 9px; box-shadow: 0 0 0 2px var(--rose), 3px 4px 0 2px var(--ombre); }
 .mm-face { transform: rotateY(180deg); overflow: hidden; border-radius: 9px; border: 2px solid var(--encre); background: var(--papier); box-shadow: 0 0 0 2px var(--violet-clair), 3px 4px 0 2px var(--ombre); padding: 3px; }
 .mm-face img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
-.mm-carte.trouvee .mm-face { box-shadow: 0 0 0 2px #6fe3a5, 0 0 16px rgba(111, 227, 165, 0.6); animation: bulle-pop 0.4s var(--rebond); }
+/* le petit bond de la paire trouvée passe par « scale » : avec « transform », la face perdait son demi-tour et disparaissait un instant */
+.mm-carte.trouvee .mm-face { box-shadow: 0 0 0 2px #6fe3a5, 0 0 16px rgba(111, 227, 165, 0.6); animation: mm-pop 0.4s var(--rebond); }
+@keyframes mm-pop { 0% { scale: 0.85; } 60% { scale: 1.06; } 100% { scale: 1; } }
 .mm-carte:not(.retournee):not(.trouvee):hover .mm-interieur { transform: translateY(-3px) rotate(-2deg); }
+
+/* ---------- les jeux en relief : de vrais objets, mêmes règles ---------- */
+/* les touches (réponses du quiz, remèdes, niveaux) : on voit leur épaisseur, elles s'enfoncent quand on appuie */
+.qz-choix, .dc-remede, .qz-niveau {
+  --epaisseur: 5px; --cote: #0d0410;
+  box-shadow: 0 var(--epaisseur) 0 var(--cote), 3px calc(var(--epaisseur) + 3px) 0 var(--ombre);
+  transition: transform 0.12s var(--doux), box-shadow 0.12s var(--doux), border-color 0.2s, background 0.2s;
+}
+.qz-choix:hover:not(:disabled), .dc-remede:hover, .qz-niveau:hover { --epaisseur: 7px; transform: translateY(-2px); }
+.qz-choix:active:not(:disabled), .dc-remede:active, .qz-niveau:active { --epaisseur: 2px; transform: translateY(3px); }
+.qz-niveau.actif, .qz-niveau.actif:hover { --epaisseur: 2px; transform: translateY(3px); box-shadow: 0 var(--epaisseur) 0 var(--cote), 3px calc(var(--epaisseur) + 3px) 0 var(--ombre); }
+.qz-choix.bonne { --cote: #0c3a24; } .qz-choix.fausse { --cote: #3f0a18; } .dc-remede.faux { --cote: #3f0a18; }
+/* la question tombe comme une case qu'on rabat ; les réponses arrivent l'une après l'autre */
+.qz-question { transform-origin: 50% 0; animation: qz-tombe 0.5s var(--rebond) backwards; }
+.qz-choix { animation: qz-touche 0.4s var(--rebond) backwards; }
+.qz-choix:nth-child(2) { animation-delay: 0.06s; } .qz-choix:nth-child(3) { animation-delay: 0.12s; } .qz-choix:nth-child(4) { animation-delay: 0.18s; }
+@keyframes qz-tombe { from { opacity: 0; transform: perspective(800px) rotateX(-80deg); } to { opacity: 1; transform: perspective(800px) rotateX(0deg); } }
+@keyframes qz-touche { from { opacity: 0; transform: perspective(600px) translateZ(-70px) rotateX(35deg); } to { opacity: 1; transform: perspective(600px) translateZ(0) rotateX(0deg); } }
+/* l'affiche WANTED du quiz : une feuille punaisée, coin corné, qui se balance quand on la frôle */
+.qz-affiche { position: relative; rotate: none; transform-origin: 50% 0; transform: perspective(700px) rotateY(-16deg) rotateX(4deg) rotate(-3deg); }
+.qz-affiche:hover { animation: qz-balance 2.4s ease-in-out infinite; }
+.qz-affiche::before {
+  content: ""; position: absolute; left: 50%; top: -7px; z-index: 2; width: 14px; height: 14px; translate: -50% 0; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff9cc8, var(--rose) 45%, var(--rose-fonce)); border: 2px solid var(--encre); box-shadow: 2px 3px 0 rgba(18, 5, 13, 0.6);
+}
+.qz-affiche::after { content: ""; position: absolute; right: -3px; bottom: -3px; width: 22px; height: 22px; background: linear-gradient(135deg, #d8bf93 50%, transparent 50%); border-left: 2px solid var(--encre); border-top: 2px solid var(--encre); border-top-left-radius: 3px; }
+@keyframes qz-balance {
+  0%, 100% { transform: perspective(700px) rotateY(-16deg) rotateX(4deg) rotate(-3deg); }
+  50% { transform: perspective(700px) rotateY(-4deg) rotateX(2deg) rotate(-1deg); }
+}
+/* la Rumble Ball : le cadran est posé à plat, on le voit en biais avec son épaisseur ; Chopper flotte au-dessus */
+.rb-scene { perspective: 900px; }
+.rb-cadran { transform-style: preserve-3d; transform: rotateX(22deg); }
+.rb-cadran::before, .rb-cadran::after { content: ""; position: absolute; inset: 5.5%; border-radius: 50%; pointer-events: none; }
+.rb-cadran::before { transform: translateZ(-7px); background: #5a1d55; border: 2px solid var(--encre); }
+.rb-cadran::after { transform: translateZ(-14px); background: #3a1240; box-shadow: 0 0 0 2px var(--encre); }
+.rb-piste { fill: rgba(30, 9, 28, 0.92); }
+.rb-ombre { position: absolute; left: 50%; top: 50%; width: 40%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; pointer-events: none; transform: translateZ(1px);
+  background: radial-gradient(closest-side, rgba(10, 2, 8, 0.75), rgba(10, 2, 8, 0)); transition: scale 0.3s var(--doux), opacity 0.3s; }
+.rb-chopper { transform: translateZ(26px) rotateX(-22deg); }
+.rb-scene.choc .rb-cadran { animation: rb-vibrer 0.1s steps(2) 4; }
+.rb-scene.choc .rb-chopper { animation: rb-saute 0.45s var(--rebond); }
+.rb-scene.choc .rb-ombre { animation: rb-ombre 0.45s var(--rebond); }
+@keyframes rb-vibrer { 0% { transform: rotateX(22deg) rotate(0deg); } 50% { transform: rotateX(22deg) rotate(1.4deg) scale(1.015); } 100% { transform: rotateX(22deg) rotate(-1deg); } }
+@keyframes rb-saute { 0% { transform: translateZ(26px) rotateX(-22deg); } 40% { transform: translateZ(70px) rotateX(-22deg); } 100% { transform: translateZ(26px) rotateX(-22deg); } }
+@keyframes rb-ombre { 0%, 100% { scale: 1; opacity: 1; } 40% { scale: 0.7; opacity: 0.5; } }
+/* Docteur Chopper : la file d'attente s'enfonce dans la salle ; chaque patient arrive comme une carte qu'on pose */
+.dc-file { perspective: 500px; }
+.dc-file img { transform-style: preserve-3d; transform: rotateY(-24deg); }
+.dc-file img:nth-child(2) { transform: rotateY(-24deg) translateZ(-26px); }
+.dc-file img:nth-child(3) { transform: rotateY(-24deg) translateZ(-52px); }
+@keyframes dc-arrive { from { opacity: 0; transform: perspective(700px) translateX(70px) rotateY(-60deg); } to { opacity: 1; transform: perspective(700px) translateX(0) rotateY(0deg); } }
+/* le Memory : des cartes qui ont une tranche, qui se soulèvent au survol, et qui brillent quand la paire est trouvée */
+.mm-carte { perspective: 700px; }
+.mm-interieur { --avant: var(--rose); --arriere: var(--violet-clair); }
+.mm-interieur > .tranche { width: 4px; }
+.mm-interieur > .tranche.d { transform: translateZ(2px) rotateY(90deg); }
+.mm-interieur > .tranche.g { transform: translateZ(2px) rotateY(-90deg); }
+/* toujours la même liste de mouvements, pour que la carte tourne d'un état à l'autre sans passer par la tranche */
+.mm-interieur { transform: translateZ(0) rotateX(0deg) rotateY(0deg) rotate(0deg); }
+.mm-carte.retournee .mm-interieur { transform: translateZ(0) rotateX(0deg) rotateY(180deg) rotate(0deg); }
+.mm-carte:not(.retournee):not(.trouvee):hover .mm-interieur { transform: translateZ(22px) rotateX(10deg) rotateY(0deg) rotate(-2deg); }
+.mm-carte.trouvee .mm-interieur { transform: translateZ(10px) rotateX(0deg) rotateY(180deg) rotate(0deg); }
+.mm-carte.trouvee .mm-face::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 300%; pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.75) 47%, rgba(255, 150, 220, 0.5) 51%, rgba(170, 120, 255, 0.4) 55%, transparent 63%);
+  transform: translateX(-100%); animation: mm-reflet 0.9s ease-out 0.2s both;
+}
+@keyframes mm-reflet { to { transform: translateX(34%); } }
+/* l'accueil du Memory : quatre cartes tenues en éventail */
+.mm-apercu { perspective: 600px; }
+.mm-apercu .cc-dos:nth-child(1) { transform: rotateY(26deg) translateZ(-12px); }
+.mm-apercu .cc-dos:nth-child(2) { transform: rotateY(10deg); }
+.mm-apercu .cc-dos:nth-child(3) { transform: rotateY(-10deg); }
+.mm-apercu .cc-dos:nth-child(4) { transform: rotateY(-26deg) translateZ(-12px); }
 
 /* ---------- le goûter de Chopper (mini-jeu) ---------- */
 .gouter { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); overflow: hidden; }
@@ -1513,6 +1589,24 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 }
 .case-album .cc-sceau { right: 4px; top: 4px; width: 24px; height: 24px; border-width: 1.5px; font-size: 7px; box-shadow: none; }
 .album-trophees { margin: 20px 0 10px; font-family: var(--fort); font-weight: 800; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #ff8aa3; }
+
+/* ---------- un peu de profondeur ---------- */
+/* l'accueil : Chopper penche vers la souris, la bulle et l'autocollant glissent devant lui (plus ils sont près, plus ils bougent) */
+.hero-chopper { --hx: 0; --hy: 0; }
+.hero-chopper > .orbite { transition: transform 0.7s var(--doux); }
+.hero-chopper > .bulle-hero { transition: translate 0.7s var(--doux); }
+.hero-chopper > .autocollant.au-hero { transition: rotate 0.35s var(--rebond), scale 0.35s var(--rebond), box-shadow 0.3s, opacity 0.9s var(--doux), transform 0.9s var(--doux), filter 0.9s var(--doux), translate 0.7s var(--doux); }
+.hero-chopper.profondeur > .orbite { transform: perspective(900px) rotateY(calc(var(--hx) * 10deg)) rotateX(calc(var(--hy) * -8deg)); }
+.hero-chopper.profondeur > .bulle-hero { translate: calc(var(--hx) * 16px) calc(var(--hy) * 12px); }
+.hero-chopper.profondeur > .autocollant.au-hero { translate: calc(var(--hx) * 26px) calc(var(--hy) * 18px); }
+/* le papier qu'on tient : les autocollants, les affiches WANTED et le portrait du boss penchent sous la souris */
+.wanted-affiche, .boss-cadre { transition: transform 0.5s var(--rebond); }
+.autocollant.relief:hover, .wanted-affiche.relief, .boss-cadre.relief {
+  transform: perspective(700px) rotateX(calc(var(--py) * -10deg)) rotateY(calc(var(--px) * 12deg));
+}
+.autocollant.relief:hover { transition: rotate 0.35s var(--rebond), scale 0.35s var(--rebond), box-shadow 0.3s, transform 0.12s linear; }
+.wanted-affiche.relief, .boss-cadre.relief { transition: transform 0.12s linear; }
+.mur-affiche.rang-1 .wanted-affiche.relief { transform: translateY(-14px) scale(1.04) perspective(700px) rotateX(calc(var(--py) * -10deg)) rotateY(calc(var(--px) * 12deg)); }
 
 /* ---------- les parties hors de l'écran : animations en pause ---------- */
 .hors-vue *, .hors-vue *::before, .hors-vue *::after { animation-play-state: paused !important; }
