@@ -265,7 +265,7 @@
       boucle = 0;
       if (document.hidden || defile) return;
       // les étincelles scintillent lentement : 12 images par seconde leur suffisent ; 30 quand un trait de vitesse passe
-      if (t - dernier > (traits.length ? 33 : 80)) { const dt = dernier ? Math.min(90, t - dernier) : 16; dernier = t; dessiner(t, dt); }
+      if (t - dernier > (traits.length ? 33 : 80) && !document.body.classList.contains("vision-ouverte")) { const dt = dernier ? Math.min(90, t - dernier) : 16; dernier = t; dessiner(t, dt); }
       if (!reduit.matches) boucle = requestAnimationFrame(image);
     }
     const relancer = () => {
@@ -402,23 +402,25 @@
     return rects.length ? Math.max(...rects.map((x) => x.right)) : e.getBoundingClientRect().left;
   }
 
-  // l'écran sombre qui montre un mème ou une vidéo en grand ; un clic à côté, ✕ ou Échap le ferme
-  function visionneuse(contenu, etiquette, depuis) {
+  // l'écran sombre qui montre un mème, une vidéo ou une carte en grand ; un clic à côté, ✕ ou Échap le ferme
+  function visionneuse(contenu, etiquette, depuis, { surTouche } = {}) {
     const fermer = () => {
       contenu.pause?.();
       v.remove();
+      if (!document.querySelector(".visionneuse")) document.body.classList.remove("vision-ouverte");
       window.removeEventListener("keydown", touche);
       depuis?.focus({ preventScroll: true });
     };
-    const touche = (e) => { if (e.key === "Escape") fermer(); };
+    const touche = (e) => { if (e.key === "Escape") fermer(); else surTouche?.(e); };
     const v = el("div", { class: "visionneuse", role: "dialog", "aria-modal": "true", "aria-label": etiquette },
       contenu,
       el("button", { class: "visionneuse-fermer", type: "button", "aria-label": "Fermer", text: "✕" }),
     );
-    v.addEventListener("click", (e) => { if (e.target !== contenu || contenu.tagName === "IMG") fermer(); });
+    v.addEventListener("click", (e) => { if (contenu.tagName === "IMG" || !contenu.contains(e.target)) fermer(); });
     window.addEventListener("keydown", touche);
     document.body.append(v);
-    v.querySelector("button").focus();
+    document.body.classList.add("vision-ouverte");
+    v.querySelector(".visionneuse-fermer").focus();
   }
   const agrandir = (m, depuis) => visionneuse(el("img", { src: m.src, alt: "Un mème de Liliano", width: m.l, height: m.h }), "Le mème en grand", depuis);
   const lecteurVideo = (v, extra = {}) => el("video", { src: v.src, poster: v.affiche, controls: true, playsinline: true, preload: "none", width: 1920, height: 1080, "aria-label": v.titre, ...extra });
@@ -1944,6 +1946,96 @@
     el("span", { class: "cc-dos-kanji", text: "札" }),
     el("span", { class: "cc-dos-nom", text: numero ? `n° ${String(numero).padStart(2, "0")}` : "BARHAW" }),
   );
+  // les deux tranches d'une carte qui tourne (elle n'en montre qu'une, et seulement de profil)
+  const tranche = (cote) => el("i", { class: `tranche ${cote}`, "aria-hidden": "true" });
+  const borne = (x) => Math.max(-1, Math.min(1, x));
+
+  // le relief, à la souris : la carte pointée s'incline (le côté pointé s'enfonce), sa tranche se voit
+  // et sa feuille holo s'allume là où tombe la lumière. Une seule carte à la fois ; au repos, rien ne change.
+  const EN_RELIEF = ".case-album:not(.vide) > .cc, .tirage-scene.retourne .tirage-face > .cc";
+  let carteRelief = null, pointeur = null, imageRelief = 0;
+  function lacherRelief() {
+    carteRelief?.classList.remove("relief", "lumiere");
+    carteRelief = null;
+  }
+  function majRelief() {
+    imageRelief = 0;
+    const c = pointeur?.cible?.closest?.(EN_RELIEF) || null;
+    if (c !== carteRelief) lacherRelief();
+    if (!c) return;
+    if (!carteRelief) {
+      carteRelief = c;
+      c.classList.add("relief", "lumiere");
+    }
+    const r = c.parentElement.getBoundingClientRect();
+    c.style.setProperty("--px", borne(((pointeur.x - r.left) / r.width) * 2 - 1).toFixed(3));
+    c.style.setProperty("--py", borne(((pointeur.y - r.top) / r.height) * 2 - 1).toFixed(3));
+  }
+  document.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse" || reduit.matches) return;
+    pointeur = { x: e.clientX, y: e.clientY, cible: e.target };
+    if (!imageRelief) imageRelief = requestAnimationFrame(majRelief);
+  }, { passive: true });
+  document.documentElement.addEventListener("mouseleave", lacherRelief);
+
+  // une carte en grand : on la penche, on la fait tourner en la faisant glisser (ou d'un toucher) et on voit son dos
+  function voirCarte(face, etiquette, depuis) {
+    const REPOS = { px: -0.35, py: -0.5 }; // la lumière tombe d'en haut à gauche quand on ne la touche pas
+    face.classList.add("lumiere");
+    const carte = el("div", { class: "vc-carte" }, tranche("g"), face, dosCarte(), tranche("d"));
+    const scene = el("div", { class: "vc" }, el("div", { class: "vc-incline" }, carte));
+    const bouton = el("button", { class: "btn btn-contour btn-petit vc-retourner", type: "button", text: "↻ Voir le dos" });
+    let tour = 0, glisse = null, image = 0, lumiere = { ...REPOS };
+    const poser = () => {
+      image = 0;
+      carte.style.setProperty("--tour", `${tour}deg`);
+      scene.style.setProperty("--px", lumiere.px.toFixed(3));
+      scene.style.setProperty("--py", lumiere.py.toFixed(3));
+    };
+    const bientot = () => { if (!image) image = requestAnimationFrame(poser); };
+    const caler = (t) => {
+      tour = t;
+      bouton.textContent = Math.round(tour / 180) % 2 ? "↺ Voir la face" : "↻ Voir le dos";
+      bientot();
+    };
+    const tourner = (sens) => caler(Math.round(tour / 180) * 180 + 180 * sens);
+    scene.addEventListener("pointerdown", (e) => {
+      if (e.button) return;
+      glisse = { x: e.clientX, depart: tour, bouge: false };
+      scene.setPointerCapture(e.pointerId);
+      scene.classList.add("tenue");
+    });
+    scene.addEventListener("pointermove", (e) => {
+      const r = scene.getBoundingClientRect();
+      if (!reduit.matches) lumiere = { px: borne(((e.clientX - r.left) / r.width) * 2 - 1), py: borne(((e.clientY - r.top) / r.height) * 2 - 1) };
+      if (glisse) {
+        const dx = e.clientX - glisse.x;
+        if (Math.abs(dx) > 6) glisse.bouge = true;
+        if (glisse.bouge) tour = glisse.depart + dx * 0.6;
+      }
+      bientot();
+    });
+    const lacher = () => {
+      if (!glisse) return;
+      scene.classList.remove("tenue");
+      const delta = tour - glisse.depart;
+      if (!glisse.bouge) tourner(1); // un simple toucher : elle se retourne
+      else caler(glisse.depart + (Math.abs(delta) > 50 ? 180 * Math.sign(delta) * Math.max(1, Math.round(Math.abs(delta) / 180)) : 0));
+      glisse = null;
+    };
+    scene.addEventListener("pointerup", lacher);
+    scene.addEventListener("pointercancel", lacher);
+    scene.addEventListener("pointerleave", () => { if (!glisse) { lumiere = { ...REPOS }; bientot(); } });
+    bouton.addEventListener("click", () => tourner(1));
+    visionneuse(el("div", { class: "vc-bloc" }, scene, bouton), etiquette, depuis, {
+      surTouche: (e) => {
+        if (e.key === "ArrowRight") tourner(1);
+        else if (e.key === "ArrowLeft") tourner(-1);
+      },
+    });
+    carte.style.setProperty("--avant", getComputedStyle(face).getPropertyValue("--bord").trim() || "#c9b3c9");
+    poser();
+  }
 
   async function demanderCartes(action) {
     try {
@@ -1993,8 +2085,10 @@
     const scene = el("div", { class: `tirage-scene${c ? ` rarete-${c.rarete}` : ""}${duJour ? " retourne fixe" : ""}` },
       el("span", { class: "concentration", "aria-hidden": "true" }),
       el("div", { class: "tirage-carte" },
+        tranche("g"),
         dosCarte(),
         c ? el("div", { class: "tirage-face" }, faceCarte(c, { exemplaires })) : null,
+        tranche("d"),
       ),
       revele && c ? el("span", { class: `sfx sfx-tirage eclat${c.rarete === "legendaire" ? " violet" : ""}`, "aria-hidden": "true", text: c.rarete === "legendaire" ? "キラッ！" : c.rarete === "epique" ? "ドン！" : derniereTiree.nouvelle ? "ジャーン" : "ポン" }) : null,
     );
@@ -2034,7 +2128,7 @@
     if (revele && c) requestAnimationFrame(() => requestAnimationFrame(() => scene.classList.add("retourne")));
     if (c) {
       const face = z.querySelector(".tirage-face .cc");
-      face?.addEventListener("click", () => visionneuse(faceCarte(c, { exemplaires }), `Carte : ${c.nom}`, face));
+      face?.addEventListener("click", () => voirCarte(faceCarte(c, { exemplaires }), `Carte : ${c.nom}`, face));
     } else if (moi?.connecte && mesCartes && (mesCartes.tirageDuJour || mesCartes.bonus) && !tirageEnCours) {
       z.querySelector(".tirage-carte").addEventListener("click", tirerCarte);
       z.querySelector(".tirage-carte").classList.add("cliquable");
@@ -2066,7 +2160,7 @@
       if (!n) return el("div", { class: `case-album vide rarete-${c.rarete}`, title: `n° ${c.numero} · ${raretes()[c.rarete]?.nom || ""}` }, dosCarte(c.numero));
       const face = faceCarte(c, { exemplaires: n, petite: true });
       const b = el("button", { class: `case-album${derniereTiree?.carte?.id === c.id ? " fraiche" : ""}`, type: "button", "aria-label": `Voir la carte ${c.nom}` }, face);
-      b.addEventListener("click", () => visionneuse(faceCarte(c, { exemplaires: n }), `Carte : ${c.nom}`, b));
+      b.addEventListener("click", () => voirCarte(faceCarte(c, { exemplaires: n }), `Carte : ${c.nom}`, b));
       return b;
     });
     vider(z,
@@ -2080,7 +2174,7 @@
         el("h4", { class: "album-trophees", text: `Trophées de chasse (${mesCartes.trophees.length})` }),
         el("div", { class: "album-cases trophees" }, mesCartes.trophees.map((t) => {
           const b = el("button", { class: "case-album", type: "button", "aria-label": `Voir la carte trophée ${t.nom}` }, faceTrophee(t, { petite: true }));
-          b.addEventListener("click", () => visionneuse(faceTrophee(t), `Carte trophée : ${t.nom}`, b));
+          b.addEventListener("click", () => voirCarte(faceTrophee(t), `Carte trophée : ${t.nom}`, b));
           return b;
         })),
       ] : null,

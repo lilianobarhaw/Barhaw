@@ -839,15 +839,60 @@ a.portrait:hover img { transform: scale(1.06); }
 .cartes-bas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; margin-top: 22px; align-items: start; }
 /* une carte, face visible : cadre papier, contour d'encre, couleur de sa rareté */
 .cc {
-  --bord: #c9b3c9; position: relative; width: 100%; aspect-ratio: 5 / 7; display: flex; flex-direction: column; overflow: hidden; padding: 8px; border-radius: 14px;
-  background: var(--papier); color: var(--encre); border: 3px solid var(--encre); box-shadow: 0 0 0 3px var(--bord), 6px 7px 0 3px var(--ombre);
+  --bord: #c9b3c9; --px: 0; --py: 0; --anneau: 3px; --ox: 6px; --oy: 7px; --os: 3px; --t: 3px; --ombre-c: var(--ombre); --halo: 0 0 0 transparent;
+  --tranche: color-mix(in srgb, var(--bord) 50%, var(--encre));
+  position: relative; width: 100%; aspect-ratio: 5 / 7; display: flex; flex-direction: column; overflow: hidden; padding: 8px; border-radius: 14px;
+  background: var(--papier); color: var(--encre); border: 3px solid var(--encre);
+  box-shadow: 0 0 0 var(--anneau) var(--bord), 0 0 0 0 transparent, var(--ox) var(--oy) 0 var(--os) var(--ombre-c), var(--halo);
+  transition: transform 0.55s var(--rebond), box-shadow 0.55s var(--doux);
 }
+/* en relief, sous la souris : la carte se soulève (sa tranche se voit, son ombre s'éloigne) et penche, le côté pointé s'enfonce.
+   Une seule carte à la fois ; l'ombre ne change qu'à l'entrée et à la sortie, la lumière glisse surtout par des transform. */
+.cc.relief {
+  box-shadow: 0 0 0 var(--anneau) var(--bord), calc(var(--t) * 0.7) calc(var(--t) * 0.7) 0 var(--anneau) var(--tranche),
+    calc(var(--ox) + var(--t)) calc(var(--oy) + var(--t)) 0 var(--os) var(--ombre-c), var(--halo);
+  transform: perspective(700px) rotateX(calc(var(--py) * -9deg)) rotateY(calc(var(--px) * 11deg)) scale(1.02);
+  transition: transform 0.12s linear, box-shadow 0.3s var(--doux); will-change: transform;
+}
+/* le reflet de la lumière sur le papier : une tache deux fois plus grande que la carte, qu'on fait glisser */
+.cc::before {
+  content: ""; position: absolute; inset: -50%; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.4s var(--doux);
+  background: radial-gradient(circle at center, rgba(255, 250, 238, 0.55), rgba(255, 250, 238, 0.1) 15%, transparent 29%);
+  transform: translate(calc(var(--px) * 27.5%), calc(var(--py) * 27.5%));
+  mix-blend-mode: soft-light;
+}
+.cc.lumiere::before { opacity: 1; transition: opacity 0.4s var(--doux), transform 0.12s linear; }
 .cc-art {
   position: relative; flex: 1; min-height: 0; overflow: hidden; border: 2.5px solid var(--encre); border-radius: 8px;
   background: #24102a radial-gradient(rgba(255, 140, 200, 0.35) 1.1px, transparent 1.6px) 0 0 / 8px 8px;
 }
 .cc-art img { width: 100%; height: 100%; object-fit: cover; }
 .cc-art.large img { object-fit: contain; }
+/* la feuille holo : une trame de points imprimée sur l'illustration, qui ne s'allume que là où tombe la lumière */
+.cc-art::after {
+  --trame: 5px; --foyer: radial-gradient(circle at calc(50% + var(--px) * 60%) calc(50% + var(--py) * 60%), #000 0%, transparent 62%);
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s var(--doux);
+  background: var(--feuille-c, linear-gradient(120deg, #ff4f9a 0%, #ffc94d 18%, #7ef0c0 36%, #6ac8ff 54%, #9b4dff 72%, #ff4f9a 90%)) calc(50% + var(--px) * 50%) calc(50% + var(--py) * 50%) / 260% 260%;
+  -webkit-mask: radial-gradient(circle, #000 1.05px, transparent 1.65px) 0 0 / var(--trame) var(--trame), var(--foyer);
+  -webkit-mask-composite: source-in;
+  mask: radial-gradient(circle, #000 1.05px, transparent 1.65px) 0 0 / var(--trame) var(--trame), var(--foyer);
+  mask-composite: intersect;
+  mix-blend-mode: color-dodge;
+}
+.cc.lumiere .cc-art::after { opacity: var(--feuille, 0); }
+.cc.rarete-rare { --feuille: 0.4; --feuille-c: linear-gradient(120deg, #e4dcff 0%, #9b4dff 25%, #ffffff 45%, #8fd0ff 65%, #b98cff 85%); }
+.cc.rarete-epique { --feuille: 0.5; }
+.cc.rarete-legendaire { --feuille: 0.55; --feuille-c: linear-gradient(120deg, #ffc94d 0%, #fff1a8 16%, #ff8ac2 34%, #ffc94d 50%, #7ef0c0 66%, #ffe39a 82%, #ff8ac2 100%); }
+/* les légendaires et les trophées : en plus, des hachures « kira » qui glissent à contre-sens de la trame */
+.cc.rarete-legendaire .cc-art::before, .cc.trophee .cc-art::before {
+  content: ""; position: absolute; inset: -50%; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.4s var(--doux);
+  background: repeating-linear-gradient(-58deg, transparent 0 5px, rgba(255, 255, 255, 0.9) 5px 6px);
+  -webkit-mask: radial-gradient(circle at center, #000, transparent 27.5%);
+  mask: radial-gradient(circle at center, #000, transparent 27.5%);
+  transform: translate(calc(var(--px) * -20%), calc(var(--py) * -20%));
+  mix-blend-mode: overlay;
+}
+.cc.lumiere.rarete-legendaire .cc-art::before, .cc.lumiere.trophee .cc-art::before { opacity: 0.85; transition: opacity 0.4s var(--doux), transform 0.12s linear; }
 .cc-pied { display: grid; gap: 2px; padding: 8px 4px 2px; }
 .cc-num { font-family: var(--fort); font-weight: 800; font-size: 10px; letter-spacing: 0.08em; color: #7a5a72; }
 .cc-nom { font-family: var(--titre); font-weight: 400; font-size: 15px; line-height: 1.15; color: var(--encre); }
@@ -855,7 +900,7 @@ a.portrait:hover img { transform: scale(1.06); }
 .cc-double { position: absolute; right: 12px; top: 12px; z-index: 2; padding: 2px 8px; border-radius: 99px; background: var(--encre); color: #fff; border: 2px solid var(--papier); font-family: var(--fort); font-weight: 800; font-size: 12px; }
 .cc.rarete-rare { --bord: var(--violet); }
 .cc.rarete-epique { --bord: var(--rose); }
-.cc.rarete-legendaire { --bord: #ffc94d; background: linear-gradient(160deg, #fff8dc, #ffe39a); box-shadow: 0 0 0 3px var(--bord), 6px 7px 0 3px var(--rose-fonce), 0 0 46px rgba(255, 201, 77, 0.45); }
+.cc.rarete-legendaire { --bord: #ffc94d; background: linear-gradient(160deg, #fff8dc, #ffe39a); --ombre-c: var(--rose-fonce); --halo: 0 0 46px rgba(255, 201, 77, 0.45); }
 .cc.rarete-legendaire .cc-rarete { color: var(--encre); }
 /* le reflet holographique des épiques et des légendaires */
 .cc.rarete-epique::after, .cc.rarete-legendaire::after {
@@ -865,6 +910,18 @@ a.portrait:hover img { transform: scale(1.06); }
 }
 .cc.rarete-legendaire::after { background-image: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.75) 44%, rgba(255, 215, 120, 0.55) 50%, rgba(255, 140, 200, 0.4) 56%, transparent 70%); animation-duration: 2.6s; }
 @keyframes holo { from { transform: translateX(-98.46%); } to { transform: translateX(61.54%); } }
+/* sous la lumière, le reflet ne défile plus tout seul : il glisse à l'opposé du doigt, comme sur une vraie carte qu'on penche */
+.cc.lumiere.rarete-epique::after, .cc.lumiere.rarete-legendaire::after {
+  animation: none; opacity: 0.6; transform: translateX(calc(-30.77% - var(--px) * 19.23% - var(--py) * 12.6%)); transition: transform 0.12s linear;
+}
+/* la tranche d'une carte qui se retourne : la couleur du côté visible, l'âme d'encre, la couleur de l'autre côté.
+   Elle ne se voit que de profil (face arrière masquée) : au repos, rien ne change. */
+.tranche {
+  position: absolute; top: 2px; bottom: 2px; width: 6px; pointer-events: none; backface-visibility: hidden;
+  background: linear-gradient(90deg, var(--avant, var(--rose)) 0 2px, var(--encre) 2px 4px, var(--arriere, var(--rose)) 4px);
+}
+.tranche.d { left: 100%; transform-origin: 0 50%; transform: translateZ(3px) rotateY(90deg); }
+.tranche.g { right: 100%; transform-origin: 100% 50%; transform: translateZ(3px) rotateY(-90deg); background: linear-gradient(270deg, var(--avant, var(--rose)) 0 2px, var(--encre) 2px 4px, var(--arriere, var(--rose)) 4px); }
 /* le dos d'une carte */
 .cc-dos {
   position: relative; width: 100%; aspect-ratio: 5 / 7; display: grid; place-items: center; overflow: hidden; border-radius: 14px;
@@ -885,13 +942,26 @@ a.portrait:hover img { transform: scale(1.06); }
 .tirage-face { position: absolute; inset: 0; transform: rotateY(180deg); backface-visibility: hidden; }
 .tirage-face .cc { cursor: zoom-in; }
 .tirage-scene.retourne .tirage-carte { transform: rotateY(180deg); }
+/* le retournement : la carte se soulève, pivote sur sa tranche et retombe */
+.tirage-scene.retourne:not(.fixe) .tirage-carte { transition: none; animation: retourner 1.15s var(--doux) both; }
+@keyframes retourner {
+  0% { transform: translateY(0) rotateZ(0deg) rotateY(0deg) scale(1); }
+  40% { transform: translateY(-30px) rotateZ(-5deg) rotateY(105deg) scale(1.08); }
+  72% { transform: translateY(-6px) rotateZ(0deg) rotateY(192deg) scale(1.02); }
+  86% { transform: translateY(0) rotateZ(0deg) rotateY(176deg) scale(1); }
+  100% { transform: translateY(0) rotateZ(0deg) rotateY(180deg) scale(1); }
+}
+.tirage-carte { --avant: var(--rose); --arriere: #c9b3c9; }
+.tirage-scene.rarete-rare .tirage-carte { --arriere: var(--violet); }
+.tirage-scene.rarete-epique .tirage-carte { --arriere: var(--rose); }
+.tirage-scene.rarete-legendaire .tirage-carte { --arriere: #ffc94d; }
 .tirage-scene.fixe .tirage-carte { transition: none; }
 .tirage-scene.fixe .concentration { transition: none; }
 .tirage-carte.cliquable { cursor: pointer; }
 .tirage-carte.cliquable:hover { transform: translateY(-6px) rotate(-2deg); }
 .tirage-carte.cliquable .cc-dos { animation: flotter 3.5s ease-in-out infinite; }
 .tirage-scene.secoue .tirage-carte { animation: vibrer 0.12s steps(2) infinite; }
-.tirage-scene.retourne:not(.fixe).rarete-legendaire::after { content: ""; position: fixed; inset: 0; z-index: 50; background: #fff; pointer-events: none; animation: flash 0.7s ease-out 0.45s both; }
+.tirage-scene.retourne:not(.fixe).rarete-legendaire::after { content: ""; position: fixed; inset: 0; z-index: 50; background: #fff; pointer-events: none; opacity: 0; animation: flash 0.7s ease-out 0.72s forwards; }
 .sfx-tirage { left: -18px; top: -26px; --r: -10deg; font-size: 44px; z-index: 3; animation-delay: 0.6s !important; }
 .tirage-infos h3 { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 20px; }
 .tirage-infos p { margin: 10px 0 0; color: var(--brume); }
@@ -916,7 +986,10 @@ a.portrait:hover img { transform: scale(1.06); }
 .case-album { display: block; padding: 0; border: 0; background: none; font: inherit; transition: transform 0.3s var(--rebond); }
 button.case-album { cursor: zoom-in; }
 button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
-.case-album .cc, .case-album .cc-dos { padding: 4px; border-width: 2px; border-radius: 9px; box-shadow: 0 0 0 2px var(--bord, var(--rose)), 3px 4px 0 2px var(--ombre); }
+.case-album .cc, .case-album .cc-dos { padding: 4px; border-width: 2px; border-radius: 9px; }
+.case-album .cc { --anneau: 2px; --ox: 3px; --oy: 4px; --os: 2px; --t: 2px; --ombre-c: var(--ombre); --halo: 0 0 0 transparent; }
+.case-album .cc-art::after { --trame: 4px; }
+.case-album .cc-dos { box-shadow: 0 0 0 2px var(--bord, var(--rose)), 3px 4px 0 2px var(--ombre); }
 .case-album .cc-art { border-width: 2px; border-radius: 6px; }
 .case-album .cc-pied { padding: 4px 1px 0; }
 .case-album .cc-num, .case-album .cc-rarete { display: none; }
@@ -1184,8 +1257,18 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
   background: rgba(18, 7, 15, 0.92); animation: monter 0.25s var(--doux);
 }
 .visionneuse img { max-width: min(92vw, 760px); max-height: 84vh; width: auto; height: auto; border: 8px solid #fff7fb; border-radius: 12px; rotate: -1.5deg; box-shadow: 10px 12px 0 var(--ombre); }
-/* une carte en grand */
-.visionneuse > .cc { width: min(360px, 82vw, calc(78vh * 5 / 7)); rotate: -2deg; cursor: auto; animation: bulle-pop 0.4s var(--rebond); }
+/* une carte en grand : on la tient, on la penche, on la retourne pour voir son dos */
+.vc-bloc { display: grid; justify-items: center; gap: 18px; cursor: auto; }
+.vc { width: min(340px, 80vw, calc(68vh * 5 / 7)); perspective: 1100px; rotate: -2deg; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; animation: bulle-pop 0.4s var(--rebond); }
+.vc.tenue { cursor: grabbing; }
+.vc-incline, .vc-carte { position: relative; transform-style: preserve-3d; }
+.vc-incline { transform: rotateX(calc(var(--py) * -10deg)) rotateY(calc(var(--px) * 14deg)); transition: transform 0.18s linear; }
+.vc-carte { --arriere: var(--rose); transform: rotateY(var(--tour, 0deg)); transition: transform 0.75s var(--rebond); }
+.vc.tenue .vc-carte { transition: transform 0.05s linear; }
+.vc-carte > .cc { backface-visibility: hidden; }
+.vc-carte > .cc-dos { position: absolute; inset: 0; transform: rotateY(180deg); backface-visibility: hidden; box-shadow: 0 0 0 3px var(--rose), -6px 7px 0 3px var(--ombre); }
+.vc .cc img, .vc .cc-dos { pointer-events: none; -webkit-user-drag: none; }
+.vc-retourner { font-size: 14px; }
 .visionneuse .cc img { max-width: none; max-height: none; width: 100%; height: 100%; border: 0; border-radius: 0; rotate: none; box-shadow: none; }
 .visionneuse .cc .cc-nom { font-size: 20px; }
 .visionneuse-fermer { position: absolute; top: 18px; right: 18px; width: 46px; height: 46px; border-radius: 12px; border: 2px solid var(--encre); background: var(--rose); color: #fff; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 3px 3px 0 var(--ombre); }
@@ -1417,7 +1500,11 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .mur-liste.mois b { color: #9ef0b8; }
 
 /* les cartes trophées du boss, dans l'album */
-.cc.trophee { --bord: #ff2d55; background: linear-gradient(160deg, #ffeef3, #ffc7d4); box-shadow: 0 0 0 3px var(--bord), 6px 7px 0 3px #3a0d1f, 0 0 36px rgba(255, 45, 85, 0.35); }
+.cc.trophee {
+  --bord: #ff2d55; background: linear-gradient(160deg, #ffeef3, #ffc7d4);
+  --anneau: 3px; --ox: 6px; --oy: 7px; --os: 3px; --t: 3px; --ombre-c: #3a0d1f; --halo: 0 0 36px rgba(255, 45, 85, 0.35);
+  --feuille: 0.5; --feuille-c: linear-gradient(120deg, #ff2d55 0%, #ffc94d 22%, #fff1a8 40%, #ff8ac2 60%, #ff2d55 80%, #ffc94d 100%);
+}
 .cc.trophee .cc-rarete { background: #ff2d55; }
 .cc-sceau {
   position: absolute; right: 10px; top: 10px; z-index: 2; display: grid; place-items: center; width: 46px; height: 46px; rotate: 12deg;
@@ -1429,6 +1516,8 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 
 /* ---------- les parties hors de l'écran : animations en pause ---------- */
 .hors-vue *, .hors-vue *::before, .hors-vue *::after { animation-play-state: paused !important; }
+/* une carte, un mème ou une vidéo en grand : la page dessous, cachée par le voile, s'arrête de bouger */
+body.vision-ouverte > :not(.visionneuse), body.vision-ouverte > :not(.visionneuse) *, body.vision-ouverte > :not(.visionneuse) *::before, body.vision-ouverte > :not(.visionneuse) *::after { animation-play-state: paused !important; }
 
 /* ---------- apparitions au défilement ---------- */
 .revele { opacity: 0; transform: translateY(28px); transition: opacity 0.9s var(--doux), transform 0.9s var(--doux); }
