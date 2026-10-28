@@ -1952,8 +1952,9 @@
 
   // le relief, à la souris : la carte pointée s'incline (le côté pointé s'enfonce), sa tranche se voit
   // et sa feuille holo s'allume là où tombe la lumière. Une seule carte à la fois ; au repos, rien ne change.
-  const EN_RELIEF = ".case-album:not(.vide) > .cc, .tirage-scene.retourne .tirage-face > .cc";
-  let carteRelief = null, pointeur = null, imageRelief = 0;
+  // Les autocollants, les affiches WANTED et le portrait du boss penchent aussi, comme du papier qu'on tient.
+  const EN_RELIEF = ".case-album:not(.vide) > .cc, .tirage-scene.retourne .tirage-face > .cc, .autocollant, .wanted-affiche, .boss-cadre";
+  let carteRelief = null, pointeur = null, imageRelief = 0, cadreRelief = null;
   function lacherRelief() {
     carteRelief?.classList.remove("relief", "lumiere");
     carteRelief = null;
@@ -1965,9 +1966,11 @@
     if (!c) return;
     if (!carteRelief) {
       carteRelief = c;
+      // la place de l'objet avant qu'il penche (pour une carte : sa case, qui ne bouge pas)
+      cadreRelief = (c.classList.contains("cc") ? c.parentElement : c).getBoundingClientRect();
       c.classList.add("relief", "lumiere");
     }
-    const r = c.parentElement.getBoundingClientRect();
+    const r = c.classList.contains("cc") ? c.parentElement.getBoundingClientRect() : cadreRelief;
     c.style.setProperty("--px", borne(((pointeur.x - r.left) / r.width) * 2 - 1).toFixed(3));
     c.style.setProperty("--py", borne(((pointeur.y - r.top) / r.height) * 2 - 1).toFixed(3));
   }
@@ -1977,6 +1980,26 @@
     if (!imageRelief) imageRelief = requestAnimationFrame(majRelief);
   }, { passive: true });
   document.documentElement.addEventListener("mouseleave", lacherRelief);
+  window.addEventListener("scroll", () => { if (carteRelief && !carteRelief.classList.contains("cc")) lacherRelief(); }, { passive: true });
+
+  // l'accueil en profondeur : à la souris, Chopper penche un peu, la bulle et l'autocollant glissent devant lui
+  const heroScene = document.querySelector(".hero-chopper");
+  if (heroScene) {
+    let imageHero = 0, posHero = null;
+    const poserHero = (x, y) => { heroScene.style.setProperty("--hx", x); heroScene.style.setProperty("--hy", y); };
+    heroScene.closest(".hero")?.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse" || reduit.matches) return;
+      posHero = e;
+      if (imageHero) return;
+      imageHero = requestAnimationFrame(() => {
+        imageHero = 0;
+        heroScene.classList.add("profondeur");
+        const r = heroScene.getBoundingClientRect();
+        poserHero(borne(((posHero.clientX - r.left) / r.width) * 2 - 1).toFixed(3), borne(((posHero.clientY - r.top) / r.height) * 2 - 1).toFixed(3));
+      });
+    }, { passive: true });
+    heroScene.closest(".hero")?.addEventListener("pointerleave", () => { poserHero(0, 0); heroScene.classList.remove("profondeur"); });
+  }
 
   // une carte en grand : on la penche, on la fait tourner en la faisant glisser (ou d'un toucher) et on voit son dos
   function voirCarte(face, etiquette, depuis) {
@@ -2274,6 +2297,7 @@
     const cadran = el("div", { class: "rb-cadran" });
     cadran.innerHTML = svg;
     cadran.append(
+      el("span", { class: "rb-ombre", "aria-hidden": "true" }),
       el("div", { class: `rb-chopper forme-${rb.etat === "fin" && rb.fin ? (rb.fin.transformations === 7 ? 8 : rb.fin.transformations) : 0}`, id: "rb-chopper" }, el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 })),
       el("span", { class: "sfx rb-sfx", id: "rb-sfx", "aria-hidden": "true" }),
     );
@@ -2720,8 +2744,10 @@
         const img = imageCarte(id);
         const b = el("button", { class: "mm-carte", type: "button", "aria-label": `Carte ${k + 1}`, onclick: () => retournerMemory(k, b) },
           el("span", { class: "mm-interieur" },
+            tranche("g"),
             dosCarte(),
             el("span", { class: "mm-face" }, img ? el("img", { src: img.src, alt: "", loading: "eager", decoding: "async" }) : null),
+            tranche("d"),
           ),
         );
         return b;
