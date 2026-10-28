@@ -2868,6 +2868,67 @@
   try { co.record = Number(localStorage.getItem("barhaw-course")) || 0; } catch {}
   const photoCourse = new Image();
   photoCourse.src = "/img/chopper-visage.jpg";
+  photoCourse.addEventListener("load", () => { if (co.etat !== "jeu") dessinerCourse(co.moteur?.m || null); });
+
+  // ---------- la course en 3D ----------
+  // Le rendu 3D (js/course-3d.js et three.js, ~170 ko) n'est chargé qu'à l'approche des jeux, et seulement si l'appareil
+  // sait faire de la 3D (WebGL 2) et n'a pas demandé d'économiser les données. Il ne fait que dessiner : le moteur reste
+  // celui d'ici. Sans lui (ou s'il est trop lent sur l'appareil, ou si ?3d=non est dans l'adresse), la course reste en 2D.
+  const choix3D = new URLSearchParams(location.search).get("3d"); // « non » pour la 2D, « oui » pour garder la 3D même lente
+  const trois = { etat: "", rendu: null, toile: null, images: 0, tempsImages: 0 };
+  const course3D = () => trois.etat === "pret";
+  async function chargerCourse3D() {
+    if (trois.etat || choix3D === "non" || navigator.connection?.saveData) return;
+    trois.etat = "charge";
+    try {
+      // une carte graphique, sinon rien : sans elle (rendu logiciel), la 3D serait trop lente et on ne télécharge même pas three.js
+      const essai = document.createElement("canvas").getContext("webgl2");
+      if (!essai) throw new Error("pas de WebGL 2");
+      const info = essai.getExtension("WEBGL_debug_renderer_info");
+      const logiciel = info && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(essai.getParameter(info.UNMASKED_RENDERER_WEBGL)));
+      essai.getExtension("WEBGL_lose_context")?.loseContext();
+      if (logiciel && choix3D !== "oui") throw new Error("rendu logiciel");
+      const { creerCourse3D } = await import("/js/course-3d.js");
+      const toile = el("canvas", { class: "co-3d", "aria-hidden": "true" });
+      trois.rendu = creerCourse3D(toile, { CO, photo: photoCourse });
+      trois.toile = toile;
+      // un essai de quelques images, hors de la page : si l'appareil peine, on garde la 2D
+      if (choix3D !== "oui" && trois.rendu.tropLent()) { trois.rendu.detruire(); trois.rendu = null; throw new Error("trop lent"); }
+      toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passerEn2D(); });
+      trois.etat = "pret";
+      if (choix3D) window.__course3D = trois; // pour les essais (?3d=oui)
+      brancherCourse3D();
+      if (co.etat !== "jeu") dessinerCourse(co.moteur?.m || null);
+    } catch {
+      trois.etat = "non";
+    }
+  }
+  // le canvas 3D est toujours le même (une seule 3D pour toute la visite) : on le remet dans la scène quand elle est redessinée
+  function brancherCourse3D() {
+    const scene = $("co-scene");
+    if (!course3D() || !scene) return;
+    if (trois.toile.parentElement !== scene) scene.prepend(trois.toile);
+    scene.classList.add("en-3d");
+    trois.rendu.taille(scene.getBoundingClientRect().width || CO.L);
+  }
+  // la 3D se charge quand on approche des jeux (un écran avant d'y arriver)
+  if ($("jeux") && "IntersectionObserver" in window) {
+    const approche = new IntersectionObserver((entrees) => {
+      if (!entrees.some((e) => e.isIntersecting)) return;
+      approche.disconnect();
+      chargerCourse3D();
+    }, { rootMargin: "900px 0px" });
+    approche.observe($("jeux"));
+  }
+  function passerEn2D() {
+    if (!trois.rendu) return;
+    trois.etat = "non";
+    trois.toile.remove();
+    try { trois.rendu.detruire(); } catch {}
+    trois.rendu = null;
+    $("co-scene")?.classList.remove("en-3d");
+    dessinerCourse(co.moteur?.m || null);
+  }
   const teteCourse = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La course de Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏃" }));
   const texteCourse = (x) => `${nombre(x.score)} m`;
   const reglesCourse = () => {
@@ -2901,6 +2962,7 @@
       infosJeux()?.course ? tableauJeu(infosJeux().course, texteCourse) : null,
     );
     preparerCanvasCourse();
+    brancherCourse3D();
     dessinerCourse(co.moteur?.m || null);
   }
 
@@ -2919,7 +2981,11 @@
     echelleCourse = c.width / CO.L;
     echelleEcran = largeur / CO.L;
   }
-  window.addEventListener("resize", () => { if (co.etat !== "jeu") { preparerCanvasCourse(); dessinerCourse(co.moteur?.m || null); } else preparerCanvasCourse(); });
+  window.addEventListener("resize", () => {
+    preparerCanvasCourse();
+    if (course3D()) trois.rendu.taille($("co-scene")?.getBoundingClientRect().width || CO.L);
+    if (co.etat !== "jeu") dessinerCourse(co.moteur?.m || null);
+  });
 
   // ---------- le dessin ----------
   const DECOR = { iles: Array.from({ length: 6 }, (_, k) => ({ x: k * 160 + Math.random() * 60, l: 90 + Math.random() * 120, h: 18 + Math.random() * 30 })), nuages: Array.from({ length: 4 }, (_, k) => ({ x: k * 190 + Math.random() * 80, y: 30 + Math.random() * 60, l: 60 + Math.random() * 50 })) };
@@ -2929,6 +2995,17 @@
     if (!ctx) return;
     const e = echelleCourse;
     ctx.setTransform(e, 0, 0, e, 0, 0);
+    if (course3D()) {
+      // la 3D dessine le monde ; ce canvas, transparent par-dessus, garde les traits de vitesse, les alertes et les compteurs
+      trois.rendu.dessiner(m, { decor: co.decor });
+      ctx.clearRect(0, 0, CO.L, CO.H);
+      traitsVitesse(ctx, m);
+      for (const ob of m ? m.obstacles : []) {
+        if (ob.type === "boulet" && ob.x > CO.L - 10) alerteBoulet(ctx, trois.rendu.versEcran(CO.L, ob.y + ob.h / 2)[1] * CO.H);
+      }
+      compteursCourse(ctx, m);
+      return;
+    }
     if (!gradientsCourse || gradientsCourse.ctx !== ctx) {
       const ciel = ctx.createLinearGradient(0, 0, 0, 160);
       ciel.addColorStop(0, "#1c0a26"); ciel.addColorStop(0.55, "#5a1d55"); ciel.addColorStop(1, "#ff8fb3");
@@ -2969,13 +3046,7 @@
     ctx.fillStyle = "#4a2418";
     for (let x = -(d % 56); x < CO.L; x += 56) ctx.fillRect(x, CO.SOL + 4, 3, CO.H - CO.SOL);
     ctx.fillRect(0, CO.SOL + 26, CO.L, 2);
-    // les traits de vitesse quand ça va très vite
-    if (m && m.v > 14.5) {
-      ctx.strokeStyle = `rgba(255, 240, 250, ${Math.min(0.35, (m.v - 14.5) * 0.08)})`; ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let k = 0; k < 7; k++) { const y = 20 + ((k * 37 + Math.floor(m.t * 20) * 13) % 190); const x = (k * 97 + m.dist * 1.6) % (CO.L + 120) ; ctx.moveTo(CO.L - x, y); ctx.lineTo(CO.L - x + 60 + k * 6, y); }
-      ctx.stroke();
-    }
+    traitsVitesse(ctx, m);
     // les obstacles
     for (const ob of m ? m.obstacles : []) dessinerObstacle(ctx, ob);
     // Chopper (sa photo en rond), son ombre, ses petits pieds
@@ -3009,7 +3080,23 @@
       ctx.fillStyle = `rgba(255, 225, 200, ${p.a})`;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     }
-    // les compteurs
+    compteursCourse(ctx, m);
+  }
+  // les traits de vitesse quand ça va très vite
+  function traitsVitesse(ctx, m) {
+    if (!m || m.v <= 14.5) return;
+    ctx.strokeStyle = `rgba(255, 240, 250, ${Math.min(0.35, (m.v - 14.5) * 0.08)})`; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let k = 0; k < 7; k++) { const y = 20 + ((k * 37 + Math.floor(m.t * 20) * 13) % 190); const x = (k * 97 + m.dist * 1.6) % (CO.L + 120) ; ctx.moveTo(CO.L - x, y); ctx.lineTo(CO.L - x + 60 + k * 6, y); }
+    ctx.stroke();
+  }
+  // un boulet arrive : un « ! » au bord pour prévenir
+  function alerteBoulet(ctx, cy) {
+    ctx.fillStyle = "#ff2d55"; ctx.beginPath(); ctx.arc(CO.L - 18, cy, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.font = "800 15px 'M PLUS Rounded 1c', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("!", CO.L - 18, cy + 1);
+  }
+  // les compteurs : la distance, le meilleur, la vitesse
+  function compteursCourse(ctx, m) {
     if (m) {
       ctx.textAlign = "right"; ctx.textBaseline = "top";
       const gros = Math.max(26, 18 / echelleEcran);
@@ -3058,12 +3145,7 @@
       const r = ob.w / 2;
       const cx = ob.x + r;
       const cy = bas - r;
-      if (ob.x > CO.L - 10) {
-        // il arrive : un « ! » au bord pour prévenir
-        ctx.fillStyle = "#ff2d55"; ctx.beginPath(); ctx.arc(CO.L - 18, cy, 11, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.font = "800 15px 'M PLUS Rounded 1c', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("!", CO.L - 18, cy + 1);
-        return;
-      }
+      if (ob.x > CO.L - 10) { alerteBoulet(ctx, cy); return; }
       for (let k = 1; k <= 3; k++) { ctx.fillStyle = `rgba(230, 210, 230, ${0.28 - k * 0.07})`; ctx.beginPath(); ctx.arc(cx + k * 14, cy, r - k * 2, 0, Math.PI * 2); ctx.fill(); }
       const gr = ctx.createRadialGradient(cx - 4, cy - 4, 1, cx, cy, r);
       gr.addColorStop(0, "#7a6a78"); gr.addColorStop(1, "#140a12");
@@ -3090,6 +3172,8 @@
       el("p", { class: "note co-aide", text: "Clic, toucher ou Espace pour sauter · reste appuyé pour sauter plus haut" }),
     );
     preparerCanvasCourse();
+    brancherCourse3D();
+    trois.images = 0; trois.tempsImages = 0;
     const c = $("co-canvas");
     c.addEventListener("pointerdown", (e) => { if (co.etat === "jeu") { e.preventDefault(); c.setPointerCapture?.(e.pointerId); appuiCourse(true); } });
     for (const ev of ["pointerup", "pointercancel"]) c.addEventListener(ev, () => { if (co.etat === "jeu") appuiCourse(false); });
@@ -3121,6 +3205,11 @@
     if (co.etat !== "jeu") return;
     if (co.pause) { co.dernier = t; co.boucle = requestAnimationFrame(imageCourse); return; }
     const dt = Math.min(0.05, Math.max(0, (t - co.dernier) / 1000));
+    // si la 3D est trop lourde pour l'appareil (moins de 24 images par seconde en moyenne), la course repasse en 2D
+    if (course3D() && choix3D !== "oui" && ++trois.images > 10) {
+      trois.tempsImages += t - co.dernier;
+      if (trois.images === 50 && trois.tempsImages / 40 > 1000 / 24) passerEn2D();
+    }
     co.dernier = t;
     const m = co.moteur.m;
     const etaitAuSol = m.sol;
