@@ -1513,6 +1513,54 @@
     };
     jeu = s;
 
+    // ---------- le goûter en 3D ----------
+    // js/gouter-3d.js (et three.js) ne se chargent qu'à l'approche de la partie Chopper, et seulement si l'appareil a une
+    // carte graphique et n'économise pas ses données. Ils ne font que dessiner ce que calcule le jeu d'ici ; sinon, la 2D.
+    // ?3d=non dans l'adresse garde la 2D, ?3d=oui force la 3D (pour les essais).
+    const choix3d = new URLSearchParams(location.search).get("3d");
+    let rendu3d = null;
+    let toile3d = null;
+    const images3d = { n: 0, ms: 0 };
+    async function charger3d() {
+      if (rendu3d || choix3d === "non" || navigator.connection?.saveData) return;
+      try {
+        const essai = document.createElement("canvas").getContext("webgl2");
+        if (!essai) return;
+        const info = essai.getExtension("WEBGL_debug_renderer_info");
+        const logiciel = info && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(essai.getParameter(info.UNMASKED_RENDERER_WEBGL)));
+        essai.getExtension("WEBGL_lose_context")?.loseContext();
+        if (logiciel && choix3d !== "oui") return;
+        const { creerGouter3D } = await import("/js/gouter-3d.js");
+        const t = el("canvas", { class: "gouter-3d", "aria-hidden": "true" });
+        const r = creerGouter3D(t, { photo });
+        if (choix3d !== "oui" && r.tropLent()) { r.detruire(); return; }
+        t.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passer2d(); });
+        canvas.before(t);
+        $("gouter-jeu")?.classList.add("en-3d");
+        toile3d = t;
+        rendu3d = r;
+        rendu3d.taille(L, H);
+        dessiner(performance.now());
+        if (choix3d) window.__gouter3d = { s, dessiner, rendu: r, taille: () => [L, H] }; // pour les essais (?3d=oui)
+      } catch {}
+    }
+    function passer2d() {
+      if (!rendu3d) return;
+      try { rendu3d.detruire(); } catch {}
+      rendu3d = null;
+      toile3d?.remove();
+      $("gouter-jeu")?.classList.remove("en-3d");
+      dessiner(performance.now());
+    }
+    if ("IntersectionObserver" in window && $("chopper")) {
+      const approche = new IntersectionObserver((entrees) => {
+        if (!entrees.some((e) => e.isIntersecting)) return;
+        approche.disconnect();
+        charger3d();
+      }, { rootMargin: "900px 0px" });
+      approche.observe($("chopper"));
+    }
+
     function taille() {
       const r = canvas.getBoundingClientRect();
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -1522,6 +1570,7 @@
       canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       s.x = s.x ? Math.min(Math.max(s.x, 0), L) : L / 2;
+      rendu3d?.taille(L, H);
       dessiner(performance.now());
     }
     const rayon = () => Math.max(28, Math.min(46, L * 0.055));
@@ -1553,6 +1602,7 @@
         } catch {}
       }
       Object.assign(s, { etat: "jeu", score: 0, combo: 0, temps: s.duree, objets: [], effets: [], prochain: 600, secousse: 0, flash: 0, x: L / 2 });
+      images3d.n = 0; images3d.ms = 0;
       cibleX = null;
       $("gouter-ecran").hidden = true;
       $("gouter-hud").hidden = false;
@@ -1649,6 +1699,7 @@
         o.a += o.va * (dt / 1000);
         if (!o.fini && Math.abs(o.y - yChopper) < R * 0.75 + o.t * 0.5 && Math.abs(o.x - s.x) < R * 0.9 + o.t * 0.6) {
           o.fini = true;
+          rendu3d?.attrape(o.x, o.y, o.type, o.couleur);
           const g = GOUTER[o.type];
           if (o.type === "bombe") {
             s.score = Math.max(0, s.score + g.points);
@@ -1750,6 +1801,17 @@
 
     function dessiner(t) {
       if (!L) return;
+      if (rendu3d) {
+        // la 3D dessine le décor, Chopper et ce qui tombe ; ce canvas, transparent par-dessus, garde les +1, les onomatopées et l'éclair
+        rendu3d.dessiner(s, { temps: t / 1000, rayon: rayon(), secousse: s.secousse });
+        ctx.clearRect(0, 0, L, H);
+        ctx.save();
+        if (s.secousse) ctx.translate((Math.random() - 0.5) * 12 * s.secousse, (Math.random() - 0.5) * 12 * s.secousse);
+        dessinerEffets();
+        ctx.restore();
+        if (s.flash) { ctx.fillStyle = `rgba(255,255,255,${0.35 * s.flash})`; ctx.fillRect(0, 0, L, H); }
+        return;
+      }
       ctx.save();
       ctx.clearRect(0, 0, L, H);
       if (s.secousse) ctx.translate((Math.random() - 0.5) * 12 * s.secousse, (Math.random() - 0.5) * 12 * s.secousse);
@@ -1799,8 +1861,12 @@
       if (photo.complete && photo.naturalWidth) ctx.drawImage(photo, -R, -R, R * 2, R * 2);
       else { ctx.fillStyle = "#e8b48a"; ctx.fillRect(-R, -R, R * 2, R * 2); }
       ctx.restore();
-
-      // les effets : +1, onomatopées
+      dessinerEffets();
+      ctx.restore();
+      if (s.flash) { ctx.fillStyle = `rgba(255,255,255,${0.35 * s.flash})`; ctx.fillRect(0, 0, L, H); }
+    }
+    // les effets : +1, onomatopées
+    function dessinerEffets() {
       for (const e of s.effets) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, e.vie * 1.5));
@@ -1824,13 +1890,16 @@
         }
         ctx.restore();
       }
-      ctx.restore();
-      if (s.flash) { ctx.fillStyle = `rgba(255,255,255,${0.35 * s.flash})`; ctx.fillRect(0, 0, L, H); }
     }
 
     function image(t) {
       boucle = 0;
       const dt = dernier ? Math.min(50, t - dernier) : 16;
+      // si la 3D est trop lourde pour l'appareil (moins de 24 images par seconde en moyenne), le goûter repasse en 2D
+      if (rendu3d && s.etat === "jeu" && dernier && choix3d !== "oui" && ++images3d.n > 10) {
+        images3d.ms += t - dernier;
+        if (images3d.n === 50 && images3d.ms / 40 > 1000 / 24) passer2d();
+      }
       dernier = t;
       if (!document.hidden) avancer(dt);
       dessiner(t);
