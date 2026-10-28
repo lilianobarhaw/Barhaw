@@ -4443,7 +4443,12 @@
   let glMessage = null;
   let glOccupe = false;
   let glAvant = null; // l'étape d'avant (pour « Terre en vue ! »)
+  let cleVerrou = "";
   const infosGL = () => donnees?.grandline || null;
+  // La Grand Line ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
+  // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
+  const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
+  const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
   const pourcentGL = (g) => Math.min(100, Math.floor((g.milles / Math.max(1, g.longueur)) * 100));
   function quandGL(t) {
     const d = new Date(t);
@@ -4452,16 +4457,59 @@
     return `${j} vers ${fmtHeure.format(d).replace(":", " h ")}`;
   }
 
+  // avant l'ouverture : « accès restreint », avec le compte à rebours
+  function rendreVerrouGL() {
+    const scene = $("grandline-scene");
+    if (!scene) return;
+    const g = infosGL();
+    const t = g?.ouverture && g.ouvert === false ? g.ouverture : GL_OUVERTURE;
+    const cle = String(t);
+    let v = $("grandline-verrou");
+    if (v && cle === cleVerrou) return;
+    cleVerrou = cle;
+    if (!v) { v = el("div", { class: "gl-verrou", id: "grandline-verrou" }); scene.append(v); }
+    const quand = new Date(t);
+    const date = quand.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" });
+    vider(v,
+      el("span", { class: "gl-verrou-nuages", "aria-hidden": "true" }, ["☁️", "☁️", "☁️", "☁️", "☁️"].map((n) => el("i", { text: n }))),
+      el("span", { class: "gl-verrou-points", "aria-hidden": "true" }, ["?", "?", "?", "?", "?", "?"].map((n) => el("i", { text: n }))),
+      el("div", { class: "gl-verrou-carte" },
+        el("p", { class: "gl-verrou-tampon", text: "Accès restreint" }),
+        el("p", { class: "gl-sur", text: "La V3 du site" }),
+        el("h3", { class: "gl-verrou-titre" }, "La Grand Line ", el("span", { class: "degrade", text: "lève l'ancre" })),
+        el("p", { class: "gl-verrou-date", text: `${majuscule(date)} à ${fmtHeure.format(quand).replace(":", " h ")}` }),
+        rebours(t, true, "grandline", { fin: () => guetterOuvertureGL(), texteFin: "Le navire part !" }),
+        el("p", { class: "gl-texte", text: "Le navire de la commu attend au port. À l'ouverture, tout ce que vous faites sur le Discord, le site et Twitch le fera avancer, d'île en île, jusqu'au trésor. Prépare tes rames !" }),
+      ),
+    );
+  }
+  // à l'heure dite : on redemande au bot jusqu'à ce que le navire soit parti
+  let guetteGL = null;
+  function guetterOuvertureGL() {
+    if (guetteGL) return;
+    let n = 0;
+    guetteGL = setInterval(() => {
+      if (glOuvert() || ++n > 40) { clearInterval(guetteGL); guetteGL = null; return; }
+      charger();
+    }, 15_000);
+    charger();
+  }
+
   function rendreGrandLine() {
     const z = $("grandline-cap");
     if (!z) return;
     const g = infosGL();
-    if (!g) {
-      vider(z, el("p", { class: "vide", text: donnees?.horsLigne ? "Le navire revient dans un instant." : "Le navire se prépare au départ : la Grand Line ouvre très bientôt !" }));
-      for (const id of ["grandline-mer", "grandline-equipage", "grandline-journal", "grandline-moi", "grandline-escales"]) vider($(id));
-      $("grandline-hud") && vider($("grandline-hud"));
+    const ouvert = glOuvert();
+    $("grandline")?.classList.toggle("gl-ferme", !ouvert);
+    const pastille = $("pastille-grandline");
+    if (pastille) pastille.hidden = ouvert;
+    if (!ouvert) {
+      rendreVerrouGL();
       return;
     }
+    $("grandline-verrou")?.remove();
+    cleVerrou = "";
+    if (glVue && !carteGL) preparerCarteGL();
     // « Terre en vue ! » : une nouvelle île pendant la visite (ou il y a moins de 2 h, une fois par visite)
     const derniere = g.escales?.[0];
     if (glAvant && (g.voyage > glAvant.voyage || (g.voyage === glAvant.voyage && g.etape > glAvant.etape)) && derniere) terreEnVue(derniere);
@@ -4627,7 +4675,7 @@
   }
 
   async function agirGL(action, extra = {}) {
-    if (glOccupe) return;
+    if (glOccupe || !glOuvert()) return;
     glOccupe = true;
     glMessage = null;
     const g = infosGL();
@@ -4691,7 +4739,12 @@
   }
   async function preparerCarteGL() {
     const zone = $("grandline-carte");
-    if (!zone || carteGL) return;
+    if (!zone || carteGL || preparationGL) return;
+    preparationGL = true;
+    try { await preparerCarteGLVraiment(zone); } finally { preparationGL = false; }
+  }
+  let preparationGL = false;
+  async function preparerCarteGLVraiment(zone) {
     const choix3d = new URLSearchParams(location.search).get("3d");
     if (choix3d !== "non" && !navigator.connection?.saveData && !reduit.matches) {
       try {
@@ -4789,11 +4842,11 @@
       new IntersectionObserver((entrees) => {
         for (const e of entrees) {
           glVue = e.isIntersecting;
-          if (glVue && !carteGL) preparerCarteGL();
+          if (glVue && !carteGL && glOuvert()) preparerCarteGL();
           if (carteGL?.type === "3d") { if (glVue && !document.hidden) carteGL.rendu.demarrer(); else carteGL.rendu.arreter(); }
         }
       }, { rootMargin: "300px 0px" }).observe(s);
-    } else preparerCarteGL();
+    } else { glVue = true; if (glOuvert()) preparerCarteGL(); }
     document.addEventListener("visibilitychange", () => {
       if (carteGL?.type !== "3d") return;
       if (!document.hidden && glVue) carteGL.rendu.demarrer(); else carteGL.rendu.arreter();
