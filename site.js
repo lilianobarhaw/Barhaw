@@ -2021,8 +2021,8 @@
 
   // le relief, à la souris : la carte pointée s'incline (le côté pointé s'enfonce), sa tranche se voit
   // et sa feuille holo s'allume là où tombe la lumière. Une seule carte à la fois ; au repos, rien ne change.
-  // Les autocollants, les affiches WANTED et le portrait du boss penchent aussi, comme du papier qu'on tient.
-  const EN_RELIEF = ".case-album:not(.vide) > .cc, .tirage-scene.retourne .tirage-face > .cc, .autocollant, .wanted-affiche, .boss-cadre";
+  // Les autocollants, les affiches WANTED, le portrait du boss et les games de La Faille penchent aussi, comme du papier qu'on tient.
+  const EN_RELIEF = ".case-album:not(.vide) > .cc, .tirage-scene.retourne .tirage-face > .cc, .autocollant, .wanted-affiche, .boss-cadre, .fl-game, .fu-cadre";
   let carteRelief = null, pointeur = null, imageRelief = 0, cadreRelief = null;
   function lacherRelief() {
     carteRelief?.classList.remove("relief", "lumiere");
@@ -3394,7 +3394,7 @@
   const infosChasse = () => donnees?.chasse || null;
   const berrys = (n) => `${nombre(Math.round(Number(n) || 0))} ฿`;
   const imageBoss = (id) => imageCarte(id) || { src: "/img/chopper-visage.jpg", l: 480, h: 480 };
-  const SOURCES_PRIME = { depart: "Création de l'avis", messages: "Messages sur le Discord", lives: "Présence aux lives", cartes: "Cartes", jeux: "Jeux", chopper: "Chopper", boss: "Coups au boss" };
+  const SOURCES_PRIME = { depart: "Création de l'avis", messages: "Messages sur le Discord", lives: "Présence aux lives", cartes: "Cartes", jeux: "Jeux", chopper: "Chopper", faille: "Games de LoL", boss: "Coups au boss" };
   const texteButin = (b) => [b.degats ? `⚔️ −${nombre(b.degats)} PV au boss` : "", b.berrys ? `+${berrys(b.berrys)}` : ""].filter(Boolean).join(" · ");
 
   function dureeCourte(t) {
@@ -3540,6 +3540,7 @@
             el("li", {}, el("span", { text: "Une partie de jeu finie" }), el("b", { text: `${D.partie ?? 3} (+${D.bonScore ?? 5} bon score, +${D.recordSite ?? 15} record)` })),
             el("li", {}, el("span", { text: "Ta carte du jour" }), el("b", { text: `${D.carte ?? 3} (+${D.legendaire ?? 12} légendaire)` })),
             el("li", {}, el("span", { text: "Nourrir ou jouer avec Chopper" }), el("b", { text: String(D.chopper ?? 2) })),
+            el("li", {}, el("span", { text: "Une bonne game de LoL (La Faille des potes)" }), el("b", { text: `${D.faille?.["S+"] ?? 15} (S+), ${D.faille?.S ?? 10} (S), ${D.faille?.A ?? 5} (A)` })),
             el("li", {}, el("span", { text: "Avec ton avis de recherche : un message sur le Discord" }), el("b", { text: `${D.message ?? 1} (15 par jour)` })),
             el("li", {}, el("span", { text: "Avec ton avis de recherche : venir à un live" }), el("b", { text: String(D.live ?? 10) })),
           ),
@@ -3652,6 +3653,7 @@
       ["Venir à un live", berrys(G.live ?? 30000)],
       ["Une nouvelle carte", `${berrys(G.carteNouvelle ?? 10000)} (légendaire ${k(G.carteLegendaire ?? 50000)})`],
       ["Une partie de jeu", `${berrys(G.partie ?? 2000)} (record +${k(G.recordSite ?? 100000)})`],
+      ["Une game de LoL notée S+ (La Faille)", `${berrys(G.failleSPlus ?? 40000)} (S ${k(G.failleS ?? 20000)}, A ${k(G.failleA ?? 8000)})`],
       ["Un dégât au boss", berrys(G.degat ?? 500)],
       ["Le boss vaincu", berrys(G.bossVaincu ?? 100000)],
     ];
@@ -3786,6 +3788,402 @@
     setInterval(() => { if (chasseVue && !document.hidden) rafraichirChasse(); }, 20_000);
   }
 
+  // ---------- La Faille des potes : le défi LoL de la semaine ----------
+  // Le bot suit les games des membres qui ont relié leur compte (leur Riot ID, puis une icône de profil à mettre)
+  // et les note de S+ à D selon leur rôle. La page montre la game de la semaine, le podium et les dernières games ;
+  // au membre connecté : relier son compte, ses games de la semaine, le retirer. Son Riot ID n'est montré qu'à lui.
+  let maFaille = null; // { actif, lie, riot, attente: { riot, icone, image, expire }, semaine: { points, rang, sur, games } }
+  let faillePasMembre = false;
+  let failleOccupee = false;
+  let failleMessage = null; // { texte, erreur }
+  let confirmerRetraitFaille = false;
+  let failleCelebrer = false; // « リンク! » juste après la liaison
+  let minuteurFaille = 0;
+  const cleFaille = {}; // ce qui est déjà affiché, partie par partie (pour ne pas tout redessiner chaque minute)
+  const infosFaille = () => donnees?.faille || null;
+  const NOTES_FAILLE = { "S+": "splus", S: "s", A: "a", B: "b", C: "c", D: "d" };
+  const ROLES_FAILLE = { TOP: "Top", JUNGLE: "Jungle", MIDDLE: "Mid", BOTTOM: "ADC", UTILITY: "Support" };
+  const kda = (g) => `${g.k} / ${g.d} / ${g.a}`;
+  const enMinutes = (s) => `${Math.max(1, Math.round((Number(s) || 0) / 60))} min`;
+  const pluriel = (n, mot) => `${nombre(n)} ${mot}${n > 1 ? "s" : ""}`;
+  function ilYa(t) {
+    const m = Math.max(1, Math.round((Date.now() - ms(t)) / 60_000));
+    if (m < 60) return `il y a ${m} min`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `il y a ${h} h`;
+    const j = Math.round(h / 24);
+    return j === 1 ? "hier" : `il y a ${j} jours`;
+  }
+  // la remise à zéro : lundi à 0 h, heure de Paris
+  function avantLundi() {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" })
+      .formatToParts(new Date()).map((x) => [x.type, x.value]));
+    const jour = Math.max(0, ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(p.weekday));
+    const reste = Math.max(1, (7 - jour) * 1440 - (Number(p.hour) * 60 + Number(p.minute)));
+    const j = Math.floor(reste / 1440);
+    const h = Math.floor((reste % 1440) / 60);
+    return j ? `Fin dans ${j} j ${h} h` : `Fin dans ${h} h ${String(reste % 60).padStart(2, "0")}`;
+  }
+
+  // l'icône d'un champion (Data Dragon) ; sans elle (pas encore chargée, pas de réseau), ses initiales
+  function visageChampion(g, classe = "") {
+    const nom = String(g?.champion || "");
+    const src = lienSur(g?.image);
+    return el("span", { class: `fl-champ ${classe}`.trim(), title: nom || null },
+      el("b", { "aria-hidden": "true", text: nom.replace(/[^A-Za-z]/g, "").slice(0, 2) || "?" }),
+      src ? el("img", { src, alt: nom, width: 120, height: 120, loading: "lazy", decoding: "async", onerror: (e) => e.currentTarget.remove() }) : null,
+    );
+  }
+  const tamponNote = (note, classe = "") => el("span", { class: `fl-note n-${NOTES_FAILLE[note] || "d"} ${classe}`.trim(), text: note || "?" });
+
+  // une game en carte : le champion, la note en tampon, le KDA, les raisons de la note
+  function carteGame(g) {
+    return el("article", { class: `fl-game n-${NOTES_FAILLE[g.note] || "d"}${g.win ? " gagnee" : " perdue"}` },
+      el("div", { class: "fl-game-haut" },
+        visageChampion(g),
+        el("div", { class: "fl-game-titre" },
+          el("strong", { text: g.nom }),
+          el("span", { text: `${g.champion} · ${ROLES_FAILLE[g.role] || g.role}` }),
+        ),
+        tamponNote(g.note),
+      ),
+      el("p", { class: "fl-kda" },
+        el("b", { text: kda(g) }),
+        el("span", { class: g.win ? "fl-v" : "fl-d", text: g.win ? "Victoire" : "Défaite" }),
+        el("small", { text: enMinutes(g.duree) }),
+      ),
+      el("ul", { class: "fl-raisons" }, (g.raisons || []).slice(0, 3).map((r) => el("li", { text: r }))),
+      el("p", { class: "fl-game-pied" },
+        el("b", { text: `+${pluriel(g.points, "pt")}` }),
+        g.duo?.length ? el("span", { class: "fl-duo", text: `duo avec ${g.duo.join(", ")}` }) : null,
+        el("time", { datetime: new Date(ms(g.fin)).toISOString(), text: ilYa(g.fin) }),
+      ),
+    );
+  }
+
+  // --- la game de la semaine : la meilleure note, en grand, comme une case d'action ---
+  function rendreFailleUne() {
+    const z = $("faille-une");
+    if (!z) return;
+    const f = infosFaille();
+    const g = f?.gameDeLaSemaine;
+    const cle = g ? `${g.nom}|${g.fin}|${g.champion}|${g.image}` : `vide|${f?.actif}`;
+    if (cleFaille.une === cle) return;
+    cleFaille.une = cle;
+    z.classList.toggle("une-vide", !g);
+    if (!g) {
+      vider(z,
+        el("div", { class: "fu-portrait" },
+          el("span", { class: "concentration", "aria-hidden": "true" }),
+          el("div", { class: "fu-cadre fu-cadre-vide" }, el("span", { class: "fu-point", text: "?" })),
+        ),
+        el("div", { class: "fu-infos" },
+          el("p", { class: "fu-surtitre", text: "La game de la semaine" }),
+          el("h3", { class: "fu-nom", text: f?.actif ? "La Faille attend ses héros." : "La Faille ouvre très bientôt." }),
+          el("p", { class: "fu-meta", text: "Relie ton compte et lance une game : la meilleure de la semaine s'affiche ici, en grand, avec sa note." }),
+          f?.actif ? el("a", { class: "btn btn-plein", href: "#faille-moi", text: "Relier mon compte LoL" }) : null,
+        ),
+      );
+      return;
+    }
+    vider(z,
+      el("div", { class: "fu-portrait" },
+        el("span", { class: "concentration", "aria-hidden": "true" }),
+        el("div", { class: "fu-cadre" }, visageChampion(g, "fl-champ-grand")),
+        tamponNote(g.note, "fu-tampon"),
+        el("span", { class: "sfx fu-sfx", "aria-hidden": "true", text: g.note === "S+" ? "ドン!" : "バン!" }),
+      ),
+      el("div", { class: "fu-infos" },
+        el("p", { class: "fu-surtitre", text: "La game de la semaine" }),
+        el("h3", { class: "fu-nom" }, g.nom, el("span", { class: "fu-champion", text: ` sur ${g.champion}` })),
+        el("p", { class: "fu-kda", "aria-label": `${g.k} kills, ${g.d} morts, ${g.a} assists`, text: kda(g) }),
+        el("p", { class: "fu-meta", text: [ROLES_FAILLE[g.role] || g.role, g.win ? "Victoire" : "Défaite", `en ${enMinutes(g.duree)}`, g.file, ilYa(g.fin)].filter(Boolean).join(" · ") }),
+        el("ul", { class: "fu-bulles" }, (g.raisons || []).map((r) => el("li", { text: r }))),
+        el("p", { class: "fu-score" },
+          el("span", { text: "Note" }), el("b", { text: `${g.score}/100` }),
+          el("span", { text: "Points" }), el("b", { text: `+${g.points}` }),
+          g.duo?.length ? el("span", { class: "fu-duo", text: `en duo avec ${g.duo.join(", ")}` }) : null,
+        ),
+      ),
+    );
+  }
+
+  // --- le podium de la semaine, la suite du classement et les titres ---
+  function rendreFaillePodium() {
+    const z = $("faille-podium");
+    if (!z) return;
+    const f = infosFaille();
+    const c = f?.classement || [];
+    const titres = f?.titres || [];
+    const cle = JSON.stringify([c, titres, f?.precedente, avantLundi()]);
+    if (cleFaille.podium === cle) return;
+    cleFaille.podium = cle;
+    const marche = (x, place) => el("li", { class: `fp-marche place-${place}${x ? "" : " libre"}` },
+      x
+        ? el("div", { class: "fp-joueur" },
+          place === 1 ? el("span", { class: "fp-couronne", "aria-hidden": "true", text: "👑" }) : null,
+          visageChampion({ champion: x.meilleure?.champion, image: x.meilleure?.image }, "fp-champ"),
+          el("strong", { class: "fp-nom", text: x.nom }),
+          el("span", { class: "fp-points" }, el("b", { text: nombre(x.points) }), " pts"),
+          el("small", {}, pluriel(x.games, "game"), " · meilleure ", tamponNote(x.meilleure?.note, "fl-note-mini")),
+        )
+        : el("div", { class: "fp-joueur" }, el("span", { class: "fp-vide", text: "?" }), el("small", { text: "Place libre" })),
+      el("div", { class: "fp-socle" }, el("span", { class: "fp-rang", text: String(place) })),
+    );
+    vider(z,
+      el("div", { class: "fp-tete" }, el("h3", { text: "Le podium de la semaine" }), el("span", { class: "etiquette", text: avantLundi() })),
+      el("ol", { class: "fp-podium", "aria-label": "Les trois premiers de la semaine" }, marche(c[1], 2), marche(c[0], 1), marche(c[2], 3)),
+      c.length > 3
+        ? el("ol", { class: "fp-suite", start: "4" }, c.slice(3).map((x) => el("li", {},
+          el("span", { class: "fp-suite-nom", text: x.nom }),
+          el("small", { text: pluriel(x.games, "game") }),
+          el("b", { text: `${nombre(x.points)} pts` }),
+        )))
+        : null,
+      titres.length
+        ? el("ul", { class: "fp-titres", "aria-label": "Les titres de la semaine" }, titres.map((t) => el("li", { class: `fp-titre titre-${t.cle}` },
+          el("span", { class: "fp-titre-nom", text: t.titre }),
+          el("strong", { text: t.nom }),
+          el("small", { text: t.valeur }),
+        )))
+        : el("p", { class: "note", text: "Le podium et les titres (Carry de la semaine, Œil de lynx, Roi du farm, Le mur…) se remplissent avec les games de la semaine." }),
+      f?.precedente ? el("p", { class: "note fp-avant", text: `La semaine dernière : ${f.precedente.carry}, carry avec ${nombre(f.precedente.points)} pts.` }) : null,
+    );
+  }
+
+  // --- ton compte : le relier (Riot ID, puis l'icône), tes games de la semaine, le retirer ---
+  async function demanderFaille(action, extra = {}) {
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      const d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+      faillePasMembre = d.erreur === "pas-membre";
+      if (d.faille) maFaille = d.faille;
+      return { status: r.status, d };
+    } catch {
+      return { status: 0, d: { erreur: "Impossible de joindre le bot. Vérifie ta connexion." } };
+    }
+  }
+  async function chargerMaFaille() {
+    if (!moi?.connecte) { maFaille = null; rendreFailleMoi(); return; }
+    await demanderFaille("faille");
+    rendreFailleMoi();
+  }
+  async function agirFaille(action, extra = {}) {
+    if (failleOccupee) return;
+    const etaitLie = Boolean(maFaille?.lie);
+    failleOccupee = true;
+    failleMessage = null;
+    rendreFailleMoi();
+    const { d } = await demanderFaille(action, extra);
+    failleOccupee = false;
+    if (d.erreur && d.erreur !== "pas-membre") failleMessage = { texte: d.texte || d.erreur, erreur: true };
+    else if (action === "faille-verifier" && d.ok) {
+      failleCelebrer = true;
+      setTimeout(() => { failleCelebrer = false; rendreFailleMoi(); }, 8000);
+      charger();
+    } else if (action === "faille-retirer" && d.ok) {
+      confirmerRetraitFaille = false;
+      if (etaitLie) { failleMessage = { texte: "C'est fait : ton compte LoL est retiré et tes games sont effacées." }; charger(); }
+    }
+    rendreFailleMoi();
+    const suite = action === "faille-lier" && d.ok ? ".fm-verifier" : action === "faille-retirer" ? "#faille-riot-id" : "";
+    if (suite) $("faille-moi")?.querySelector(suite)?.focus({ preventScroll: true });
+  }
+  const teteMoi = (titre, ...plus) => el("div", { class: "fp-tete" }, el("h3", { text: titre }), ...plus);
+  function formulaireFaille(message) {
+    const champ = el("input", {
+      type: "text", name: "riot-id", id: "faille-riot-id", placeholder: "Pseudo#EUW", maxlength: "30", autocomplete: "off",
+      autocapitalize: "off", spellcheck: "false", required: true, "aria-describedby": "faille-aide",
+    });
+    const envoyer = (e) => {
+      e.preventDefault();
+      const v = champ.value.trim().replace(/\s*#\s*/, "#");
+      if (!/^[^#]{3,16}#[^#\s]{2,5}$/u.test(v)) {
+        failleMessage = { texte: "Écris ton Riot ID avec le # : par exemple Liliano#EUW.", erreur: true };
+        rendreFailleMoi();
+        $("faille-riot-id")?.focus();
+        return;
+      }
+      agirFaille("faille-lier", { riotId: v });
+    };
+    return [
+      teteMoi("Relie ton compte LoL"),
+      el("ol", { class: "fm-etapes" },
+        el("li", { class: "actuelle" }, el("b", { text: "1" }), el("span", { text: "Ton Riot ID" })),
+        el("li", {}, el("b", { text: "2" }), el("span", { text: "Une icône à mettre 2 min" })),
+        el("li", {}, el("b", { text: "3" }), el("span", { text: "Tes games sont notées" })),
+      ),
+      el("form", { class: "fm-form", onsubmit: envoyer },
+        el("label", { for: "faille-riot-id", text: "Ton Riot ID (serveur EUW)" }),
+        el("div", { class: "fm-ligne" }, champ, el("button", { class: "btn btn-plein", type: "submit", disabled: failleOccupee, text: failleOccupee ? "…" : "Relier" })),
+        el("p", { class: "note", id: "faille-aide", text: "Dans le client LoL, en haut à droite : ton nom, un #, et ton tag." }),
+      ),
+      message,
+      el("p", { class: "fm-promesse", text: "Aucun mot de passe, aucune connexion à Riot : pour prouver que c'est bien ton compte, tu changes juste d'icône de profil quelques minutes. Sur le site, tout le monde voit ton pseudo Discord, jamais ton Riot ID." }),
+    ];
+  }
+  function etapeIcone(a, message) {
+    return [
+      teteMoi("Dernière étape", el("span", { class: "etiquette fm-riot", text: a.riot })),
+      el("ol", { class: "fm-etapes" },
+        el("li", { class: "fait" }, el("b", { text: "✓" }), el("span", { text: "Ton Riot ID" })),
+        el("li", { class: "actuelle" }, el("b", { text: "2" }), el("span", { text: "Une icône à mettre 2 min" })),
+        el("li", {}, el("b", { text: "3" }), el("span", { text: "Tes games sont notées" })),
+      ),
+      el("div", { class: "fm-icone" },
+        el("div", { class: "fm-icone-image" },
+          el("b", { text: `n° ${a.icone}` }),
+          lienSur(a.image) ? el("img", { src: a.image, alt: `L'icône de profil n° ${a.icone}`, width: 128, height: 128, onerror: (e) => e.currentTarget.remove() }) : null,
+        ),
+        el("ol", { class: "fm-consignes" },
+          el("li", {}, "Dans le client LoL, clique sur ton icône de profil, en haut à droite."),
+          el("li", {}, "Mets ", el("strong", { text: "celle-ci" }), ` (l'icône n° ${a.icone}, dans les icônes de base) et valide.`),
+          el("li", {}, "Attends quelques secondes, puis clique sur Vérifier. Tu pourras remettre ton icône juste après."),
+        ),
+      ),
+      el("div", { class: "fm-actions" },
+        el("button", { class: "btn btn-plein fm-verifier", type: "button", disabled: failleOccupee, onclick: () => agirFaille("faille-verifier"), text: failleOccupee ? "Vérification…" : "Vérifier" }),
+        el("button", { class: "btn btn-contour btn-petit", type: "button", disabled: failleOccupee, onclick: () => agirFaille("faille-retirer"), text: "Changer de compte" }),
+      ),
+      el("p", { class: "note", id: "faille-delai", text: `Il te reste ${dureeCourte(a.expire)}.` }),
+      message,
+    ];
+  }
+  const miniGame = (g) => el("li", { class: `fm-game ${g.win ? "gagnee" : "perdue"}` },
+    visageChampion(g, "fl-champ-petit"),
+    el("span", { class: "fm-game-txt" }, el("strong", { text: `${g.champion} · ${kda(g)}` }), el("small", { text: `${ROLES_FAILLE[g.role] || g.role} · ${g.win ? "victoire" : "défaite"} · ${ilYa(g.fin)}` })),
+    tamponNote(g.note, "fl-note-petite"),
+    el("b", { class: "fm-game-pts", text: `+${g.points}` }),
+  );
+  function maSemaine(m, message) {
+    const s = m.semaine || {};
+    const games = s.games || [];
+    const meilleures = [...games].sort((a, b) => b.points - a.points || b.score - a.score).slice(0, infosFaille()?.meilleures || 10);
+    const compte = new Set(meilleures.map((g) => `${g.fin}|${g.champion}`));
+    return [
+      failleCelebrer ? el("span", { class: "sfx fm-sfx eclat", "aria-hidden": "true", text: "リンク!" }) : null,
+      teteMoi("Ta semaine sur la Faille", el("span", { class: "etiquette fm-riot", title: "Ton Riot ID (toi seul le vois)", text: m.riot })),
+      failleCelebrer ? el("p", { class: "jeu-bravo", role: "status", text: "C'est relié ! Tu peux remettre ton icône. Tes prochaines games compteront." }) : null,
+      el("div", { class: "fm-stats" },
+        el("div", {}, el("b", { text: s.rang ? `${s.rang}ᵉ` : "–" }), el("span", { text: s.rang ? `sur ${s.sur}` : "pas encore classé" })),
+        el("div", {}, el("b", { text: nombre(s.points || 0) }), el("span", { text: "points" })),
+        el("div", {}, el("b", { text: nombre(games.length) }), el("span", { text: `game${games.length > 1 ? "s" : ""} notée${games.length > 1 ? "s" : ""}` })),
+      ),
+      games.length
+        ? el("ul", { class: "fm-games" }, games.slice(0, 8).map((g) => {
+          const li = miniGame(g);
+          if (!compte.has(`${g.fin}|${g.champion}`)) li.classList.add("hors-compte");
+          return li;
+        }))
+        : el("p", { class: "note fm-attente", text: "Lance une game de la Faille (classée ou normale) : elle apparaît ici une dizaine de minutes après la fin, avec sa note." }),
+      message,
+      confirmerRetraitFaille
+        ? el("div", { class: "fm-confirmer", role: "group", "aria-label": "Retirer ton compte LoL" },
+          el("p", { text: "Retirer ton compte efface tes games et tes points de la semaine. Sûr ?" }),
+          el("div", { class: "fm-actions" },
+            el("button", { class: "btn btn-plein btn-petit", type: "button", disabled: failleOccupee, onclick: () => agirFaille("faille-retirer"), text: "Oui, retirer" }),
+            el("button", { class: "btn btn-contour btn-petit", type: "button", onclick: () => { confirmerRetraitFaille = false; rendreFailleMoi(); }, text: "Annuler" }),
+          ))
+        : el("button", { class: "fm-retirer", type: "button", onclick: () => { confirmerRetraitFaille = true; rendreFailleMoi(); }, text: "Retirer mon compte LoL" }),
+    ];
+  }
+  function rendreFailleMoi() {
+    const z = $("faille-moi");
+    if (!z) return;
+    const m = maFaille;
+    const cle = JSON.stringify([moi?.connecte, faillePasMembre, m, failleMessage, failleOccupee, confirmerRetraitFaille, failleCelebrer, Boolean(infosFaille()?.actif)]);
+    if (cleFaille.moi === cle) return;
+    cleFaille.moi = cle;
+    // ce qui est en train d'être tapé reste là
+    const tape = $("faille-riot-id")?.value || "";
+    const focus = document.activeElement?.id === "faille-riot-id";
+    const message = failleMessage ? el("p", { class: `fm-message${failleMessage.erreur ? " erreur" : ""}`, role: failleMessage.erreur ? "alert" : "status", text: failleMessage.texte }) : null;
+    const ouverte = Boolean(infosFaille()?.actif);
+    let contenu;
+    if (!ouverte && !m?.lie && !m?.actif) {
+      contenu = [teteMoi("Ton compte LoL"), el("p", { text: "La Faille ouvre très bientôt : tu pourras relier ton compte League of Legends ici, et tes games seront notées toutes seules." }), message];
+    } else if (!moi?.connecte) {
+      contenu = [teteMoi("Ton compte LoL"), el("p", { text: "Connecte-toi avec Discord, puis relie ton compte League of Legends : tes games sont notées toutes seules, et tu entres dans le classement de la semaine." }), el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord" })];
+    } else if (faillePasMembre) {
+      contenu = [teteMoi("Ton compte LoL"), el("p", { text: "Rejoins le Discord Barhaw pour entrer dans La Faille des potes." }), el("a", { class: "btn btn-plein", href: "#discord", text: "Rejoindre le Discord" })];
+    } else if (!m) {
+      contenu = [teteMoi("Ton compte LoL"), message || el("p", { class: "note", text: "Chargement…" })];
+    } else if (m.lie) {
+      contenu = maSemaine(m, message);
+    } else if (!m.actif) {
+      contenu = [teteMoi("Ton compte LoL"), el("p", { text: "La Faille ouvre très bientôt : le bot attend sa clé Riot. Reviens dans un moment !" }), message];
+    } else if (m.attente) {
+      contenu = etapeIcone(m.attente, message);
+    } else {
+      contenu = formulaireFaille(message);
+    }
+    vider(z, ...contenu);
+    const champ = $("faille-riot-id");
+    if (champ && tape) champ.value = tape;
+    if (champ && focus) champ.focus({ preventScroll: true });
+    clearInterval(minuteurFaille);
+    if (m?.attente && !m.lie) {
+      minuteurFaille = setInterval(() => {
+        const t = $("faille-delai");
+        if (!t) return clearInterval(minuteurFaille);
+        t.textContent = m.attente.expire > Date.now() ? `Il te reste ${dureeCourte(m.attente.expire)}.` : "Le temps est écoulé : clique sur « Changer de compte » pour recommencer.";
+      }, 20_000);
+    }
+  }
+
+  // --- les dernières games de tout le monde ---
+  function rendreFailleFil() {
+    const z = $("faille-fil");
+    if (!z) return;
+    const f = infosFaille();
+    const l = f?.dernieres || [];
+    const cle = JSON.stringify([l.map((g) => [g.fin, g.nom, g.image]), f?.membres, Math.floor(Date.now() / 600_000)]);
+    if (cleFaille.fil === cle) return;
+    cleFaille.fil = cle;
+    vider(z,
+      el("div", { class: "fp-tete" },
+        el("h3", { text: "Les dernières games" }),
+        f?.membres ? el("span", { class: "etiquette", text: `${pluriel(f.membres, "compte")} relié${f.membres > 1 ? "s" : ""}` }) : null,
+      ),
+      l.length
+        ? el("div", { class: "fl-fil" }, l.map((g) => carteGame(g)))
+        : el("p", { class: "note", text: "Les games notées arrivent ici une dizaine de minutes après leur fin, avec leur note et ce qui l'explique." }),
+    );
+  }
+
+  // --- comment c'est noté ---
+  function rendreFailleRegles() {
+    const z = $("faille-regles");
+    if (!z) return;
+    const f = infosFaille();
+    const notes = f?.notes || [["S+", 10], ["S", 7], ["A", 5], ["B", 3], ["C", 1], ["D", 0]].map(([note, points]) => ({ note, points }));
+    const R = f?.recompenses || { "S+": { degats: 15, berrys: 40000 }, S: { degats: 10, berrys: 20000 }, A: { degats: 5, berrys: 8000 } };
+    const cle = JSON.stringify([notes, R, f?.meilleures, f?.bonusDuo]);
+    if (cleFaille.regles === cle) return;
+    cleFaille.regles = cle;
+    const recompense = (n) => (R[n] ? `${n} : −${R[n].degats} PV au boss, ${berrys(R[n].berrys)}` : "");
+    vider(z,
+      el("h3", { text: "Comment c'est noté" }),
+      el("ul", { class: "fr-echelle", "aria-label": "Les notes et leurs points" }, notes.map((n) => el("li", {}, tamponNote(n.note, "fl-note-petite"), el("b", { text: pluriel(n.points, "pt") })))),
+      el("ul", { class: "fr-regles" },
+        el("li", {}, el("strong", { text: "Selon ton rôle. " }), "Ta game est comparée à une bonne game de ton rôle : KDA, part des kills et des dégâts de ta team, CS et vision par minute, coups encaissés. Un support est jugé sur sa vision et ses assists, pas sur ses CS. La victoire donne un bonus."),
+        el("li", {}, el("strong", { text: "La qualité avant tout. " }), `Tes ${f?.meilleures || 10} meilleures games de la semaine comptent. +${f?.bonusDuo ?? 1} point quand tu joues avec un autre membre relié dans ta team.`),
+        el("li", {}, el("strong", { text: "Les games qui comptent. " }), "Classées solo/duo et flex, normales, parties rapides, jouées après avoir relié ton compte. Pas l'ARAM, pas l'Arena, pas les parties perso, pas les remakes."),
+        el("li", {}, el("strong", { text: "Dans la chasse. " }), `${["S+", "S", "A"].map(recompense).filter(Boolean).join(" ; ")} (les berrys, avec ton avis de recherche ; 6 games par jour).`),
+      ),
+      el("p", { class: "fr-mention", text: "Un défi entre potes, pas un classement officiel : pas de MMR, pas de rang. La Faille des potes n'est ni soutenue ni parrainée par Riot Games." }),
+    );
+  }
+
+  function rendreFaille() {
+    rendreFailleUne();
+    rendreFaillePodium();
+    rendreFailleMoi();
+    rendreFailleFil();
+    rendreFailleRegles();
+  }
+
   // ---------- chargement ----------
   function rendreTout() {
     rendreEntete();
@@ -3802,6 +4200,7 @@
     if (!tirageEnCours) { rendreAlbum(); rendreCollectionneurs(); if (!$("tirage")?.querySelector(".retourne")) rendreTirage(); }
     rendreJeux();
     rendreChasse();
+    rendreFaille();
   }
 
   async function charger() {
@@ -3829,6 +4228,7 @@
     chargerMesCartes();
     chargerMesJeux();
     chargerMaChasse();
+    chargerMaFaille();
   }
 
   function demarrer() {
