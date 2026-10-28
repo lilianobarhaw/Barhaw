@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="fr" class="sans-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valorant des potes · aperçu · Barhaw</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="Aperçu de la future partie VALORANT du site Barhaw (en attente de l'accord de Riot Games). Données d'exemple.">
+<meta name="theme-color" content="#ff4f9a">
+<link rel="icon" href="/img/favicon-32.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
+<link rel="stylesheet" href="/site.css">
+<script src="/site.js" defer></script>
+<style>
+/* la maquette Valorant : les mêmes pièces que La Faille (site.css), et quelques ajouts */
+.va-bandeau { display: grid; gap: 4px; margin: 0 0 30px; padding: 14px 18px; border-radius: 14px; border: 2px dashed rgba(255, 211, 107, 0.55); background: rgba(255, 211, 107, 0.07); }
+.va-bandeau strong { font-family: var(--fort); font-weight: 800; color: #ffe08a; }
+.va-bandeau span { color: var(--brume); font-size: 14px; }
+.va-bandeau [lang="en"] { color: var(--terne); font-size: 13px; }
+section.va-partie { padding-top: clamp(56px, 7vw, 84px); }
+.va-partie > h2 { margin: 0 0 6px; font-family: var(--titre); font-weight: 400; font-size: clamp(24px, 3vw, 34px); }
+.va-partie > p { margin: 0 0 20px; max-width: 70ch; color: var(--brume); }
+.va-etapes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; counter-reset: etape; }
+.va-etape { position: relative; display: grid; align-content: start; gap: 12px; padding: 44px 18px 20px; counter-increment: etape; }
+.va-etape::before {
+  content: counter(etape); position: absolute; left: 16px; top: -16px; display: grid; place-items: center; width: 40px; height: 40px; rotate: -6deg;
+  border-radius: 12px; border: 3px solid var(--encre); background: var(--degrade); box-shadow: 3px 3px 0 var(--encre);
+  font-family: var(--sfx); font-size: 22px; color: #fff; -webkit-text-stroke: 1px var(--encre);
+}
+.va-etape h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: 18px; line-height: 1.25; }
+.va-etape p { margin: 0; color: var(--brume); font-size: 14px; }
+.va-riot { display: grid; place-items: center; gap: 6px; min-height: 132px; padding: 14px; border-radius: 14px; border: 2px dashed var(--ligne); background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 12px, transparent 12px 24px); text-align: center; }
+.va-riot b { font-family: var(--fort); font-weight: 800; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brume); }
+.va-riot small { color: var(--terne); font-size: 12.5px; line-height: 1.45; }
+.va-accord { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: var(--papier); color: var(--encre); border: 2px solid var(--encre); box-shadow: 4px 4px 0 var(--violet); font-size: 13.5px; line-height: 1.5; }
+.va-accord label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; font-weight: 700; }
+.va-case { display: grid; place-items: center; width: 20px; height: 20px; margin-top: 2px; border-radius: 5px; border: 2px solid var(--encre); background: var(--rose); color: #fff; font-size: 13px; line-height: 1; }
+.va-accord p { margin: 0; color: #5a3c50; font-size: 12.5px; }
+.va-relie { display: grid; gap: 8px; }
+.va-relie .fm-stats b { font-size: 24px; }
+.btn-faux { pointer-events: none; }
+.fl-champ.agent img { object-fit: cover; object-position: 50% 12%; scale: 1.25; translate: 0 8%; background: #2a1230; }
+.fl-champ-grand.agent img { scale: 1.08; translate: 0 4%; object-position: 50% 10%; }
+.va-une { margin-top: 0; }
+.va-roles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.va-role { padding: 18px 18px 16px; }
+.va-role h3 { margin: 0 0 4px; font-family: var(--titre); font-weight: 400; font-size: 19px; }
+.va-role p { margin: 0; color: var(--brume); font-size: 13.5px; }
+.va-role ul { margin: 10px 0 0; padding-left: 18px; color: var(--brume); font-size: 13.5px; }
+.va-regles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.va-regles .carte { padding: 22px 22px 18px; }
+.va-regles h3 { margin: 0 0 10px; font-family: var(--titre); font-weight: 400; font-size: 19px; }
+.va-regles ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--brume); font-size: 14px; }
+.va-regles strong { color: var(--blanc); }
+.va-carte-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--terne); font-size: 12px; }
+@media (max-width: 1080px) { .va-etapes, .va-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .va-regles { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .va-etapes, .va-roles { grid-template-columns: minmax(0, 1fr); } .va-etape { padding-top: 40px; } }
+</style>
+</head>
+<body class="mentions">
+<canvas id="ciel" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="entete" id="entete">
+  <a class="logo" href="/" aria-label="Barhaw, retour au site">
+    <img src="/img/chopper-visage.jpg" alt="" width="36" height="36">
+    <span>BARHAW</span>
+  </a>
+  <div class="entete-droite">
+    <a class="btn btn-contour btn-petit" href="/#faille">← La Faille (LoL)</a>
+  </div>
+</header>
+
+<main id="contenu">
+  <div class="va-bandeau">
+    <strong>Aperçu · en attente de l'accord de Riot Games</strong>
+    <span>Cette partie n'est pas encore ouverte : elle montre ce que le site fera pour VALORANT, avec des joueurs et des games d'exemple. Rien n'est lu chez Riot ici.</span>
+    <span lang="en">Mockup of the upcoming VALORANT feature of the Barhaw community site, pending Riot Games approval. Example players and matches only; no Riot data is used on this page.</span>
+  </div>
+
+  <div class="entete-section">
+    <p class="surtitre revele">VALORANT</p>
+    <h1 class="titre-section revele">Valorant des <span class="degrade">potes.</span></h1>
+    <p class="sous revele">Le même défi que La Faille, pour VALORANT. Tu relies ton compte avec « Se connecter avec Riot ». Chacune de tes games reçoit une note de S+ à D selon le rôle de ton agent, les 10 meilleures de la semaine comptent, et le podium tombe le lundi. C'est un défi entre potes, sans MMR et sans rang.</p>
+  </div>
+
+  <!-- 1. relier son compte : la connexion Riot (RSO) et l'accord du joueur -->
+  <section class="va-partie" aria-labelledby="va-relier">
+    <h2 id="va-relier">Relier ton compte, en 4 étapes</h2>
+    <p>Personne n'est dans le défi sans l'avoir voulu. Barhaw ne voit jamais ton mot de passe : la connexion se fait chez Riot.</p>
+    <ol class="va-etapes">
+      <li class="carte va-etape revele">
+        <h3>Tu cliques sur « Se connecter avec Riot »</h3>
+        <p>Sur le site, dans la partie Valorant, une fois connecté avec Discord (pour savoir qui tu es sur le serveur).</p>
+        <span class="btn btn-plein btn-faux">Se connecter avec Riot</span>
+      </li>
+      <li class="carte va-etape revele">
+        <h3>Tu te connectes chez Riot</h3>
+        <p>Le site t'envoie sur la page officielle de Riot Games.</p>
+        <div class="va-riot" aria-label="Emplacement de la page de connexion de Riot Games">
+          <b>Page de connexion Riot Games</b>
+          <small>hébergée par Riot (RSO)<br>tu y entres tes identifiants, puis tu autorises Barhaw</small>
+        </div>
+      </li>
+      <li class="carte va-etape revele">
+        <h3>Tu acceptes de partager tes games</h3>
+        <p>De retour sur Barhaw, une dernière question, en clair :</p>
+        <div class="va-accord">
+          <label><span class="va-case" aria-hidden="true">✓</span>J'accepte que Barhaw lise mes games VALORANT et les affiche, avec mon pseudo Discord, sur le site et le Discord Barhaw.</label>
+          <p>Relier ton compte rend ces stats publiques pour la commu. Tu peux tout retirer à tout moment : tout est effacé.</p>
+          <span class="btn btn-plein btn-petit btn-faux">Relier mon compte</span>
+        </div>
+      </li>
+      <li class="carte va-etape revele">
+        <h3>C'est relié</h3>
+        <p>Tes prochaines games compétitives et non classées sont notées automatiquement, quelques minutes après leur fin.</p>
+        <div class="va-relie">
+          <div class="fm-stats">
+            <div><b>3ᵉ</b><span>sur 6</span></div>
+            <div><b>17</b><span>points</span></div>
+            <div><b>4</b><span>games</span></div>
+          </div>
+          <span class="fm-retirer">Retirer mon compte VALORANT</span>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 2. la game de la semaine -->
+  <section class="va-partie" aria-labelledby="va-une">
+    <h2 id="va-une">La game de la semaine</h2>
+    <p>La meilleure note de la semaine, en grand, avec ce qui l'explique.</p>
+    <div class="carte faille-une va-une revele">
+      <div class="fu-portrait">
+        <span class="concentration" aria-hidden="true"></span>
+        <div class="fu-cadre"><span class="fl-champ fl-champ-grand agent" title="Chamber"><b aria-hidden="true">Ch</b><img src="/img/agents/buste-1.webp" alt="Chamber" width="300" height="300" loading="lazy"></span></div>
+        <span class="fl-note n-splus fu-tampon">S+</span>
+        <span class="sfx fu-sfx" aria-hidden="true">ドン!</span>
+      </div>
+      <div class="fu-infos">
+        <p class="fu-surtitre">La game de la semaine</p>
+        <h3 class="fu-nom">Pote un<span class="fu-champion"> sur Chamber</span></h3>
+        <p class="fu-kda" aria-label="27 kills, 12 morts, 6 assists">27 / 12 / 6</p>
+        <p class="fu-meta">Sentinelle · Ascent · Victoire 13-9 · Compétition · il y a 2 jours</p>
+        <ul class="fu-bulles">
+          <li>ACS de 312</li>
+          <li>6 first bloods</li>
+          <li>31 % de headshots</li>
+        </ul>
+        <p class="fu-score"><span>Note</span><b>84/100</b><span>Points</span><b>+11</b><span class="fu-duo">en duo avec Pote trois</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. le classement de la semaine et les titres -->
+  <section class="va-partie" aria-labelledby="va-podium">
+    <h2 id="va-podium">Le podium de la semaine et les titres</h2>
+    <p>Les 10 meilleures games de chacun comptent. Remise à zéro le lundi à 0 h ; le premier reçoit le rôle « Carry de la semaine » sur le Discord.</p>
+    <div class="faille-grille">
+      <div class="carte faille-podium revele vu">
+        <div class="fp-tete"><h3>Le podium de la semaine</h3><span class="etiquette">Exemple</span></div>
+        <ol class="fp-podium" aria-label="Les trois premiers de la semaine">
+          <li class="fp-marche place-2"><div class="fp-joueur"><span class="fl-champ fp-champ agent" title="Sage"><b aria-hidden="true">Sa</b><img src="/img/agents/buste-7.webp" alt="Sage" width="120" height="120" loading="lazy"></span><strong class="fp-nom">Pote deux</strong><span class="fp-points"><b>21</b> pts</span><small>4 games · meilleure <span class="fl-note n-s fl-note-mini">S</span></small></div><div class="fp-socle"><span class="fp-rang">2</span></div></li>
+          <li class="fp-marche place-1"><div class="fp-joueur"><span class="fp-couronne" aria-hidden="true">👑</span><span class="fl-champ fp-champ agent" title="Chamber"><b aria-hidden="true">Ch</b><img src="/img/agents/buste-1.webp" alt="Chamber" width="120" height="120" loading="lazy"></span><strong class="fp-nom">Pote un</strong><span class="fp-points"><b>26</b> pts</span><small>5 games · meilleure <span class="fl-note n-splus fl-note-mini">S+</span></small></div><div class="fp-socle"><span class="fp-rang">1</span></div></li>
+          <li class="fp-marche place-3"><div class="fp-joueur"><span class="fl-champ fp-champ agent" title="Breach"><b aria-hidden="true">Br</b><img src="/img/agents/buste-3.webp" alt="Breach" width="120" height="120" loading="lazy"></span><strong class="fp-nom">Pote trois</strong><span class="fp-points"><b>17</b> pts</span><small>4 games · meilleure <span class="fl-note n-a fl-note-mini">A</span></small></div><div class="fp-socle"><span class="fp-rang">3</span></div></li>
+        </ol>
+        <ol class="fp-suite" start="4">
+          <li><span class="fp-suite-nom">Pote quatre</span><small>3 games</small><b>12 pts</b></li>
+          <li><span class="fp-suite-nom">Pote cinq</span><small>2 games</small><b>8 pts</b></li>
+        </ol>
+        <ul class="fp-titres" aria-label="Les titres de la semaine">
+          <li class="fp-titre titre-carry"><span class="fp-titre-nom">Carry de la semaine</span><strong>Pote un</strong><small>26 pts</small></li>
+          <li class="fp-titre"><span class="fp-titre-nom">Tireur d'élite</span><strong>Pote un</strong><small>31 % de headshots</small></li>
+          <li class="fp-titre"><span class="fp-titre-nom">Roi des first bloods</span><strong>Pote quatre</strong><small>9 first bloods</small></li>
+          <li class="fp-titre"><span class="fp-titre-nom">Le pilier</span><strong>Pote deux</strong><small>7 plants et désamorçages</small></li>
+          <li class="fp-titre"><span class="fp-titre-nom">L'ange gardien</span><strong>Pote trois</strong><small>41 assists</small></li>
+        </ul>
+      </div>
+      <div class="faille-cote">
+        <div class="carte faille-regles revele">
+          <h3>Comment c'est noté</h3>
+          <ul class="fr-echelle" aria-label="Les notes et leurs points">
+            <li><span class="fl-note n-splus fl-note-petite">S+</span><b>10 pts</b></li>
+            <li><span class="fl-note n-s fl-note-petite">S</span><b>7 pts</b></li>
+            <li><span class="fl-note n-a fl-note-petite">A</span><b>5 pts</b></li>
+            <li><span class="fl-note n-b fl-note-petite">B</span><b>3 pts</b></li>
+            <li><span class="fl-note n-c fl-note-petite">C</span><b>1 pt</b></li>
+            <li><span class="fl-note n-d fl-note-petite">D</span><b>0 pt</b></li>
+          </ul>
+          <ul class="fr-regles">
+            <li><strong>Selon le rôle de ton agent. </strong>Ta game est comparée à une bonne game de ce rôle (ci-dessous). La victoire donne un bonus.</li>
+            <li><strong>La qualité avant tout. </strong>Tes 10 meilleures games de la semaine comptent. +1 point quand tu joues avec un autre membre relié, dans ton équipe.</li>
+            <li><strong>Les games qui comptent. </strong>Compétition, non classée et partie rapide (Swiftplay). Pas le deathmatch, pas les parties personnalisées.</li>
+            <li><strong>Dans la chasse. </strong>Une game A, S ou S+ frappe le boss de la semaine et fait monter ton avis de recherche, comme pour LoL.</li>
+          </ul>
+          <p class="fr-mention">Un défi entre potes, pas un classement officiel : pas de MMR, pas de rang. Valorant des potes n'est ni soutenu ni parrainé par Riot Games.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. les dernières games -->
+  <section class="va-partie" aria-labelledby="va-games">
+    <h2 id="va-games">Les dernières games</h2>
+    <p>Chaque game en carte : l'agent, la note en tampon, le score de la map, et les raisons de la note.</p>
+    <div class="fl-fil">
+      <article class="fl-game n-s gagnee revele"><div class="fl-game-haut"><span class="fl-champ agent" title="Sage"><b aria-hidden="true">Sa</b><img src="/img/agents/buste-7.webp" alt="Sage" width="120" height="120" loading="lazy"></span><div class="fl-game-titre"><strong>Pote deux</strong><span>Sage · Sentinelle</span></div><span class="fl-note n-s">S</span></div><p class="fl-kda"><b>14 / 9 / 11</b><span class="fl-v">Victoire</span><small>13-10 · Lotus</small></p><ul class="fl-raisons"><li>4 plants et désamorçages</li><li>78 % des rounds utiles</li><li>ACS de 236</li></ul><p class="fl-game-pied"><b>+7 pts</b><time>il y a 25 min</time></p></article>
+      <article class="fl-game n-a gagnee revele"><div class="fl-game-haut"><span class="fl-champ agent" title="Breach"><b aria-hidden="true">Br</b><img src="/img/agents/buste-3.webp" alt="Breach" width="120" height="120" loading="lazy"></span><div class="fl-game-titre"><strong>Pote trois</strong><span>Breach · Initiateur</span></div><span class="fl-note n-a">A</span></div><p class="fl-kda"><b>16 / 14 / 12</b><span class="fl-v">Victoire</span><small>13-9 · Ascent</small></p><ul class="fl-raisons"><li>12 assists</li><li>ACS de 221</li></ul><p class="fl-game-pied"><b>+6 pts</b><span class="fl-duo">duo avec Pote un</span><time>il y a 2 h</time></p></article>
+      <article class="fl-game n-splus gagnee revele"><div class="fl-game-haut"><span class="fl-champ agent" title="Chamber"><b aria-hidden="true">Ch</b><img src="/img/agents/buste-1.webp" alt="Chamber" width="120" height="120" loading="lazy"></span><div class="fl-game-titre"><strong>Pote un</strong><span>Chamber · Sentinelle</span></div><span class="fl-note n-splus">S+</span></div><p class="fl-kda"><b>27 / 12 / 6</b><span class="fl-v">Victoire</span><small>13-9 · Ascent</small></p><ul class="fl-raisons"><li>ACS de 312</li><li>6 first bloods</li><li>31 % de headshots</li></ul><p class="fl-game-pied"><b>+11 pts</b><span class="fl-duo">duo avec Pote trois</span><time>il y a 2 h</time></p></article>
+      <article class="fl-game n-c perdue revele"><div class="fl-game-haut"><span class="fl-champ agent" title="Brimstone"><b aria-hidden="true">Bs</b><img src="/img/agents/buste-2.webp" alt="Brimstone" width="120" height="120" loading="lazy"></span><div class="fl-game-titre"><strong>Pote cinq</strong><span>Brimstone · Contrôleur</span></div><span class="fl-note n-c">C</span></div><p class="fl-kda"><b>9 / 16 / 7</b><span class="fl-d">Défaite</span><small>8-13 · Haven</small></p><ul class="fl-raisons"><li>une game difficile</li></ul><p class="fl-game-pied"><b>+1 pt</b><time>il y a 5 h</time></p></article>
+    </div>
+  </section>
+
+  <!-- 5. la note selon le rôle -->
+  <section class="va-partie" aria-labelledby="va-roles">
+    <h2 id="va-roles">La note, selon le rôle de l'agent</h2>
+    <p>Chaque stat est comparée à ce qu'on attend d'une bonne game de ce rôle, sur la durée de la game (par round). Les stats viennent seulement de la game elle-même, jamais d'un classement.</p>
+    <ul class="va-roles">
+      <li class="carte va-role revele"><h3>Duelliste</h3><p>Ouvrir les rounds et gagner les duels.</p><ul><li>ACS et kills par round</li><li>first bloods</li><li>% de headshots</li></ul></li>
+      <li class="carte va-role revele"><h3>Initiateur</h3><p>Préparer les entrées de l'équipe.</p><ul><li>assists par round</li><li>ACS</li><li>rounds utiles (kill, assist, survie)</li></ul></li>
+      <li class="carte va-role revele"><h3>Contrôleur</h3><p>Tenir la map pour l'équipe.</p><ul><li>assists et survie</li><li>rounds utiles</li><li>ACS</li></ul></li>
+      <li class="carte va-role revele"><h3>Sentinelle</h3><p>Tenir les sites et les plants.</p><ul><li>survie et rounds utiles</li><li>plants et désamorçages</li><li>ACS</li></ul></li>
+    </ul>
+  </section>
+
+  <!-- 6. ce qu'on fait, ce qu'on ne fait pas -->
+  <section class="va-partie" aria-labelledby="va-donnees">
+    <h2 id="va-donnees">Tes données, et ce qu'on ne fait pas</h2>
+    <div class="va-regles">
+      <div class="carte revele">
+        <h3>Ce que Barhaw garde</h3>
+        <ul>
+          <li>Ton pseudo Discord et le lien avec ton compte Riot, seulement si tu l'as relié toi-même.</li>
+          <li>Pour chacune de tes games des deux dernières semaines : l'agent, la map, le score, ton K/D/A et les quelques stats qui donnent la note.</li>
+          <li><strong>« Retirer mon compte »</strong> efface tout, tout de suite.</li>
+          <li>Sur le site et le Discord, tu apparais avec ton pseudo Discord. Ton Riot ID n'est montré qu'à toi.</li>
+        </ul>
+      </div>
+      <div class="carte revele">
+        <h3>Ce qu'on ne fait pas</h3>
+        <ul>
+          <li>Pas de MMR, pas d'Elo, pas de rang : seulement des notes de games, entre potes.</li>
+          <li>Jamais les stats d'un adversaire, ni avant ni pendant une game. Seuls les membres reliés apparaissent.</li>
+          <li>Rien en jeu, rien en direct pendant une partie : la note arrive après la fin.</li>
+          <li>Pas de paris, même pour du faux argent.</li>
+          <li>Pas les parties personnalisées, ni les joueurs que le jeu cache.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="pied">
+  <a class="logo" href="/"><img src="/img/chopper-visage.jpg" alt="" width="36" height="36" loading="lazy"><span>BARHAW</span></a>
+  <p class="pied-liens"><a href="/">← Retour au site</a><a href="/mentions">Mentions</a></p>
+  <p class="pied-petit">Valorant des potes a été créé dans le cadre de la politique « Legal Jibber Jabber » de Riot Games, avec des éléments appartenant à Riot Games. Riot Games ne soutient ni ne parraine ce projet. VALORANT et Riot Games sont des marques de Riot Games, Inc. Les images des agents sont celles de Riot Games.</p>
+</footer>
+</body>
+</html>
