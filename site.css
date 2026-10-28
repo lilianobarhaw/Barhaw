@@ -1901,6 +1901,77 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
   .fr-echelle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+
+/* --- en direct : qui est en game en ce moment --- */
+.compteur-direct { background: #2fbf71; box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.6); animation: fd-appel 1.8s ease-out infinite; }
+@keyframes fd-appel { 0% { box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.55); } 100% { box-shadow: 0 0 0 9px rgba(61, 220, 132, 0); } }
+.faille-direct {
+  position: relative; margin-bottom: 22px; padding: 16px 20px; border-radius: var(--rayon); overflow: hidden;
+  background: linear-gradient(170deg, rgba(36, 16, 41, 0.92), rgba(26, 10, 27, 0.92)); border: 2px solid var(--ligne-douce);
+  transition: border-color 0.4s, box-shadow 0.4s, opacity 0.9s var(--doux), transform 0.9s var(--doux);
+}
+.faille-direct.actif { border-color: rgba(61, 220, 132, 0.5); box-shadow: 0 0 0 1px rgba(61, 220, 132, 0.12), 0 0 46px rgba(61, 220, 132, 0.1), 5px 6px 0 rgba(26, 110, 66, 0.55); }
+.faille-direct.actif::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background: repeating-linear-gradient(90deg, transparent 0 22px, rgba(61, 220, 132, 0.06) 22px 23px);
+  -webkit-mask: linear-gradient(90deg, #000, transparent 70%); mask: linear-gradient(90deg, #000, transparent 70%);
+}
+.fd-tete { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.fd-direct {
+  display: inline-flex; align-items: center; gap: 8px; padding: 4px 11px 4px 9px; rotate: -2deg;
+  border: 2px solid var(--encre); border-radius: 8px; background: #3a1840; color: var(--terne); box-shadow: 3px 3px 0 var(--encre);
+  font-family: var(--fort); font-weight: 800; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.fd-direct::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.faille-direct.actif .fd-direct { background: #ff2d55; color: #fff; }
+.faille-direct.actif .fd-direct::before { animation: battre 1.1s ease-in-out infinite; }
+.fd-titre { margin: 0; font-family: var(--titre); font-weight: 400; font-size: 19px; line-height: 1.2; }
+.fd-aide { margin: 0 0 0 auto; color: var(--terne); font-size: 12.5px; }
+.fd-liste { position: relative; list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 12px; }
+.fd-carte {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; min-width: 0;
+  padding: 11px 14px 11px 11px; border-radius: 16px; background: var(--verre); border: 2px solid var(--ligne-douce);
+}
+.fd-carte.nouvelle { animation: bulle-pop 0.45s var(--rebond); }
+.fd-carte.en-game { border-color: rgba(61, 220, 132, 0.4); background: linear-gradient(120deg, rgba(61, 220, 132, 0.08), rgba(255, 170, 220, 0.04) 60%); }
+.fd-qui { display: grid; min-width: 0; line-height: 1.3; }
+.fd-qui strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--fort); font-weight: 800; font-size: 15.5px; }
+.fd-qui small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--terne); font-size: 12.5px; }
+/* le radar autour du champion : la game est en cours */
+.fd-radar { position: relative; display: grid; place-items: center; }
+.fd-radar::before, .fd-radar::after { content: ""; position: absolute; inset: -4px; border-radius: 17px; border: 2px solid rgba(61, 220, 132, 0.7); animation: fd-onde 2s ease-out infinite; pointer-events: none; }
+.fd-radar::after { animation-delay: 1s; }
+@keyframes fd-onde { 0% { opacity: 0.9; scale: 1; } 100% { opacity: 0; scale: 1.35; } }
+.fd-chrono { font-family: var(--sfx); font-size: 25px; line-height: 1; letter-spacing: 0.01em; color: #b6ffd8; -webkit-text-stroke: 1px var(--encre); text-shadow: 2px 2px 0 var(--encre); font-variant-numeric: tabular-nums; }
+.fd-chargement { font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #8ff0c4; animation: battre 1.4s ease-in-out infinite; }
+.fd-tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fd-tag { padding: 2px 9px; border-radius: 99px; background: rgba(209, 166, 255, 0.1); border: 1px solid rgba(209, 166, 255, 0.25); color: var(--brume); font-size: 12px; }
+.fd-tag.avec { border-color: rgba(61, 220, 132, 0.45); color: #b6ffd8; }
+.fd-tag.contre { border-color: rgba(255, 79, 154, 0.5); color: #ffc2dc; }
+.fd-live {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 99px; background: #9146ff; color: #fff;
+  border: 2px solid var(--encre); box-shadow: 2px 2px 0 var(--encre); font-family: var(--fort); font-weight: 800; font-size: 12px;
+  transition: transform 0.15s var(--doux), box-shadow 0.15s var(--doux);
+}
+.fd-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #ff2d55; box-shadow: 0 0 0 2px #fff; animation: battre 1.2s ease-in-out infinite; }
+.fd-live:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--encre); }
+/* une game finie : le tampon « ? » qui attend, puis la note qui claque */
+.fd-carte.attente { border-style: dashed; }
+.fd-carte.attente .fl-champ { filter: grayscale(0.6) brightness(0.85); }
+.fd-mystere { background: #3a1840; color: var(--violet-clair); font-size: 22px; animation: fd-hesite 1.6s ease-in-out infinite; }
+@keyframes fd-hesite { 0%, 100% { rotate: -7deg; } 50% { rotate: 5deg; } }
+.fd-arrive { color: var(--violet-clair); font-family: var(--fort); font-weight: 800; font-size: 12px; }
+.fd-arrive::after { content: "…"; display: inline-block; width: 1.2em; overflow: hidden; vertical-align: bottom; animation: fd-points 1.4s steps(4) infinite; }
+@keyframes fd-points { 0% { width: 0; } 100% { width: 1.2em; } }
+.fd-note { font-size: 22px; }
+.fd-carte.finie.tombe { animation: fl-choc 0.45s steps(5) 0.55s both; }
+.fd-carte.finie.tombe .fd-note { animation: fl-tampon 0.7s var(--rebond) 0.15s both; }
+@media (max-width: 560px) {
+  .faille-direct { padding: 14px 14px 16px; }
+  .fd-aide { margin-left: 0; flex-basis: 100%; }
+  .fd-liste { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ---------- les parties hors de l'écran : animations en pause ---------- */
 .hors-vue *, .hors-vue *::before, .hors-vue *::after { animation-play-state: paused !important; }
 /* une carte, un mème ou une vidéo en grand : la page dessous, cachée par le voile, s'arrête de bouger */

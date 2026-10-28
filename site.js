@@ -4176,7 +4176,118 @@
     );
   }
 
+
+  // --- en direct : qui est en game en ce moment, et la note qui tombe dès la fin ---
+  let failleVue = false;
+  let minuteurChrono = 0;
+  let premierDirect = true;
+  const notesVues = new Set(); // les games « juste finies » déjà montrées : la note ne claque qu'une fois
+  let cartesDirect = new Set(); // les cartes déjà affichées : seules les nouvelles arrivent en sautant
+  function chrono(debut) {
+    const s = Math.max(0, Math.floor((Date.now() - ms(debut)) / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h ? `${h}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : `${m}:${String(s % 60).padStart(2, "0")}`;
+  }
+  const carteEnGame = (x) => el("li", { class: "fd-carte en-game" },
+    el("span", { class: "fd-radar", "aria-hidden": "true" }, visageChampion(x)),
+    el("span", { class: "fd-qui" },
+      el("strong", { text: x.nom }),
+      el("small", { text: [x.champion, x.file].filter(Boolean).join(" · ") }),
+    ),
+    x.debut
+      ? el("span", { class: "fd-chrono", "data-debut": String(x.debut), title: "Depuis le début de la game", text: chrono(x.debut) })
+      : el("span", { class: "fd-chargement", text: "chargement" }),
+    (x.avec?.length || x.contre?.length || !x.compte || x.live)
+      ? el("span", { class: "fd-tags" },
+        x.avec?.length ? el("span", { class: "fd-tag avec", text: `avec ${x.avec.join(", ")}` }) : null,
+        x.contre?.length ? el("span", { class: "fd-tag contre", text: `contre ${x.contre.join(", ")}` }) : null,
+        !x.compte ? el("span", { class: "fd-tag", text: "ne compte pas" }) : null,
+        x.live && /^[a-z0-9_]{3,25}$/.test(x.twitch || "") ? el("a", { class: "fd-live", href: `https://www.twitch.tv/${x.twitch}`, ...externe, text: "Regarder son live" }) : null,
+      )
+      : null,
+  );
+  const carteAttente = (x) => el("li", { class: "fd-carte attente" },
+    visageChampion(x),
+    el("span", { class: "fd-qui" }, el("strong", { text: x.nom }), el("small", { text: [x.champion, "fin de game"].filter(Boolean).join(" · ") })),
+    el("span", { class: "fl-note fd-mystere", "aria-label": "La note arrive", text: "?" }),
+    el("span", { class: "fd-tags" }, el("span", { class: "fd-arrive", text: "la note arrive" })),
+  );
+  function carteFinie(g) {
+    const cle = `${g.nom}|${g.fin}`;
+    const tombe = !premierDirect && !notesVues.has(cle);
+    notesVues.add(cle);
+    return el("li", { class: `fd-carte finie${tombe ? " tombe" : ""}` },
+      visageChampion(g),
+      el("span", { class: "fd-qui" }, el("strong", { text: g.nom }), el("small", { text: `${g.champion} · ${kda(g)} · ${g.win ? "victoire" : "défaite"}` })),
+      tamponNote(g.note, "fd-note"),
+      el("span", { class: "fd-tags" }, el("span", { class: "fd-tag", text: `+${pluriel(g.points, "pt")} · ${ilYa(g.fin)}` })),
+    );
+  }
+  function rendreFailleDirect() {
+    const z = $("faille-direct");
+    if (!z) return;
+    const f = infosFaille();
+    const l = f?.enGame || [];
+    const att = f?.enAttente || [];
+    const finies = (f?.dernieres || []).filter((g) => Date.now() - ms(g.fin) < 30 * 60_000).slice(0, 4);
+    const compteur = $("compteur-faille");
+    if (compteur) { compteur.hidden = !l.length; compteur.textContent = l.length; }
+    z.hidden = !f?.actif;
+    if (!f?.actif) return;
+    const cle = JSON.stringify([l, att, finies.map((g) => [g.nom, g.fin, g.note]), Math.floor(Date.now() / 60_000)]);
+    if (cleFaille.direct === cle) return;
+    cleFaille.direct = cle;
+    z.classList.toggle("actif", l.length > 0);
+    const titre = l.length ? `${l.length === 1 ? "Un pote est" : `${l.length} potes sont`} en game` : att.length ? "Une game vient de finir" : "Personne en game pour l'instant";
+    vider(z,
+      el("div", { class: "fd-tete" },
+        el("span", { class: "fd-direct", text: "En direct" }),
+        el("h3", { class: "fd-titre", text: titre }),
+        el("p", { class: "fd-aide", text: l.length || att.length || finies.length ? "Mis à jour toutes les 2 min · la note tombe dès la fin" : "Ça s'allume dès qu'un pote lance une game." }),
+      ),
+      l.length || att.length || finies.length
+        ? el("ul", { class: "fd-liste" }, l.map(carteEnGame), att.map(carteAttente), finies.map(carteFinie))
+        : null,
+    );
+    const cles = [...l.map((x) => `g|${x.nom}|${x.debut}`), ...att.map((x) => `a|${x.nom}|${x.fin}`), ...finies.map((g) => `f|${g.nom}|${g.fin}`)];
+    z.querySelectorAll(".fd-carte").forEach((c, k) => { if (!premierDirect && !cartesDirect.has(cles[k])) c.classList.add("nouvelle"); });
+    cartesDirect = new Set(cles);
+    premierDirect = false;
+    clearInterval(minuteurChrono);
+    if (l.some((x) => x.debut)) {
+      minuteurChrono = setInterval(() => {
+        if (!failleVue || document.hidden) return;
+        const c = document.querySelectorAll("#faille-direct [data-debut]");
+        if (!c.length) return clearInterval(minuteurChrono);
+        for (const e of c) e.textContent = chrono(Number(e.dataset.debut));
+      }, 1000);
+    }
+  }
+  // pendant qu'on regarde La Faille et que quelqu'un joue : les nouvelles toutes les 20 s
+  async function rafraichirFaille() {
+    const avant = (infosFaille()?.dernieres || []).length + "|" + (infosFaille()?.dernieres?.[0]?.fin || 0);
+    try {
+      const r = await fetch("/api/public", { headers: { Accept: "application/json" } });
+      const d = await r.json();
+      if (d && typeof d === "object" && !d.horsLigne) donnees = recevoirPublic({ ...d, evenements: d.evenements || donnees?.evenements || evenementsSecours() });
+    } catch {}
+    rendreFaille();
+    const apres = (infosFaille()?.dernieres || []).length + "|" + (infosFaille()?.dernieres?.[0]?.fin || 0);
+    if (apres !== avant && maFaille?.lie) chargerMaFaille(); // une nouvelle note : peut-être la tienne
+  }
+  function suivreFaille() {
+    const s = $("faille");
+    if (!s || !("IntersectionObserver" in window)) return;
+    new IntersectionObserver((e) => { failleVue = e.some((x) => x.isIntersecting); }, { rootMargin: "200px 0px" }).observe(s);
+    setInterval(() => {
+      const f = infosFaille();
+      if (failleVue && !document.hidden && (f?.enGame?.length || f?.enAttente?.length)) rafraichirFaille();
+    }, 20_000);
+  }
+
   function rendreFaille() {
+    rendreFailleDirect();
     rendreFailleUne();
     rendreFaillePodium();
     rendreFailleMoi();
@@ -4260,6 +4371,7 @@
     chargerMoi();
     setInterval(charger, 60_000);
     suivreChasse();
+    suivreFaille();
     let dernierRetour = Date.now();
     document.addEventListener("visibilitychange", () => {
       if (document.hidden || Date.now() - dernierRetour < 15_000) return;
