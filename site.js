@@ -4417,6 +4417,447 @@
     rendreFailleRegles();
   }
 
+  // ---------- La Grand Line : le navire de la commu, d'île en île ----------
+  // Le bot fait tout le calcul (lib/navire.js) ; ici : la carte (en 3D avec js/grandline-3d.js, sinon en 2D),
+  // le cap, la mer (tempête, monstre, vent, bouteille), le vote aux carrefours, l'équipage et le journal de bord.
+  // Les places des îles sur la carte (x, z, et ce qu'il y a dessus) : les mêmes en 3D et en 2D.
+  const GL_PLACES = {
+    port: [-86, 30, "port"], moussaillons: [-72, 6, "plage"], recif: [-58, -26, "recif"], braise: [-36, -38, "volcan"], givre: [-42, 4, "glace"],
+    lucioles: [-20, -16, "lucioles"], champignons: [-6, 20, "champignons"], engloutie: [10, -10, "ruines"], vents: [12, 38, "moulins"],
+    marche: [28, 12, "marche"], arbre: [44, -22, "arbre"], ambre: [48, 32, "dunes"], phare: [64, 2, "phare"], tonnerre: [76, -28, "orage"], tresor: [86, 12, "tresor"],
+  };
+  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch" };
+  const GL_ACTIONS = [
+    ["💬", "Un message sur le Discord", "message", "par minute"],
+    ["🎙️", "Une minute en vocal à plusieurs", "vocal", "par personne"],
+    ["🎮", "Une partie sur un jeu du site", "partie", ""],
+    ["🃏", "La carte du jour (légendaire : beaucoup plus)", "carte", ""],
+    ["🍖", "Nourrir ou jouer avec Chopper", "chopper", ""],
+    ["⚔️", "L'attaque du jour contre le boss", "boss", ""],
+    ["🎯", "Une game de LoL sur la Faille (S+ : 40)", "faille", "selon la note"],
+    ["💜", "Twitch : le chat, les follows, les subs, les bits, les raids", "follow", "follow : 5, sub : 30"],
+  ];
+  let carteGL = null; // { type: "3d" | "2d", rendu }
+  let glVue = false;
+  let monNavire = null;
+  let glMessage = null;
+  let glOccupe = false;
+  let glAvant = null; // l'étape d'avant (pour « Terre en vue ! »)
+  let cleVerrou = "";
+  const infosGL = () => donnees?.grandline || null;
+  // La Grand Line ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
+  // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
+  const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
+  const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
+  const pourcentGL = (g) => Math.min(100, Math.floor((g.milles / Math.max(1, g.longueur)) * 100));
+  function quandGL(t) {
+    const d = new Date(t);
+    const jour = (x) => x.toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
+    const j = jour(d) === jour(new Date()) ? "aujourd'hui" : jour(d) === jour(new Date(Date.now() + 86_400_000)) ? "demain" : d.toLocaleDateString("fr-FR", { weekday: "long", timeZone: "Europe/Paris" });
+    return `${j} vers ${fmtHeure.format(d).replace(":", " h ")}`;
+  }
+
+  // avant l'ouverture : « accès restreint », avec le compte à rebours
+  function rendreVerrouGL() {
+    const scene = $("grandline-scene");
+    if (!scene) return;
+    const g = infosGL();
+    const t = g?.ouverture && g.ouvert === false ? g.ouverture : GL_OUVERTURE;
+    const cle = String(t);
+    let v = $("grandline-verrou");
+    if (v && cle === cleVerrou) return;
+    cleVerrou = cle;
+    if (!v) { v = el("div", { class: "gl-verrou", id: "grandline-verrou" }); scene.append(v); }
+    const quand = new Date(t);
+    const date = quand.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" });
+    vider(v,
+      el("span", { class: "gl-verrou-nuages", "aria-hidden": "true" }, ["☁️", "☁️", "☁️", "☁️", "☁️"].map((n) => el("i", { text: n }))),
+      el("span", { class: "gl-verrou-points", "aria-hidden": "true" }, ["?", "?", "?", "?", "?", "?"].map((n) => el("i", { text: n }))),
+      el("div", { class: "gl-verrou-carte" },
+        el("p", { class: "gl-verrou-tampon", text: "Accès restreint" }),
+        el("p", { class: "gl-sur", text: "La V3 du site" }),
+        el("h3", { class: "gl-verrou-titre" }, "La Grand Line ", el("span", { class: "degrade", text: "lève l'ancre" })),
+        el("p", { class: "gl-verrou-date", text: `${majuscule(date)} à ${fmtHeure.format(quand).replace(":", " h ")}` }),
+        rebours(t, true, "grandline", { fin: () => guetterOuvertureGL(), texteFin: "Le navire part !" }),
+        el("p", { class: "gl-texte", text: "Le navire de la commu attend au port. À l'ouverture, tout ce que vous faites sur le Discord, le site et Twitch le fera avancer, d'île en île, jusqu'au trésor. Prépare tes rames !" }),
+      ),
+    );
+  }
+  // à l'heure dite : on redemande au bot jusqu'à ce que le navire soit parti
+  let guetteGL = null;
+  function guetterOuvertureGL() {
+    if (guetteGL) return;
+    let n = 0;
+    guetteGL = setInterval(() => {
+      if (glOuvert() || ++n > 40) { clearInterval(guetteGL); guetteGL = null; return; }
+      charger();
+    }, 15_000);
+    charger();
+  }
+
+  function rendreGrandLine() {
+    const z = $("grandline-cap");
+    if (!z) return;
+    const g = infosGL();
+    const ouvert = glOuvert();
+    $("grandline")?.classList.toggle("gl-ferme", !ouvert);
+    const pastille = $("pastille-grandline");
+    if (pastille) pastille.hidden = ouvert;
+    if (!ouvert) {
+      rendreVerrouGL();
+      return;
+    }
+    $("grandline-verrou")?.remove();
+    cleVerrou = "";
+    if (glVue && !carteGL) preparerCarteGL();
+    // « Terre en vue ! » : une nouvelle île pendant la visite (ou il y a moins de 2 h, une fois par visite)
+    const derniere = g.escales?.[0];
+    if (glAvant && (g.voyage > glAvant.voyage || (g.voyage === glAvant.voyage && g.etape > glAvant.etape)) && derniere) terreEnVue(derniere);
+    else if (!glAvant && derniere && Date.now() - derniere.arrivee < 2 * 3600_000) terreEnVue(derniere);
+    glAvant = { voyage: g.voyage, etape: g.etape };
+    rendreCapGL(g);
+    rendreMerGL(g);
+    rendreEquipageGL(g);
+    rendreJournalGL(g);
+    rendreEscalesGL(g);
+    rendreMoiGL(g);
+    rendreHudGL(g);
+    if (carteGL) carteGL.rendu.maj(g);
+  }
+
+  function rendreHudGL(g) {
+    const h = $("grandline-hud");
+    if (!h) return;
+    const ev = g.evenement;
+    vider(h,
+      el("p", { class: "gl-badge" }, el("b", { text: `Voyage ${g.voyage}` }), ` · étape ${Math.min(g.etape + 1, g.etapes)}/${g.etapes}`),
+      ev ? el("p", { class: `gl-alerte gl-alerte-${ev.type}`, text: `${ev.emoji} ${ev.titre}` }) : g.vote ? el("p", { class: "gl-alerte gl-alerte-vote", text: "🗳️ Carrefour : la commu vote !" }) : null,
+      carteGL?.type === "3d" ? el("div", { class: "gl-vues" },
+        el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() !== "ensemble"), onclick: () => { carteGL.rendu.vue("navire"); rendreHudGL(g); }, text: "⛵ Le navire" }),
+        el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() === "ensemble"), onclick: () => { carteGL.rendu.vue("ensemble"); rendreHudGL(g); }, text: "🗺️ Toute la carte" }),
+      ) : null,
+    );
+  }
+
+  function rendreCapGL(g) {
+    const p = pourcentGL(g);
+    const cible = g.cible;
+    const titre = g.vote ? "Au carrefour : où va-t-on ?" : cible ? `Cap sur ${cible.nom}` : "En mer";
+    const details = [
+      `💨 ${nombre(g.vent)} milles/h`,
+      g.multiplicateur > 1 ? `×${String(g.multiplicateur).replace(".", ",")}${g.live ? " (le capitaine est en live !)" : ""}` : "",
+      g.estimation ? `arrivée ${quandGL(g.estimation)}` : "",
+    ].filter(Boolean);
+    vider($("grandline-cap"),
+      el("p", { class: "gl-sur", text: g.actif ? "Le navire de la commu" : "⚓ À l'ancre pour l'instant" }),
+      el("h3", { class: "gl-titre" }, cible && !g.vote ? el("span", { class: "gl-emoji", "aria-hidden": "true", text: cible.emoji }) : null, titre),
+      el("div", { class: "gl-barre", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(p), "aria-label": "L'étape en cours" },
+        el("i", { style: `--p:${p}%` }), el("span", { class: "gl-barre-navire", style: `--p:${p}%`, "aria-hidden": "true", text: "⛵" })),
+      el("p", { class: "gl-milles" }, el("b", { text: `${p} %` }), ` · ${nombre(g.milles)} / ${nombre(g.longueur)} milles${g.reserve ? ` · ${nombre(g.reserve)} en réserve` : ""}`),
+      el("p", { class: "gl-details", text: details.join(" · ") }),
+      cible?.texte && !g.vote ? el("p", { class: "gl-texte", text: cible.texte }) : null,
+      el("p", { class: "gl-total", text: `${pluriel(g.rameurs, "rameur")} cette étape · ${nombre(g.totalVoyage)} milles depuis le départ du voyage` }),
+    );
+  }
+
+  function rendreMerGL(g) {
+    const z = $("grandline-mer");
+    const ev = g.evenement;
+    const contenu = [];
+    if (g.vote) {
+      const total = Math.max(1, g.vote.total);
+      const mien = monNavire?.vote;
+      contenu.push(
+        el("p", { class: "gl-sur", text: "Le carrefour" }),
+        el("h3", { class: "gl-titre", text: "Où va le navire ?" }),
+        el("p", { class: "gl-texte", text: `Le navire attend à mi-chemin. Fin du vote ${quandGL(g.vote.fin)} : la majorité décide (en cas d'égalité, le hasard).` }),
+        el("div", { class: "gl-choix" }, g.vote.choix.map((c) => el("div", { class: `gl-option${mien === c.id ? " choisie" : ""}` },
+          el("p", { class: "gl-option-nom" }, el("span", { "aria-hidden": "true", text: c.emoji }), c.nom),
+          el("p", { class: "gl-option-texte", text: c.texte }),
+          el("div", { class: "gl-option-barre", "aria-hidden": "true" }, el("i", { style: `--p:${Math.round((c.voix / total) * 100)}%` })),
+          el("p", { class: "gl-option-voix", text: `${pluriel(c.voix, "voix").replace("voixs", "voix")}` }),
+          moi?.connecte
+            ? el("button", { type: "button", class: `btn ${mien === c.id ? "btn-plein" : "btn-contour"} btn-petit`, disabled: glOccupe, onclick: () => agirGL("grandline-voter", { choix: c.id }), text: mien === c.id ? "Ton choix ✓" : "Voter" })
+            : null,
+        ))),
+        moi?.connecte ? null : el("p", { class: "note" }, el("a", { href: "/api/auth/login", text: "Connecte-toi avec Discord" }), " pour voter (ou vote avec les boutons sur le Discord)."),
+      );
+    }
+    if (ev) {
+      const fin = `Fin ${quandGL(ev.fin)}`;
+      const barre = (v, max, texte) => [el("div", { class: "gl-barre gl-barre-ev" }, el("i", { style: `--p:${Math.min(100, Math.round((v / Math.max(1, max)) * 100))}%` })), el("p", { class: "gl-milles", text: texte })];
+      contenu.push(el("div", { class: `gl-ev gl-ev-${ev.type}` },
+        el("p", { class: "gl-sur", text: "En mer" }),
+        el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: ev.emoji }), ev.titre),
+        ev.type === "tempete" ? [el("p", { class: "gl-texte", text: "Les vagues ralentissent le navire de moitié. Ramez assez avant la fin pour la traverser : le navire avancera d'autant en plus !" }), ...barre(ev.avance, ev.objectif, `${nombre(ev.avance)} / ${nombre(ev.objectif)} milles ramés · ${fin}`)] : null,
+        ev.type === "monstre" ? [el("p", { class: "gl-texte", text: "Le navire est bloqué tant qu'il est là ! Chaque mille ramé est un coup. Repoussez-le pour un gros bonus." }), ...barre(ev.pv, ev.pvMax, `${nombre(ev.pv)} / ${nombre(ev.pvMax)} PV · ${fin}`)] : null,
+        ev.type === "vent" ? el("p", { class: "gl-texte", text: `Tout ce que vous faites compte une fois et demie ! ${fin}.` }) : null,
+        ev.type === "bouteille" ? [
+          el("p", { class: "gl-texte", text: `Elle flotte à côté du navire. Le premier qui l'ouvre gagne ce qu'il y a dedans (et le navire avance) ! ${fin}.` }),
+          moi?.connecte ? el("button", { type: "button", class: "btn btn-plein gl-ouvrir", disabled: glOccupe, onclick: () => agirGL("grandline-bouteille"), text: "🍾 Ouvrir la bouteille" })
+            : el("p", { class: "note" }, el("a", { href: "/api/auth/login", text: "Connecte-toi avec Discord" }), " pour l'ouvrir (ou avec le bouton sur le Discord)."),
+        ] : null,
+      ));
+    }
+    if (!contenu.length) {
+      contenu.push(
+        el("p", { class: "gl-sur", text: "La mer" }),
+        el("h3", { class: "gl-titre", text: "Mer calme" }),
+        el("p", { class: "gl-texte", text: "Pour l'instant, rien à l'horizon… Mais une tempête, un monstre marin, un coup de vent ou une bouteille à la mer peuvent arriver à tout moment." }),
+      );
+    }
+    if (glMessage) contenu.push(el("p", { class: `gl-message${glMessage.erreur ? " erreur" : ""}`, role: "status", text: glMessage.texte }));
+    vider(z, contenu);
+  }
+
+  function rameur(x, k) {
+    return el("li", { class: `gl-rameur${k < 3 ? ` podium-${k + 1}` : ""}` },
+      el("span", { class: "gl-rang", text: k < 3 ? ["🥇", "🥈", "🥉"][k] : `${k + 1}` }),
+      x.twitch ? el("span", { class: "gl-avatar gl-avatar-twitch", "aria-hidden": "true", text: "💜" }) : el("img", { class: "gl-avatar", src: lienSur(x.avatar) || "/img/chopper-visage.jpg", alt: "", width: 34, height: 34, loading: "lazy" }),
+      el("span", { class: "gl-nom", text: x.nom }),
+      el("b", { text: `${nombre(x.milles)} milles` }),
+    );
+  }
+  function rendreEquipageGL(g) {
+    const sources = Object.entries(g.sources || {}).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+    const max = Math.max(1, ...sources.map(([, v]) => v));
+    vider($("grandline-equipage"),
+      el("p", { class: "gl-sur", text: "L'équipage" }),
+      el("h3", { class: "gl-titre", text: "Ceux qui rament cette étape" }),
+      g.equipage.length ? el("ol", { class: "gl-rameurs" }, g.equipage.map(rameur)) : el("p", { class: "vide", text: "Personne n'a encore ramé cette étape. Un message sur le Discord suffit pour monter à bord !" }),
+      sources.length ? el("div", { class: "gl-sources" }, el("p", { class: "gl-petit-titre", text: "D'où viennent les milles" }), sources.map(([k, v]) => el("p", { class: "gl-source" },
+        el("span", { text: GL_SOURCES[k] || k }), el("i", { "aria-hidden": "true", style: `--part:${Math.max(4, Math.round((v / max) * 100))}%` }), el("b", { text: nombre(v) })))) : null,
+    );
+  }
+  function rendreJournalGL(g) {
+    vider($("grandline-journal"),
+      el("p", { class: "gl-sur", text: "Le journal de bord" }),
+      el("h3", { class: "gl-titre", text: "Ce qui s'est passé" }),
+      g.journal.length ? el("ul", { class: "gl-journal-liste" }, g.journal.slice(0, 10).map((j) => el("li", { class: `gl-ligne gl-ligne-${j.type}` }, el("time", { datetime: new Date(j.t).toISOString(), text: ilYa(j.t) }), el("span", { text: j.texte })))) : el("p", { class: "vide", text: "Le journal est encore vierge." }),
+    );
+  }
+  function rendreEscalesGL(g) {
+    const z = $("grandline-escales");
+    if (!z) return;
+    vider(z,
+      el("p", { class: "gl-sur", text: "Les escales" }),
+      el("h3", { class: "gl-titre", text: "Les îles atteintes" }),
+      g.escales.length ? el("ul", { class: "gl-escales-liste" }, g.escales.slice(0, 8).map((e) => el("li", {},
+        el("span", { class: "gl-emoji", "aria-hidden": "true", text: e.emoji }),
+        el("span", {}, el("b", { text: e.nom }), el("small", { text: `${e.tresor ? "💰 Trésor trouvé · " : ""}voyage ${e.voyage} · ${ilYa(e.arrivee)}${e.navigateur ? ` · 🧭 ${e.navigateur}` : ""}` })),
+      ))) : el("p", { class: "vide", text: "Aucune île encore : le navire vient de quitter Port Barhaw." }),
+    );
+  }
+  function rendreMoiGL(g) {
+    const z = $("grandline-moi");
+    if (!moi?.connecte) {
+      vider(z, el("p", { class: "gl-sur", text: "Toi" }), el("h3", { class: "gl-titre", text: "Monte à bord" }),
+        el("p", { class: "gl-texte", text: "Pas besoin de s'inscrire : tout ce que tu fais sur le Discord et ici fait déjà ramer le navire. Connecte-toi pour voir combien tu as ramé et voter aux carrefours." }),
+        el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Connexion avec Discord" }));
+      return;
+    }
+    const m = monNavire;
+    vider(z, el("p", { class: "gl-sur", text: "Toi" }), el("h3", { class: "gl-titre", text: m?.etape ? "Tu rames !" : "À tes rames !" }),
+      m ? el("div", { class: "gl-moi-chiffres" },
+        el("p", {}, el("b", { text: nombre(m.etape) }), el("span", { text: `milles cette étape${m.rang ? ` (${m.rang}e)` : ""}` })),
+        el("p", {}, el("b", { text: nombre(m.voyage) }), el("span", { text: "milles ce voyage" })),
+        el("p", {}, el("b", { text: nombre(m.total) }), el("span", { text: "milles en tout" })),
+      ) : el("p", { class: "gl-texte", text: "Chargement de ce que tu as ramé…" }),
+      el("p", { class: "note", text: "Le butin de chaque île va à ceux qui ont ramé, selon leur part (en berrys, sur ton avis de recherche de la Chasse). Celui qui a le plus ramé devient le Navigateur de l'île." }),
+    );
+  }
+  function rendreRamerGL() {
+    const z = $("grandline-ramer");
+    if (!z || z.childElementCount) return;
+    vider(z, el("p", { class: "gl-sur", text: "Comment ramer" }), el("h3", { class: "gl-titre", text: "Ce qui fait avancer le navire" }),
+      el("ul", { class: "gl-ramer-liste" }, GL_ACTIONS.map(([e, t, , x]) => el("li", {}, el("span", { "aria-hidden": "true", text: e }), el("span", { text: t }), x ? el("small", { text: x }) : null))),
+      el("p", { class: "note", text: "Pendant les lives de Liliano : vent arrière, tout compte double. Les messages ne sont jamais lus, seulement comptés." }));
+  }
+
+  async function agirGL(action, extra = {}) {
+    if (glOccupe || !glOuvert()) return;
+    glOccupe = true;
+    glMessage = null;
+    const g = infosGL();
+    if (g) rendreMerGL(g);
+    let d = {};
+    let status = 0;
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      status = r.status;
+      d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
+    } catch {
+      d = { erreur: "Impossible de joindre le navire. Vérifie ta connexion." };
+    }
+    glOccupe = false;
+    if (status === 401) { moi = { connecte: false }; rendreCompte(); }
+    if (d.navire) monNavire = d.navire;
+    if (d.grandline && donnees) donnees = { ...donnees, grandline: d.grandline };
+    if (action === "grandline-bouteille" && d.ok) glMessage = { texte: `🍾 Dedans : ${d.message} Le navire avance de ${nombre(d.milles)} milles${d.berrys ? `, et tu gagnes ${berrys(d.berrys)}` : ""} !` };
+    else if (action === "grandline-voter" && d.ok) glMessage = { texte: `🗳️ ${d.change ? "Vote changé" : "C'est noté"} ! Tu peux changer d'avis jusqu'à la fin du vote.` };
+    else if (d.erreur && action !== "grandline") glMessage = { texte: d.erreur === "pas-membre" ? "Rejoins le Discord Barhaw pour monter à bord." : d.texte || d.erreur, erreur: true };
+    if (infosGL()) rendreGrandLine();
+  }
+  async function chargerMonNavire() {
+    if (!moi?.connecte) { monNavire = null; if (infosGL()) rendreMoiGL(infosGL()); return; }
+    await agirGL("grandline");
+  }
+
+  // « Terre en vue ! » : tout l'écran, comme le début du live, avec l'île atteinte
+  function terreEnVue(e) {
+    const cle = `barhaw-terre:${e.voyage}-${e.etape}`;
+    if (lireSession(cle) === "vu" || reduit.matches) return;
+    ecrireSession(cle, "vu");
+    if (document.hidden) { document.addEventListener("visibilitychange", () => terreEnVue({ ...e, force: true }), { once: true }); return; }
+    if (document.querySelector(".choc-live")) return;
+    const o = el("div", { class: "choc-live choc-terre", "aria-hidden": "true" },
+      el("span", { class: "choc-lignes" }),
+      el("span", { class: "sfx tremble choc-sfx", text: "ドドン" }),
+      el("span", { class: "choc-tampon", text: e.tresor ? "TRÉSOR !!" : "TERRE EN VUE !" }),
+      el("span", { class: "choc-ile", text: `${e.emoji} ${e.nom}` }),
+    );
+    document.body.append(o);
+    setTimeout(() => o.remove(), 2600);
+  }
+
+  // ---------- la carte : 3D si l'appareil peut, sinon 2D ----------
+  function infoIleGL(id) {
+    const g = infosGL();
+    const z = $("grandline-info");
+    if (!g || !z) return;
+    const e = g.route.flat().find((x) => x.id === id);
+    if (!e) return;
+    const inconnue = e.etat === "inconnue" || e.etat === "ecartee";
+    vider(z,
+      el("button", { type: "button", class: "gl-info-fermer", "aria-label": "Fermer", onclick: () => { z.hidden = true; }, text: "✕" }),
+      el("p", { class: "gl-sur", text: e.etat === "atteinte" ? "Île atteinte" : e.etat === "cible" ? "Prochaine île" : e.etat === "vote" ? "Au vote" : e.etat === "ecartee" ? "Une autre fois" : "Île inconnue" }),
+      el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: inconnue ? "❓" : e.emoji }), inconnue ? "???" : e.nom),
+      el("p", { class: "gl-texte", text: inconnue ? (e.etat === "ecartee" ? "La commu a choisi une autre route. Peut-être au prochain voyage !" : "Une île encore cachée dans les nuages. Ramez pour la découvrir !") : e.texte }),
+      e.arrivee ? el("p", { class: "gl-details", text: `Atteinte ${ilYa(e.arrivee)}${e.navigateur ? ` · 🧭 Navigateur : ${e.navigateur}` : ""}${e.rameurs ? ` · ${pluriel(e.rameurs, "rameur")}` : ""}` }) : null,
+    );
+    z.hidden = false;
+  }
+  async function preparerCarteGL() {
+    const zone = $("grandline-carte");
+    if (!zone || carteGL || preparationGL) return;
+    preparationGL = true;
+    try { await preparerCarteGLVraiment(zone); } finally { preparationGL = false; }
+  }
+  let preparationGL = false;
+  async function preparerCarteGLVraiment(zone) {
+    const choix3d = new URLSearchParams(location.search).get("3d");
+    if (choix3d !== "non" && !navigator.connection?.saveData && !reduit.matches) {
+      try {
+        const essai = document.createElement("canvas").getContext("webgl2");
+        const info = essai?.getExtension("WEBGL_debug_renderer_info");
+        const logiciel = info && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(essai.getParameter(info.UNMASKED_RENDERER_WEBGL)));
+        essai?.getExtension("WEBGL_lose_context")?.loseContext();
+        if (essai && (!logiciel || choix3d === "oui")) {
+          const { creerGrandLine3D } = await import("/js/grandline-3d.js");
+          const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de la Grand Line en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
+          vider(zone, toile);
+          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), surIle: infoIleGL, surBouteille: () => (moi?.connecte ? agirGL("grandline-bouteille") : (glMessage = { texte: "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
+          if (choix3d !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
+          toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passerCarte2D(); });
+          carteGL = { type: "3d", rendu };
+          tailleCarteGL();
+          if (infosGL()) rendu.maj(infosGL());
+          if (glVue) rendu.demarrer();
+          $("grandline-scene")?.classList.add("en-3d");
+          if (choix3d) window.__grandline3d = rendu; // pour les essais (?3d=oui)
+          rendreHudGL(infosGL() || { voyage: 1, etape: 0, etapes: 11 });
+          return;
+        }
+      } catch {}
+    }
+    passerCarte2D();
+  }
+  function passerCarte2D() {
+    if (carteGL?.type === "3d") { try { carteGL.rendu.detruire(); } catch {} }
+    $("grandline-scene")?.classList.remove("en-3d");
+    vider($("grandline-etiquettes"));
+    carteGL = { type: "2d", rendu: carte2D($("grandline-carte")) };
+    if (infosGL()) carteGL.rendu.maj(infosGL());
+  }
+  function tailleCarteGL() {
+    const z = $("grandline-carte");
+    if (carteGL?.type === "3d" && z) carteGL.rendu.taille(z.clientWidth, z.clientHeight);
+  }
+
+  // la carte en 2D (SVG) : la même carte, à plat, pour les appareils sans 3D et les mouvements réduits
+  function carte2D(zone) {
+    const NS = "http://www.w3.org/2000/svg";
+    const s = (tag, attrs = {}, ...enfants) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); e.append(...enfants.flat().filter(Boolean)); return e; };
+    const X = (x) => x + 118;
+    const Y = (z) => z + 73;
+    return {
+      maj(g) {
+        const pos = (id) => GL_PLACES[id] || [0, 0];
+        const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de la Grand Line : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
+        svg.append(s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl-svg-mer" }));
+        const traits = s("g", { class: "gl-svg-route" });
+        let navire = null;
+        g.route.forEach((etape, k) => {
+          if (!k) return;
+          const avant = g.route[k - 1].find((x) => x.etat === "atteinte" || x.etat === "cible") ? [g.route[k - 1].find((x) => x.etat === "atteinte" || x.etat === "cible")] : g.route[k - 1].filter((x) => x.etat !== "ecartee");
+          for (const a of avant) for (const b of etape.filter((x) => x.etat !== "ecartee")) {
+            const [ax, az] = pos(a.id);
+            const [bx, bz] = pos(b.id);
+            const d = `M${X(ax)} ${Y(az)} Q${X((ax + bx) / 2 - (bz - az) * 0.15)} ${Y((az + bz) / 2 + (bx - ax) * 0.15)} ${X(bx)} ${Y(bz)}`;
+            const fait = k <= g.etape;
+            const courante = k === g.etape + 1;
+            const chemin = s("path", { d, class: fait ? "fait" : courante ? "courante" : "loin" });
+            traits.append(chemin);
+            if (courante && (!g.vote || b === etape[0])) navire ||= { chemin, p: g.vote ? Math.min(0.5, g.milles / g.longueur) : g.milles / g.longueur };
+          }
+        });
+        svg.append(traits);
+        for (const e of g.route.flat()) {
+          const [x, z] = pos(e.id);
+          const inconnue = e.etat === "inconnue" || e.etat === "ecartee";
+          svg.append(s("g", { class: `gl-svg-ile ${e.etat}`, transform: `translate(${X(x)} ${Y(z)})` },
+            s("circle", { r: 6.5 }),
+            s("text", { y: 2.2, class: "gl-svg-emoji" }, inconnue ? "☁️" : e.emoji),
+            inconnue ? null : s("text", { y: 11.5, class: "gl-svg-nom" }, e.nom.replace(/^(L'|Le |La |Les )/, "")),
+          ));
+        }
+        vider(zone, svg);
+        if (navire) {
+          const L = navire.chemin.getTotalLength();
+          const p = navire.chemin.getPointAtLength(L * Math.min(1, navire.p));
+          svg.append(s("g", { class: "gl-svg-navire", transform: `translate(${p.x} ${p.y})` }, s("text", { y: 2, text: "" }, "⛵")));
+        }
+      },
+      taille() {},
+      detruire() { vider(zone); },
+    };
+  }
+
+  function suivreGrandLine() {
+    rendreRamerGL();
+    const s = $("grandline");
+    if (!s) return;
+    window.addEventListener("resize", () => tailleCarteGL());
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver((entrees) => {
+        for (const e of entrees) {
+          glVue = e.isIntersecting;
+          if (glVue && !carteGL && glOuvert()) preparerCarteGL();
+          if (carteGL?.type === "3d") { if (glVue && !document.hidden) carteGL.rendu.demarrer(); else carteGL.rendu.arreter(); }
+        }
+      }, { rootMargin: "300px 0px" }).observe(s);
+    } else { glVue = true; if (glOuvert()) preparerCarteGL(); }
+    document.addEventListener("visibilitychange", () => {
+      if (carteGL?.type !== "3d") return;
+      if (!document.hidden && glVue) carteGL.rendu.demarrer(); else carteGL.rendu.arreter();
+    });
+    // pendant un vote ou un événement en mer, la page se met à jour plus souvent quand la carte est à l'écran
+    setInterval(() => {
+      const g = infosGL();
+      if (glVue && !document.hidden && (g?.vote || g?.evenement)) charger();
+    }, 30_000);
+  }
+
   // ---------- chargement ----------
   function rendreTout() {
     rendreEntete();
@@ -4435,6 +4876,7 @@
     rendreJeux();
     rendreChasse();
     rendreFaille();
+    rendreGrandLine();
   }
 
   async function charger() {
@@ -4463,6 +4905,7 @@
     chargerMesJeux();
     chargerMaChasse();
     chargerMaFaille();
+    chargerMonNavire();
   }
 
   function demarrer() {
@@ -4495,6 +4938,7 @@
     setInterval(charger, 60_000);
     suivreChasse();
     suivreFaille();
+    suivreGrandLine();
     let dernierRetour = Date.now();
     document.addEventListener("visibilitychange", () => {
       if (document.hidden || Date.now() - dernierRetour < 15_000) return;
