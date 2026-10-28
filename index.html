@@ -43,7 +43,7 @@
     <a href="#cartes" data-lien="cartes">Cartes</a>
     <a href="#jeux" data-lien="jeux">Jeux</a>
     <a href="#chasse" data-lien="chasse">Chasse</a>
-    <a href="#faille" data-lien="faille">Faille</a>
+    <a href="#faille" data-lien="faille">Faille <span class="compteur compteur-direct" id="compteur-faille" title="En game maintenant" hidden></span></a>
     <a href="#discord" data-lien="discord" class="nav-discord">Discord</a>
     <div class="compte compte-menu" id="compte-menu"></div>
   </nav>
@@ -312,8 +312,9 @@
     <div class="entete-section">
       <p class="surtitre revele">League of Legends</p>
       <h2 class="titre-section revele" id="titre-faille">La Faille des <span class="degrade">potes.</span></h2>
-      <p class="sous revele">Relie ton compte LoL : chacune de tes games reçoit une note de S+ à D, selon ton rôle. Les 10 meilleures de la semaine comptent, le podium tombe le lundi, et une bonne game frappe aussi le boss.</p>
+      <p class="sous revele">Relie ton compte LoL : chacune de tes games reçoit une note de S+ à D, selon ton rôle. Les 10 meilleures de la semaine comptent, le podium tombe le lundi, et une bonne game frappe aussi le boss. Et en direct : qui est en game en ce moment, et la note dès la fin.</p>
     </div>
+    <div class="faille-direct revele" id="faille-direct" aria-live="polite"></div>
     <div class="carte faille-une revele" id="faille-une"></div>
     <div class="faille-grille">
       <div class="carte faille-podium revele" id="faille-podium"></div>
