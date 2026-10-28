@@ -16,6 +16,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `api/auth/login.js`, `api/auth/callback.js` | La connexion avec Discord (seulement le pseudo et l'image de profil) ; `/api/auth/logout` pour sortir |
 | `lib/session.js` | Session signée (cookie HttpOnly, 30 jours), cookies |
 | `lib/bot.js` | Les demandes au bot, signées avec `BOT_CLE` |
+| `js/course-3d.js`, `js/three-r170.module.min.js` | La course de Chopper en 3D (chargée seulement à l'approche des jeux) et three.js, la bibliothèque 3D (licence MIT) |
 | `img/` | Chopper (ta photo), les icônes, l'aperçu des liens (`og-barhaw.png`, ta pp dans une case de manga : c'est l'image qui s'affiche quand on colle le lien du site sur Discord ou ailleurs) |
 | `vercel.json` | Adresses propres, en-têtes de sécurité, accès bloqué à `/lib`, `/README.md`, `/package.json` |
 
@@ -56,6 +57,7 @@ Si le site change d'adresse (domaine à toi, autre nom de projet) : changer `SIT
   - Docteur Chopper : 45 s pour soigner le plus de patients (les mèmes) avec le bon remède (touches 1 à 8 au clavier).
   - Le Memory des mèmes : retrouver les 8 paires en un minimum de coups et de temps.
   - La course de Chopper : il court sur le pont du navire, de plus en plus vite (9 → 23 m/s) ; on saute (clic, toucher ou Espace, plus haut en restant appuyé) par-dessus les tonneaux, les caisses et les mouettes basses, et on reste au sol pour les boulets et les mouettes hautes. Obstacles tirés au hasard, un seul choc et c'est fini ; le score est la distance, vérifiée par le bot.
+    Elle est en 3D (pont, mer, mâts et obstacles en volume, ombres en trame de points et contours à l'encre ; Chopper reste sa photo en médaillon) : `js/course-3d.js` ne fait que dessiner ce que calcule le moteur de `site.js`, avec three.js r170 rangé à côté (`js/three-r170.module.min.js`, licence MIT). La 3D ne se charge qu'à l'approche des jeux, et la course reste en 2D sur les appareils sans carte graphique, s'ils peinent (moins de 24 images par seconde), en mode « économie de données », ou avec `?3d=non` dans l'adresse (`?3d=oui` la force, pour les essais).
 
   Pour chaque jeu (et chaque niveau du quiz) : record, classement de la semaine, et 1 éclat pour les cartes par jour et par jeu pour un bon score, 2 éclats par jour au plus. Les questions se changent dans le bot (`lib/quiz-one-piece.js`), les règles dans `lib/arcade.js`.
 - **La chasse** (`/#chasse`) :

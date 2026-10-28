@@ -1303,6 +1303,9 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .co-scene { position: relative; overflow: hidden; border-radius: 14px; background: #1c0a26; border: 3px solid var(--encre); box-shadow: 0 0 0 2px var(--ligne), 6px 6px 0 2px var(--ombre); }
 .co-canvas { display: block; width: 100%; height: auto; aspect-ratio: 640 / 280; cursor: pointer; touch-action: pan-y; -webkit-tap-highlight-color: transparent; user-select: none; }
 .co-scene.en-jeu .co-canvas { cursor: default; touch-action: none; }
+/* la course en 3D : le monde est dessiné dessous, les compteurs restent sur le canvas transparent par-dessus */
+.co-3d { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.co-scene.en-3d .co-canvas { position: relative; }
 .co-sfx { right: 9%; top: 22%; --r: -8deg; font-size: 46px; }
 .co-depart {
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
