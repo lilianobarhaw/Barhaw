@@ -624,6 +624,109 @@
     z.hidden = false;
   }
 
+  // ---------- un pote lance son live : une case manga surgit en bas de l'écran ----------
+  // Une case à la fois (les autres attendent leur tour), et jamais deux fois le même live pendant la visite.
+  // Au premier chargement : seulement les lives lancés il y a moins de 10 min. Ensuite : ceux qui apparaissent (moins de 30 min).
+  let potesAvant = null; // null : premier chargement
+  const filePotes = [];
+  let poteAffiche = null;
+  const clePote = (a) => `${a.login}|${a.depuis || "live"}`;
+
+  function surveillerPotes() {
+    const amis = donnees?.amis;
+    if (!Array.isArray(amis) || donnees.horsLigne) return;
+    const premier = potesAvant === null;
+    const enLive = new Map();
+    for (const a of amis) if (a?.enLive && a.login) enLive.set(clePote(a), a);
+    for (const [cle, a] of enLive) {
+      if (!premier && potesAvant.has(cle)) continue;
+      const debut = a.depuis ? ms(a.depuis) : NaN;
+      const age = Number.isFinite(debut) ? Date.now() - debut : (premier ? Infinity : 0);
+      if (age > (premier ? 10 : 30) * 60_000) continue;
+      if (lireSession(`barhaw-pote:${cle}`) || poteAffiche?.cle === cle || filePotes.some((p) => p.cle === cle)) continue;
+      filePotes.push({ cle, login: a.login, debut: Number.isFinite(debut) ? debut : Date.now() });
+    }
+    potesAvant = new Set(enLive.keys());
+    filePotes.sort((x, y) => x.debut - y.debut); // dans l'ordre où ils ont lancé leur live
+    filePotes.splice(0, Math.max(0, filePotes.length - 4)); // pas plus de 4 qui attendent : les plus récents
+    montrerPote();
+  }
+
+  function montrerPote() {
+    const z = $("pote-live");
+    if (!z || poteAffiche || document.hidden) return; // onglet caché : on attend qu'il revienne
+    let a = null;
+    let suivant = null;
+    while (!a && filePotes.length) {
+      suivant = filePotes.shift();
+      a = (donnees?.amis || []).find((p) => p?.enLive && p.login === suivant.login && clePote(p) === suivant.cle);
+    }
+    if (!a) return;
+    ecrireSession(`barhaw-pote:${suivant.cle}`, "vu");
+    poteAffiche = { cle: suivant.cle };
+    const nom = a.nom || a.login;
+    const debut = a.depuis ? ms(a.depuis) : NaN;
+    const minutes = Number.isFinite(debut) ? Math.max(0, Math.floor((Date.now() - debut) / 60_000)) : 0;
+    const quand = minutes < 5 ? "vient de lancer son live" : `en live depuis ${minutes} min`;
+    const fermer = () => fermerPote();
+    const temps = el("span", { class: "pl-temps", "aria-hidden": "true" });
+    vider(z,
+      el("div", { class: "pl-case", onkeydown: (ev) => { if (ev.key === "Escape") fermerPote(); } },
+        el("span", { class: "pl-lignes", "aria-hidden": "true" }),
+        el("div", { class: "pl-photo", "aria-hidden": "true" },
+          el("span", { class: "pl-anneau" }),
+          el("img", { src: lienSur(a.avatar) || "/img/chopper-visage.jpg", alt: "", width: 84, height: 84 }),
+          el("span", { class: "pl-tampon", text: "EN LIVE !" }),
+        ),
+        el("div", { class: "pl-texte" },
+          el("p", { class: "pl-sur" }, el("span", { class: "point", "aria-hidden": "true" }), "Un pote en direct"),
+          el("p", { class: "pl-nom", text: nom }),
+          el("p", { class: "pl-quoi", text: [quand, a.jeu].filter(Boolean).join(" · ") }),
+          a.titre ? el("p", { class: "pl-titre", text: a.titre }) : null,
+          el("div", { class: "pl-boutons" },
+            el("a", { class: "btn btn-plein btn-petit", href: `https://www.twitch.tv/${encodeURIComponent(a.login)}`, ...externe, onclick: fermer, text: "Regarder" }),
+            el("a", { class: "btn btn-contour btn-petit", href: "#potes", onclick: fermer, text: "Tous les potes" }),
+          ),
+        ),
+        el("span", { class: "pl-don", "aria-hidden": "true", text: "ドン!" }),
+        el("button", { class: "pl-fermer", type: "button", "aria-label": `Fermer l'annonce du live de ${nom}`, onclick: fermer, text: "✕" }),
+        temps,
+      ),
+    );
+    if (reduit.matches) {
+      // sans animations, pas de barre : la case reste 12 s (plus longtemps si la souris ou le clavier est dessus)
+      const attendre = (duree) => {
+        poteAffiche.minuteur = setTimeout(() => (document.hidden || z.matches(":hover, :focus-within") ? attendre(3000) : fermerPote()), duree);
+      };
+      attendre(12_000);
+    } else {
+      // la barre du bas se vide en 9 s (en pause sous la souris, ou quand l'onglet est caché) : la case part à la fin
+      temps.addEventListener("animationend", (ev) => { if (ev.animationName === "pl-temps") fermerPote(); });
+    }
+    z.classList.remove("sort");
+    z.hidden = false;
+  }
+
+  function fermerPote() {
+    const z = $("pote-live");
+    if (!z || !poteAffiche || poteAffiche.sortie) return;
+    poteAffiche.sortie = true;
+    clearTimeout(poteAffiche.minuteur);
+    z.classList.add("sort");
+    setTimeout(() => {
+      z.hidden = true;
+      vider(z);
+      z.classList.remove("sort");
+      poteAffiche = null;
+      setTimeout(montrerPote, 700); // le pote suivant, s'il y en a un
+    }, reduit.matches ? 0 : 380);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    $("pote-live")?.classList.toggle("en-pause", document.hidden);
+    if (!document.hidden) montrerPote();
+  });
+
   // le compte : dans l'en-tête, et dans le menu sur téléphone
   function rendreCompte() {
     for (const z of [$("compte"), $("compte-menu")]) {
@@ -4303,6 +4406,7 @@
     bulleAccueil();
     rendreChaine();
     rendrePotes();
+    surveillerPotes();
     rendreYoutube();
     rendreDiscord();
     rendreChopper();
