@@ -11,11 +11,13 @@
 //        → les jeux du site (la Rumble Ball, le quiz One Piece, Docteur Chopper, le Memory, la course), vérifiés et corrigés par le bot
 //   POST /api/chopper  { action: "chasse" | "prime-activer" | "prime-retirer" | "boss-attaquer" }
 //        → la chasse : son avis de recherche WANTED (créer, retirer) et l'attaque du jour contre le boss de la semaine
+//   POST /api/chopper  { action: "faille" | "faille-lier" | "faille-verifier" | "faille-retirer", riotId }
+//        → La Faille des potes : relier son compte LoL (Riot ID puis icône de profil), le retirer, voir ses games notées
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
@@ -81,6 +83,7 @@ export async function POST(req) {
     corps.transformations = entier(d.transformations, 0, 7);
     corps.score = entier(d.score, 0, 1000);
   }
+  if (action === "faille-lier") corps.riotId = String(d.riotId || "").replace(/[\u0000-\u001f]/g, "").slice(0, 40);
   if (action === "quiz-repondre") corps.choix = d.choix === null ? null : entier(d.choix, 0, 3);
   try {
     const r = await demanderBot("/chopper", { methode: "POST", corps, delai: 25000 });
