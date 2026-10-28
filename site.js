@@ -621,11 +621,10 @@
       el("span", { class: "sfx sfx-case-live tremble", "aria-hidden": "true", text: "ドドド" }),
       el("button", { class: "case-live-fermer", type: "button", "aria-label": "Fermer", onclick: fermer, text: "✕" }),
     );
-    // le gros choc (tout l'écran) : le live vient de commencer, pendant la visite ou il y a moins de 10 min ; une fois par live
-    const debut = c.depuis ? ms(c.depuis) : NaN;
-    const toutFrais = premierChargement && Number.isFinite(debut) && Date.now() - debut < 10 * 60_000;
+    // le gros choc (tout l'écran) : dès qu'on arrive sur le site pendant ton live (depuis 2 min ou 3 h), ou quand le live
+    // commence pendant la visite ; une fois par visite (un rechargement de la page ne le relance pas)
     const cleChoc = `barhaw-choc:${c.depuis || "live"}`;
-    const choc = (vientDeCommencer || toutFrais) && lireSession(cleChoc) !== "vu";
+    const choc = (vientDeCommencer || premierChargement) && lireSession(cleChoc) !== "vu";
     z.classList.toggle("impact", vientDeCommencer || choc);
     z.hidden = false;
     if (choc) { ecrireSession(cleChoc, "vu"); chocLive(); }
