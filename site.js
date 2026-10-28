@@ -589,6 +589,7 @@
       return;
     }
     const vientDeCommencer = liveAvant === false; // le live a commencé pendant que la page était ouverte
+    const premierChargement = liveAvant === null;
     liveAvant = true;
     const cle = `barhaw-live:${c.depuis || "live"}`;
     if (lireSession(cle) === "ferme") { z.hidden = true; return; }
@@ -620,8 +621,27 @@
       el("span", { class: "sfx sfx-case-live tremble", "aria-hidden": "true", text: "ドドド" }),
       el("button", { class: "case-live-fermer", type: "button", "aria-label": "Fermer", onclick: fermer, text: "✕" }),
     );
-    z.classList.toggle("impact", vientDeCommencer);
+    // le gros choc (tout l'écran) : le live vient de commencer, pendant la visite ou il y a moins de 10 min ; une fois par live
+    const debut = c.depuis ? ms(c.depuis) : NaN;
+    const toutFrais = premierChargement && Number.isFinite(debut) && Date.now() - debut < 10 * 60_000;
+    const cleChoc = `barhaw-choc:${c.depuis || "live"}`;
+    const choc = (vientDeCommencer || toutFrais) && lireSession(cleChoc) !== "vu";
+    z.classList.toggle("impact", vientDeCommencer || choc);
     z.hidden = false;
+    if (choc) { ecrireSession(cleChoc, "vu"); chocLive(); }
+  }
+
+  // tout l'écran en case de manga pendant 2 s : lignes de vitesse, flash, « ドドドドド », et le tampon « EN LIVE ! » qui claque puis file vers la case
+  function chocLive() {
+    if (reduit.matches || document.querySelector(".choc-live")) return;
+    if (document.hidden) { document.addEventListener("visibilitychange", () => chocLive(), { once: true }); return; } // l'onglet est caché : au retour
+    const o = el("div", { class: "choc-live", "aria-hidden": "true" },
+      el("span", { class: "choc-lignes" }),
+      el("span", { class: "sfx tremble choc-sfx", text: "ドドドドド" }),
+      el("span", { class: "choc-tampon", text: "EN LIVE !" }),
+    );
+    document.body.append(o);
+    setTimeout(() => o.remove(), 2200);
   }
 
   // ---------- un pote lance son live : une case manga surgit en bas de l'écran ----------
