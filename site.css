@@ -2409,6 +2409,34 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .gl-verrou-carte { padding: 30px 18px 22px; }
 }
 
+/* ---------- les fidèles du stream (partie Ma chaîne) ---------- */
+.fideles { margin-top: 20px; padding: 24px 24px 20px; overflow: hidden; }
+.fid-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.fid-tete .gl-texte { max-width: 62ch; }
+.fid-direct { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 99px; background: rgba(145, 70, 255, 0.18); border: 1.5px solid rgba(145, 70, 255, 0.6); font-family: var(--fort); font-weight: 800; font-size: 12.5px; color: #d9c2ff; }
+.fid-direct i { width: 9px; height: 9px; border-radius: 50%; background: #ff2d55; box-shadow: 0 0 0 0 rgba(255, 45, 85, 0.6); animation: fid-pouls 1.6s ease-out infinite; }
+@keyframes fid-pouls { to { box-shadow: 0 0 0 9px rgba(255, 45, 85, 0); } }
+.fid-corps { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; margin-top: 16px; }
+.fid-onglets { display: flex; gap: 6px; margin-bottom: 10px; }
+.fid-onglet { padding: 6px 12px; border-radius: 10px; border: 2px solid var(--ligne); background: transparent; color: var(--brume); font-family: var(--fort); font-weight: 800; font-size: 12.5px; cursor: pointer; }
+.fid-onglet[aria-selected="true"] { background: #9146ff; border-color: var(--encre); color: #fff; box-shadow: 2px 2px 0 var(--encre); }
+.fid-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.fid-ligne { position: relative; display: grid; grid-template-columns: 26px 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 12px; background: rgba(255, 170, 220, 0.04); overflow: hidden; }
+.fid-ligne::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--part); background: linear-gradient(90deg, rgba(145, 70, 255, 0.22), rgba(255, 79, 154, 0.12)); border-radius: inherit; transform-origin: left; animation: gl-pousse 1s var(--doux) both; pointer-events: none; }
+.fid-ligne > * { position: relative; }
+.fid-ligne .gl-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 2px solid var(--encre); }
+.fid-ligne .gl-nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.fid-ligne b { font-family: var(--fort); font-size: 13px; color: #d9c2ff; }
+.fid-ligne.podium-1 { box-shadow: inset 0 0 0 1.5px rgba(255, 211, 107, 0.55); }
+.fid-toi { padding: 16px; border-radius: 14px; background: rgba(145, 70, 255, 0.08); border: 1.5px dashed rgba(145, 70, 255, 0.45); }
+.fid-toi .gl-moi-chiffres { margin-top: 10px; }
+.fid-toi .gl-moi-chiffres b { font-size: 17px; white-space: nowrap; }
+.fid-relie { margin: 4px 0 0; font-size: 14px; color: var(--brume); } .fid-relie a { color: #d9c2ff; font-weight: 800; }
+.fid-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.fid-code code { padding: 8px 12px; border-radius: 10px; background: #18101f; border: 2px solid #9146ff; color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; letter-spacing: 0.06em; }
+.fideles .gl-confettis { top: 40%; }
+@media (max-width: 900px) { .fid-corps { grid-template-columns: minmax(0, 1fr); } .fid-tete { flex-direction: column; } }
+
 /* ---------- tablette et téléphone ---------- */
 @media (max-width: 1080px) {
   .gl-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); }
