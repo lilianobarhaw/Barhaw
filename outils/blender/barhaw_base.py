@@ -375,7 +375,7 @@ class Sol:
 
 
 # ---------- la vitrine : un rendu pour montrer le travail ----------
-def vitrine(collections, cam, cible, objectif=50, nom="rendu", taille=(1600, 1000), mer=True, mer_taille=80, trait=1.6):
+def vitrine(collections, cam, cible, objectif=50, nom="rendu", taille=(1600, 1000), mer=True, mer_taille=80, trait=1.6, transparent=False):
     scene = bpy.context.scene
     garder = set(collections) | {"vitrine"}
     for c in scene.collection.children:
@@ -423,7 +423,9 @@ def vitrine(collections, cam, cible, objectif=50, nom="rendu", taille=(1600, 100
     scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x, scene.render.resolution_y = taille
     scene.render.resolution_percentage = 100
-    scene.render.film_transparent = False
+    scene.render.film_transparent = transparent
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGBA" if transparent else "RGB"
     try:
         scene.view_settings.view_transform = "Standard"
         scene.view_settings.look = "None"
