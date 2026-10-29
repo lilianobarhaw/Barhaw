@@ -4458,7 +4458,7 @@
     lucioles: [-20, -16, "lucioles"], champignons: [-6, 20, "champignons"], engloutie: [10, -10, "ruines"], vents: [12, 38, "moulins"],
     marche: [28, 12, "marche"], arbre: [44, -22, "arbre"], ambre: [48, 32, "dunes"], phare: [64, 2, "phare"], tonnerre: [76, -28, "orage"], tresor: [86, 12, "tresor"],
   };
-  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch", stream: "Sur le live" };
+  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch", stream: "Sur le live", bosslive: "BOSS LIVE" };
   const GL_ACTIONS = [
     ["💬", "Un message sur le Discord", "message", "par minute"],
     ["🎙️", "Une minute en vocal à plusieurs", "vocal", "par personne"],
@@ -4908,6 +4908,172 @@
   // l'entrée sur la partie (une fois par visite) : la carte se déplie, les panneaux arrivent, les chiffres comptent
   // la cinématique de départ (rendue dans Blender) : une fois par navigateur, la première fois qu'on arrive sur
   // GRAND LINE ouverte (pas avec les mouvements réduits ni en économie de données)
+  // ---------- BOSS LIVE : MORGHAST se réveille quand Liliano tape « !boss » en live (l'état vient du bot : /api/bosslive) ----------
+  const BL = { d: null, decal: 0, vu: false, rendu: null, charge: false, minuteur: 0, chrono: 0, son: null, coupe: false, pv: null, combat: 0, etat: "", occupe: false };
+  try { BL.coupe = localStorage.getItem("barhaw-bl-son") === "non"; } catch {}
+  const blFmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString("fr-FR");
+  const blMaintenant = () => Date.now() + BL.decal;
+  const BL_SOURCES = { chat: "💬 chat", frappe: "🗡️ !frappe", lurk: "📺 live", discord: "💜 Discord", site: "⚔️ site", jeux: "🎮 jeux" };
+  function blSon(jouer) {
+    if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; }
+    const b = $("bl-son");
+    if (jouer) {
+      BL.son.play().then(() => { b?.classList.remove("bl-appel-son"); if (b) { b.textContent = "🔊 Musique"; b.setAttribute("aria-pressed", "true"); } })
+        .catch(() => { b?.classList.add("bl-appel-son"); if (b) b.textContent = "🔊 Lancer la musique"; });
+    } else {
+      BL.son.pause();
+      if (b) { b.textContent = "🔇 Musique"; b.setAttribute("aria-pressed", "false"); b.classList.remove("bl-appel-son"); }
+    }
+  }
+  function blDegats(n, crit = false) {
+    const z = $("bl-degats");
+    if (!z || n <= 0 || reduit.matches) return;
+    const s = el("span", { class: crit ? "bl-crit" : "", text: `${crit ? "💥 " : "−"}${blFmt(n)}` });
+    s.style.left = `${30 + Math.random() * 40}%`;
+    s.style.top = `${30 + Math.random() * 30}%`;
+    z.append(s);
+    setTimeout(() => s.remove(), 1200);
+    if (z.childElementCount > 14) z.firstElementChild.remove();
+  }
+  function blChrono() {
+    const c = BL.d?.combat;
+    const ch = $("bl-chrono");
+    if (!ch) return;
+    if (!BL.d?.actif || !c) { ch.textContent = c?.fini ? (c.gagne ? "🏆" : "💨") : "💤"; ch.classList.remove("bl-urgent"); return; }
+    const reste = Math.max(0, c.fin - blMaintenant());
+    ch.textContent = `${Math.floor(reste / 60000)}:${String(Math.floor((reste % 60000) / 1000)).padStart(2, "0")}`;
+    ch.classList.toggle("bl-urgent", reste <= 30_000);
+    const a = $("bl-alerte-texte");
+    if (a) a.textContent = `MORGHAST attaque ! ${ch.textContent} · ${Math.round((c.pv / c.pvMax) * 100)} % de vie`;
+  }
+  function blRendre() {
+    const d = BL.d;
+    const scene = $("bl-scene");
+    if (!scene || !d) return;
+    const c = d.combat;
+    const horsLigne = Boolean(d.horsLigne || d.absent);
+    const actif = Boolean(d.actif && c);
+    const recent = c?.fini && blMaintenant() - (c.finiLe || 0) < 3 * 60_000;
+    const etat = actif ? (c.rage ? "rage" : "combat") : recent ? (c.gagne ? "mort" : "fuite") : "dort";
+    scene.classList.toggle("bl-dort", etat === "dort");
+    scene.classList.toggle("bl-rage", etat === "rage");
+    if (BL.rendu && etat !== BL.etat) BL.rendu.etat(etat);
+    // les coups depuis la dernière fois : les chiffres qui montent, la secousse
+    if (c && c.id === BL.combat && BL.pv !== null && c.pv < BL.pv) {
+      const perdu = BL.pv - c.pv;
+      const morceaux = Math.min(4, Math.max(1, Math.round(perdu / 60)));
+      for (let k = 0; k < morceaux; k++) setTimeout(() => blDegats(perdu / morceaux), k * 180);
+      BL.rendu?.frappe(Math.min(2, 0.6 + perdu / 300));
+      if (perdu >= 200 && !reduit.matches) { scene.classList.remove("bl-secoue"); void scene.offsetWidth; scene.classList.add("bl-secoue"); }
+    }
+    if (c) { BL.combat = c.id; BL.pv = c.pv; }
+    // quand le combat se termine : la musique s'arrête doucement
+    if (BL.etat && (BL.etat === "combat" || BL.etat === "rage") && !actif && BL.son && !BL.son.paused) setTimeout(() => blSon(false), 4000);
+    if (actif && !BL.coupe && (!BL.son || BL.son.paused)) blSon(true);
+    BL.etat = etat;
+    $("etat-boss").textContent = horsLigne ? "⚓ Au port" : actif ? (c.rage ? "🔥 EN RAGE" : "⚔️ EN COMBAT") : recent ? (c.gagne ? "🏆 Détruit" : "💨 Enfui") : "💤 Il dort";
+    $("bl-titre").textContent = c?.titre || d.prochain || "le Roi-Abysse";
+    $("bl-niveau").textContent = c ? `niv. ${c.niveau}` : d.niveau ? `niv. ${d.niveau + 1}` : "";
+    const part = c && (actif || recent) ? Math.max(0, c.pv / c.pvMax) : 1;
+    $("bl-barre").style.width = `${part * 100}%`;
+    $("bl-trainee").style.width = `${part * 100}%`;
+    $("bl-vie").setAttribute("aria-valuenow", String(Math.round(part * 100)));
+    $("bl-pv").textContent = c && (actif || recent) ? `${blFmt(c.pv)} / ${blFmt(c.pvMax)} PV` : "??? PV";
+    const dernier = d.historique?.[0];
+    $("bl-etat").textContent = horsLigne
+      ? "⚓ Le bateau fait une pause au port pour prendre des provisions, il revient vite."
+      : actif ? ""
+      : recent ? (c.gagne ? `🏆 MORGHAST est détruit ! ${c.membres} membre${c.membres > 1 ? "s" : ""} ont frappé.` : `💨 MORGHAST s'est enfui avec ${blFmt(c.pv)} PV… il reviendra plus fort.`)
+      : `💤 MORGHAST dort. Il se réveille quand Liliano tape !boss en live.${dernier ? ` La dernière fois : ${dernier.gagne ? "détruit 🏆" : "il s'est enfui 💨"}` : ""}`;
+    const bouton = $("bl-frapper");
+    bouton.disabled = !actif;
+    bouton.textContent = actif ? "⚔️ FRAPPER" : "⚔️ FRAPPER (pendant le combat)";
+    // le podium, les sources, le journal
+    const top = c && (actif || recent) ? c.top : dernier?.top || [];
+    vider($("bl-top"), ...(top.length ? top.map((f, k) => el("li", {},
+      el("span", { class: "bl-rang", text: ["🥇", "🥈", "🥉"][k] || String(k + 1) }),
+      f.avatar ? el("img", { src: f.avatar, alt: "", width: 30, height: 30, loading: "lazy" }) : el("span"),
+      el("span", { text: f.nom }), el("span", { class: "bl-dgt", text: blFmt(f.degats) }))) : [el("li", { class: "bl-vide", text: "Personne pour l'instant." })]));
+    $("bl-sources").textContent = c && (actif || recent) ? Object.entries(c.sources || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${BL_SOURCES[k] || k} ${blFmt(v)}`).join(" · ") : "";
+    const j = c && (actif || recent) ? c.journal : [];
+    vider($("bl-journal"), ...(j.length ? j.map((x) => el("li", { text: x.texte })) : [el("li", { class: "bl-vide", text: horsLigne ? "⚓ Le bateau fait une pause au port." : "MORGHAST dort." })]));
+    // partout sur le site : la pastille du menu, l'alerte en bas, le bandeau sur GRAND LINE
+    $("pastille-boss").hidden = !actif;
+    $("bl-gl").hidden = !actif;
+    $("bl-alerte").hidden = !actif || BL.vu;
+    blChrono();
+    clearInterval(BL.chrono);
+    if (actif) BL.chrono = setInterval(blChrono, 250);
+    if ((actif || BL.vu) && !BL.charge) blCharger3D();
+  }
+  async function blCharger3D() {
+    if (BL.charge) return;
+    BL.charge = true;
+    const toile = $("bl-toile");
+    try {
+      const { creerBoss3D } = await import("/js/boss-3d.js");
+      BL.rendu = creerBoss3D(toile);
+      toile.addEventListener("boss-pret", () => $("bl-scene").classList.add("bl-3d"), { once: true });
+      if (BL.etat) BL.rendu.etat(BL.etat);
+      BL.rendu.pause(!BL.vu);
+    } catch {
+      BL.rendu = null; // pas de WebGL : l'image rendue dans Blender reste
+    }
+  }
+  async function blCharger() {
+    clearTimeout(BL.minuteur);
+    let d;
+    try {
+      const r = await fetch("/api/bosslive", { headers: { Accept: "application/json" } });
+      d = await r.json();
+      if (d.maintenant) BL.decal = d.maintenant - Date.now();
+    } catch { d = { horsLigne: true }; }
+    BL.d = d;
+    blRendre();
+    const ms = document.hidden ? 30_000 : d.actif ? 2500 : BL.vu ? 12_000 : 40_000;
+    BL.minuteur = setTimeout(blCharger, ms);
+  }
+  async function blFrapper() {
+    if (!BL.d?.actif || BL.occupe) return;
+    if (!moi?.connecte) { $("bl-etat").textContent = "Connecte-toi avec Discord (en haut à droite) pour frapper MORGHAST !"; return; }
+    BL.occupe = true;
+    BL.rendu?.frappe(0.8);
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "boss-live-frapper" }) });
+      const d = await r.json().catch(() => ({}));
+      if (d.boss) {
+        if (d.degats) { BL.pv = d.boss.combat?.pv ?? BL.pv; blDegats(d.degats, d.critique); BL.rendu?.frappe(d.critique ? 2 : 1); }
+        BL.d = d.boss;
+        blRendre();
+      }
+      if (d.erreur && d.texte) $("bl-etat").textContent = d.texte;
+    } catch {
+      $("bl-etat").textContent = "Le coup n'est pas parti, réessaie.";
+    }
+    setTimeout(() => { BL.occupe = false; }, 450);
+  }
+  function blDemarrer() {
+    const s = $("boss-live");
+    if (!s) return;
+    $("bl-frapper").addEventListener("click", blFrapper);
+    $("bl-son").addEventListener("click", () => {
+      const joue = BL.son && !BL.son.paused;
+      BL.coupe = joue;
+      try { localStorage.setItem("barhaw-bl-son", joue ? "non" : "oui"); } catch {}
+      blSon(!joue);
+    });
+    new IntersectionObserver(([e]) => {
+      BL.vu = e.isIntersecting;
+      BL.rendu?.pause(!BL.vu || document.hidden);
+      if (BL.vu && !BL.charge) blCharger3D();
+      $("bl-alerte").hidden = !BL.d?.actif || BL.vu;
+      if (BL.vu && !BL.d?.actif) blCharger();
+    }, { threshold: 0.12 }).observe(s);
+    document.addEventListener("visibilitychange", () => { BL.rendu?.pause(!BL.vu || document.hidden); if (!document.hidden) blCharger(); });
+    blCharger();
+  }
+  blDemarrer();
+
   function cinematiqueGL() {
     if (reduit.matches || navigator.connection?.saveData) return;
     try { if (localStorage.getItem("barhaw-cine-gl2") === "vu") return; localStorage.setItem("barhaw-cine-gl2", "vu"); } catch { return; }
