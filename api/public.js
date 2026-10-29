@@ -6,7 +6,7 @@ import { demanderBot } from "../lib/bot.js";
 
 export async function GET() {
   try {
-    const r = await demanderBot("/public", { delai: 8000 });
+    const r = await demanderBot("/public", { delai: 3000 }); // au bout de 3 s sans réponse : le site passe en escale
     if (!r.ok) throw new Error(`le bot a répondu ${r.status}`);
     const d = await r.json();
     return json(d, 200, { "Cache-Control": "public, max-age=0, s-maxage=20, stale-while-revalidate=600" });
