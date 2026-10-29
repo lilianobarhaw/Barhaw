@@ -4417,7 +4417,7 @@
     rendreFailleRegles();
   }
 
-  // ---------- La Grand Line : le navire de la commu, d'île en île ----------
+  // ---------- GRAND LINE : le navire de la commu, d'île en île ----------
   // Le bot fait tout le calcul (lib/navire.js) ; ici : la carte (en 3D avec js/grandline-3d.js, sinon en 2D),
   // le cap, la mer (tempête, monstre, vent, bouteille), le vote aux carrefours, l'équipage et le journal de bord.
   // Les places des îles sur la carte (x, z, et ce qu'il y a dessus) : les mêmes en 3D et en 2D.
@@ -4445,7 +4445,7 @@
   let glAvant = null; // l'étape d'avant (pour « Terre en vue ! »)
   let cleVerrou = "";
   const infosGL = () => donnees?.grandline || null;
-  // La Grand Line ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
+  // GRAND LINE ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
   // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
   const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
   const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
@@ -4476,7 +4476,7 @@
       el("div", { class: "gl-verrou-carte" },
         el("p", { class: "gl-verrou-tampon", text: "Accès restreint" }),
         el("p", { class: "gl-sur", text: "La V3 du site" }),
-        el("h3", { class: "gl-verrou-titre" }, "La Grand Line ", el("span", { class: "degrade", text: "lève l'ancre" })),
+        el("h3", { class: "gl-verrou-titre" }, "GRAND LINE ", el("span", { class: "degrade", text: "lève l'ancre" })),
         el("p", { class: "gl-verrou-date", text: `${majuscule(date)} à ${fmtHeure.format(quand).replace(":", " h ")}` }),
         rebours(t, true, "grandline", { fin: () => guetterOuvertureGL(), texteFin: "Le navire part !" }),
         el("p", { class: "gl-texte", text: "Le navire de la commu attend au port. À l'ouverture, tout ce que vous faites sur le Discord, le site et Twitch le fera avancer, d'île en île, jusqu'au trésor. Prépare tes rames !" }),
@@ -4535,6 +4535,8 @@
       carteGL?.type === "3d" ? el("div", { class: "gl-vues" },
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() !== "ensemble"), onclick: () => { carteGL.rendu.vue("navire"); rendreHudGL(g); }, text: "⛵ Le navire" }),
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() === "ensemble"), onclick: () => { carteGL.rendu.vue("ensemble"); rendreHudGL(g); }, text: "🗺️ Toute la carte" }),
+        el("button", { type: "button", class: "gl-vue gl-zoom", "aria-label": "Zoomer", title: "Zoomer", onclick: () => carteGL.rendu.zoomer?.(0.7), text: "＋" }),
+        el("button", { type: "button", class: "gl-vue gl-zoom", "aria-label": "Dézoomer", title: "Dézoomer", onclick: () => carteGL.rendu.zoomer?.(1 / 0.7), text: "－" }),
       ) : null,
     );
   }
@@ -4754,7 +4756,7 @@
         essai?.getExtension("WEBGL_lose_context")?.loseContext();
         if (essai && (!logiciel || choix3d === "oui")) {
           const { creerGrandLine3D } = await import("/js/grandline-3d.js");
-          const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de la Grand Line en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
+          const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de GRAND LINE en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
           vider(zone, toile);
           const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), surIle: infoIleGL, surBouteille: () => (moi?.connecte ? agirGL("grandline-bouteille") : (glMessage = { texte: "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
           if (choix3d !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
@@ -4793,7 +4795,7 @@
     return {
       maj(g) {
         const pos = (id) => GL_PLACES[id] || [0, 0];
-        const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de la Grand Line : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
+        const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de GRAND LINE : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
         svg.append(s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl-svg-mer" }));
         const traits = s("g", { class: "gl-svg-route" });
         let navire = null;

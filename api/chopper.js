@@ -14,7 +14,7 @@
 //   POST /api/chopper  { action: "faille" | "faille-lier" | "faille-verifier" | "faille-retirer", riotId }
 //        → La Faille des potes : relier son compte LoL (Riot ID puis icône de profil), le retirer, voir ses games notées
 //   POST /api/chopper  { action: "grandline" | "grandline-voter" | "grandline-bouteille", choix }
-//        → La Grand Line : ce que le membre a ramé, son vote au carrefour (choix : l'île), ouvrir la bouteille à la mer
+//        → GRAND LINE : ce que le membre a ramé, son vote au carrefour (choix : l'île), ouvrir la bouteille à la mer
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
