@@ -4910,7 +4910,7 @@
   // GRAND LINE ouverte (pas avec les mouvements réduits ni en économie de données)
   function cinematiqueGL() {
     if (reduit.matches || navigator.connection?.saveData) return;
-    try { if (localStorage.getItem("barhaw-cine-gl") === "vu") return; localStorage.setItem("barhaw-cine-gl", "vu"); } catch { return; }
+    try { if (localStorage.getItem("barhaw-cine-gl2") === "vu") return; localStorage.setItem("barhaw-cine-gl2", "vu"); } catch { return; }
     const v = el("video", { class: "cine-video", poster: "/videos/grandline-depart.jpg", playsinline: "", autoplay: "", preload: "auto", width: 960, height: 540 },
       el("source", { src: "/videos/grandline-depart.webm", type: "video/webm" }),
       el("source", { src: "/videos/grandline-depart.mp4", type: "video/mp4" }));
