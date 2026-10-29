@@ -4906,9 +4906,31 @@
   }
 
   // l'entrée sur la partie (une fois par visite) : la carte se déplie, les panneaux arrivent, les chiffres comptent
+  // la cinématique de départ (rendue dans Blender) : une fois par navigateur, la première fois qu'on arrive sur
+  // GRAND LINE ouverte (pas avec les mouvements réduits ni en économie de données)
+  function cinematiqueGL() {
+    if (reduit.matches || navigator.connection?.saveData) return;
+    try { if (localStorage.getItem("barhaw-cine-gl") === "vu") return; localStorage.setItem("barhaw-cine-gl", "vu"); } catch { return; }
+    const v = el("video", { class: "cine-video", poster: "/videos/grandline-depart.jpg", playsinline: "", autoplay: "", preload: "auto", width: 960, height: 540 },
+      el("source", { src: "/videos/grandline-depart.webm", type: "video/webm" }),
+      el("source", { src: "/videos/grandline-depart.mp4", type: "video/mp4" }));
+    v.muted = true;
+    let fini = false;
+    const fermer = () => { if (fini) return; fini = true; o.classList.add("cine-fin"); setTimeout(() => o.remove(), 600); };
+    const o = el("div", { class: "cine", role: "dialog", "aria-label": "Le navire de la commu quitte Port Barhaw" },
+      el("div", { class: "cine-cadre" }, v, el("p", { class: "cine-titre", text: "⚓ Le voyage commence !" })),
+      el("button", { class: "cine-passer", type: "button", onclick: fermer, text: "Passer ✕" }));
+    v.addEventListener("ended", () => setTimeout(fermer, 700));
+    v.querySelector("source:last-child").addEventListener("error", fermer); // aucune des deux vidéos ne passe
+    o.addEventListener("click", (ev) => { if (ev.target === o) fermer(); });
+    document.body.append(o);
+    v.play?.()?.catch?.(() => fermer());
+    setTimeout(fermer, 10_000);
+  }
   function entreeGL(s) {
     s.dataset.entree = "1";
     if (reduit.matches) return;
+    if (glOuvert()) cinematiqueGL();
     s.classList.add("gl-entree");
     setTimeout(() => s.classList.remove("gl-entree"), 3200);
     s.querySelectorAll("[data-compte]").forEach((b, k) => compterGL(b, 260 + k * 120));
