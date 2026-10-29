@@ -69,6 +69,19 @@ strong { font-weight: 800; }
 .sauter { position: absolute; left: -999px; top: 10px; z-index: 60; padding: 10px 16px; border-radius: 12px; background: var(--rose); color: #fff; font-weight: 800; }
 .sauter:focus { left: 14px; }
 
+/* ---------- la fluidité : les parties loin de l'écran ne sont ni mises en page ni dessinées ----------
+   (le navigateur garde leur dernière taille ; l'accueil et les cartes restent à part : le flash des cartes légendaires couvre tout l'écran) */
+[data-section]:not(#accueil):not(#cartes) { content-visibility: auto; contain-intrinsic-block-size: auto var(--h-partie, 2000px); }
+html.tout-rendre [data-section] { content-visibility: visible !important; }
+#evenements { --h-partie: 2360px; } #grandline { --h-partie: 2590px; } #tournoi { --h-partie: 2770px; } #chaine { --h-partie: 1090px; }
+#potes { --h-partie: 830px; } #youtube { --h-partie: 1400px; } #chopper { --h-partie: 2090px; } #jeux { --h-partie: 2610px; }
+#chasse { --h-partie: 1970px; } #faille { --h-partie: 2500px; } #discord { --h-partie: 940px; }
+@media (max-width: 760px) {
+  #evenements { --h-partie: 2860px; } #grandline { --h-partie: 4330px; } #tournoi { --h-partie: 4050px; } #chaine { --h-partie: 820px; }
+  #potes { --h-partie: 1760px; } #youtube { --h-partie: 2100px; } #chopper { --h-partie: 3450px; } #jeux { --h-partie: 3740px; }
+  #chasse { --h-partie: 3580px; } #faille { --h-partie: 5280px; } #discord { --h-partie: 1820px; }
+}
+
 /* ---------- le fond : la trame et les traits de vitesse ---------- */
 #ciel { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -3; pointer-events: none; }
 .grain {

@@ -298,6 +298,38 @@
     for (const p of parties) io.observe(p);
   }
 
+  // ---------- la fluidité : les parties loin de l'écran ne sont pas dessinées (content-visibility, dans site.css) ----------
+  // Avant d'aller vers une ancre (le menu, un lien « #… »), on les met toutes en page un instant : sans ça, le
+  // navigateur viserait avec des tailles estimées et s'arrêterait trop haut ou trop bas. Il retient ensuite leur
+  // vraie taille, et les parties lointaines repassent en veille sans rien faire bouger.
+  let minuteurRendu = 0;
+  function rendreToutesLesParties(duree = 1800) {
+    document.documentElement.classList.add("tout-rendre");
+    void document.body.offsetHeight; // la mise en page, tout de suite
+    clearTimeout(minuteurRendu);
+    minuteurRendu = setTimeout(() => document.documentElement.classList.remove("tout-rendre"), duree);
+  }
+  function anciennesTailles() {
+    document.addEventListener("click", (ev) => {
+      const a = ev.target.closest?.('a[href^="#"]');
+      if (a && a.getAttribute("href").length > 1) rendreToutesLesParties();
+    }, true);
+    if (location.hash.length > 1) rendreToutesLesParties(3000);
+    for (const t of ["wheel", "touchmove", "keydown", "mousedown"]) window.addEventListener(t, () => { ancreFaite = true; }, { once: true, passive: true });
+  }
+  // arrivée avec une ancre (barhaw.vercel.app/#faille) : le navigateur y va avant que les parties soient remplies ;
+  // une fois les données là, on y retourne (sauf si le visiteur a déjà bougé)
+  let ancreFaite = false;
+  function retourAncre() {
+    if (ancreFaite) return;
+    ancreFaite = true;
+    const id = decodeURIComponent(location.hash.slice(1));
+    const cible = id && document.getElementById(id);
+    if (!cible) return;
+    rendreToutesLesParties(2500);
+    requestAnimationFrame(() => cible.scrollIntoView({ block: "start", behavior: "instant" }));
+  }
+
   // ---------- l'en-tête et le menu ----------
   function entete() {
     const tete = $("entete");
@@ -4485,7 +4517,7 @@
       el("div", { class: "gl-verrou-diorama", "aria-hidden": "true" },
         el("span", { class: "gl-verrou-halo" }),
         el("span", { class: "gl-verrou-ombre" }),
-        el("img", { class: "gl-verrou-port", src: "/img/grandline-port.webp", alt: "", width: 820, height: 505, decoding: "async" }),
+        el("img", { class: "gl-verrou-port", src: "/img/grandline-port.webp", alt: "", width: 820, height: 505, decoding: "async", loading: "lazy" }),
         el("span", { class: "gl-verrou-mouettes" }, mouette(), mouette(), mouette()),
         el("span", { class: "gl-verrou-eclats" }, ["✦", "✧", "✦", "✧", "✦", "✧"].map((n) => el("i", { text: n }))),
       ),
@@ -4919,6 +4951,7 @@
 
   // ---------- chargement ----------
   function rendreTout() {
+    if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEntete();
     rendreMaintenant();
     rendreEvenements();
@@ -4969,6 +5002,7 @@
 
   function demarrer() {
     ciel();
+    anciennesTailles();
     animationsHorsVue();
     entete();
     apparitionsFixes();

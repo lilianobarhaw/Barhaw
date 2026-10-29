@@ -117,3 +117,9 @@ Tout est fabriqué par des scripts Python, dans Blender (5.1 ou plus) : `outils/
 3. Compacter pour le site : `python3 outils/blender/compacter_glb.py <Barhaw-3D/glb> modeles/grandline` (positions en 16 bits, normales en 8 bits : environ 35 % plus léger ; seul `js/grandline-3d.js` sait les lire).
 
 Les noms comptent : les matières portent les noms de la palette (le site remet ses propres couleurs par nom), et les objets qui bougent ont une propriété `anim` (`voile`, `drapeau`, `flamme`, `tourne`, `balance`, `flotte`, `clignote`, `mirage`) ; les points vides avec `role = repere` disent où la page ajoute un effet (`fumee`, `neige`, `lucioles`, `spores`, `etincelles`, `faisceau`, `orage`, `ecume`).
+
+## La fluidité (téléphone et PC)
+
+- Les parties loin de l'écran ne sont ni mises en page ni dessinées (`content-visibility: auto` dans `site.css`, avec leur taille habituelle en réserve) : environ 30 % de travail en moins pour le navigateur pendant le défilement. L'accueil et les cartes restent à part, parce que le flash des cartes légendaires couvre tout l'écran.
+- Avant d'aller vers une ancre (le menu, un lien `#…`), la page met toutes les parties en page un instant, pour que le navigateur vise juste. En arrivant par un lien avec une ancre (par exemple `barhaw.vercel.app/#grandline`), la page y retourne une fois les données chargées, sauf si le visiteur a déjà bougé.
+- Les animations des parties qu'on ne voit pas sont en pause, le fond étoilé attend la fin du défilement, les cartes 3D ne tournent que quand elles sont à l'écran et baissent leur résolution si l'appareil peine.
