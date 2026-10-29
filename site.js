@@ -4458,7 +4458,7 @@
     lucioles: [-20, -16, "lucioles"], champignons: [-6, 20, "champignons"], engloutie: [10, -10, "ruines"], vents: [12, 38, "moulins"],
     marche: [28, 12, "marche"], arbre: [44, -22, "arbre"], ambre: [48, 32, "dunes"], phare: [64, 2, "phare"], tonnerre: [76, -28, "orage"], tresor: [86, 12, "tresor"],
   };
-  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch" };
+  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch", stream: "Sur le live" };
   const GL_ACTIONS = [
     ["💬", "Un message sur le Discord", "message", "par minute"],
     ["🎙️", "Une minute en vocal à plusieurs", "vocal", "par personne"],
@@ -4468,6 +4468,7 @@
     ["⚔️", "L'attaque du jour contre le boss", "boss", ""],
     ["🎯", "Une game de LoL sur la Faille (S+ : 40)", "faille", "selon la note"],
     ["💜", "Twitch : le chat, les follows, les subs, les bits, les raids", "follow", "follow : 5, sub : 30"],
+    ["📺", "Rester sur le live, même sans écrire (Twitch relié)", "stream", "2 par 10 min"],
   ];
   let carteGL = null; // { type: "3d" | "2d", rendu }
   let glVue = false;
@@ -4953,6 +4954,7 @@
   function rendreTout() {
     if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEntete();
+    rendreFideles();
     rendreMaintenant();
     rendreEvenements();
     bulleAccueil();
@@ -4983,6 +4985,121 @@
     rendreTout();
   }
 
+  // ---------- les fidèles du stream : le temps passé sur le live, même sans écrire (lib/fideles.js du bot) ----------
+  let mesFideles = null;
+  let fidelesOccupe = false;
+  let fidelesOnglet = "mois";
+  let fidelesMessage = null;
+  let guetteFideles = null;
+  let fidRetrait = false;
+  const dureeFid = (m) => { m = Math.max(0, Math.round(Number(m) || 0)); if (m < 60) return `${m} min`; const h = Math.floor(m / 60); return m % 60 ? `${h} h ${String(m % 60).padStart(2, "0")}` : `${h} h`; };
+  function rendreFideles() {
+    const z = $("fideles");
+    if (!z) return;
+    const f = donnees?.fideles;
+    if (!f) { z.hidden = true; return; }
+    z.hidden = false;
+    const liste = f[fidelesOnglet] || [];
+    const max = Math.max(1, ...liste.map((x) => x.minutes));
+    const rec = f.recompense || { minutes: 10, berrys: 2000, milles: 2 };
+    const m = mesFideles;
+    let toi;
+    if (!moi?.connecte) {
+      toi = [el("p", { class: "gl-texte", text: "Connecte-toi avec Discord, puis relie ton Twitch une fois : ton temps sur le live compte, même si tu n'écris rien." }),
+        el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Connexion avec Discord" })];
+    } else if (!m) {
+      toi = [el("p", { class: "gl-texte", text: "Chargement…" })];
+    } else if (m.lie) {
+      toi = [
+        el("p", { class: "fid-relie" }, "Relié à ", el("a", { href: `https://twitch.tv/${m.login}`, target: "_blank", rel: "noopener", text: `twitch.tv/${m.login}` })),
+        el("div", { class: "gl-moi-chiffres" },
+          el("p", {}, el("b", { text: dureeFid(m.minutes.mois) }), el("span", { text: `ce mois-ci${m.rang ? ` (${m.rang}e)` : ""}` })),
+          el("p", {}, el("b", { text: dureeFid(m.minutes.total) }), el("span", { text: "en tout" })),
+          f.enLive ? el("p", {}, el("b", { text: dureeFid(m.minutes.live) }), el("span", { text: "ce live" })) : null),
+        el("button", { type: "button", class: `lien-discret${fidRetrait ? " danger" : ""}`, disabled: fidelesOccupe, onclick: () => { if (!fidRetrait) { fidRetrait = true; rendreFideles(); setTimeout(() => { fidRetrait = false; rendreFideles(); }, 6000); return; } fidRetrait = false; agirFideles("fideles-retirer"); }, text: fidRetrait ? "Sûr ? Ton temps compté sera effacé. Clique encore pour retirer." : "Retirer mon Twitch (efface tout)" }),
+      ];
+    } else if (m.code) {
+      const commande = `!lier ${m.code}`;
+      toi = [
+        el("p", { class: "gl-texte", text: "Tape ça dans le chat de mon live (même hors live, le bot lit le chat) :" }),
+        el("div", { class: "fid-code" },
+          el("code", { text: commande }),
+          el("button", { type: "button", class: "btn btn-contour btn-petit", onclick: (ev) => { navigator.clipboard?.writeText(commande).then(() => { ev.target.textContent = "Copié ✓"; }).catch(() => {}); }, text: "Copier" }),
+          el("a", { class: "btn btn-plein btn-petit", href: "https://www.twitch.tv/popout/lilianobarhaw/chat", target: "_blank", rel: "noopener", text: "Ouvrir le chat" })),
+        el("p", { class: "note", text: `Le code marche ${Math.max(1, Math.round((m.expire - Date.now()) / 60_000))} min. Cette carte se met à jour toute seule dès que c'est relié.` }),
+      ];
+    } else {
+      toi = [el("p", { class: "gl-texte", text: "Relie ton Twitch une fois (un code à taper dans le chat), et chaque minute passée sur le live compte, même sans écrire." }),
+        el("button", { type: "button", class: "btn btn-plein btn-petit", disabled: fidelesOccupe, onclick: () => agirFideles("fideles-code"), text: "📺 Relier mon Twitch" })];
+    }
+    vider(z,
+      el("div", { class: "fid-tete" },
+        el("div", {},
+          el("p", { class: "gl-sur", text: "Les fidèles du stream" }),
+          el("h3", { class: "gl-titre", text: "Ceux qui restent le plus longtemps" }),
+          el("p", { class: "gl-texte", text: `Même sans écrire : toutes les ${rec.minutes} min sur le live, +${nombre(rec.berrys)} ฿ sur ton avis de recherche et +${rec.milles} milles pour le navire de GRAND LINE (jusqu'à 6 h par live).` })),
+        f.enLive ? el("span", { class: "fid-direct" }, el("i"), "Live en cours : ça compte !") : null),
+      el("div", { class: "fid-corps" },
+        el("div", { class: "fid-classement" },
+          el("div", { class: "fid-onglets", role: "tablist" },
+            [["mois", "Ce mois-ci"], ["tout", "Depuis toujours"]].map(([k, t]) => el("button", { type: "button", role: "tab", "aria-selected": String(fidelesOnglet === k), class: "fid-onglet", onclick: () => { fidelesOnglet = k; rendreFideles(); }, text: t }))),
+          liste.length
+            ? el("ol", { class: "fid-liste" }, liste.map((x, k) => el("li", { class: `fid-ligne${k < 3 ? ` podium-${k + 1}` : ""}`, style: `--part:${Math.max(6, Math.round((x.minutes / max) * 100))}%` },
+                el("span", { class: "gl-rang", text: k < 3 ? ["🥇", "🥈", "🥉"][k] : `${k + 1}` }),
+                el("img", { class: "gl-avatar", src: lienSur(x.avatar) || "/img/chopper-visage.jpg", alt: "", width: 34, height: 34, loading: "lazy" }),
+                el("span", { class: "gl-nom", text: x.nom }),
+                el("b", { text: dureeFid(x.minutes) }))))
+            : el("p", { class: "vide", text: fidelesOnglet === "mois" ? "Personne encore ce mois-ci : relie ton Twitch et viens sur le live pour ouvrir le classement !" : "Le classement s'ouvre au premier live après avoir relié son Twitch." })),
+        el("div", { class: "fid-toi" }, el("p", { class: "gl-petit-titre", text: "Toi" }), toi,
+          fidelesMessage ? el("p", { class: `gl-message${fidelesMessage.erreur ? " erreur" : ""}`, role: "status", text: fidelesMessage.texte }) : null)),
+      el("p", { class: "note", text: `${nombre(f.relies || 0)} ${(f.relies || 0) > 1 ? "fidèles reliés" : "fidèle relié"} · seuls ceux qui ont relié leur Twitch apparaissent, avec leur pseudo Discord. Twitch ne compte que les viewers connectés au chat (connectés à leur compte, chat ouvert).` }),
+    );
+  }
+  async function demanderFideles(action) {
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+      return { status: r.status, d };
+    } catch {
+      return { status: 0, d: { erreur: "Impossible de joindre le bot. Vérifie ta connexion." } };
+    }
+  }
+  async function agirFideles(action) {
+    if (fidelesOccupe) return;
+    fidelesOccupe = true;
+    fidelesMessage = null;
+    const attendait = Boolean(mesFideles && !mesFideles.lie && mesFideles.code); // un code était en attente
+    const { d } = await demanderFideles(action);
+    fidelesOccupe = false;
+    if (d.fideles) mesFideles = d.fideles;
+    if (d.erreur && d.erreur !== "deja") fidelesMessage = { texte: d.erreur === "pas-membre" ? "Rejoins le Discord Barhaw pour être compté." : d.texte || d.erreur, erreur: true };
+    if (action === "fideles-retirer" && d.ok) fidelesMessage = { texte: "C'est retiré : ton Twitch n'est plus relié et ton temps est effacé." };
+    if (attendait && mesFideles?.lie) { fidelesMessage = { texte: "✅ Ton Twitch est relié : ton temps sur le live compte !" }; confettisFid(); }
+    rendreFideles();
+    // un code en attente : on regarde toutes les 8 s si c'est relié (15 min au plus)
+    clearInterval(guetteFideles);
+    if (mesFideles && !mesFideles.lie && mesFideles.code) {
+      const fin = mesFideles.expire || Date.now() + 15 * 60_000;
+      guetteFideles = setInterval(() => {
+        if (Date.now() > fin || document.hidden) { if (Date.now() > fin) { clearInterval(guetteFideles); chargerMesFideles(); } return; }
+        agirFideles("fideles");
+      }, 8_000);
+    }
+  }
+  function confettisFid() {
+    if (reduit.matches) return;
+    const z = $("fideles");
+    if (!z) return;
+    const pluie = el("span", { class: "gl-confettis", "aria-hidden": "true" }, Array.from({ length: 22 }, (_, k) => el("i", { style: `--x:${Math.round((Math.random() - 0.5) * 300)}px;--y:${Math.round(-60 - Math.random() * 140)}px;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${["#9146ff", "#ff4f9a", "#ffd36b", "#5fd0d8", "#fff"][k % 5]};animation-delay:${(Math.random() * 0.12).toFixed(2)}s` })));
+    z.append(pluie);
+    setTimeout(() => pluie.remove(), 1600);
+  }
+  async function chargerMesFideles() {
+    if (!moi?.connecte) { mesFideles = null; rendreFideles(); return; }
+    await agirFideles("fideles");
+  }
+
   async function chargerMoi() {
     try {
       moi = await (await fetch("/api/moi")).json();
@@ -4998,6 +5115,7 @@
     chargerMaChasse();
     chargerMaFaille();
     chargerMonNavire();
+    chargerMesFideles();
   }
 
   function demarrer() {
