@@ -36,6 +36,7 @@
     <a href="#accueil" data-lien="accueil" class="nav-accueil">Accueil</a>
     <a href="#evenements" data-lien="evenements">Events</a>
     <a href="#grandline" data-lien="grandline">GRAND LINE <span class="compteur compteur-v3" id="pastille-grandline" title="Ouvre avec la V3, samedi 31 octobre à 21 h">V3</span></a>
+      <a href="#boss-live" data-lien="boss-live">BOSS LIVE <span class="compteur compteur-boss" id="pastille-boss" hidden>⚔️</span></a>
     <a href="#tournoi" data-lien="tournoi">Tournoi <span class="pastille-live" id="pastille-tournoi" hidden>Live</span></a>
     <a href="#chaine" data-lien="chaine">Ma chaîne <span class="pastille-live" id="pastille-live" hidden>Live</span></a>
     <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
@@ -128,6 +129,7 @@
     <div class="entete-section">
       <p class="surtitre revele">L'aventure de la commu</p>
       <h2 class="titre-section revele" id="titre-grandline">GRAND <span class="degrade">LINE.</span></h2>
+      <a class="bl-gl" id="bl-gl" href="#boss-live" hidden>⚔️ <b id="bl-gl-titre">Le boss attaque le navire !</b> <span id="bl-gl-texte">Venez le détruire : chaque coup rapporte des milles.</span></a>
       <p class="sous revele">Le navire de la commu avance d'île en île grâce à tout ce que vous faites : un message sur le Discord, du vocal, une partie sur le site, une game sur la Faille, le chat Twitch… Tempêtes, monstres marins, votes aux carrefours, et un trésor au bout du voyage.</p>
       <svg class="gl-boussole" viewBox="0 0 100 100" aria-hidden="true">
         <circle cx="50" cy="50" r="46" class="gl-b-cercle"/><circle cx="50" cy="50" r="38" class="gl-b-cercle2"/>
@@ -154,6 +156,46 @@
   </section>
 
   <!-- ===================== TOURNOI ===================== -->
+  <section id="boss-live" data-section aria-labelledby="titre-boss-live">
+    <span class="kanji" aria-hidden="true">魔王</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Pendant le live</p>
+      <h2 class="titre-section revele" id="titre-boss-live">BOSS <span class="degrade">LIVE.</span> <span class="etiquette" id="etat-boss"></span></h2>
+      <p class="sous revele">Quand Liliano tape <b>!boss</b> en live, un boss se réveille : MORGHAST le Roi-Abysse, VORAXIA la Reine-Tempête ou KRAKOR le Colosse de Lave. Vous avez <b>5 minutes</b> pour le détruire, tous ensemble. S'il s'enfuit, il revient… et souvent plus costaud.</p>
+    </div>
+    <div class="bl-scene bl-dort" id="bl-scene">
+      <img class="bl-affiche" id="bl-affiche" src="/img/boss/morghast.webp" alt="Le boss du live" width="434" height="600" loading="lazy" decoding="async">
+      <canvas class="bl-toile" id="bl-toile" aria-hidden="true"></canvas>
+      <div class="bl-hud">
+        <p class="bl-nom"><span id="bl-nom">MORGHAST</span> <small id="bl-titre">le Roi-Abysse</small> <span class="bl-niveau" id="bl-niveau"></span></p>
+        <div class="bl-vie" role="meter" aria-label="Vie du boss" aria-valuemin="0" aria-valuemax="100" id="bl-vie"><div class="bl-vie-trainee" id="bl-trainee"></div><div class="bl-vie-barre" id="bl-barre"></div><span class="bl-pv" id="bl-pv"></span></div>
+        <p class="bl-chrono" id="bl-chrono">5:00</p>
+      </div>
+      <div class="bl-degats" id="bl-degats" aria-hidden="true"></div>
+      <p class="bl-etat" id="bl-etat" aria-live="polite"></p>
+      <button class="bl-frapper" id="bl-frapper" type="button" disabled>⚔️ FRAPPER</button>
+      <button class="bl-son" id="bl-son" type="button" aria-pressed="false" title="La musique du combat : BOSS LIVE">🔇 Musique</button>
+    </div>
+    <div class="bl-grille">
+      <div class="carte bl-carte revele">
+        <h3>Comment le frapper</h3>
+        <ul class="bl-regles">
+          <li><b>💬 Le chat Twitch</b> : chaque message frappe. Le spam compte !</li>
+          <li><b>🗡️ !frappe</b> dans le chat : un coup lourd toutes les 20 s, parfois critique ×3.</li>
+          <li><b>📺 Rester sur le live</b>, même en lurk : tous les viewers frappent toutes les 30 s.</li>
+          <li><b>💜 Le Discord</b> : chaque message frappe aussi.</li>
+          <li><b>🎮 Les mini-jeux</b> du site : une partie finie, c'est un gros coup.</li>
+          <li><b>⚔️ Le bouton FRAPPER</b> ici, connecté avec Discord.</li>
+          <li><b>🔥 Sous 25 %</b> il enrage : chaque coup compte plus. Les <b>30 dernières secondes</b>, tout compte double !</li>
+          <li><b>🏆 Victoire</b> : berrys et milles GRAND LINE pour chaque membre qui a frappé, bonus pour le podium.</li>
+        </ul>
+        <p class="bl-relier">Ton Twitch n'est pas relié ? Tes coups comptent pour le chat, mais pas à ton nom : relie-le dans <a href="#chaine">Ma chaîne</a>.</p>
+      </div>
+      <div class="carte bl-carte revele"><h3>Les plus gros frappeurs</h3><ol class="bl-top" id="bl-top"><li class="bl-vide">Personne pour l'instant.</li></ol><p class="bl-sources" id="bl-sources"></p></div>
+      <div class="carte bl-carte revele"><h3>Le combat</h3><ul class="bl-journal" id="bl-journal"><li class="bl-vide">Le boss dort.</li></ul><p class="bl-musique">🎵 Musique du combat : <b>BOSS LIVE</b></p></div>
+    </div>
+  </section>
+
   <section id="tournoi" data-section aria-labelledby="titre-tournoi">
     <span class="kanji" aria-hidden="true">大会</span>
     <div class="entete-section">
@@ -390,5 +432,6 @@
   </p>
   <p class="pied-petit">© 2026 · La commu de LilianoBarhaw. Chopper est un personnage de One Piece (© Eiichiro Oda, Shueisha, Toei Animation), utilisé ici par un fan, sans lien officiel. Le TOURNOI BARHAW et La Faille des potes ont été créés dans le cadre de la politique « Legal Jibber Jabber » de Riot Games, avec des éléments appartenant à Riot Games. Riot Games ne soutient ni ne parraine ce projet.</p>
 </footer>
+  <a class="bl-alerte" id="bl-alerte" href="#boss-live" hidden>⚔️ <b>BOSS LIVE</b> <span id="bl-alerte-texte">Le boss attaque !</span></a>
 </body>
 </html>

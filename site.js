@@ -4458,7 +4458,7 @@
     lucioles: [-20, -16, "lucioles"], champignons: [-6, 20, "champignons"], engloutie: [10, -10, "ruines"], vents: [12, 38, "moulins"],
     marche: [28, 12, "marche"], arbre: [44, -22, "arbre"], ambre: [48, 32, "dunes"], phare: [64, 2, "phare"], tonnerre: [76, -28, "orage"], tresor: [86, 12, "tresor"],
   };
-  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch", stream: "Sur le live" };
+  const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch", stream: "Sur le live", bosslive: "BOSS LIVE" };
   const GL_ACTIONS = [
     ["💬", "Un message sur le Discord", "message", "par minute"],
     ["🎙️", "Une minute en vocal à plusieurs", "vocal", "par personne"],
@@ -4908,6 +4908,272 @@
   // l'entrée sur la partie (une fois par visite) : la carte se déplie, les panneaux arrivent, les chiffres comptent
   // la cinématique de départ (rendue dans Blender) : une fois par navigateur, la première fois qu'on arrive sur
   // GRAND LINE ouverte (pas avec les mouvements réduits ni en économie de données)
+  // ---------- BOSS LIVE : un boss se réveille quand Liliano tape « !boss » en live (l'état vient du bot : /api/bosslive) ----------
+  // MORGHAST, VORAXIA ou KRAKOR ; tous ceux qui sont sur le site (ou qui arrivent pendant le combat) ont l'alerte « LE BOSS EST LÀ !!! »
+  const BL = { d: null, decal: 0, vu: false, rendu: null, charge: false, minuteur: 0, chrono: 0, son: null, coupe: false, pv: null, combat: 0, etat: "", occupe: false, boss: "", musique: 0, intro: null };
+  const BL_NOMS = { morghast: "MORGHAST", voraxia: "VORAXIA", krakor: "KRAKOR" };
+  try { BL.coupe = localStorage.getItem("barhaw-bl-son") === "non"; } catch {}
+  const blFmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString("fr-FR");
+  const blMaintenant = () => Date.now() + BL.decal;
+  const BL_SOURCES = { chat: "💬 chat", frappe: "🗡️ !frappe", lurk: "📺 live", discord: "💜 Discord", site: "⚔️ site", jeux: "🎮 jeux" };
+  // la musique de la victoire (une fois, quand la commu a battu le boss) : elle prend le relais de la musique du combat
+  function blVictoire(jouer) {
+    if (!jouer) { if (BL.victoire) { BL.victoire.pause(); BL.victoire.currentTime = 0; } return; }
+    if (BL.coupe) return;
+    if (!BL.victoire) { BL.victoire = new Audio("/musique/boss-victoire.mp3"); BL.victoire.volume = 0.55; BL.victoire.preload = "none"; }
+    try { BL.victoire.currentTime = 0; } catch {}
+    BL.victoire.play().catch(() => {});
+  }
+  function blSon(jouer, { debut = false, fondu = false, victoire = false } = {}) {
+    if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; }
+    const b = $("bl-son");
+    clearInterval(BL.fondu);
+    if (jouer) blVictoire(false);
+    if (fondu && !jouer && !BL.son.paused) {
+      // la fin du combat : la musique baisse doucement, repart au début pour le prochain boss ; si la commu a gagné, la musique de la victoire suit
+      BL.fondu = setInterval(() => {
+        BL.son.volume = Math.max(0, BL.son.volume - 0.05);
+        if (BL.son.volume <= 0.01) { clearInterval(BL.fondu); BL.son.pause(); BL.son.currentTime = 0; BL.son.volume = 0.5; if (victoire) blVictoire(true); }
+      }, 150);
+      if (b) { b.textContent = "🔇 Musique"; b.setAttribute("aria-pressed", "false"); }
+      return;
+    }
+    if (fondu && victoire) blVictoire(true);
+    BL.son.volume = 0.5;
+    if (debut) { try { BL.son.currentTime = 0; } catch {} }
+    if (jouer) {
+      BL.son.play().then(() => { b?.classList.remove("bl-appel-son"); if (b) { b.textContent = "🔊 Musique"; b.setAttribute("aria-pressed", "true"); } })
+        .catch(() => { b?.classList.add("bl-appel-son"); if (b) b.textContent = "🔊 Lancer la musique"; });
+    } else {
+      BL.son.pause();
+      if (b) { b.textContent = "🔇 Musique"; b.setAttribute("aria-pressed", "false"); b.classList.remove("bl-appel-son"); }
+    }
+  }
+  function blDegats(n, crit = false) {
+    const z = $("bl-degats");
+    if (!z || n <= 0 || reduit.matches) return;
+    const s = el("span", { class: crit ? "bl-crit" : "", text: `${crit ? "💥 " : "−"}${blFmt(n)}` });
+    s.style.left = `${30 + Math.random() * 40}%`;
+    s.style.top = `${30 + Math.random() * 30}%`;
+    z.append(s);
+    setTimeout(() => s.remove(), 1200);
+    if (z.childElementCount > 14) z.firstElementChild.remove();
+  }
+  function blIntro(c) {
+    BL.intro?.remove();
+    try { localStorage.setItem("barhaw-bl-intro", String(c.id)); } catch {}
+    const id = BL_NOMS[c.boss] ? c.boss : "morghast";
+    const bande = "⚠ WARNING ⚠ BOSS LIVE ⚠ WARNING ⚠ BOSS LIVE ".repeat(6);
+    const fermer = () => { if (!o.isConnected) return; o.classList.add("bl-intro-fin"); setTimeout(() => o.remove(), 500); };
+    const go = el("button", { class: "bl-intro-go", type: "button", text: "⚔️ AU COMBAT !", onclick: () => {
+      fermer();
+      $("boss-live")?.scrollIntoView({ behavior: reduit.matches ? "auto" : "smooth" });
+      BL.coupe = false;
+      try { localStorage.setItem("barhaw-bl-son", "oui"); } catch {}
+      blSon(true, { debut: BL.musique !== c.id });
+      BL.musique = c.id;
+    } });
+    const o = el("div", { class: `bl-intro bl-intro-${id}`, role: "dialog", "aria-label": `Le boss est là : ${c.nom}` },
+      el("div", { class: "bl-intro-flash" }),
+      el("div", { class: "bl-intro-bande bl-intro-haut" }, el("span", { text: bande })),
+      el("div", { class: "bl-intro-bande bl-intro-bas" }, el("span", { text: bande })),
+      el("div", { class: "bl-intro-coeur" },
+        el("img", { class: "bl-intro-boss", src: `/img/boss/${id}.webp`, alt: "" }),
+        el("p", { class: "bl-intro-cri", text: "LE BOSS EST LÀ !!!" }),
+        el("h2", { class: "bl-intro-nom", text: c.nom }),
+        el("p", { class: "bl-intro-titre", text: `${c.titre} · niveau ${c.niveau} · ${blFmt(c.pvMax)} PV` }),
+        el("p", { class: "bl-intro-temps", text: "5 minutes pour le détruire, tous ensemble !" }),
+        go),
+      el("button", { class: "bl-intro-fermer", type: "button", "aria-label": "Fermer", text: "✕", onclick: fermer }));
+    o.addEventListener("click", (ev) => { if (ev.target === o) fermer(); });
+    document.body.append(o);
+    BL.intro = o;
+    if (!reduit.matches) { document.body.classList.add("bl-tremble"); setTimeout(() => document.body.classList.remove("bl-tremble"), 900); }
+    setTimeout(() => go.focus({ preventScroll: true }), 900);
+    setTimeout(fermer, 12_000);
+  }
+  function blFin(c) {
+    const scene = $("bl-scene");
+    if (!scene) return;
+    scene.querySelector(".bl-tampon")?.remove();
+    const t = el("div", { class: `bl-tampon ${c.gagne ? "bl-gagne" : "bl-perdu"}` },
+      el("p", { class: "bl-tampon-titre", text: c.gagne ? "🏆 VICTOIRE !" : "💨 IL S'ENFUIT…" }),
+      el("p", { class: "bl-tampon-sous", text: c.gagne ? `${c.nom} est détruit ! Berrys et milles pour ${c.membres} membre${c.membres > 1 ? "s" : ""}.` : `${c.nom} reviendra… et plus fort.` }));
+    scene.append(t);
+    if (c.gagne && !reduit.matches) {
+      const couleurs = ["#ff4f9a", "#ffd36b", "#9b4dff", "#3fd0c9", "#ffffff", "#ff8a3d"];
+      for (let k = 0; k < 90; k++) {
+        const f = el("i", { class: "bl-confetti" });
+        f.style.left = `${Math.random() * 100}%`;
+        f.style.background = couleurs[k % couleurs.length];
+        f.style.animationDelay = `${Math.random() * 0.9}s`;
+        f.style.animationDuration = `${2.2 + Math.random() * 1.8}s`;
+        f.style.setProperty("--x", `${(Math.random() - 0.5) * 160}px`);
+        t.append(f);
+      }
+    }
+    setTimeout(() => t.classList.add("bl-tampon-fin"), 6500);
+    setTimeout(() => t.remove(), 7200);
+  }
+  function blChrono() {
+    const c = BL.d?.combat;
+    const ch = $("bl-chrono");
+    if (!ch) return;
+    if (!BL.d?.actif || !c) { ch.textContent = c?.fini ? (c.gagne ? "🏆" : "💨") : "💤"; ch.classList.remove("bl-urgent"); return; }
+    const reste = Math.max(0, c.fin - blMaintenant());
+    ch.textContent = `${Math.floor(reste / 60000)}:${String(Math.floor((reste % 60000) / 1000)).padStart(2, "0")}`;
+    ch.classList.toggle("bl-urgent", reste <= 30_000);
+    const a = $("bl-alerte-texte");
+    if (a) a.textContent = `${c.nom} attaque ! ${ch.textContent} · ${Math.round((c.pv / c.pvMax) * 100)} % de vie`;
+  }
+  function blRendre() {
+    const d = BL.d;
+    const scene = $("bl-scene");
+    if (!scene || !d) return;
+    const c = d.combat;
+    const horsLigne = Boolean(d.horsLigne || d.absent);
+    const actif = Boolean(d.actif && c);
+    const recent = c?.fini && blMaintenant() - (c.finiLe || 0) < 3 * 60_000;
+    const etat = actif ? (c.rage ? "rage" : "combat") : recent ? (c.gagne ? "mort" : "fuite") : "dort";
+    // quel boss : celui du combat, sinon le prochain
+    const boss = BL_NOMS[c?.boss] && (actif || recent) ? c.boss : BL_NOMS[d.prochain?.id] ? d.prochain.id : "morghast";
+    if (boss !== BL.boss) {
+      BL.boss = boss;
+      $("bl-affiche").src = `/img/boss/${boss}.webp`;
+      if (BL.rendu && BL.rendu.boss !== boss) { BL.rendu.arreter(); BL.rendu = null; BL.charge = false; scene.classList.remove("bl-3d"); }
+    }
+    // un nouveau combat : l'alerte pour tout le monde (une fois par combat), le boss qui sort du cercle, la musique au début
+    const nouveau = actif && c.id !== BL.combat;
+    if (actif) {
+      let dejaVu = false;
+      try { dejaVu = localStorage.getItem("barhaw-bl-intro") === String(c.id); } catch {}
+      if (!dejaVu) blIntro(c);
+      if (nouveau) { BL.rendu?.apparition(); BL.pv = null; }
+      if (BL.musique !== c.id && !BL.coupe) { blSon(true, { debut: true }); BL.musique = c.id; }
+    }
+    if ((BL.etat === "combat" || BL.etat === "rage") && (etat === "mort" || etat === "fuite")) { blFin(c); blSon(false, { fondu: true, victoire: c.gagne }); }
+    scene.classList.toggle("bl-dort", etat === "dort");
+    scene.classList.toggle("bl-rage", etat === "rage");
+    if (BL.rendu && etat !== BL.etat) BL.rendu.etat(etat);
+    // les coups depuis la dernière fois : les chiffres qui montent, la secousse
+    if (c && c.id === BL.combat && BL.pv !== null && c.pv < BL.pv) {
+      const perdu = BL.pv - c.pv;
+      const morceaux = Math.min(4, Math.max(1, Math.round(perdu / 60)));
+      for (let k = 0; k < morceaux; k++) setTimeout(() => blDegats(perdu / morceaux), k * 180);
+      BL.rendu?.frappe(Math.min(2, 0.6 + perdu / 300));
+      if (perdu >= 200 && !reduit.matches) { scene.classList.remove("bl-secoue"); void scene.offsetWidth; scene.classList.add("bl-secoue"); }
+    }
+    if (c) { BL.combat = c.id; BL.pv = c.pv; }
+    BL.etat = etat;
+    $("etat-boss").textContent = horsLigne ? "⚓ Au port" : actif ? (c.rage ? "🔥 EN RAGE" : "⚔️ EN COMBAT") : recent ? (c.gagne ? "🏆 Détruit" : "💨 Enfui") : "💤 Il dort";
+    $("bl-nom").textContent = c && (actif || recent) ? c.nom : d.prochain?.nom || BL_NOMS[boss];
+    $("bl-titre").textContent = c && (actif || recent) ? c.titre : d.prochain?.titre || "";
+    $("bl-gl-titre").textContent = c ? `${c.nom} attaque le navire !` : "";
+    $("bl-niveau").textContent = c ? `niv. ${c.niveau}` : d.niveau ? `niv. ${d.niveau + 1}` : "";
+    const part = c && (actif || recent) ? Math.max(0, c.pv / c.pvMax) : 1;
+    $("bl-barre").style.width = `${part * 100}%`;
+    $("bl-trainee").style.width = `${part * 100}%`;
+    $("bl-vie").setAttribute("aria-valuenow", String(Math.round(part * 100)));
+    $("bl-pv").textContent = c && (actif || recent) ? `${blFmt(c.pv)} / ${blFmt(c.pvMax)} PV` : "??? PV";
+    const dernier = d.historique?.[0];
+    $("bl-etat").textContent = horsLigne
+      ? "⚓ Le bateau fait une pause au port pour prendre des provisions, il revient vite."
+      : actif ? ""
+      : recent ? (c.gagne ? `🏆 ${c.nom} est détruit ! ${c.membres} membre${c.membres > 1 ? "s" : ""} ont frappé.` : `💨 ${c.nom} s'est enfui avec ${blFmt(c.pv)} PV… il reviendra plus fort.`)
+      : `💤 ${d.prochain?.nom || BL_NOMS[boss]} dort. Il se réveille quand Liliano tape !boss en live.${dernier ? ` La dernière fois : ${dernier.nom || "le boss"} ${dernier.gagne ? "détruit 🏆" : "s'est enfui 💨"}` : ""}`;
+    const bouton = $("bl-frapper");
+    bouton.disabled = !actif;
+    bouton.textContent = actif ? "⚔️ FRAPPER" : "⚔️ FRAPPER (pendant le combat)";
+    // le podium, les sources, le journal
+    const top = c && (actif || recent) ? c.top : dernier?.top || [];
+    vider($("bl-top"), ...(top.length ? top.map((f, k) => el("li", {},
+      el("span", { class: "bl-rang", text: ["🥇", "🥈", "🥉"][k] || String(k + 1) }),
+      f.avatar ? el("img", { src: f.avatar, alt: "", width: 30, height: 30, loading: "lazy" }) : el("span"),
+      el("span", { text: f.nom }), el("span", { class: "bl-dgt", text: blFmt(f.degats) }))) : [el("li", { class: "bl-vide", text: "Personne pour l'instant." })]));
+    $("bl-sources").textContent = c && (actif || recent) ? Object.entries(c.sources || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${BL_SOURCES[k] || k} ${blFmt(v)}`).join(" · ") : "";
+    const j = c && (actif || recent) ? c.journal : [];
+    vider($("bl-journal"), ...(j.length ? j.map((x) => el("li", { text: x.texte })) : [el("li", { class: "bl-vide", text: horsLigne ? "⚓ Le bateau fait une pause au port." : "Le boss dort." })]));
+    // partout sur le site : la pastille du menu, l'alerte en bas, le bandeau sur GRAND LINE
+    $("pastille-boss").hidden = !actif;
+    $("bl-gl").hidden = !actif;
+    $("bl-alerte").hidden = !actif || BL.vu;
+    blChrono();
+    clearInterval(BL.chrono);
+    if (actif) BL.chrono = setInterval(blChrono, 250);
+    if ((actif || BL.vu) && !BL.charge) blCharger3D();
+  }
+  async function blCharger3D() {
+    if (BL.charge) return;
+    BL.charge = true;
+    const toile = $("bl-toile");
+    try {
+      const { creerBoss3D } = await import("/js/boss-3d.js");
+      BL.rendu = creerBoss3D(toile, { boss: BL.boss || "morghast" });
+      toile.addEventListener("boss-pret", () => $("bl-scene").classList.add("bl-3d"), { once: true });
+      if (BL.etat) BL.rendu.etat(BL.etat);
+      const c = BL.d?.combat;
+      if (BL.d?.actif && c && blMaintenant() - c.debut < 12_000) BL.rendu.apparition();
+      BL.rendu.pause(!BL.vu);
+    } catch {
+      BL.rendu = null; // pas de WebGL : l'image rendue dans Blender reste
+    }
+  }
+  async function blCharger() {
+    clearTimeout(BL.minuteur);
+    let d;
+    try {
+      const r = await fetch("/api/bosslive", { headers: { Accept: "application/json" } });
+      d = await r.json();
+      if (d.maintenant) BL.decal = d.maintenant - Date.now();
+    } catch { d = { horsLigne: true }; }
+    BL.d = d;
+    blRendre();
+    const ms = document.hidden ? 30_000 : d.actif ? 2500 : BL.vu ? 12_000 : 40_000;
+    BL.minuteur = setTimeout(blCharger, ms);
+  }
+  async function blFrapper() {
+    if (!BL.d?.actif || BL.occupe) return;
+    if (!moi?.connecte) { $("bl-etat").textContent = `Connecte-toi avec Discord (en haut à droite) pour frapper ${BL.d?.combat?.nom || "le boss"} !`; return; }
+    BL.occupe = true;
+    BL.rendu?.frappe(0.8);
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "boss-live-frapper" }) });
+      const d = await r.json().catch(() => ({}));
+      if (d.boss) {
+        if (d.degats) { BL.pv = d.boss.combat?.pv ?? BL.pv; blDegats(d.degats, d.critique); BL.rendu?.frappe(d.critique ? 2 : 1); }
+        BL.d = d.boss;
+        blRendre();
+      }
+      if (d.erreur && d.texte) $("bl-etat").textContent = d.texte;
+    } catch {
+      $("bl-etat").textContent = "Le coup n'est pas parti, réessaie.";
+    }
+    setTimeout(() => { BL.occupe = false; }, 450);
+  }
+  function blDemarrer() {
+    const s = $("boss-live");
+    if (!s) return;
+    $("bl-frapper").addEventListener("click", blFrapper);
+    $("bl-son").addEventListener("click", () => {
+      const joue = Boolean((BL.son && !BL.son.paused) || (BL.victoire && !BL.victoire.paused));
+      BL.coupe = joue;
+      if (joue) blVictoire(false);
+      try { localStorage.setItem("barhaw-bl-son", joue ? "non" : "oui"); } catch {}
+      blSon(!joue);
+      if (!joue && BL.d?.combat) BL.musique = BL.d.combat.id;
+    });
+    new IntersectionObserver(([e]) => {
+      BL.vu = e.isIntersecting;
+      BL.rendu?.pause(!BL.vu || document.hidden);
+      if (BL.vu && !BL.charge) blCharger3D();
+      $("bl-alerte").hidden = !BL.d?.actif || BL.vu;
+      if (BL.vu && !BL.d?.actif) blCharger();
+    }, { threshold: 0.12 }).observe(s);
+    document.addEventListener("visibilitychange", () => { BL.rendu?.pause(!BL.vu || document.hidden); if (!document.hidden) blCharger(); });
+    blCharger();
+  }
+  blDemarrer();
+
   function cinematiqueGL() {
     if (reduit.matches || navigator.connection?.saveData) return;
     try { if (localStorage.getItem("barhaw-cine-gl2") === "vu") return; localStorage.setItem("barhaw-cine-gl2", "vu"); } catch { return; }
