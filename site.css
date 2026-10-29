@@ -2437,6 +2437,46 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 .fideles .gl-confettis { top: 40%; }
 @media (max-width: 900px) { .fid-corps { grid-template-columns: minmax(0, 1fr); } .fid-tete { flex-direction: column; } }
 
+/* ---------- l'escale : le bot fait une pause (maintenance), le navire prend des provisions au port ---------- */
+.escale-bandeau {
+  position: fixed; left: 50%; top: calc(var(--entete) + 10px); z-index: 39; translate: -50% 0; width: min(860px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 12px; padding: 10px 44px 10px 14px; border-radius: 16px;
+  background: linear-gradient(170deg, #f6e8c8, #e6cc98); color: #3a2412; border: 2.5px solid #5a3719; box-shadow: 0 0 0 2px #f3e2bd, 5px 6px 0 2px rgba(42, 22, 12, 0.55);
+  animation: monter 0.5s var(--rebond);
+}
+.escale-bandeau p { margin: 0; font-size: 14px; line-height: 1.4; }
+.escale-bandeau strong { font-family: var(--titre); font-weight: 400; color: #8e1630; margin-right: 4px; }
+.escale-navire { flex: none; width: 46px; height: 34px; display: grid; place-items: center; border-radius: 12px; background: #8fd3e0; border: 2px solid #5a3719; overflow: hidden;
+  background-image: linear-gradient(transparent 62%, rgba(255, 255, 255, 0.7) 62% 68%, transparent 68%); }
+.escale-navire b { font-size: 22px; font-weight: 400; animation: gl-tangage 2.2s var(--doux) infinite; }
+.escale-fermer { position: absolute; right: 8px; top: 50%; translate: 0 -50%; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #5a3719; background: #f3e2bd; color: #3a2412; cursor: pointer; }
+.escale-carte {
+  display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 18px; margin: -10px 0 22px; padding: 14px 20px 14px 14px; border-radius: 18px;
+  background: linear-gradient(170deg, rgba(246, 232, 200, 0.96), rgba(230, 204, 152, 0.96)); color: #3a2412; border: 2.5px solid #5a3719; box-shadow: 0 0 0 2px #f3e2bd, 6px 7px 0 2px rgba(42, 22, 12, 0.5);
+  rotate: -0.6deg;
+}
+.escale-image { position: relative; }
+.escale-image img { width: 100%; height: auto; display: block; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35)); animation: gl-bercer 6s var(--doux) infinite; }
+.escale-caisse { position: absolute; right: 14%; top: -6px; font-size: 22px; transform-origin: 50% -30px; animation: escale-grue 2.8s var(--doux) infinite; }
+@keyframes escale-grue { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(18px) rotate(8deg); } }
+.escale-sur { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8e1630; }
+.escale-titre { margin: 4px 0 6px; font-family: var(--titre); font-size: clamp(18px, 2.2vw, 24px); line-height: 1.15; color: #2a160c; }
+.escale-texte { margin: 0; font-size: 14.5px; line-height: 1.5; color: #5a3a20; }
+.escale-retour {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 60; translate: -50% 0; padding: 12px 22px; border-radius: 16px;
+  background: var(--rose); color: #fff; border: 2.5px solid var(--encre); box-shadow: 4px 4px 0 var(--encre); font-family: var(--titre); font-size: 16px; animation: monter 0.5s var(--rebond);
+}
+.gl-tampon-escale { border-color: #1f7a8c !important; color: #1f7a8c !important; background: #effbfd !important; }
+.gl-provisions { display: flex; justify-content: center; gap: 10px; margin: 6px 0 14px; }
+.gl-provisions span { display: inline-block; font-size: 26px; animation: escale-charger 1.8s var(--rebond) infinite; }
+.gl-provisions span:nth-child(2) { animation-delay: 0.2s; } .gl-provisions span:nth-child(3) { animation-delay: 0.4s; } .gl-provisions span:nth-child(4) { animation-delay: 0.6s; } .gl-provisions span:nth-child(5) { animation-delay: 0.8s; }
+@keyframes escale-charger { 0%, 60%, 100% { transform: translateY(0); } 25% { transform: translateY(-14px) rotate(-10deg); } 40% { transform: translateY(0) rotate(4deg); } }
+@media (max-width: 560px) {
+  .escale-bandeau { gap: 10px; padding: 8px 40px 8px 10px; } .escale-bandeau p { font-size: 12.5px; }
+  .escale-carte { grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 12px 14px 12px 10px; }
+  .escale-texte { font-size: 13.5px; }
+}
+
 /* ---------- tablette et téléphone ---------- */
 @media (max-width: 1080px) {
   .gl-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); }
