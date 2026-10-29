@@ -1,9 +1,16 @@
-// BOSS LIVE : MORGHAST en 3D (modèle Blender modeles/boss/boss.glb) et ses effets : aura qui monte, halo qui tourne,
-// éclats en orbite, éclairs, cercle de runes au sol, onde de choc et flash à chaque coup, rage (rouge), mort, fuite.
-// creerBoss3D(canvas) → { etat("dort"|"combat"|"rage"|"mort"|"fuite"), frappe(force), pause(oui), redimensionner(), arreter() }
+// BOSS LIVE : les boss en 3D (modèles Blender modeles/boss/<id>.glb : morghast, voraxia, krakor) et leurs effets : aura qui monte,
+// halo qui tourne, éclats en orbite, éclairs, cercle de runes au sol, onde de choc et flash à chaque coup, apparition (il sort
+// du cercle), rage (rouge), mort (il explose), fuite (il s'en va dans le ciel), caméra qui tourne et tremble.
+// creerBoss3D(canvas, { boss }) → { boss, etat("dort"|"combat"|"rage"|"mort"|"fuite"), apparition(), frappe(force), pause(oui), redimensionner(), arreter() }
 import * as THREE from "./three-r170.module.min.js";
 import { lireGLB, sceneGLB, habiller } from "./grandline-3d.js";
 
+// les couleurs et les effets de chaque boss (les yeux : par rapport à la tête, en coordonnées du site)
+const BOSS_3D = {
+  morghast: { aura: [0xb46bff, 0xff4f9a, 0xff8a3d, 0xffd36b], lueur: "rgba(180,70,255,1)", oeil: "rgba(255,60,40,1)", yeux: [[-0.5, 1.6, 1.8], [0.5, 1.6, 1.8]], eclair: 0xe6c8ff, eclairs: 1, contre: 0xff3d8e, sol: "rgba(255,120,200,0.95)", solLueur: "rgba(255,60,160,0.9)" },
+  voraxia: { aura: [0x5ff0e6, 0xffffff, 0x8a7dff, 0x9be7ff], lueur: "rgba(70,200,255,1)", oeil: "rgba(255,120,40,1)", yeux: [[0, 1.05, 5.0]], eclair: 0xbff6ff, eclairs: 2.6, contre: 0x3fd0ff, sol: "rgba(120,240,255,0.95)", solLueur: "rgba(60,160,255,0.9)" },
+  krakor: { aura: [0xff6a1a, 0xff2e1a, 0xffd36b, 0xff9a1f], lueur: "rgba(255,100,20,1)", oeil: "rgba(255,190,40,1)", yeux: [[-0.45, 1.15, 1.45], [0.45, 1.15, 1.45]], eclair: 0xffb36b, eclairs: 0.6, contre: 0xff5a1a, sol: "rgba(255,150,60,0.95)", solLueur: "rgba(255,80,20,0.9)" },
+};
 const petit = () => Math.min(window.innerWidth, window.innerHeight) < 700;
 
 function texture(dessin, taille = 128) {
@@ -22,9 +29,9 @@ const halo = (couleur) => texture((g, s) => {
   g.fillStyle = d;
   g.fillRect(0, 0, s, s);
 });
-const runes = () => texture((g, s) => {
+const runes = (couleur) => texture((g, s) => {
   const c = s / 2;
-  g.strokeStyle = "rgba(255,120,200,0.95)";
+  g.strokeStyle = couleur;
   g.lineWidth = s / 120;
   for (const r of [0.47, 0.42, 0.3]) { g.beginPath(); g.arc(c, c, s * r, 0, Math.PI * 2); g.stroke(); }
   g.font = `${Math.round(s / 18)}px serif`;
@@ -50,7 +57,10 @@ const runes = () => texture((g, s) => {
   }
 }, 512);
 
-export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) {
+export function creerBoss3D(canvas, { boss: id = "morghast", modeles = "/modeles/boss/" } = {}) {
+  if (!BOSS_3D[id]) id = "morghast";
+  const C = BOSS_3D[id];
+  const modele = `${modeles}${id}.glb`;
   const rendu = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 2, alpha: true, powerPreference: "high-performance" });
   rendu.setPixelRatio(Math.min(window.devicePixelRatio || 1, petit() ? 1.25 : 1.75));
   rendu.setClearColor(0x000000, 0);
@@ -61,7 +71,7 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   const soleil = new THREE.DirectionalLight(0xffd6a0, 1.35);
   soleil.position.set(6, 14, 12);
   scene.add(soleil);
-  const contre = new THREE.PointLight(0xff3d8e, 28, 40, 1.6);
+  const contre = new THREE.PointLight(C.contre, 28, 40, 1.6);
   contre.position.set(0, 9, -6);
   scene.add(contre);
   const lueurCoeur = new THREE.PointLight(0xff6a1a, 10, 12, 1.8);
@@ -74,16 +84,16 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   let pret = false;
 
   // l'aura : une grande lueur derrière, les yeux, le flash des coups
-  const texLueur = halo("rgba(180,70,255,1)");
+  const texLueur = halo(C.lueur);
   const lueur = new THREE.Sprite(new THREE.SpriteMaterial({ map: texLueur, color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending }));
   lueur.scale.set(30, 30, 1);
   lueur.position.set(0, 7, -3);
   scene.add(lueur);
-  const texOeil = halo("rgba(255,60,40,1)");
-  const yeux = [-0.5, 0.5].map((x) => {
+  const texOeil = halo(C.oeil);
+  const yeux = C.yeux.map((p) => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOeil, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
-    s.scale.set(1.6, 1.0, 1);
-    s.position.set(x, 10.2, 1.8);
+    s.scale.set(C.yeux.length === 1 ? 2.8 : 1.6, C.yeux.length === 1 ? 2.2 : 1.0, 1);
+    s.position.fromArray(p);
     return s;
   });
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: halo("rgba(255,255,255,1)"), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -92,11 +102,11 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   scene.add(flash);
 
   // le cercle de runes au sol
-  const sol = new THREE.Mesh(new THREE.CircleGeometry(9, 64), new THREE.MeshBasicMaterial({ map: runes(), transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const sol = new THREE.Mesh(new THREE.CircleGeometry(9, 64), new THREE.MeshBasicMaterial({ map: runes(C.sol), transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
   sol.rotation.x = -Math.PI / 2;
   sol.position.y = -2.2;
   scene.add(sol);
-  const solLueur = new THREE.Mesh(new THREE.CircleGeometry(11, 48), new THREE.MeshBasicMaterial({ map: halo("rgba(255,60,160,0.9)"), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const solLueur = new THREE.Mesh(new THREE.CircleGeometry(11, 48), new THREE.MeshBasicMaterial({ map: halo(C.solLueur), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
   solLueur.rotation.x = -Math.PI / 2;
   solLueur.position.y = -2.25;
   scene.add(solLueur);
@@ -106,7 +116,7 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   const pos = new Float32Array(N * 3);
   const col = new Float32Array(N * 3);
   const graines = [];
-  const teintes = [new THREE.Color(0xb46bff), new THREE.Color(0xff4f9a), new THREE.Color(0xff8a3d), new THREE.Color(0xffd36b)];
+  const teintes = C.aura.map((c) => new THREE.Color(c));
   for (let i = 0; i < N; i++) {
     graines.push({ a: Math.random() * Math.PI * 2, r: 2.5 + Math.random() * 5.5, y: Math.random() * 16 - 2, v: 0.8 + Math.random() * 2.2, w: (Math.random() - 0.5) * 0.8 });
     const c = teintes[i % teintes.length];
@@ -122,7 +132,7 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   // les éclats en orbite
   const eclats = [];
   for (let k = 0; k < 10; k++) {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.32 + (k % 3) * 0.12), new THREE.MeshBasicMaterial({ color: k % 2 ? 0xff4f9a : 0xffd36b }));
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.32 + (k % 3) * 0.12), new THREE.MeshBasicMaterial({ color: C.aura[k % 2 ? 1 : 3] }));
     m.userData = { r: 7 + (k % 3), y: 5 + (k % 5) * 1.4, v: 0.35 + (k % 4) * 0.12, a: (k / 10) * Math.PI * 2 };
     scene.add(m);
     eclats.push(m);
@@ -130,7 +140,7 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
 
   // les éclairs et les ondes de choc
   const eclairs = [];
-  const matEclair = new THREE.LineBasicMaterial({ color: 0xe6c8ff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
+  const matEclair = new THREE.LineBasicMaterial({ color: C.eclair, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
   function eclair() {
     const pts = [];
     const x0 = (Math.random() - 0.5) * 18;
@@ -161,8 +171,8 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
     const racine = sceneGLB(d);
     habiller(racine, { relief: () => new THREE.MeshLambertMaterial({ color: 0x888888 }), contour: 0.05 });
     racine.traverse((o) => {
-      const n = o.name || "";
-      if (n === "boss_tete") { parties.tete = o; for (const y of yeux) { y.position.sub(o.position); o.add(y); } }
+      const n = (o.name || "").replace(/\.\d+$/, ""); // Blender ajoute .001 quand plusieurs boss sont dans le même fichier
+      if (n === "boss_tete") { parties.tete = o; for (const y of yeux) o.add(y); }
       else if (n === "boss_halo") parties.halo = o;
       else if (n === "boss_coeur") parties.coeur = o;
       else if (n.startsWith("boss_bras")) parties.bras.push(o);
@@ -174,6 +184,7 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   }).catch((e) => canvas.dispatchEvent(new CustomEvent("boss-erreur", { detail: e })));
 
   let etat = "dort";
+  let tApp = 99; // l'apparition : il sort du cercle de runes
   let tEtat = 0;
   let secousse = 0;
   let coup = 0;
@@ -183,13 +194,15 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
   let avant = performance.now();
   let raf = 0;
 
+  const base = new THREE.Vector3(0, 8.2, 37);
   function redimensionner() {
     const w = canvas.clientWidth || 600;
     const h = canvas.clientHeight || 400;
     rendu.setSize(w, h, false);
     camera.aspect = w / h;
     const recul = 37 / Math.min(1, camera.aspect * 1.2);
-    camera.position.set(0, 8.2, recul);
+    base.set(0, 8.2, recul);
+    camera.position.copy(base);
     camera.updateProjectionMatrix();
   }
   redimensionner();
@@ -209,7 +222,22 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
     // le boss : il flotte, respire, regarde autour, lève les bras ; il tombe ou s'enfuit à la fin
     let y = Math.sin(t * 0.9) * 0.45 + (eveille ? 0 : -0.6);
     let echelle = 1 + Math.sin(t * 1.6) * 0.012;
-    if (etat === "mort") { y -= Math.min(14, tEtat * tEtat * 3); echelle *= Math.max(0.2, 1 - tEtat * 0.25); }
+    if (tApp < 3) {
+      const avantApp = tApp;
+      tApp += dt;
+      const k = Math.min(1, tApp / 2.2);
+      y += -22 * Math.pow(1 - k, 3) + Math.sin(k * Math.PI) * 1.2;
+      echelle *= 0.55 + 0.45 * k;
+      secousse = Math.max(secousse, tApp < 2.3 ? 0.9 : 0);
+      for (const seuil of [0.25, 0.8, 1.4, 2.0, 2.25]) if (avantApp < seuil && tApp >= seuil) { onde(seuil > 2 ? 0xffffff : C.aura[1]); eclair(); }
+      if (avantApp < 2.2 && tApp >= 2.2) { flash.material.opacity = 0.8; coup = 1.4; }
+    }
+    if (etat === "mort") {
+      // il se charge, puis explose : il gonfle, l'aura part dans tous les sens, et il disparaît
+      echelle *= tEtat < 0.5 ? 1 + tEtat * 0.4 : Math.max(0.001, 1.2 - (tEtat - 0.5) * 1.6);
+      secousse = Math.max(secousse, tEtat < 1.2 ? 1.4 : 0);
+      y -= Math.max(0, tEtat - 1.2) * 4;
+    }
     if (etat === "fuite") { y += Math.min(12, tEtat * 3); boss.position.z = -Math.min(30, tEtat * 8); } else boss.position.z = 0;
     coup = Math.max(0, coup - dt * 4);
     secousse = Math.max(0, secousse - dt * 2.5);
@@ -231,7 +259,8 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
       const g = graines[i];
       g.y += dt * g.v * vitesse * (eveille ? 1.6 : 0.6);
       g.a += dt * (0.4 + g.w) * vitesse;
-      if (g.y > 17) { g.y = -2; g.r = 2.5 + Math.random() * 5.5; }
+      if (etat === "mort" && tEtat > 0.5) { g.r += dt * (10 + g.v * 6); g.y += dt * g.w * 10; } // l'explosion
+      else if (g.y > 17 || g.r > 9) { g.y = -2; g.r = 2.5 + Math.random() * 5.5; }
       const r = g.r * (1 - Math.max(0, g.y - 10) * 0.04);
       p[i * 3] = Math.cos(g.a) * r;
       p[i * 3 + 1] = g.y + boss.position.y;
@@ -256,7 +285,7 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
     // éclairs et ondes
     if (eveille) {
       prochainEclair -= dt;
-      if (prochainEclair <= 0) { eclair(); prochainEclair = rage ? 0.6 + Math.random() * 1.2 : 2 + Math.random() * 3.5; }
+      if (prochainEclair <= 0) { eclair(); prochainEclair = (rage ? 0.6 + Math.random() * 1.2 : 2 + Math.random() * 3.5) / C.eclairs; }
     }
     for (let k = eclairs.length - 1; k >= 0; k--) {
       const l = eclairs[k];
@@ -275,19 +304,26 @@ export function creerBoss3D(canvas, { modele = "/modeles/boss/boss.glb" } = {}) 
     }
     flash.material.opacity = Math.max(0, flash.material.opacity - dt * 3);
     if (etat === "mort" && tEtat < 0.3) flash.material.opacity = 1;
+    // la caméra tourne doucement autour de lui, et tremble avec lui
+    camera.position.x = base.x + Math.sin(t * 0.13) * 5 + (Math.random() - 0.5) * secousse * 0.5;
+    camera.position.y = base.y + Math.sin(t * 0.21) * 0.8 + (Math.random() - 0.5) * secousse * 0.4;
+    camera.position.z = base.z - coup * 1.2;
     camera.lookAt(cible);
     rendu.render(scene, camera);
   }
   raf = requestAnimationFrame(image);
 
   return {
+    boss: id,
     pret: () => pret,
+    apparition() { tApp = 0; },
     etat(e) {
       if (e === etat) return;
       etat = e;
       tEtat = 0;
       if (e === "rage") { eclair(); eclair(); onde(0xff3030); }
-      if (e === "mort") { for (let k = 0; k < 4; k++) setTimeout(() => onde(k % 2 ? 0xffd36b : 0xff4f9a), k * 140); }
+      if (e === "mort") { for (let k = 0; k < 7; k++) setTimeout(() => { onde(C.aura[k % 4]); if (k % 2) eclair(); }, 400 + k * 120); setTimeout(() => { flash.material.opacity = 1; }, 500); }
+      if (e === "fuite") { eclair(); onde(C.aura[0]); }
       if (e === "combat" || e === "dort") { boss.position.z = 0; }
     },
     frappe(force = 1) {
