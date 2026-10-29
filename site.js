@@ -298,6 +298,38 @@
     for (const p of parties) io.observe(p);
   }
 
+  // ---------- la fluidité : les parties loin de l'écran ne sont pas dessinées (content-visibility, dans site.css) ----------
+  // Avant d'aller vers une ancre (le menu, un lien « #… »), on les met toutes en page un instant : sans ça, le
+  // navigateur viserait avec des tailles estimées et s'arrêterait trop haut ou trop bas. Il retient ensuite leur
+  // vraie taille, et les parties lointaines repassent en veille sans rien faire bouger.
+  let minuteurRendu = 0;
+  function rendreToutesLesParties(duree = 1800) {
+    document.documentElement.classList.add("tout-rendre");
+    void document.body.offsetHeight; // la mise en page, tout de suite
+    clearTimeout(minuteurRendu);
+    minuteurRendu = setTimeout(() => document.documentElement.classList.remove("tout-rendre"), duree);
+  }
+  function anciennesTailles() {
+    document.addEventListener("click", (ev) => {
+      const a = ev.target.closest?.('a[href^="#"]');
+      if (a && a.getAttribute("href").length > 1) rendreToutesLesParties();
+    }, true);
+    if (location.hash.length > 1) rendreToutesLesParties(3000);
+    for (const t of ["wheel", "touchmove", "keydown", "mousedown"]) window.addEventListener(t, () => { ancreFaite = true; }, { once: true, passive: true });
+  }
+  // arrivée avec une ancre (barhaw.vercel.app/#faille) : le navigateur y va avant que les parties soient remplies ;
+  // une fois les données là, on y retourne (sauf si le visiteur a déjà bougé)
+  let ancreFaite = false;
+  function retourAncre() {
+    if (ancreFaite) return;
+    ancreFaite = true;
+    const id = decodeURIComponent(location.hash.slice(1));
+    const cible = id && document.getElementById(id);
+    if (!cible) return;
+    rendreToutesLesParties(2500);
+    requestAnimationFrame(() => cible.scrollIntoView({ block: "start", behavior: "instant" }));
+  }
+
   // ---------- l'en-tête et le menu ----------
   function entete() {
     const tete = $("entete");
@@ -4417,7 +4449,7 @@
     rendreFailleRegles();
   }
 
-  // ---------- La Grand Line : le navire de la commu, d'île en île ----------
+  // ---------- GRAND LINE : le navire de la commu, d'île en île ----------
   // Le bot fait tout le calcul (lib/navire.js) ; ici : la carte (en 3D avec js/grandline-3d.js, sinon en 2D),
   // le cap, la mer (tempête, monstre, vent, bouteille), le vote aux carrefours, l'équipage et le journal de bord.
   // Les places des îles sur la carte (x, z, et ce qu'il y a dessus) : les mêmes en 3D et en 2D.
@@ -4445,7 +4477,7 @@
   let glAvant = null; // l'étape d'avant (pour « Terre en vue ! »)
   let cleVerrou = "";
   const infosGL = () => donnees?.grandline || null;
-  // La Grand Line ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
+  // GRAND LINE ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
   // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
   const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
   const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
@@ -4470,13 +4502,30 @@
     if (!v) { v = el("div", { class: "gl-verrou", id: "grandline-verrou" }); scene.append(v); }
     const quand = new Date(t);
     const date = quand.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" });
+    const mouette = () => {
+      const NS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(NS, "svg");
+      svg.setAttribute("viewBox", "0 0 24 10");
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", "M1 7 Q6 0 12 6 Q18 0 23 7");
+      svg.append(p);
+      return el("i", {}, svg);
+    };
     vider(v,
       el("span", { class: "gl-verrou-nuages", "aria-hidden": "true" }, ["☁️", "☁️", "☁️", "☁️", "☁️"].map((n) => el("i", { text: n }))),
       el("span", { class: "gl-verrou-points", "aria-hidden": "true" }, ["?", "?", "?", "?", "?", "?"].map((n) => el("i", { text: n }))),
+      el("div", { class: "gl-verrou-diorama", "aria-hidden": "true" },
+        el("span", { class: "gl-verrou-halo" }),
+        el("span", { class: "gl-verrou-ombre" }),
+        el("img", { class: "gl-verrou-port", src: "/img/grandline-port.webp", alt: "", width: 820, height: 505, decoding: "async", loading: "lazy" }),
+        el("span", { class: "gl-verrou-mouettes" }, mouette(), mouette(), mouette()),
+        el("span", { class: "gl-verrou-eclats" }, ["✦", "✧", "✦", "✧", "✦", "✧"].map((n) => el("i", { text: n }))),
+      ),
       el("div", { class: "gl-verrou-carte" },
+        el("span", { class: "gl-verrou-cadenas", "aria-hidden": "true" }, el("i", { class: "gl-chaine" }), el("b", { text: "🔒" })),
         el("p", { class: "gl-verrou-tampon", text: "Accès restreint" }),
         el("p", { class: "gl-sur", text: "La V3 du site" }),
-        el("h3", { class: "gl-verrou-titre" }, "La Grand Line ", el("span", { class: "degrade", text: "lève l'ancre" })),
+        el("h3", { class: "gl-verrou-titre" }, "GRAND LINE ", el("span", { class: "degrade", text: "lève l'ancre" })),
         el("p", { class: "gl-verrou-date", text: `${majuscule(date)} à ${fmtHeure.format(quand).replace(":", " h ")}` }),
         rebours(t, true, "grandline", { fin: () => guetterOuvertureGL(), texteFin: "Le navire part !" }),
         el("p", { class: "gl-texte", text: "Le navire de la commu attend au port. À l'ouverture, tout ce que vous faites sur le Discord, le site et Twitch le fera avancer, d'île en île, jusqu'au trésor. Prépare tes rames !" }),
@@ -4535,6 +4584,8 @@
       carteGL?.type === "3d" ? el("div", { class: "gl-vues" },
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() !== "ensemble"), onclick: () => { carteGL.rendu.vue("navire"); rendreHudGL(g); }, text: "⛵ Le navire" }),
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() === "ensemble"), onclick: () => { carteGL.rendu.vue("ensemble"); rendreHudGL(g); }, text: "🗺️ Toute la carte" }),
+        el("button", { type: "button", class: "gl-vue gl-zoom", "aria-label": "Zoomer", title: "Zoomer", onclick: () => carteGL.rendu.zoomer?.(0.7), text: "＋" }),
+        el("button", { type: "button", class: "gl-vue gl-zoom", "aria-label": "Dézoomer", title: "Dézoomer", onclick: () => carteGL.rendu.zoomer?.(1 / 0.7), text: "－" }),
       ) : null,
     );
   }
@@ -4553,7 +4604,7 @@
       el("h3", { class: "gl-titre" }, cible && !g.vote ? el("span", { class: "gl-emoji", "aria-hidden": "true", text: cible.emoji }) : null, titre),
       el("div", { class: "gl-barre", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(p), "aria-label": "L'étape en cours" },
         el("i", { style: `--p:${p}%` }), el("span", { class: "gl-barre-navire", style: `--p:${p}%`, "aria-hidden": "true", text: "⛵" })),
-      el("p", { class: "gl-milles" }, el("b", { text: `${p} %` }), ` · ${nombre(g.milles)} / ${nombre(g.longueur)} milles${g.reserve ? ` · ${nombre(g.reserve)} en réserve` : ""}`),
+      el("p", { class: "gl-milles" }, el("b", { text: `${p} %`, "data-compte": String(p), "data-suffixe": " %" }), ` · ${nombre(g.milles)} / ${nombre(g.longueur)} milles${g.reserve ? ` · ${nombre(g.reserve)} en réserve` : ""}`),
       el("p", { class: "gl-details", text: details.join(" · ") }),
       cible?.texte && !g.vote ? el("p", { class: "gl-texte", text: cible.texte }) : null,
       el("p", { class: "gl-total", text: `${pluriel(g.rameurs, "rameur")} cette étape · ${nombre(g.totalVoyage)} milles depuis le départ du voyage` }),
@@ -4606,8 +4657,9 @@
         el("p", { class: "gl-texte", text: "Pour l'instant, rien à l'horizon… Mais une tempête, un monstre marin, un coup de vent ou une bouteille à la mer peuvent arriver à tout moment." }),
       );
     }
-    if (glMessage) contenu.push(el("p", { class: `gl-message${glMessage.erreur ? " erreur" : ""}`, role: "status", text: glMessage.texte }));
-    vider(z, contenu);
+    if (glMessage) contenu.push(el("p", { class: `gl-message${glMessage.erreur ? " erreur" : ""}${glMessage.parchemin ? " gl-parchemin" : ""}`, role: "status", text: glMessage.texte }));
+    z.dataset.ev = ev?.type || (g.vote ? "vote" : "calme");
+    vider(z, el("span", { class: "gl-mer-fx", "aria-hidden": "true" }, Array.from({ length: 6 }, () => el("i"))), contenu);
   }
 
   function rameur(x, k) {
@@ -4659,9 +4711,9 @@
     const m = monNavire;
     vider(z, el("p", { class: "gl-sur", text: "Toi" }), el("h3", { class: "gl-titre", text: m?.etape ? "Tu rames !" : "À tes rames !" }),
       m ? el("div", { class: "gl-moi-chiffres" },
-        el("p", {}, el("b", { text: nombre(m.etape) }), el("span", { text: `milles cette étape${m.rang ? ` (${m.rang}e)` : ""}` })),
-        el("p", {}, el("b", { text: nombre(m.voyage) }), el("span", { text: "milles ce voyage" })),
-        el("p", {}, el("b", { text: nombre(m.total) }), el("span", { text: "milles en tout" })),
+        el("p", {}, el("b", { text: nombre(m.etape), "data-compte": String(m.etape) }), el("span", { text: `milles cette étape${m.rang ? ` (${m.rang}e)` : ""}` })),
+        el("p", {}, el("b", { text: nombre(m.voyage), "data-compte": String(m.voyage) }), el("span", { text: "milles ce voyage" })),
+        el("p", {}, el("b", { text: nombre(m.total), "data-compte": String(m.total) }), el("span", { text: "milles en tout" })),
       ) : el("p", { class: "gl-texte", text: "Chargement de ce que tu as ramé…" }),
       el("p", { class: "note", text: "Le butin de chaque île va à ceux qui ont ramé, selon leur part (en berrys, sur ton avis de recherche de la Chasse). Celui qui a le plus ramé devient le Navigateur de l'île." }),
     );
@@ -4693,10 +4745,12 @@
     if (status === 401) { moi = { connecte: false }; rendreCompte(); }
     if (d.navire) monNavire = d.navire;
     if (d.grandline && donnees) donnees = { ...donnees, grandline: d.grandline };
-    if (action === "grandline-bouteille" && d.ok) glMessage = { texte: `🍾 Dedans : ${d.message} Le navire avance de ${nombre(d.milles)} milles${d.berrys ? `, et tu gagnes ${berrys(d.berrys)}` : ""} !` };
+    if (action === "grandline-bouteille" && d.ok) glMessage = { texte: `🍾 Dedans : ${d.message} Le navire avance de ${nombre(d.milles)} milles${d.berrys ? `, et tu gagnes ${berrys(d.berrys)}` : ""} !`, parchemin: true };
     else if (action === "grandline-voter" && d.ok) glMessage = { texte: `🗳️ ${d.change ? "Vote changé" : "C'est noté"} ! Tu peux changer d'avis jusqu'à la fin du vote.` };
     else if (d.erreur && action !== "grandline") glMessage = { texte: d.erreur === "pas-membre" ? "Rejoins le Discord Barhaw pour monter à bord." : d.texte || d.erreur, erreur: true };
+    const fete = d.ok && (action === "grandline-voter" || action === "grandline-bouteille");
     if (infosGL()) rendreGrandLine();
+    if (fete) confettisGL();
   }
   async function chargerMonNavire() {
     if (!moi?.connecte) { monNavire = null; if (infosGL()) rendreMoiGL(infosGL()); return; }
@@ -4754,7 +4808,7 @@
         essai?.getExtension("WEBGL_lose_context")?.loseContext();
         if (essai && (!logiciel || choix3d === "oui")) {
           const { creerGrandLine3D } = await import("/js/grandline-3d.js");
-          const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de la Grand Line en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
+          const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de GRAND LINE en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
           vider(zone, toile);
           const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), surIle: infoIleGL, surBouteille: () => (moi?.connecte ? agirGL("grandline-bouteille") : (glMessage = { texte: "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
           if (choix3d !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
@@ -4793,7 +4847,7 @@
     return {
       maj(g) {
         const pos = (id) => GL_PLACES[id] || [0, 0];
-        const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de la Grand Line : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
+        const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de GRAND LINE : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
         svg.append(s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl-svg-mer" }));
         const traits = s("g", { class: "gl-svg-route" });
         let navire = null;
@@ -4833,6 +4887,37 @@
     };
   }
 
+  // l'entrée sur la partie (une fois par visite) : la carte se déplie, les panneaux arrivent, les chiffres comptent
+  function entreeGL(s) {
+    s.dataset.entree = "1";
+    if (reduit.matches) return;
+    s.classList.add("gl-entree");
+    setTimeout(() => s.classList.remove("gl-entree"), 3200);
+    s.querySelectorAll("[data-compte]").forEach((b, k) => compterGL(b, 260 + k * 120));
+  }
+  function compterGL(b, delai = 0) {
+    const fin = Number(b.dataset.compte) || 0;
+    const suffixe = b.dataset.suffixe || "";
+    if (fin <= 0) return;
+    const debut = performance.now() + delai;
+    const pas = (t) => {
+      if (!b.isConnected || b.dataset.compte !== String(fin)) return;
+      const k = Math.min(1, Math.max(0, (t - debut) / 1300));
+      b.textContent = `${nombre(Math.round(fin * (1 - Math.pow(1 - k, 3))))}${suffixe}`;
+      if (k < 1) requestAnimationFrame(pas);
+    };
+    b.textContent = `0${suffixe}`;
+    requestAnimationFrame(pas);
+  }
+  function confettisGL() {
+    if (reduit.matches) return;
+    const z = $("grandline-mer");
+    if (!z) return;
+    const pluie = el("span", { class: "gl-confettis", "aria-hidden": "true" }, Array.from({ length: 22 }, (_, k) => el("i", { style: `--x:${Math.round((Math.random() - 0.5) * 260)}px;--y:${Math.round(-60 - Math.random() * 140)}px;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${["#ff4f9a", "#ffd36b", "#9b4dff", "#5fd0d8", "#fff"][k % 5]};animation-delay:${(Math.random() * 0.12).toFixed(2)}s` })));
+    z.append(pluie);
+    setTimeout(() => pluie.remove(), 1600);
+  }
+
   function suivreGrandLine() {
     rendreRamerGL();
     const s = $("grandline");
@@ -4846,6 +4931,12 @@
           if (carteGL?.type === "3d") { if (glVue && !document.hidden) carteGL.rendu.demarrer(); else carteGL.rendu.arreter(); }
         }
       }, { rootMargin: "300px 0px" }).observe(s);
+      new IntersectionObserver((entrees) => {
+        for (const e of entrees) {
+          s.classList.toggle("gl-hors", !e.isIntersecting);
+          if (e.isIntersecting && e.intersectionRatio > 0.12 && !s.dataset.entree) entreeGL(s);
+        }
+      }, { threshold: [0, 0.12, 0.3] }).observe(s);
     } else { glVue = true; if (glOuvert()) preparerCarteGL(); }
     document.addEventListener("visibilitychange", () => {
       if (carteGL?.type !== "3d") return;
@@ -4860,6 +4951,7 @@
 
   // ---------- chargement ----------
   function rendreTout() {
+    if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEntete();
     rendreMaintenant();
     rendreEvenements();
@@ -4910,6 +5002,7 @@
 
   function demarrer() {
     ciel();
+    anciennesTailles();
     animationsHorsVue();
     entete();
     apparitionsFixes();

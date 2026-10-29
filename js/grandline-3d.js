@@ -1,4 +1,4 @@
-// La Grand Line de Barhaw, en 3D : une carte au trésor en parchemin, vue d'en haut, avec les îles en relief
+// GRAND LINE (Barhaw), en 3D : une carte au trésor en parchemin, vue d'en haut, avec les îles en relief
 // (courbes de niveau, hachures), la mer à l'aquarelle qui bouge, la route en pointillés rouges, et le navire
 // de la commu, un petit navire-jouet aux couleurs de Barhaw, qui flotte dessus.
 // Tout est inventé (la carte, les îles, le navire) ; ce fichier ne fait que dessiner ce que site.js lui donne
@@ -25,6 +25,19 @@ function toile(l, h, dessin) {
   return t;
 }
 const v3 = (x, z, y = 0) => new THREE.Vector3(x, y, z);
+// un petit rond lumineux (pour les lucioles, la neige, les étincelles : sinon les points sont carrés)
+let rond = null;
+function pastille() {
+  rond ||= toile(64, 64, (x, l) => {
+    const d = x.createRadialGradient(l / 2, l / 2, 0, l / 2, l / 2, l / 2);
+    d.addColorStop(0, "rgba(255,255,255,1)");
+    d.addColorStop(0.45, "rgba(255,255,255,.85)");
+    d.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = d;
+    x.fillRect(0, 0, l, l);
+  });
+  return rond;
+}
 
 // ---------- ce que les îles ont l'air d'être (couleurs du parchemin, et ce qu'il y a dessus) ----------
 const THEMES = {
@@ -453,8 +466,378 @@ function navireJouet() {
     l.position.set(-2.55, 1.85, z);
     g.add(l);
   }
-  g.userData = { grande, hune, flamme };
+  g.userData = {
+    grande, hune, flamme,
+    animer(s, vent) {
+      grande.scale.z = vent + Math.sin(s * 2.2) * 0.06;
+      hune.scale.z = 0.8 * vent;
+      flamme.rotation.y = Math.sin(s * 5) * 0.4;
+    },
+  };
   return g;
+}
+
+// ---------- les modèles faits dans Blender (outils/blender) ----------
+// Les fichiers .glb sont compactés par outils/blender/compacter_glb.py ; ce petit lecteur sait les relire
+// (pas de chargeur externe : la page n'accepte que ses propres scripts). Les matières sont celles du site,
+// retrouvées par leur nom ; les objets disent eux-mêmes comment ils bougent (les « extras » du glTF).
+const COULEURS = {
+  bois: 0x7a3b2e, bois2: 0x683025, bois_fonce: 0x4a2219, bois_clair: 0xd2a676, planche: 0x9a6a40, rose: 0xff4f9a, rose_pale: 0xffb3d1,
+  violet: 0x9b4dff, violet_fonce: 0x5e2bb0, prune: 0x5b1f4a, or: 0xffd36b, creme: 0xfbf1df, blanc: 0xffffff, rouge: 0xe0533c,
+  rouge_fonce: 0xc2283a, jaune: 0xffb347, orange: 0xff8a3d, vert: 0x5fa646, vert_clair: 0x8fcf5f, vert_fonce: 0x3f7a35, feuille: 0x4f9e4a,
+  pierre: 0xa39a8c, pierre_fonce: 0x6b6258, roche_noire: 0x3b3236, neige: 0xf4f8ff, glace: 0xbfe6ff, lave: 0xff6a1a, fer: 0x2a2a33,
+  corde: 0xc9a66b, lumiere: 0xfff1a8, eau: 0x6fb0c8, turquoise: 0x3fd0c9, luciole: 0xfff27a, gres: 0xd98a4a, paille: 0xe8c66a,
+  feu: 0xff9a1f, eau_douce: 0x5fd0d8, corail: 0xff7a8a, noir: 0x1f1a22, sable: 0xe9cf98, gris: 0x8a8796, champi_pied: 0xf6ead2,
+  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
+};
+const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu"]);
+const DEUX_FACES = new Set(["feuille", "voile", "voile_b", "drapeau", "flamme", "corde"]);
+const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave"]);
+const TYPES_GLB = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
+const MAX_GLB = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
+const COMPOSANTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+
+async function lireGLB(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} : ${r.status}`);
+  const buf = await r.arrayBuffer();
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x46546c67) throw new Error(`${url} : pas un .glb`);
+  const lj = dv.getUint32(12, true);
+  const g = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, lj)));
+  const lb = dv.getUint32(20 + lj, true);
+  return { g, bin: buf.slice(28 + lj, 28 + lj + lb) };
+}
+function accesseur(g, bin, i, brut = false) {
+  const a = g.accessors[i];
+  const v = g.bufferViews[a.bufferView];
+  const T = TYPES_GLB[a.componentType];
+  const k = COMPOSANTS[a.type];
+  const debut = (v.byteOffset || 0) + (a.byteOffset || 0);
+  if (brut) return new T(bin, debut, a.count * k);
+  const pas = (v.byteStride || T.BYTES_PER_ELEMENT * k) / T.BYTES_PER_ELEMENT;
+  const src = new T(bin, debut, pas * (a.count - 1) + k);
+  const max = a.normalized ? MAX_GLB[a.componentType] : 1;
+  const x = new Float32Array(a.count * k);
+  const e = a.extras || {};
+  for (let n = 0; n < a.count; n++) {
+    for (let c = 0; c < k; c++) {
+      let val = Math.max(-1, src[n * pas + c] / max);
+      if (e.centre) val = e.centre[c] + val * e.demi[c];
+      else if (e.min) val = e.min[c] + val * e.ecart[c];
+      x[n * k + c] = val;
+    }
+  }
+  return { x, k, srgb: Boolean(e.srgb) };
+}
+function geometrieGLB(g, bin, p) {
+  const geo = new THREE.BufferGeometry();
+  const at = p.attributes;
+  geo.setAttribute("position", new THREE.BufferAttribute(accesseur(g, bin, at.POSITION).x, 3));
+  if (at.NORMAL !== undefined) {
+    const { x } = accesseur(g, bin, at.NORMAL);
+    for (let n = 0; n < x.length; n += 3) { const l = Math.hypot(x[n], x[n + 1], x[n + 2]) || 1; x[n] /= l; x[n + 1] /= l; x[n + 2] /= l; }
+    geo.setAttribute("normal", new THREE.BufferAttribute(x, 3));
+  }
+  if (at.COLOR_0 !== undefined) {
+    const { x, k, srgb } = accesseur(g, bin, at.COLOR_0);
+    const c = new Float32Array((x.length / k) * 3);
+    for (let n = 0; n < x.length / k; n++) for (let j = 0; j < 3; j++) { const v = x[n * k + j]; c[n * 3 + j] = srgb ? v : v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; }
+    geo.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  }
+  if (at.TEXCOORD_0 !== undefined) geo.setAttribute("uv", new THREE.BufferAttribute(accesseur(g, bin, at.TEXCOORD_0).x, 2));
+  if (p.indices !== undefined) geo.setIndex(new THREE.BufferAttribute(accesseur(g, bin, p.indices, true), 1));
+  if (at.NORMAL === undefined) geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+function noeudGLB(g, bin, i) {
+  const n = g.nodes[i];
+  let o;
+  if (n.mesh !== undefined) {
+    const prims = g.meshes[n.mesh].primitives.map((p) => {
+      const m = new THREE.Mesh(geometrieGLB(g, bin, p));
+      m.userData.matiere = String(g.materials?.[p.material]?.name || "").split(".")[0];
+      return m;
+    });
+    if (prims.length === 1) o = prims[0];
+    else { o = new THREE.Group(); o.add(...prims); }
+  } else o = new THREE.Group();
+  o.name = n.name || "";
+  Object.assign(o.userData, n.extras || {});
+  if (n.translation) o.position.fromArray(n.translation);
+  if (n.rotation) o.quaternion.fromArray(n.rotation);
+  if (n.scale) o.scale.fromArray(n.scale);
+  for (const c of n.children || []) o.add(noeudGLB(g, bin, c));
+  return o;
+}
+function sceneGLB({ g, bin }) {
+  const racine = new THREE.Group();
+  for (const i of g.scenes[g.scene || 0].nodes) racine.add(noeudGLB(g, bin, i));
+  return racine;
+}
+// le contour à l'encre : la même forme, gonflée le long des normales, vue de dos
+const contours = new Map();
+function matiereContour(ep) {
+  if (!contours.has(ep)) {
+    const c = new THREE.Color(ENCRE);
+    contours.set(ep, new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      uniforms: { uEp: { value: ep } },
+      vertexShader: "uniform float uEp; void main() { vec3 p = position + normalize(normal) * uEp; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }",
+      fragmentShader: `void main() { gl_FragColor = vec4(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)}, 1.0); }`,
+    }));
+  }
+  return contours.get(ep);
+}
+// les toiles du navire et les drapeaux (dessinées ici ; les UV viennent de Blender)
+const toiles = {};
+function toileGLB(nom) {
+  if (toiles[nom]) return toiles[nom];
+  const voileDessin = (embleme) => (x, l, h) => {
+    x.fillStyle = "#fbf1df";
+    x.fillRect(0, 0, l, h);
+    x.strokeStyle = "rgba(160,120,80,.18)";
+    x.lineWidth = 4;
+    for (let k = 1; k < 8; k++) { x.beginPath(); x.moveTo((k * l) / 8, 0); x.lineTo((k * l) / 8, h); x.stroke(); }
+    x.fillStyle = "#ffd36b";
+    x.fillRect(0, h - 44, l, 8);
+    x.fillStyle = "#ff4f9a";
+    x.fillRect(0, h - 34, l, 34);
+    if (!embleme) return;
+    x.fillStyle = "#ff4f9a";
+    x.beginPath(); x.arc(l / 2, h / 2 - 14, 104, 0, Math.PI * 2); x.fill();
+    x.lineWidth = 12; x.strokeStyle = "#7a1f4d"; x.stroke();
+    x.lineWidth = 6; x.strokeStyle = "#ffd36b";
+    x.beginPath(); x.arc(l / 2, h / 2 - 14, 84, 0, Math.PI * 2); x.stroke();
+    x.font = "900 150px 'Dela Gothic One', Arial Black, sans-serif";
+    x.textAlign = "center"; x.textBaseline = "middle";
+    x.lineWidth = 10; x.strokeStyle = "#7a1f4d"; x.strokeText("B", l / 2, h / 2 - 8);
+    x.fillStyle = "#fff6fb"; x.fillText("B", l / 2, h / 2 - 8);
+  };
+  const dessins = {
+    voile_b: [512, 384, voileDessin(true)],
+    voile: [512, 384, voileDessin(false)],
+    drapeau: [512, 320, (x, l, h) => {
+      x.fillStyle = "#ff4f9a"; x.fillRect(0, 0, l, h);
+      x.fillStyle = "#9b4dff"; x.beginPath(); x.moveTo(0, h); x.lineTo(l, h * 0.55); x.lineTo(l, h); x.closePath(); x.fill();
+      x.beginPath();
+      for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5; const r = k % 2 ? 52 : 120; x.lineTo(l / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); }
+      x.closePath(); x.fillStyle = "#ffd36b"; x.fill(); x.lineWidth = 8; x.strokeStyle = "#7a1f4d"; x.stroke();
+      x.font = "900 78px 'Dela Gothic One', Arial Black, sans-serif"; x.textAlign = "center"; x.textBaseline = "middle";
+      x.fillStyle = "#7a1f4d"; x.fillText("B", l / 2, h / 2 + 10);
+    }],
+    flamme: [256, 32, (x, l, h) => { const d = x.createLinearGradient(0, 0, l, 0); d.addColorStop(0, "#ff4f9a"); d.addColorStop(1, "#9b4dff"); x.fillStyle = d; x.fillRect(0, 0, l, h); }],
+  };
+  const [l, h, f] = dessins[nom];
+  const t = toile(l, h, f);
+  t.flipY = false;
+  toiles[nom] = t;
+  return t;
+}
+const matieres = new Map();
+function matiereGLB(nom) {
+  if (matieres.has(nom)) return matieres.get(nom);
+  const couleur = COULEURS[nom] ?? 0xcccccc;
+  let m;
+  if (BRILLANTS.has(nom)) m = new THREE.MeshBasicMaterial({ color: couleur });
+  else if (nom === "pois") m = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x777777 });
+  else if (nom === "glace") m = plastique(couleur, { shininess: 120, specular: 0xffffff, transparent: true, opacity: 0.86 });
+  else if (nom === "eau" || nom === "eau_douce") m = plastique(couleur, { shininess: 100, specular: 0xffffff, transparent: true, opacity: 0.85 });
+  else if (nom === "verre") m = plastique(couleur, { shininess: 140, specular: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
+  else if (nom === "ecaille") m = plastique(couleur, { shininess: 70, specular: 0x6a5a8a });
+  else if (toileGLB.noms.has(nom)) m = new THREE.MeshPhongMaterial({ map: toileGLB(nom), emissiveMap: toileGLB(nom), emissive: 0x8a8580, side: THREE.DoubleSide, shininess: 10 });
+  else m = plastique(couleur, DEUX_FACES.has(nom) ? { side: THREE.DoubleSide } : {});
+  matieres.set(nom, m);
+  return m;
+}
+toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
+// habiller un modèle : les matières du site, les contours ; renvoie ce qui bouge et les reliefs
+function habiller(racine, { relief, contour = 0.045 }) {
+  const reliefs = [];
+  const bouge = [];
+  const reperes = [];
+  const parcourir = (o, sansContour) => {
+    const anim = o.userData.anim;
+    if (anim && o.userData.role === "repere") reperes.push(o);
+    else if (anim) bouge.push(o);
+    const calme = sansContour || anim === "mirage" || anim === "clignote";
+    const enfants = [...o.children];
+    if (o.isMesh) {
+      const nom = o.userData.matiere;
+      if (nom === "terrain") {
+        o.material = relief();
+        reliefs.push(o);
+      } else {
+        o.material = matiereGLB(nom);
+        if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
+      }
+    }
+    for (const c of enfants) parcourir(c, calme);
+  };
+  parcourir(racine, false);
+  return { reliefs, bouge, reperes };
+}
+// le trait de côte à l'encre : là où le relief coupe l'eau
+function traitDeCote(geo, niveau = 0.08) {
+  const p = geo.attributes.position;
+  const ix = geo.index ? geo.index.array : Array.from({ length: p.count }, (_, k) => k);
+  const pts = [];
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  for (let t = 0; t < ix.length; t += 3) {
+    const coupe = [];
+    for (let k = 0; k < 3; k++) {
+      a.fromBufferAttribute(p, ix[t + k]);
+      b.fromBufferAttribute(p, ix[t + ((k + 1) % 3)]);
+      if ((a.y - niveau) * (b.y - niveau) < 0) coupe.push(a.clone().lerp(b, (niveau - a.y) / (b.y - a.y)));
+    }
+    if (coupe.length === 2) pts.push(...coupe);
+  }
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: ENCRE, transparent: true, opacity: 0.55 }));
+}
+// Blender a le haut en Z ; le site en Y
+const axeBlender = (a = [0, 0, 1]) => new THREE.Vector3(a[0], a[2], -a[1]).normalize();
+// ce qui bouge sur un modèle : une fonction par objet animé
+function animateurs(bouge, vent = () => 1) {
+  const q = new THREE.Quaternion();
+  return bouge.map((o) => {
+    const u = o.userData;
+    const q0 = o.quaternion.clone();
+    const p0 = o.position.clone();
+    const axe = axeBlender(u.axe);
+    const ph = u.phase || 0;
+    const ampl = u.ampl ?? 0.3;
+    const v = u.vitesse ?? 1;
+    if (u.anim === "tourne") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, s * v)); };
+    if (u.anim === "balance") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, Math.sin(s * v + ph) * ampl)); };
+    if (u.anim === "flotte") return (s) => {
+      o.position.y = p0.y + Math.sin(s * 1.3 + ph) * ampl;
+      o.quaternion.copy(q0).multiply(q.setFromAxisAngle(X, Math.sin(s * 1.1 + ph) * 0.05));
+    };
+    if (u.anim === "drapeau" || u.anim === "flamme") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(Y, Math.sin(s * (u.anim === "flamme" ? 5 : 3) + ph) * 0.3)); };
+    if (u.anim === "voile") {
+      const k = Math.abs(axe.x) > 0.5 ? "x" : Math.abs(axe.y) > 0.5 ? "y" : "z";
+      return (s) => { o.scale[k] = vent() * (1 + Math.sin(s * 2.2 + ph) * 0.05); };
+    }
+    if (u.anim === "clignote" || u.anim === "mirage") {
+      const mats = [];
+      o.traverse((m) => {
+        if (!m.isMesh || m.material.type === "ShaderMaterial") return;
+        m.material = m.material.clone();
+        if (u.anim === "mirage") Object.assign(m.material, { transparent: true, depthWrite: false });
+        mats.push([m.material, m.material.color.clone()]);
+      });
+      if (u.anim === "mirage") return (s) => {
+        o.position.y = p0.y + Math.sin(s * 1.2) * ampl;
+        o.rotation.y = s * 0.2;
+        for (const [m] of mats) m.opacity = 0.42 + Math.sin(s * 1.7) * 0.22;
+      };
+      const lent = u.lent ? 0.35 : 1;
+      return (s) => {
+        const f = 0.82 + Math.sin(s * 7 * lent) * 0.1 + Math.sin(s * 13.7 * lent + 1.3) * 0.08;
+        for (const [m, c] of mats) m.color.copy(c).multiplyScalar(f);
+      };
+    }
+    return () => {};
+  });
+}
+const X = new THREE.Vector3(1, 0, 0);
+const Y = new THREE.Vector3(0, 1, 0);
+// les effets posés sur les repères des îles (fumée, neige, lucioles, phare, orage…)
+function points(nb, couleur, taille, place) {
+  const pos = new Float32Array(nb * 3);
+  for (let k = 0; k < nb; k++) pos.set(place(k), k * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color: couleur, size: taille, map: pastille(), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+}
+function effetRepere(r) {
+  const g = new THREE.Group();
+  g.position.copy(r.position);
+  const R = hasard(777);
+  let maj = () => {};
+  const genre = r.userData.anim;
+  if (genre === "fumee") {
+    const bouffees = Array.from({ length: 7 }, (_, k) => { const f = nuageBoule(0x8c8077, 0.8); f.userData.k = k; g.add(f); return f; });
+    maj = (s) => {
+      for (const f of bouffees) {
+        const p = (s * 0.22 + f.userData.k / 7) % 1;
+        f.position.set(Math.sin(p * 5 + f.userData.k) * 0.9, p * 8, p * 2.5);
+        f.scale.setScalar(0.5 + p * 2);
+        f.material.opacity = 0.8 * (1 - p);
+      }
+    };
+  } else if (genre === "neige" || genre === "spores" || genre === "etincelles" || genre === "lucioles") {
+    const reglage = {
+      neige: [200, 0xffffff, 0.35, 9, 11, -1.1],
+      spores: [70, 0xff9cc8, 0.45, 7, 6, 0.35],
+      etincelles: [40, 0xffd36b, 0.4, 1.4, 2.4, 0.6],
+      lucioles: [80, 0xfff27a, 0.55, r.userData.rayon || 10, 5, 0],
+    }[genre];
+    const [nb, couleur, taille, rayon, haut, vitesse] = reglage;
+    const p = points(nb, couleur, taille, () => { const a = R() * Math.PI * 2; const d = Math.sqrt(R()) * rayon; return [Math.cos(a) * d, R() * haut - (genre === "neige" ? 9 : 0), Math.sin(a) * d]; });
+    const bas = genre === "neige" ? -9 : 0;
+    g.add(p);
+    maj = (s, dt) => {
+      const a = p.geometry.attributes.position;
+      if (vitesse) {
+        for (let k = 0; k < nb; k++) {
+          let y = a.getY(k) + vitesse * dt * (0.6 + (k % 5) * 0.15);
+          if (y < bas) y += haut;
+          if (y > bas + haut) y -= haut;
+          a.setY(k, y);
+          a.setX(k, a.getX(k) + Math.sin(s + k) * dt * 0.15);
+        }
+        a.needsUpdate = true;
+      }
+      p.material.opacity = genre === "etincelles" ? 0.5 + Math.sin(s * 6) * 0.4 : genre === "lucioles" ? 0.55 + Math.sin(s * 3) * 0.35 : 0.85;
+      if (genre === "lucioles") p.rotation.y = s * 0.05;
+    };
+  } else if (genre === "ecume") {
+    const rayon = r.userData.rayon || 1.5;
+    const ronds = Array.from({ length: 3 }, (_, k) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(rayon * 0.8, rayon, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      m.userData.k = k;
+      g.add(m);
+      return m;
+    });
+    // l'eau à z = 0 : le repère est à la surface (il ne suit pas la tête qui flotte)
+    maj = (s) => {
+      for (const m of ronds) {
+        const p = (s * 0.5 + m.userData.k / 3) % 1;
+        m.scale.setScalar(1 + p * 1.1);
+        m.material.opacity = 0.75 * (1 - p);
+      }
+    };
+  } else if (genre === "faisceau") {
+    const faisceau = new THREE.Mesh(new THREE.ConeGeometry(2.6, 15, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+    faisceau.rotation.z = Math.PI / 2;
+    faisceau.position.x = 7.5;
+    const pivot = new THREE.Group();
+    pivot.add(faisceau);
+    g.add(pivot);
+    maj = (s) => { pivot.rotation.y = s * 0.9; };
+  } else if (genre === "orage") {
+    const nuage = new THREE.Group();
+    for (let k = 0; k < 9; k++) {
+      const b = nuageBoule(0x585466);
+      b.scale.set(2.2 + R() * 1.6, 1.2 + R(), 2.2 + R() * 1.6);
+      b.position.set((R() - 0.5) * 9, R() * 0.8, (R() - 0.5) * 7);
+      nuage.add(b);
+    }
+    const eclair = new THREE.Line(new THREE.BufferGeometry().setFromPoints([[0, 0], [1, -2.5], [-0.5, -4.5], [0.8, -6.8], [0, -9]].map(([x, y]) => new THREE.Vector3(x, y, 0))), new THREE.LineBasicMaterial({ color: 0xfff6a0 }));
+    g.add(nuage, eclair);
+    maj = (s) => {
+      const f = (s * 0.7) % 3;
+      eclair.visible = f < 0.12 || (f > 0.2 && f < 0.26);
+      eclair.position.x = Math.sin(Math.floor(s * 0.7 / 3) * 7.1) * 2.5;
+      nuage.position.x = Math.sin(s * 0.3) * 0.8;
+    };
+  }
+  return { groupe: g, maj };
 }
 
 // ---------- la mer à l'aquarelle, sur une feuille de parchemin ----------
@@ -563,7 +946,7 @@ function courbe(a, b, sens = 1, force = 0.16) {
   return new THREE.QuadraticBezierCurve3(a, c, b);
 }
 
-export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {} }) {
+export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, modeles = "/modeles/grandline/" }) {
   const ratio = Math.min(1.5, window.devicePixelRatio || 1);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: ratio < 1.5, alpha: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -586,7 +969,6 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
 
   // ---------- les îles (toutes, dès le début ; ce qui est visible dépend du voyage) ----------
   const iles = new Map(); // id → { groupe, nuage, cible, theme, x, z, r }
-  const anims = [];
   let n = 0;
   for (const [id, [x, z, theme]] of Object.entries(positions)) {
     const t = THEMES[theme] || THEMES.plage;
@@ -594,6 +976,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const groupe = new THREE.Group();
     groupe.position.set(x, 0, z);
     const ilots = [];
+    const anims = []; // ce qui bouge sur cette île (seulement quand on la voit)
     if (t.ilots) {
       for (let k = 0; k < t.ilots; k++) {
         const ilot = terrain(t, 77 + n * 13 + k, { uLumiere }, t.r * (0.8 + R() * 0.4));
@@ -620,7 +1003,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       for (let k = 0; k < nb; k++) pts.set([(R() - 0.5) * 22, 1 + R() * 5, (R() - 0.5) * 18], k * 3);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.BufferAttribute(pts, 3));
-      const mat = new THREE.PointsMaterial({ color: 0xfff27a, size: 0.55, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
+      const mat = new THREE.PointsMaterial({ color: 0xfff27a, size: 0.55, map: pastille(), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
       const lucioles = new THREE.Points(geo, mat);
       groupe.add(lucioles);
       anims.push((s) => { mat.opacity = 0.55 + Math.sin(s * 3) * 0.35; lucioles.rotation.y = s * 0.05; });
@@ -644,14 +1027,57 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const contenu = [...groupe.children]; // l'île elle-même : cachée tant qu'elle est inconnue
     groupe.add(nuage, anneau, zone);
     scene.add(groupe);
-    iles.set(id, { id, groupe, nuage, anneau, zone, contenu, theme, x, z, r: t.r * (t.ilots ? 1.9 : 1.05), reliefs: groupe.children.filter((c) => c.userData?.relief).map((c) => c.userData.relief).concat(ilots.map((i) => i.userData.relief)), etat: "", disparition: 0 });
+    iles.set(id, { id, groupe, nuage, anneau, zone, contenu, theme, x, z, r: t.r * (t.ilots ? 1.9 : 1.05), reliefs: groupe.children.filter((c) => c.userData?.relief).map((c) => c.userData.relief).concat(ilots.map((i) => i.userData.relief)), etat: "", disparition: 0, anims, visible: false, modele: undefined, haut: 6.5 });
     n++;
   }
   let k = 0;
   for (const i of iles.values()) { if (k < 16) uniformsMer.uIles.value[k].set(i.x, i.z, i.r * 0.92); k++; }
 
+  // ---------- les modèles de Blender : chaque île se charge quand on la voit (en attendant : la version dessinée ici) ----------
+  let detruit = false;
+  const erreurs = []; // pour les essais (etat())
+  function chargerIle(i) {
+    if (i.modele !== undefined || detruit) return;
+    i.modele = null;
+    lireGLB(`${modeles}ile-${i.id}.glb`).then((glb) => {
+      if (detruit) return;
+      const modele = sceneGLB(glb);
+      const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }) });
+      for (const r of reliefs) modele.add(traitDeCote(r.geometry));
+      const boite = new THREE.Box3().setFromObject(modele);
+      const anims = animateurs(bouge);
+      for (const r of reperes) { const e = effetRepere(r); r.parent.add(e.groupe); anims.push(e.maj); }
+      for (const c of i.contenu) { i.groupe.remove(c); c.traverse((o) => o.geometry?.dispose?.()); }
+      i.groupe.add(modele);
+      i.contenu = [modele];
+      i.reliefs = reliefs;
+      i.anims = anims;
+      i.haut = Math.max(6.5, boite.max.y + 1.2);
+      i.modele = modele;
+      modele.visible = i.visible;
+      for (const r of reliefs) r.material.uniforms.uGris.value = i.visible ? 0 : 0.6;
+    }).catch((e) => { i.modele = false; erreurs.push(`${i.id} : ${e.message}`); });
+  }
+  // les créatures (le monstre, la mouette, la bouteille) : chaque fichier se lit une fois, chaque copie est neuve
+  const glbCreatures = new Map();
+  function creature(nom, contour) {
+    if (!glbCreatures.has(nom)) glbCreatures.set(nom, lireGLB(`${modeles}${nom}.glb`));
+    return glbCreatures.get(nom).then((glb) => {
+      const modele = sceneGLB(glb);
+      const { bouge, reperes } = habiller(modele, { relief: () => null, contour });
+      const anims = animateurs(bouge);
+      for (const r of reperes) {
+        const e = effetRepere(r);
+        e.groupe.userData.effet = true;
+        r.parent.add(e.groupe);
+        anims.push(e.maj);
+      }
+      return { modele, anims };
+    });
+  }
+
   // ---------- le navire ----------
-  const navire = navireJouet();
+  let navire = navireJouet();
   navire.scale.setScalar(1.8);
   const ombre = new THREE.Mesh(new THREE.CircleGeometry(5.2, 24), new THREE.MeshBasicMaterial({ color: 0x1a3550, transparent: true, opacity: 0.22, depthWrite: false }));
   ombre.rotation.x = -Math.PI / 2;
@@ -659,6 +1085,38 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   const porteur = new THREE.Group();
   porteur.add(ombre, navire);
   scene.add(porteur);
+  // le navire modélisé dans Blender remplace le petit navire dessiné ici dès qu'il est chargé
+  let ventNavire = 1;
+  lireGLB(`${modeles}navire.glb`).then((glb) => {
+    if (detruit) return;
+    const modele = sceneGLB(glb);
+    const { bouge } = habiller(modele, { relief: () => null, contour: 0.03 });
+    const anims = animateurs(bouge, () => ventNavire);
+    const nouveau = new THREE.Group();
+    nouveau.add(modele);
+    nouveau.scale.setScalar(1.5);
+    nouveau.userData.animer = (s, vent) => { ventNavire = vent; for (const a of anims) a(s); };
+    nouveau.userData.blender = true;
+    nouveau.position.copy(navire.position);
+    porteur.remove(navire);
+    navire.traverse((o) => o.geometry?.dispose?.());
+    navire = nouveau;
+    porteur.add(navire);
+  }).catch((e) => { erreurs.push(`navire : ${e.message}`); });
+  // les mouettes : elles tournent autour du navire (elles se cachent pendant la tempête)
+  const mouettes = [];
+  Promise.all([0, 1, 2].map(() => creature("mouette", 0.018))).then((liste) => {
+    if (detruit) return;
+    liste.forEach((c, k) => {
+      const m = new THREE.Group();
+      m.add(c.modele);
+      m.rotation.order = "YXZ";
+      m.scale.setScalar(1.2);
+      m.userData = { anims: c.anims, r: 6.5 + k * 1.8, h: 10 + k * 1.4, v: 0.5 - k * 0.07, a0: k * 2.1, sens: k === 1 ? -1 : 1 };
+      scene.add(m);
+      mouettes.push(m);
+    });
+  }).catch((e) => { erreurs.push(`mouette : ${e.message}`); });
   // le sillage : des ronds d'écume qui s'élargissent
   const sillages = Array.from({ length: 10 }, () => {
     const s = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.9, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
@@ -672,7 +1130,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const nb = 60;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(nb * 3), 3));
-    const p = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffd36b, size: 0.5, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const p = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffd36b, size: 0.5, map: pastille(), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
     p.visible = false;
     p.userData.graines = Array.from({ length: nb }, () => [Math.random() * Math.PI * 2, Math.random(), 2 + Math.random() * 4]);
     scene.add(p);
@@ -839,6 +1297,29 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         }
         yeux.position.y = Math.sin(s * 1.3) * 0.25;
       };
+      const dessines = [...g.children];
+      const majDessin = maj;
+      let corps = null;
+      let anims = [];
+      let sortie = 0;
+      creature("monstre", 0.06).then((c) => {
+        if (detruit) return;
+        for (const o of dessines) { g.remove(o); o.traverse((x) => x.geometry?.dispose?.()); }
+        // ce qui sort de l'eau (la tête, les tentacules) ; l'écume reste à la surface
+        corps = new THREE.Group();
+        for (const o of [...c.modele.children]) if (!o.userData.effet) corps.add(o);
+        c.modele.add(corps);
+        corps.position.y = -16;
+        anims = c.anims;
+        g.add(c.modele);
+      }).catch((e) => { erreurs.push(`monstre : ${e.message}`); });
+      maj = (s, dt) => {
+        if (!corps) return majDessin(s, dt);
+        sortie = Math.min(1, sortie + dt / 2.6);
+        corps.position.y = -16 * Math.pow(1 - sortie, 3);
+        for (const a of anims) a(s, dt);
+      };
+      g.userData.modele = () => Boolean(corps);
     }
     if (type === "vent") {
       const traits = Array.from({ length: 16 }, () => {
@@ -872,6 +1353,14 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       zone.userData.bouteille = true;
       g.add(b, halo, zone);
       g.userData.decalage = v3(6, 5);
+      creature("bouteille", 0.025).then((c) => {
+        if (detruit) return;
+        for (const o of [verre, col, bouchon, papier]) { b.remove(o); o.geometry.dispose(); }
+        c.modele.position.y = -1.3;
+        c.modele.scale.setScalar(1.15);
+        b.add(c.modele);
+        g.userData.modele = () => true;
+      }).catch((e) => { erreurs.push(`bouteille : ${e.message}`); });
       maj = (s) => {
         b.position.y = 0.3 + Math.sin(s * 2) * 0.25;
         b.rotation.x = Math.sin(s * 1.3) * 0.2;
@@ -909,6 +1398,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   let Hc = 540;
   const cam = { cible: v3(0, 0), dist: 200, tilt: 0.62, yaw: 0, voulu: { cible: v3(0, 0), dist: 200, tilt: 0.62 } };
   let mode = "navire";
+  let zoom = 1; // les boutons ＋ / − (et le pincement sur un pavé tactile)
   const decalage = v3(0, 0);
   let parallaxe = 0;
   function distanceEnsemble() {
@@ -918,9 +1408,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   }
   function viser() {
     const v = cam.voulu;
-    if (mode === "ensemble") { v.cible.set(0, 0, 6).add(decalage); v.dist = distanceEnsemble(); v.tilt = 0.5; }
-    else if (mode === "ile" && vise) { v.cible.copy(vise).add(decalage); v.dist = 46; v.tilt = 0.95; }
-    else { v.cible.copy(porteur.position).add(decalage); v.dist = camera.aspect < 1 ? 64 : 48; v.tilt = 0.9; }
+    if (mode === "ensemble") { v.cible.set(0, 0, 6).add(decalage); v.dist = distanceEnsemble() * Math.min(1, zoom * 1.6); v.tilt = 0.5; }
+    else if (mode === "ile" && vise) { v.cible.copy(vise).add(decalage); v.dist = 46 * zoom; v.tilt = 0.95 - (1 - Math.min(1, zoom)) * 0.25; }
+    else { v.cible.copy(porteur.position).add(decalage); v.dist = (camera.aspect < 1 ? 64 : 48) * zoom; v.tilt = 0.9 - (1 - Math.min(1, zoom)) * 0.2; }
   }
   let vise = null;
 
@@ -955,6 +1445,8 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       i.etat = e?.etat || "inconnue";
       const visible = i.etat === "atteinte" || i.etat === "cible" || i.etat === "vote";
       for (const c of i.contenu) c.visible = visible;
+      i.visible = visible;
+      if (visible) chargerIle(i);
       if (!visible) i.nuage.visible = true;
       else if (!i.disparition) i.nuage.visible = false;
       i.anneau.visible = i.etat === "cible" || i.etat === "vote";
@@ -1052,15 +1544,31 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   const debut = dernier;
   let sillageProchain = 0;
   let intro = 1;
+  let images = 0;
+  let lenteur = 0.016;
+  let prochainReglage = 0;
   function image(maintenant) {
     if (!marche) return;
+    images++;
     requestAnimationFrame(image);
-    const dt = Math.min(0.05, (maintenant - dernier) / 1000);
+    const ecoule = (maintenant - dernier) / 1000;
+    const dtReel = Math.min(0.3, ecoule); // la caméra suit le vrai temps, même si l'appareil est lent
+    if (images > 20 && ecoule < 1) {
+      lenteur = lenteur * 0.95 + ecoule * 0.05;
+      if (lenteur > 0.045 && renderer.getPixelRatio() > 0.75 && maintenant > prochainReglage) {
+        // l'appareil peine (moins de ~22 images par seconde) : on dessine moins de pixels
+        renderer.setPixelRatio(Math.max(0.75, renderer.getPixelRatio() - 0.25));
+        renderer.setSize(Math.round(L), Math.round(Hc), false);
+        prochainReglage = maintenant + 3000;
+        lenteur = 0.03;
+      }
+    }
+    const dt = Math.min(0.05, dtReel);
     dernier = maintenant;
     const s = (maintenant - debut) / 1000;
     uniformsMer.uT.value = s;
     uniformsMer.uSombre.value += ((evenement?.type === "tempete" ? 1 : 0) - uniformsMer.uSombre.value) * Math.min(1, dt * 1.5);
-    for (const a of anims) a(s);
+    for (const i of iles.values()) if (i.visible) for (const a of i.anims) a(s, dt);
     // le navire avance doucement jusqu'à sa place ; la route de l'étape suit
     progres += (progresVoulu - progres) * Math.min(1, dt * 0.8);
     if (donnees && Math.abs(progres - progresTrace) > 0.008) construireEtape(progres);
@@ -1074,9 +1582,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     navire.rotation.x = Math.sin(s * 1.3) * 0.05 * houle;
     navire.rotation.z = Math.sin(s * 1.1 + 1) * 0.035 * houle;
     const vent = evenement?.type === "vent" || donnees?.live ? 1.35 : 1;
-    navire.userData.grande.scale.z = vent + Math.sin(s * 2.2) * 0.06;
-    navire.userData.hune.scale.z = 0.8 * vent;
-    navire.userData.flamme.rotation.y = Math.sin(s * 5) * 0.4;
+    navire.userData.animer(s, vent);
     // le sillage
     if (donnees && s > sillageProchain) {
       sillageProchain = s + 0.45;
@@ -1116,11 +1622,23 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       evenement.groupe.position.set(porteur.position.x + decal.x, 0, porteur.position.z + decal.z);
       evenement.maj(s, dt);
     }
+    for (const m of mouettes) {
+      const u = m.userData;
+      m.visible = evenement?.type !== "tempete";
+      if (!m.visible) continue;
+      const a = u.a0 + s * u.v * u.sens;
+      m.position.set(porteur.position.x + Math.cos(a) * u.r, u.h + Math.sin(s * 0.9 + u.a0) * 0.6, porteur.position.z + Math.sin(a) * u.r);
+      m.rotation.y = -(a + (u.sens * Math.PI) / 2);
+      m.rotation.x = 0.32 * u.sens; // penchée vers l'intérieur du virage
+      // elles battent des ailes, puis planent un moment
+      const bat = Math.sin(s * 0.45 + u.a0 * 3) > -0.25;
+      for (const f of u.anims) f(bat ? s + u.a0 : 0, dt);
+    }
     // la caméra
     viser();
     const v = cam.voulu;
-    const k = Math.min(1, dt * (intro > 0 ? 0.9 : 2.2));
-    intro = Math.max(0, intro - dt * 0.4);
+    const k = Math.min(1, dtReel * (intro > 0 ? 0.9 : 2.2));
+    intro = Math.max(0, intro - dtReel * 0.4);
     cam.cible.lerp(v.cible, k);
     cam.dist += (v.dist - cam.dist) * k;
     cam.tilt += (v.tilt - cam.tilt) * k;
@@ -1135,7 +1653,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     for (const [cle, e] of etiquettes) {
       if (cle === "navire") placer(e, porteur.position, 13);
       else if (cle === "bouteille" && evenement) placer(e, evenement.groupe.position, 3.5);
-      else if (cle.startsWith("ile:")) { const i = iles.get(cle.slice(4)); placer(e, v3(i.x, i.z), i.etat === "inconnue" || i.etat === "ecartee" ? 8 : 6.5); }
+      else if (cle.startsWith("ile:")) { const i = iles.get(cle.slice(4)); placer(e, v3(i.x, i.z), i.etat === "inconnue" || i.etat === "ecartee" ? 8 : i.haut); }
     }
   }
   function demarrer() { if (marche) return; marche = true; dernier = performance.now(); requestAnimationFrame(image); }
@@ -1153,7 +1671,17 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   cam.dist = distanceEnsemble() * 1.5;
   cam.tilt = 0.15;
 
+  function zoomer(f) {
+    zoom = Math.max(0.28, Math.min(1.6, zoom * f));
+    return zoom;
+  }
+  canvas.addEventListener("wheel", (ev) => {
+    if (!ev.ctrlKey) return; // la molette seule fait défiler la page ; le pincement (ou Ctrl + molette) zoome
+    ev.preventDefault();
+    zoomer(Math.exp(ev.deltaY * 0.01));
+  }, { passive: false });
   function vue(m) {
+    zoom = 1;
     mode = m === "ensemble" ? "ensemble" : "navire";
     decalage.set(0, 0, 0);
     vise = null;
@@ -1169,6 +1697,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     return performance.now() - t0 > 300;
   }
   function detruire() {
+    detruit = true;
     arreter();
     for (const e of etiquettes.values()) e.remove();
     canvas.removeEventListener("pointerdown", surAppui);
@@ -1178,5 +1707,5 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     renderer.dispose();
     renderer.forceContextLoss();
   }
-  return { maj, taille, vue, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone() }) };
+  return { maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()) }) };
 }

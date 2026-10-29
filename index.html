@@ -35,7 +35,7 @@
   <nav class="nav" id="nav" aria-label="Sections du site">
     <a href="#accueil" data-lien="accueil" class="nav-accueil">Accueil</a>
     <a href="#evenements" data-lien="evenements">Events</a>
-    <a href="#grandline" data-lien="grandline">Grand Line <span class="compteur compteur-v3" id="pastille-grandline" title="Ouvre avec la V3, samedi 31 octobre à 21 h">V3</span></a>
+    <a href="#grandline" data-lien="grandline">GRAND LINE <span class="compteur compteur-v3" id="pastille-grandline" title="Ouvre avec la V3, samedi 31 octobre à 21 h">V3</span></a>
     <a href="#tournoi" data-lien="tournoi">Tournoi <span class="pastille-live" id="pastille-tournoi" hidden>Live</span></a>
     <a href="#chaine" data-lien="chaine">Ma chaîne <span class="pastille-live" id="pastille-live" hidden>Live</span></a>
     <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
@@ -122,14 +122,20 @@
     </details>
   </section>
 
-  <!-- ===================== LA GRAND LINE ===================== -->
+  <!-- ===================== GRAND LINE ===================== -->
   <section id="grandline" data-section aria-labelledby="titre-grandline">
     <span class="kanji" aria-hidden="true">航海</span>
     <div class="entete-section">
       <p class="surtitre revele">L'aventure de la commu</p>
-      <h2 class="titre-section revele" id="titre-grandline">La Grand <span class="degrade">Line.</span></h2>
+      <h2 class="titre-section revele" id="titre-grandline">GRAND <span class="degrade">LINE.</span></h2>
       <p class="sous revele">Le navire de la commu avance d'île en île grâce à tout ce que vous faites : un message sur le Discord, du vocal, une partie sur le site, une game sur la Faille, le chat Twitch… Tempêtes, monstres marins, votes aux carrefours, et un trésor au bout du voyage.</p>
+      <svg class="gl-boussole" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="46" class="gl-b-cercle"/><circle cx="50" cy="50" r="38" class="gl-b-cercle2"/>
+        <g class="gl-b-rose"><path d="M50 6 L57 50 L50 94 L43 50 Z" class="gl-b-nord"/><path d="M6 50 L50 43 L94 50 L50 57 Z"/><path d="M19 19 L52 48 L81 81 L48 52 Z" class="gl-b-fine"/><path d="M81 19 L52 52 L19 81 L48 48 Z" class="gl-b-fine"/><circle cx="50" cy="50" r="5" class="gl-b-coeur"/></g>
+        <text x="50" y="17" class="gl-b-n">N</text>
+      </svg>
     </div>
+    <div class="gl-vagues" aria-hidden="true"><i></i><i></i><span class="gl-vagues-navire"><b>⛵</b></span></div>
     <div class="gl-scene revele" id="grandline-scene">
       <div class="gl-carte" id="grandline-carte"><p class="gl-attente">La carte se déplie…</p></div>
       <div class="gl-etiquettes" id="grandline-etiquettes" aria-hidden="true"></div>
@@ -229,7 +235,7 @@
         <span class="tristesse" aria-hidden="true"></span>
         <div class="orbite orbite-petite">
           <span class="anneau" aria-hidden="true"></span>
-          <div class="portrait"><img src="/img/chopper-visage.jpg" alt="Chopper" width="480" height="480" id="chopper-photo"></div>
+          <div class="portrait"><img src="/img/chopper-visage.jpg" alt="Chopper" width="480" height="480" id="chopper-photo" loading="lazy" decoding="async"></div>
         </div>
         <p class="bulle bulle-chopper" id="bulle-chopper" aria-live="polite">…</p>
         <span class="sfx sfx-chopper" id="sfx-chopper" aria-hidden="true"></span>
