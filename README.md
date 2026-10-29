@@ -120,6 +120,10 @@ Tout est fabriqué par des scripts Python, dans Blender (5.1 ou plus) : `outils/
 
 Les noms comptent : les matières portent les noms de la palette (le site remet ses propres couleurs par nom), et les objets qui bougent ont une propriété `anim` (`voile`, `drapeau`, `flamme`, `tourne`, `balance`, `flotte`, `clignote`, `mirage`) ; les points vides avec `role = repere` disent où la page ajoute un effet (`fumee`, `neige`, `lucioles`, `spores`, `etincelles`, `faisceau`, `orage`, `ecume`).
 
+## Les objets 3D des titres
+
+Six petits objets faits dans Blender (`outils/blender/barhaw_objets.py`, rendus sur fond transparent dans `img/objets/`, 32 Ko en tout) se balancent à côté des titres : la lanterne (Events), le trophée (Tournoi), le coffre de cartes (Cartes), la borne d'arcade (Jeux), le tableau des primes (Chasse) et les épées (Faille). Ils tombent en place quand le titre apparaît.
+
 ## L'escale : quand le bot fait une pause
 
 Si le bot ne répond pas (maintenance de l'hébergeur, redémarrage), le site passe en « escale » : un bandeau « Escale au port ! Le navire fait une pause pour prendre des provisions… » (qu'on peut replier), une carte d'escale en haut de chaque partie qui dépend du bot (Ma chaîne, Potes, YouTube, Chopper, Cartes, Jeux, Chasse, Faille, Tournoi), et GRAND LINE à quai avec ses provisions qu'on charge. Les actions renvoient le même message (`api/chopper.js`). La page redemande au bot toutes les 20 s et dit « ⛵ Le navire est reparti ! » dès qu'il revient ; les événements prévus restent affichés.

@@ -2491,6 +2491,16 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 .gl-svg-ile.en-image.vote .gl-svg-halo { fill: rgba(209, 166, 255, 0.25); stroke: #9b4dff; stroke-width: 1; }
 @keyframes gl-halo { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.6; } }
 .gl-svg-ile.en-image .gl-svg-nom { transform: translateY(1.5px); }
+/* ---------- les objets 3D des titres (rendus dans Blender, img/objets) ---------- */
+.titre-objet { display: inline-block; height: 1.15em; width: auto; margin: 0 0.05em 0 0.18em; vertical-align: -0.16em; filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.45)); transform-origin: 50% 90%; animation: objet-bercer 5s var(--doux) infinite; transition: scale 0.3s var(--rebond); }
+.titre-section:hover .titre-objet { scale: 1.15; }
+.titre-objet[src*="lanterne"] { transform-origin: 50% 0; animation-name: objet-pendule; }
+@keyframes objet-bercer { 0%, 100% { rotate: -4deg; translate: 0 0; } 50% { rotate: 4deg; translate: 0 -4px; } }
+@keyframes objet-pendule { 0%, 100% { rotate: -7deg; } 50% { rotate: 7deg; } }
+.titre-section.revele:not(.vu) .titre-objet { opacity: 0; }
+.titre-section.vu .titre-objet { animation: objet-arrivee 0.7s var(--rebond) 0.3s both, objet-bercer 5s var(--doux) 1s infinite; }
+.titre-section.vu .titre-objet[src*="lanterne"] { animation: objet-arrivee 0.7s var(--rebond) 0.3s both, objet-pendule 4s var(--doux) 1s infinite; }
+@keyframes objet-arrivee { from { opacity: 0; transform: translateY(-30px) scale(0.4) rotate(-20deg); } }
 
 /* ---------- tablette et téléphone ---------- */
 @media (max-width: 1080px) {
