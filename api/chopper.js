@@ -55,7 +55,7 @@ export async function GET(req) {
       },
     });
   } catch {
-    return json({ erreur: "Le bot ne répond pas pour l'instant." }, 503);
+    return json({ erreur: "escale", texte: "⚓ Le navire fait escale au port pour prendre des provisions (le bot fait une pause). Il revient vite !" }, 503);
   }
 }
 
@@ -95,6 +95,7 @@ export async function POST(req) {
     const reponse = await r.json().catch(() => ({ erreur: "Réponse du bot illisible." }));
     return json(reponse, r.status);
   } catch {
-    return json({ erreur: "Chopper dort : le bot ne répond pas pour l'instant. Réessaie dans un moment." }, 503);
+    // le bot est en pause (maintenance, redémarrage) : la page passe en « escale »
+    return json({ erreur: "escale", texte: "⚓ Le navire fait escale au port pour prendre des provisions (le bot fait une pause). Il revient vite : réessaie dans quelques minutes !" }, 503);
   }
 }

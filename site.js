@@ -4491,12 +4491,12 @@
   }
 
   // avant l'ouverture : « accès restreint », avec le compte à rebours
-  function rendreVerrouGL() {
+  function rendreVerrouGL(escale = false) {
     const scene = $("grandline-scene");
     if (!scene) return;
     const g = infosGL();
     const t = g?.ouverture && g.ouvert === false ? g.ouverture : GL_OUVERTURE;
-    const cle = String(t);
+    const cle = `${t}:${escale}`;
     let v = $("grandline-verrou");
     if (v && cle === cleVerrou) return;
     cleVerrou = cle;
@@ -4523,13 +4523,22 @@
         el("span", { class: "gl-verrou-eclats" }, ["✦", "✧", "✦", "✧", "✦", "✧"].map((n) => el("i", { text: n }))),
       ),
       el("div", { class: "gl-verrou-carte" },
-        el("span", { class: "gl-verrou-cadenas", "aria-hidden": "true" }, el("i", { class: "gl-chaine" }), el("b", { text: "🔒" })),
-        el("p", { class: "gl-verrou-tampon", text: "Accès restreint" }),
-        el("p", { class: "gl-sur", text: "La V3 du site" }),
-        el("h3", { class: "gl-verrou-titre" }, "GRAND LINE ", el("span", { class: "degrade", text: "lève l'ancre" })),
-        el("p", { class: "gl-verrou-date", text: `${majuscule(date)} à ${fmtHeure.format(quand).replace(":", " h ")}` }),
-        rebours(t, true, "grandline", { fin: () => guetterOuvertureGL(), texteFin: "Le navire part !" }),
-        el("p", { class: "gl-texte", text: "Le navire de la commu attend au port. À l'ouverture, tout ce que vous faites sur le Discord, le site et Twitch le fera avancer, d'île en île, jusqu'au trésor. Prépare tes rames !" }),
+        ...(escale ? [
+          el("span", { class: "gl-verrou-cadenas gl-ancre", "aria-hidden": "true" }, el("i", { class: "gl-chaine" }), el("b", { text: "⚓" })),
+          el("p", { class: "gl-verrou-tampon gl-tampon-escale", text: "Escale" }),
+          el("p", { class: "gl-sur", text: "Pause au port" }),
+          el("h3", { class: "gl-verrou-titre" }, "Le navire fait ", el("span", { class: "degrade", text: "le plein" })),
+          el("div", { class: "gl-provisions", "aria-hidden": "true" }, el("span", { text: "🍎" }), el("span", { text: "🛢️" }), el("span", { text: "🍖" }), el("span", { text: "📦" }), el("span", { text: "🧭" })),
+          el("p", { class: "gl-texte", text: "Le navire de la commu est à quai pour prendre des provisions : le bot fait une petite pause (maintenance). Tout ce que vous avez ramé est gardé, et il repart très vite !" }),
+        ] : [
+          el("span", { class: "gl-verrou-cadenas", "aria-hidden": "true" }, el("i", { class: "gl-chaine" }), el("b", { text: "🔒" })),
+          el("p", { class: "gl-verrou-tampon", text: "Accès restreint" }),
+          el("p", { class: "gl-sur", text: "La V3 du site" }),
+          el("h3", { class: "gl-verrou-titre" }, "GRAND LINE ", el("span", { class: "degrade", text: "lève l'ancre" })),
+          el("p", { class: "gl-verrou-date", text: `${majuscule(date)} à ${fmtHeure.format(quand).replace(":", " h ")}` }),
+          rebours(t, true, "grandline", { fin: () => guetterOuvertureGL(), texteFin: "Le navire part !" }),
+          el("p", { class: "gl-texte", text: "Le navire de la commu attend au port. À l'ouverture, tout ce que vous faites sur le Discord, le site et Twitch le fera avancer, d'île en île, jusqu'au trésor. Prépare tes rames !" }),
+        ]),
       ),
     );
   }
@@ -4552,9 +4561,9 @@
     const ouvert = glOuvert();
     $("grandline")?.classList.toggle("gl-ferme", !ouvert);
     const pastille = $("pastille-grandline");
-    if (pastille) pastille.hidden = ouvert;
+    if (pastille) pastille.hidden = ouvert || (Boolean(donnees?.horsLigne) && Date.now() >= GL_OUVERTURE);
     if (!ouvert) {
-      rendreVerrouGL();
+      rendreVerrouGL(Boolean(donnees?.horsLigne));
       return;
     }
     $("grandline-verrou")?.remove();
@@ -4953,6 +4962,7 @@
   // ---------- chargement ----------
   function rendreTout() {
     if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
+    rendreEscale();
     rendreEntete();
     rendreFideles();
     rendreMaintenant();
@@ -4983,6 +4993,62 @@
     if (!donnees || typeof donnees !== "object") donnees = { horsLigne: true };
     if (!donnees.evenements) donnees.evenements = evenementsSecours();
     rendreTout();
+  }
+
+  // ---------- l'escale : quand le bot ne répond pas (maintenance, redémarrage), le site le dit à sa façon ----------
+  // « Le navire fait escale au port pour prendre des provisions » : un bandeau, une carte dans chaque partie qui dépend
+  // du bot, GRAND LINE à quai ; la page redemande toutes les 20 s, et dit « Le navire est reparti ! » au retour.
+  const PARTIES_BOT = {
+    chaine: "Le lecteur, le statut du live et les fidèles du stream reviennent dès que le navire repart.",
+    potes: "Les lives de tes potes reviennent dès que le navire repart.",
+    youtube: "Les dernières vidéos reviennent dès que le navire repart.",
+    chopper: "Chopper est descendu à terre chercher des pommes 🍎. Il revient vite, promis !",
+    cartes: "Les cartes sont rangées à l'abri dans la cale le temps de l'escale. Ton album n'a rien perdu.",
+    jeux: "Les jeux reprennent dès que le navire repart (tes scores et tes records sont gardés).",
+    chasse: "Les avis de recherche sont à l'abri au port : les primes reprennent au départ du navire.",
+    faille: "Les games jouées pendant l'escale seront notées au retour du navire.",
+    tournoi: "Le tableau du tournoi revient au départ du navire.",
+  };
+  let escaleAvant = false;
+  let minuteurEscale = null;
+  function carteEscale(texte) {
+    return el("div", { class: "escale-carte", role: "status" },
+      el("div", { class: "escale-image", "aria-hidden": "true" },
+        el("img", { src: "/img/grandline-port.webp", alt: "", width: 820, height: 505, loading: "lazy", decoding: "async" }),
+        el("span", { class: "escale-caisse", text: "📦" })),
+      el("div", {},
+        el("p", { class: "escale-sur", text: "⚓ Escale au port" }),
+        el("p", { class: "escale-titre", text: "Le navire fait le plein de provisions" }),
+        el("p", { class: "escale-texte", text: texte })));
+  }
+  function rendreEscale() {
+    const escale = Boolean(donnees?.horsLigne);
+    document.documentElement.classList.toggle("en-escale", escale);
+    let b = $("escale");
+    if (escale && !b && lireSession("barhaw-escale") !== "replie") {
+      b = el("div", { class: "escale-bandeau", id: "escale", role: "status" },
+        el("span", { class: "escale-navire", "aria-hidden": "true" }, el("b", { text: "⛵" })),
+        el("p", {}, el("strong", { text: "Escale au port !" }), " Le navire fait une pause pour prendre des provisions (le bot est en maintenance). Il revient vite : tout ce que vous avez fait est gardé."),
+        el("button", { type: "button", class: "escale-fermer", "aria-label": "Replier", onclick: () => { ecrireSession("barhaw-escale", "replie"); $("escale")?.remove(); }, text: "✕" }));
+      document.body.append(b);
+    }
+    if (!escale && b) b.remove();
+    for (const [id, texte] of Object.entries(PARTIES_BOT)) {
+      const partie = $(id);
+      if (!partie) continue;
+      const c = partie.querySelector(":scope > .escale-carte");
+      if (escale && !c) partie.querySelector(":scope > .entete-section")?.after(carteEscale(texte));
+      if (!escale && c) c.remove();
+    }
+    if (escaleAvant && !escale) {
+      ecrireSession("barhaw-escale", "");
+      const t = el("div", { class: "escale-retour", role: "status", text: "⛵ Le navire est reparti ! Tout est revenu." });
+      document.body.append(t);
+      setTimeout(() => t.remove(), 4200);
+    }
+    escaleAvant = escale;
+    clearInterval(minuteurEscale);
+    minuteurEscale = escale ? setInterval(() => { if (!document.hidden) charger(); }, 20_000) : null;
   }
 
   // ---------- les fidèles du stream : le temps passé sur le live, même sans écrire (lib/fideles.js du bot) ----------
