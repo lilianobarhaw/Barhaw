@@ -4482,6 +4482,9 @@
   // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
   const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
   const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
+  const imageIle = (id) => (/^[a-z]{2,20}$/.test(String(id || "")) ? `/img/iles/${id}.webp` : "");
+  const prechargees = new Set();
+  const prechargerIle = (id) => { const u = imageIle(id); if (u && !prechargees.has(u)) { prechargees.add(u); const i = new Image(); i.src = u; } };
   const pourcentGL = (g) => Math.min(100, Math.floor((g.milles / Math.max(1, g.longueur)) * 100));
   function quandGL(t) {
     const d = new Date(t);
@@ -4609,7 +4612,9 @@
       g.multiplicateur > 1 ? `×${String(g.multiplicateur).replace(".", ",")}${g.live ? " (le capitaine est en live !)" : ""}` : "",
       g.estimation ? `arrivée ${quandGL(g.estimation)}` : "",
     ].filter(Boolean);
+    if (cible) prechargerIle(cible.id);
     vider($("grandline-cap"),
+      cible && !g.vote && imageIle(cible.id) ? el("img", { class: "gl-cap-ile", src: imageIle(cible.id), alt: "", width: 360, height: 300, loading: "lazy", decoding: "async" }) : null,
       el("p", { class: "gl-sur", text: g.actif ? "Le navire de la commu" : "⚓ À l'ancre pour l'instant" }),
       el("h3", { class: "gl-titre" }, cible && !g.vote ? el("span", { class: "gl-emoji", "aria-hidden": "true", text: cible.emoji }) : null, titre),
       el("div", { class: "gl-barre", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(p), "aria-label": "L'étape en cours" },
@@ -4705,7 +4710,7 @@
       el("p", { class: "gl-sur", text: "Les escales" }),
       el("h3", { class: "gl-titre", text: "Les îles atteintes" }),
       g.escales.length ? el("ul", { class: "gl-escales-liste" }, g.escales.slice(0, 8).map((e) => el("li", {},
-        el("span", { class: "gl-emoji", "aria-hidden": "true", text: e.emoji }),
+        imageIle(e.id) ? el("img", { class: "gl-escale-ile", src: imageIle(e.id), alt: "", width: 64, height: 54, loading: "lazy", decoding: "async" }) : el("span", { class: "gl-emoji", "aria-hidden": "true", text: e.emoji }),
         el("span", {}, el("b", { text: e.nom }), el("small", { text: `${e.tresor ? "💰 Trésor trouvé · " : ""}voyage ${e.voyage} · ${ilYa(e.arrivee)}${e.navigateur ? ` · 🧭 ${e.navigateur}` : ""}` })),
       ))) : el("p", { class: "vide", text: "Aucune île encore : le navire vient de quitter Port Barhaw." }),
     );
@@ -4777,6 +4782,7 @@
     const o = el("div", { class: "choc-live choc-terre", "aria-hidden": "true" },
       el("span", { class: "choc-lignes" }),
       el("span", { class: "sfx tremble choc-sfx", text: "ドドン" }),
+      imageIle(e.id) ? el("img", { class: "choc-ile-image", src: imageIle(e.id), alt: "", width: 360, height: 300, decoding: "async" }) : null,
       el("span", { class: "choc-tampon", text: e.tresor ? "TRÉSOR !!" : "TERRE EN VUE !" }),
       el("span", { class: "choc-ile", text: `${e.emoji} ${e.nom}` }),
     );
@@ -4794,6 +4800,7 @@
     const inconnue = e.etat === "inconnue" || e.etat === "ecartee";
     vider(z,
       el("button", { type: "button", class: "gl-info-fermer", "aria-label": "Fermer", onclick: () => { z.hidden = true; }, text: "✕" }),
+      !inconnue && imageIle(e.id) ? el("img", { class: "gl-info-ile", src: imageIle(e.id), alt: "", width: 360, height: 300, decoding: "async" }) : null,
       el("p", { class: "gl-sur", text: e.etat === "atteinte" ? "Île atteinte" : e.etat === "cible" ? "Prochaine île" : e.etat === "vote" ? "Au vote" : e.etat === "ecartee" ? "Une autre fois" : "Île inconnue" }),
       el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: inconnue ? "❓" : e.emoji }), inconnue ? "???" : e.nom),
       el("p", { class: "gl-texte", text: inconnue ? (e.etat === "ecartee" ? "La commu a choisi une autre route. Peut-être au prochain voyage !" : "Une île encore cachée dans les nuages. Ramez pour la découvrir !") : e.texte }),
@@ -4879,9 +4886,10 @@
         for (const e of g.route.flat()) {
           const [x, z] = pos(e.id);
           const inconnue = e.etat === "inconnue" || e.etat === "ecartee";
-          svg.append(s("g", { class: `gl-svg-ile ${e.etat}`, transform: `translate(${X(x)} ${Y(z)})` },
-            s("circle", { r: 6.5 }),
-            s("text", { y: 2.2, class: "gl-svg-emoji" }, inconnue ? "☁️" : e.emoji),
+          const vue = !inconnue && imageIle(e.id);
+          svg.append(s("g", { class: `gl-svg-ile ${e.etat}${vue ? " en-image" : ""}`, transform: `translate(${X(x)} ${Y(z)})` },
+            vue ? s("ellipse", { rx: 10.5, ry: 6.2, cy: 1.4, class: "gl-svg-halo" }) : s("circle", { r: 6.5 }),
+            vue ? s("image", { href: imageIle(e.id), x: -10, y: -9, width: 20, height: 16.7 }) : s("text", { y: 2.2, class: "gl-svg-emoji" }, inconnue ? "☁️" : e.emoji),
             inconnue ? null : s("text", { y: 11.5, class: "gl-svg-nom" }, e.nom.replace(/^(L'|Le |La |Les )/, "")),
           ));
         }
