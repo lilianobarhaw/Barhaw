@@ -4916,19 +4916,29 @@
   const blFmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString("fr-FR");
   const blMaintenant = () => Date.now() + BL.decal;
   const BL_SOURCES = { chat: "💬 chat", frappe: "🗡️ !frappe", lurk: "📺 live", discord: "💜 Discord", site: "⚔️ site", jeux: "🎮 jeux" };
-  function blSon(jouer, { debut = false, fondu = false } = {}) {
+  // la musique de la victoire (une fois, quand la commu a battu le boss) : elle prend le relais de la musique du combat
+  function blVictoire(jouer) {
+    if (!jouer) { if (BL.victoire) { BL.victoire.pause(); BL.victoire.currentTime = 0; } return; }
+    if (BL.coupe) return;
+    if (!BL.victoire) { BL.victoire = new Audio("/musique/boss-victoire.mp3"); BL.victoire.volume = 0.55; BL.victoire.preload = "none"; }
+    try { BL.victoire.currentTime = 0; } catch {}
+    BL.victoire.play().catch(() => {});
+  }
+  function blSon(jouer, { debut = false, fondu = false, victoire = false } = {}) {
     if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; }
     const b = $("bl-son");
     clearInterval(BL.fondu);
+    if (jouer) blVictoire(false);
     if (fondu && !jouer && !BL.son.paused) {
-      // la fin du combat : la musique baisse doucement, puis repart au début pour le prochain boss
+      // la fin du combat : la musique baisse doucement, repart au début pour le prochain boss ; si la commu a gagné, la musique de la victoire suit
       BL.fondu = setInterval(() => {
         BL.son.volume = Math.max(0, BL.son.volume - 0.05);
-        if (BL.son.volume <= 0.01) { clearInterval(BL.fondu); BL.son.pause(); BL.son.currentTime = 0; BL.son.volume = 0.5; }
+        if (BL.son.volume <= 0.01) { clearInterval(BL.fondu); BL.son.pause(); BL.son.currentTime = 0; BL.son.volume = 0.5; if (victoire) blVictoire(true); }
       }, 150);
       if (b) { b.textContent = "🔇 Musique"; b.setAttribute("aria-pressed", "false"); }
       return;
     }
+    if (fondu && victoire) blVictoire(true);
     BL.son.volume = 0.5;
     if (debut) { try { BL.son.currentTime = 0; } catch {} }
     if (jouer) {
@@ -5041,7 +5051,7 @@
       if (nouveau) { BL.rendu?.apparition(); BL.pv = null; }
       if (BL.musique !== c.id && !BL.coupe) { blSon(true, { debut: true }); BL.musique = c.id; }
     }
-    if ((BL.etat === "combat" || BL.etat === "rage") && (etat === "mort" || etat === "fuite")) { blFin(c); blSon(false, { fondu: true }); }
+    if ((BL.etat === "combat" || BL.etat === "rage") && (etat === "mort" || etat === "fuite")) { blFin(c); blSon(false, { fondu: true, victoire: c.gagne }); }
     scene.classList.toggle("bl-dort", etat === "dort");
     scene.classList.toggle("bl-rage", etat === "rage");
     if (BL.rendu && etat !== BL.etat) BL.rendu.etat(etat);
@@ -5145,8 +5155,9 @@
     if (!s) return;
     $("bl-frapper").addEventListener("click", blFrapper);
     $("bl-son").addEventListener("click", () => {
-      const joue = BL.son && !BL.son.paused;
+      const joue = Boolean((BL.son && !BL.son.paused) || (BL.victoire && !BL.victoire.paused));
       BL.coupe = joue;
+      if (joue) blVictoire(false);
       try { localStorage.setItem("barhaw-bl-son", joue ? "non" : "oui"); } catch {}
       blSon(!joue);
       if (!joue && BL.d?.combat) BL.musique = BL.d.combat.id;
