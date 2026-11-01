@@ -1599,14 +1599,15 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       vues.add(`ile:${id}`);
     }
     const n = etiquette("navire", "gl-etiquette-navire");
-    const t = `⛵ ${d.flotte?.nom ? `${d.flotte.nom} · ` : ""}${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
+    // dans la flotte : le nom et le rang dans la course ; sinon, l'avance de l'étape
+    const t = d.flotte?.nom ? `⛵ ${d.flotte.nom}${d.flotte.rang ? ` · ${d.flotte.rang}` : ""}${d.live ? " · 🔴" : ""}` : `⛵ ${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
     if (n.textContent !== t) n.textContent = t;
     if (d.flotte) n.style.setProperty("--c1", themeNavire(d.flotte.couleurs).c1); else n.style.removeProperty("--c1");
     vues.add("navire");
     // les autres navires de la flotte : leur nom et leur avance ; un clic les regarde
     for (const [id, f] of flotte) {
       const e = etiquette(`flotte:${id}`, "gl-etiquette-flotte");
-      const tf = `${f.d.nom || id} · ${Math.floor(Math.min(1, (f.d.milles || 0) / Math.max(1, f.d.longueur || 1)) * 100)} %${f.d.live ? " · 🔴" : ""}`;
+      const tf = `${f.d.nom || id}${f.d.rang ? ` · ${f.d.rang}` : ""}${f.d.live ? " · 🔴" : ""}`;
       if (e.dataset.texte !== tf) {
         e.dataset.texte = tf;
         e.textContent = `⛵ ${tf}`;

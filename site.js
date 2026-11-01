@@ -4589,7 +4589,7 @@
     s.style.setProperty("--fl-c2", hexaCommu(regardee, "secondaire"));
     rendreBarreFlotte(barre, liste);
     course.hidden = !vueCourse();
-    if (vueCourse()) rendreCourse(course);
+    if (vueCourse()) rendreLaCourse(course);
     rendreFicheCommu();
   }
 
@@ -4633,7 +4633,7 @@
   }
 
   // « La course » : tous les navires sur leur piste, du port au trésor, et ton équipage
-  function rendreCourse(z) {
+  function rendreLaCourse(z) {
     const f = donnees.flotte;
     const tries = classementFlotte();
     const gagnant = commu(f.gagnant?.id);
@@ -4655,7 +4655,8 @@
           el("span", { class: "fl-piste-tresor", "aria-hidden": "true", text: "💰" })),
         el("p", { class: "fl-piste-info" },
           el("b", { text: `${pc} %`, "data-compte": String(pc), "data-suffixe": " %" }),
-          ` · île ${Math.min((n.etape || 0) + 1, n.etapes || etapes)}/${n.etapes || etapes} · ${ici}`,
+          el("span", { text: `île ${Math.min((n.etape || 0) + 1, n.etapes || etapes)}/${n.etapes || etapes}` }),
+          el("span", { text: ici }),
           c.live ? el("span", { class: "fl-live", text: "🔴 en live" }) : null,
           c.bot === false ? el("span", { class: "fl-sans-bot", title: "Le bot n'est pas encore sur son Discord : ce navire avance avec ses lives Twitch.", text: "lives Twitch seulement" }) : null,
           n.rameurs ? el("span", { class: "fl-rameurs", text: pluriel(n.rameurs, "rameur") }) : null),
@@ -4746,7 +4747,7 @@
       el("div", { class: "fl-fiche-tete" },
         drapeauCommu(c, "grand"),
         el("div", {},
-          el("p", { class: "gl-sur", text: `${ordinal(rangCommu(c))} de la course${maFlotte?.equipage === c.id ? " · ⭐ ton équipage" : ""}` }),
+          el("p", { class: "gl-sur", text: `${rangCommu(c) === 1 ? "En tête de la course" : `Classement : ${rangCommu(c)} sur ${commusFlotte().length}`}${maFlotte?.equipage === c.id ? " · ⭐ ton équipage" : ""}` }),
           el("h3", { class: "gl-titre fl-fiche-nom", text: c.nom }),
           el("p", { class: "gl-texte", text: [c.streamer ? `La commu de ${c.streamer}` : "", c.bot === false ? "Le bot n'est pas encore sur son Discord : son navire avance avec ses lives Twitch." : ""].filter(Boolean).join(" · ") || "Un équipage de la course." })),
         el("div", { class: "fl-fiche-liens" },
@@ -4802,8 +4803,8 @@
     return {
       ...g,
       flotte: {
-        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, ensemble: vueCourse(),
-        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, live: Boolean(x.live), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
+        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
+        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
       },
     };
   }

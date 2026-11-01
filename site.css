@@ -2411,7 +2411,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 
 /* ---------- LA FLOTTE (V4) : la rangée de drapeaux, la course, la fiche de chaque commu ----------
    Chaque commu apporte ses deux couleurs (--c1, --c2) ; le reste suit la DA : contour d'encre, ombre franche, kanji en décor. */
-.fl-barre { display: flex; gap: 10px; margin: 26px -4px 0; padding: 8px 4px 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.fl-barre { display: flex; gap: 10px; margin: 26px -4px 0; padding: 8px 4px 12px 72px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
 .fl-barre::-webkit-scrollbar { display: none; }
 .fl-onglet {
   --c1: var(--rose); --c2: var(--violet);
@@ -2495,7 +2495,8 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 @keyframes fl-tanguer { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
 .fl-piste-navire::after { content: ""; position: absolute; left: 50%; top: -5px; width: 11px; height: 8px; background: var(--c1); border: 1.5px solid var(--encre); clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .fl-piste-tresor { position: absolute; right: -12px; top: 50%; translate: 0 -55%; font-size: 21px; filter: drop-shadow(2px 2px 0 var(--encre)); }
-.fl-piste-info { grid-area: info; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; color: var(--brume); font-size: 13.5px; }
+.fl-piste-info { grid-area: info; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin: 0; color: var(--brume); font-size: 13.5px; }
+.fl-piste-info > span:not(.fl-live):not(.fl-sans-bot):not(.fl-rameurs)::before { content: "· "; color: var(--terne); }
 .fl-piste-info b { font-family: var(--titre); font-weight: 400; font-size: 17px; color: var(--blanc); }
 .fl-live { color: #ff8db4; font-weight: 800; }
 .fl-sans-bot { padding: 0 8px; border-radius: 7px; border: 1.5px dashed var(--ligne); color: var(--terne); font-size: 12px; }
@@ -2530,7 +2531,8 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 .fl-fiche .gl-sur { color: var(--c1); filter: brightness(1.25); }
 .fl-fiche-liens { display: flex; flex-wrap: wrap; gap: 10px; }
 .fl-matelots { margin-top: 16px; }
-.fl-matelots .gl-rameurs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
+.fl-matelots .gl-rameurs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 8px 14px; }
+.fl-regles .gl-ramer-liste { grid-template-columns: minmax(0, 1fr); }
 .gl-entree .fl-piste { animation: gl-arrivee 0.7s var(--rebond) both; }
 .gl-entree .fl-piste:nth-child(2) { animation-delay: 0.1s; } .gl-entree .fl-piste:nth-child(3) { animation-delay: 0.2s; } .gl-entree .fl-piste:nth-child(4) { animation-delay: 0.3s; }
 
@@ -2540,6 +2542,7 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 @media (max-width: 640px) {
   .fl-piste { grid-template-columns: 30px minmax(0, 1fr); grid-template-areas: "rang commu" "mer mer" "info info"; padding: 12px; }
   .fl-piste-mer { margin: 4px 14px 0 4px; }
+  .fl-barre { padding-left: 50px; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
   .fl-onglet { min-height: 44px; padding: 6px 12px 6px 9px; font-size: 13.5px; }
   .fl-onglet .fl-drapeau { font-size: 8.5px; }
   .fl-fiche-liens { width: 100%; }
