@@ -5108,7 +5108,12 @@
     glOccupe = false;
     if (status === 401) { moi = { connecte: false }; rendreCompte(); }
     if (d.navire) monNavire = d.navire;
-    if (d.grandline && donnees) donnees = { ...donnees, grandline: d.grandline };
+    if (d.grandline && donnees) {
+      // dans la flotte, le bot renvoie le navire visé : il remplace celui de sa commu
+      const c = flotteActive() ? commuRegardee() : null;
+      if (c && Array.isArray(donnees.flotte?.commus)) donnees = { ...donnees, flotte: { ...donnees.flotte, commus: donnees.flotte.commus.map((x) => (x.id === c.id ? { ...x, navire: d.grandline } : x)) } };
+      else donnees = { ...donnees, grandline: d.grandline };
+    }
     if (action === "grandline-bouteille" && d.ok) glMessage = { texte: `🍾 Dedans : ${d.message} Le navire avance de ${nombre(d.milles)} milles${d.berrys ? `, et tu gagnes ${berrys(d.berrys)}` : ""} !`, parchemin: true };
     else if (action === "grandline-voter" && d.ok) glMessage = { texte: `🗳️ ${d.change ? "Vote changé" : "C'est noté"} ! Tu peux changer d'avis jusqu'à la fin du vote.` };
     else if (d.erreur && action !== "grandline") glMessage = { texte: d.erreur === "pas-membre" ? (flotteActive() ? "Rejoins le Discord d'un équipage de la course pour monter à bord." : "Rejoins le Discord Barhaw pour monter à bord.") : d.texte || d.erreur, erreur: true };
