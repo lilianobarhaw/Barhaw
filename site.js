@@ -324,7 +324,7 @@
     if (ancreFaite) return;
     ancreFaite = true;
     const id = decodeURIComponent(location.hash.slice(1));
-    const cible = id && document.getElementById(id);
+    const cible = id && (document.getElementById(id) || (/^grandline-[a-z0-9]{2,20}$/.test(id) ? document.getElementById("grandline") : null));
     if (!cible) return;
     rendreToutesLesParties(2500);
     requestAnimationFrame(() => cible.scrollIntoView({ block: "start", behavior: "instant" }));
@@ -4477,12 +4477,336 @@
   let glOccupe = false;
   let glAvant = null; // l'étape d'avant (pour « Terre en vue ! »)
   let cleVerrou = "";
-  const infosGL = () => donnees?.grandline || null;
+  const infosGL = () => (flotteActive() ? commuRegardee()?.navire : null) || donnees?.grandline || null;
   // GRAND LINE ouvre avec la V3 du site, samedi 31 octobre à 21 h (heure de Paris) ; avant : accès restreint.
   // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
   const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
   const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
   const imageIle = (id) => (/^[a-z]{2,20}$/.test(String(id || "")) ? `/img/iles/${id}.webp` : "");
+  // ---------- LA FLOTTE (V4) : un navire par commu de potes, sur la même mer, et la course jusqu'au trésor ----------
+  // La V4 sort le mardi 22 décembre 2026 à 21 h (heure de Paris), en direct : avant, rien de la V4 ne se voit (comme
+  // GRAND LINE avant la V3). Le bot peut l'ouvrir plus tôt ou la retenir (donnees.v4.ouvert) ; sans réponse du bot,
+  // c'est la date qui compte. Le bot ne donne la flotte (donnees.flotte) qu'une fois la V4 ouverte.
+  const V4_OUVERTURE = Date.parse("2026-12-22T20:00:00Z");
+  const v4Ouverte = () => { const o = donnees?.v4?.ouvert; return o === true || (o !== false && Date.now() >= V4_OUVERTURE); };
+  const ID_COMMU = /^[a-z0-9]{2,20}$/;
+  // les identifiants déjà pris dans GRAND LINE (les liens directs sont #grandline-<commu>)
+  const RESERVES_GL = new Set(["scene", "carte", "etiquettes", "hud", "info", "cap", "mer", "moi", "equipage", "journal", "escales", "ramer", "verrou", "course", "fiche"]);
+  let flVue = ""; // "" : la course ; sinon la commu qu'on regarde
+  let flDemandee = ""; // arrivée par un lien direct (#grandline-veyzo) : appliquée dès que la flotte est là
+  let maFlotte = null; // { equipage, serveurs, bloque } pour le membre connecté
+  let maFlotteDemandee = false;
+  let flOccupe = false;
+  let flMessage = null;
+  let flChoix = "";
+  let cleBarreFlotte = "";
+  const commusFlotte = () => (v4Ouverte() && Array.isArray(donnees?.flotte?.commus)
+    ? donnees.flotte.commus.filter((c) => ID_COMMU.test(String(c?.id || "")) && !RESERVES_GL.has(c.id) && c.navire?.route && c.nom)
+    : []);
+  const flotteActive = () => commusFlotte().length > 0;
+  const commu = (id) => (id ? commusFlotte().find((c) => c.id === id) || null : null);
+  const hexaCommu = (c, k) => (/^#[0-9a-f]{6}$/i.test(String(c?.couleurs?.[k] || "")) ? c.couleurs[k] : k === "principale" ? "#ff4f9a" : "#9b4dff");
+  const styleCommu = (c) => `--c1:${hexaCommu(c, "principale")};--c2:${hexaCommu(c, "secondaire")}`;
+  const avanceCommu = (c) => {
+    if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
+    const n = c.navire;
+    return Math.max(0, Math.min(1, ((n.etape || 0) + Math.min(1, (n.milles || 0) / Math.max(1, n.longueur || 1))) / Math.max(1, n.etapes || 11)));
+  };
+  // le classement : celui du bot, sinon l'avance
+  const classementFlotte = () => [...commusFlotte()].sort((a, b) => (a.rang || 99) - (b.rang || 99) || avanceCommu(b) - avanceCommu(a));
+  const rangCommu = (c) => c.rang || classementFlotte().indexOf(c) + 1;
+  const ordinal = (n) => (n === 1 ? "1er" : `${n}e`);
+  // le navire qu'on regarde : la commu choisie ; dans « La course » : ton équipage, sinon celui qui mène
+  function commuRegardee() {
+    if (!flotteActive()) return null;
+    return commu(flVue) || commu(maFlotte?.equipage) || classementFlotte()[0];
+  }
+  const vueCourse = () => flotteActive() && !commu(flVue);
+  const nomNavireGL = () => (flotteActive() ? `Le navire de ${commuRegardee().nom}` : "Le navire de la commu");
+  const lienTwitch = (c) => (/^[a-z0-9_]{3,25}$/i.test(String(c?.twitch || "")) ? `https://www.twitch.tv/${c.twitch}` : "");
+  const lienDiscord = (c) => { const u = lienSur(c?.discord); return /^https:\/\/(discord\.gg|discord\.com\/invite)\/[\w-]+$/i.test(u) ? u : ""; };
+  // je peux agir sur ce navire (voter, ouvrir la bouteille) : c'est mon équipage
+  const monNavireGL = () => !flotteActive() || (Boolean(maFlotte?.equipage) && maFlotte.equipage === commuRegardee()?.id);
+
+  // le drapeau d'une commu : un fanion à ses couleurs, avec son logo ou son emblème
+  function drapeauCommu(c, classe = "") {
+    const NS = "http://www.w3.org/2000/svg";
+    const s = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); return e; };
+    const svg = s("svg", { viewBox: "0 0 48 34", class: "fl-fanion", "aria-hidden": "true" });
+    svg.append(
+      s("path", { d: "M3 3 H45 L36 17 L45 31 H3 Z", fill: hexaCommu(c, "principale") }),
+      s("path", { d: "M3 22 H38.6 L45 31 H3 Z", fill: hexaCommu(c, "secondaire") }),
+      s("path", { d: "M3 3 H45 L36 17 L45 31 H3 Z", fill: "none", stroke: "#12050d", "stroke-width": "3", "stroke-linejoin": "round" }),
+    );
+    const logo = lienSur(c.logo);
+    const embleme = String(c.embleme || c.nom || "?").replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "?";
+    return el("span", { class: `fl-drapeau ${classe}`.trim(), style: styleCommu(c), "aria-hidden": "true" },
+      el("i", { class: "fl-mat" }),
+      svg,
+      logo ? el("img", { class: "fl-logo", src: logo, alt: "", width: 40, height: 40, loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" }) : el("b", { class: "fl-embleme", text: embleme }),
+    );
+  }
+
+  function choisirVueFlotte(id, { lien = true, voir = false } = {}) {
+    if (id && !commu(id)) id = "";
+    flVue = id;
+    flChoix = "";
+    glMessage = null;
+    if (lien) { try { history.replaceState(null, "", `${location.pathname}${location.search}#grandline-${id || "course"}`); } catch {} }
+    if (id && moi?.connecte && monNavireGL()) chargerMonNavire();
+    rendreGrandLine();
+    if (voir) $("grandline-scene")?.scrollIntoView({ block: "start", behavior: reduit.matches ? "instant" : "smooth" });
+    $(`grandline-${id || "course"}`)?.focus({ preventScroll: true });
+  }
+  // un lien direct (barhaw.vercel.app/#grandline-veyzo), à l'arrivée ou plus tard
+  function lienDirectFlotte() {
+    const m = /^#grandline-([a-z0-9]{2,20})$/.exec(location.hash);
+    if (!m) return;
+    flDemandee = m[1] === "course" ? "" : m[1];
+    if (flotteActive()) { choisirVueFlotte(flDemandee, { lien: false }); flDemandee = ""; }
+  }
+
+  function rendreFlotte() {
+    const s = $("grandline");
+    const barre = $("flotte-barre");
+    const course = $("flotte-course");
+    if (!s || !barre || !course) return;
+    const liste = commusFlotte();
+    const actif = liste.length > 0;
+    s.classList.toggle("fl-active", actif);
+    if (!actif) {
+      if (!barre.hidden) { barre.hidden = true; vider(barre); cleBarreFlotte = ""; }
+      if (!course.hidden) { course.hidden = true; vider(course); }
+      $("flotte-fiche")?.remove();
+      return;
+    }
+    if (flDemandee !== "" && commu(flDemandee)) { flVue = flDemandee; flDemandee = ""; }
+    if (flVue && !commu(flVue)) flVue = "";
+    if (moi?.connecte && !maFlotte && !maFlotteDemandee) { maFlotteDemandee = true; agirFlotte("flotte"); }
+    const regardee = commuRegardee();
+    s.classList.toggle("fl-vue-course", vueCourse());
+    s.style.setProperty("--fl-c1", hexaCommu(regardee, "principale"));
+    s.style.setProperty("--fl-c2", hexaCommu(regardee, "secondaire"));
+    rendreBarreFlotte(barre, liste);
+    course.hidden = !vueCourse();
+    if (vueCourse()) rendreCourse(course);
+    rendreFicheCommu();
+  }
+
+  // en haut de GRAND LINE : « La course », puis un drapeau par commu (des onglets, au clavier avec les flèches)
+  function rendreBarreFlotte(barre, liste) {
+    const cle = JSON.stringify([flVue, maFlotte?.equipage, liste.map((c) => [c.id, c.nom, c.couleurs, c.embleme, c.logo, c.live, rangCommu(c)])]);
+    if (cle === cleBarreFlotte && !barre.hidden) return;
+    const focus = document.activeElement?.closest?.("#flotte-barre") ? document.activeElement.id : "";
+    cleBarreFlotte = cle;
+    barre.hidden = false;
+    barre.setAttribute("role", "tablist");
+    barre.setAttribute("aria-label", "La flotte : la course et le navire de chaque commu");
+    const onglet = (id, enfants, extra = {}) => el("button", {
+      type: "button", role: "tab", id: `grandline-${id || "course"}`, class: `fl-onglet${id ? "" : " fl-onglet-course"}`,
+      "aria-selected": String(flVue === id), tabindex: flVue === id ? "0" : "-1", "aria-controls": "grandline-scene",
+      onclick: () => choisirVueFlotte(id), ...extra,
+    }, enfants);
+    vider(barre,
+      onglet("", [el("span", { class: "fl-onglet-icone", "aria-hidden": "true", text: "🏁" }), el("span", { class: "fl-onglet-nom", text: "La course" })]),
+      classementFlotte().map((c) => onglet(c.id, [
+        drapeauCommu(c),
+        el("span", { class: "fl-onglet-nom", text: c.nom }),
+        el("span", { class: "fl-onglet-rang", text: ordinal(rangCommu(c)) }),
+        c.live ? el("span", { class: "fl-onglet-live", text: "Live" }) : null,
+        maFlotte?.equipage === c.id ? el("span", { class: "fl-onglet-moi", title: "Ton équipage", text: "⭐" }) : null,
+      ], { style: styleCommu(c), "aria-label": `${c.nom}, ${ordinal(rangCommu(c))}${c.live ? ", en live" : ""}${maFlotte?.equipage === c.id ? ", ton équipage" : ""}` })),
+    );
+    if (focus) $(focus)?.focus({ preventScroll: true });
+    if (!barre.dataset.clavier) {
+      barre.dataset.clavier = "1";
+      barre.addEventListener("keydown", (ev) => {
+        const tabs = [...barre.querySelectorAll('[role="tab"]')];
+        const i = tabs.indexOf(document.activeElement);
+        if (i < 0) return;
+        const j = ev.key === "ArrowRight" ? (i + 1) % tabs.length : ev.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length : ev.key === "Home" ? 0 : ev.key === "End" ? tabs.length - 1 : -1;
+        if (j < 0) return;
+        ev.preventDefault();
+        tabs[j].click();
+      });
+    }
+  }
+
+  // « La course » : tous les navires sur leur piste, du port au trésor, et ton équipage
+  function rendreCourse(z) {
+    const f = donnees.flotte;
+    const tries = classementFlotte();
+    const gagnant = commu(f.gagnant?.id);
+    const etapes = Math.max(1, ...tries.map((c) => c.navire.etapes || 11));
+    const piste = (c, k) => {
+      const n = c.navire;
+      const av = avanceCommu(c);
+      const pc = Math.floor(av * 100);
+      const ici = n.vote ? "au carrefour, la commu vote" : n.cible ? `cap sur ${n.cible.nom}` : "en mer";
+      return el("li", { class: `fl-piste${k === 0 ? " en-tete" : ""}${c.id === maFlotte?.equipage ? " la-mienne" : ""}${gagnant?.id === c.id ? " gagnante" : ""}`, style: `${styleCommu(c)};--av:${(av * 100).toFixed(2)}%` },
+        el("span", { class: "fl-rang", "aria-hidden": "true", text: k < 3 ? ["🥇", "🥈", "🥉"][k] : String(k + 1) }),
+        el("button", { type: "button", class: "fl-piste-commu", onclick: () => choisirVueFlotte(c.id, { voir: true }), "aria-label": `Voir le navire de ${c.nom}` },
+          drapeauCommu(c),
+          el("span", { class: "fl-piste-noms" }, el("b", { text: c.nom }), c.streamer ? el("small", { text: `chez ${c.streamer}` }) : null)),
+        el("div", { class: "fl-piste-mer", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pc), "aria-label": `${c.nom} : ${pc} % de la course, ${ici}` },
+          el("span", { class: "fl-piste-iles", "aria-hidden": "true" }, Array.from({ length: etapes + 1 }, (_, i) => el("i", { class: i <= (n.etape || 0) ? "faite" : "", style: `--x:${((i / etapes) * 100).toFixed(2)}%` }))),
+          el("i", { class: "fl-piste-sillage" }),
+          el("span", { class: "fl-piste-navire", "aria-hidden": "true", text: "⛵" }),
+          el("span", { class: "fl-piste-tresor", "aria-hidden": "true", text: "💰" })),
+        el("p", { class: "fl-piste-info" },
+          el("b", { text: `${pc} %`, "data-compte": String(pc), "data-suffixe": " %" }),
+          ` · île ${Math.min((n.etape || 0) + 1, n.etapes || etapes)}/${n.etapes || etapes} · ${ici}`,
+          c.live ? el("span", { class: "fl-live", text: "🔴 en live" }) : null,
+          c.bot === false ? el("span", { class: "fl-sans-bot", title: "Le bot n'est pas encore sur son Discord : ce navire avance avec ses lives Twitch.", text: "lives Twitch seulement" }) : null,
+          n.rameurs ? el("span", { class: "fl-rameurs", text: pluriel(n.rameurs, "rameur") }) : null),
+      );
+    };
+    vider(z,
+      el("div", { class: "fl-course-tete" },
+        el("p", { class: "gl-sur", text: "La course des commus" }),
+        el("h3", { class: "gl-titre", text: gagnant ? "Le trésor est trouvé !" : "Qui touchera le trésor en premier ?" }),
+        el("p", { class: "gl-texte", text: `${pluriel(tries.length, "équipage")} sur la même mer, ${etapes} îles du port au trésor. Clique sur un drapeau pour suivre son navire.` })),
+      gagnant ? el("div", { class: "fl-honneur", style: styleCommu(gagnant) },
+        el("span", { class: "fl-couronne", "aria-hidden": "true", text: "👑" }),
+        drapeauCommu(gagnant, "grand"),
+        el("div", {},
+          el("p", { class: "fl-honneur-sur", text: "Place d'honneur" }),
+          el("p", { class: "fl-honneur-nom", text: gagnant.nom }),
+          el("p", { class: "gl-texte", text: `L'équipage a touché le trésor${f.gagnant.le ? ` ${ilYa(f.gagnant.le)}` : ""}. Chaque matelot qui a ramé pour lui gagne la carte spéciale du trésor dans son album.` }))) : null,
+      el("ol", { class: "fl-pistes" }, tries.map(piste)),
+      el("div", { class: "fl-course-bas" }, carteMonEquipage(), carteReglesFlotte()),
+    );
+  }
+
+  // ton équipage : automatique si tu es sur un seul Discord de la course, à choisir une fois si tu es sur plusieurs
+  function carteMonEquipage() {
+    const z = el("div", { class: "carte fl-moi", id: "flotte-moi" });
+    const titre = (t) => [el("p", { class: "gl-sur", text: "Ton équipage" }), el("h3", { class: "gl-titre", text: t })];
+    const message = flMessage ? el("p", { class: `gl-message${flMessage.erreur ? " erreur" : ""}`, role: "status", text: flMessage.texte }) : null;
+    if (!moi?.connecte) {
+      return vider(z, titre("Monte à bord"),
+        el("p", { class: "gl-texte", text: "Connecte-toi avec Discord : le site regarde sur quels Discord de la course tu es, et te met dans le bon équipage." }),
+        el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Connexion avec Discord" }));
+    }
+    const m = maFlotte;
+    if (!m) return vider(z, titre("À tes rames !"), el("p", { class: "gl-texte", text: "Le bot regarde sur quels Discord de la course tu es…" }));
+    if (m.erreur) return vider(z, titre("À tes rames !"), el("p", { class: "gl-message erreur", role: "status", text: m.erreur }));
+    const serveurs = (m.serveurs || []).map(commu).filter(Boolean);
+    const mien = commu(m.equipage);
+    if (mien) {
+      return vider(z, titre(`Tu rames pour ${mien.nom}`),
+        el("div", { class: "fl-moi-commu", style: styleCommu(mien) }, drapeauCommu(mien, "grand"),
+          el("p", { class: "gl-texte", text: serveurs.length > 1 ? "Ton choix est bloqué jusqu'à l'arrivée au trésor." : "Tu es sur son Discord : c'est automatique." })),
+        el("button", { type: "button", class: "btn btn-plein btn-petit", onclick: () => choisirVueFlotte(mien.id, { voir: true }), text: "⭐ Voir mon navire" }),
+        message);
+    }
+    if (serveurs.length > 1) {
+      const pris = commu(flChoix);
+      return vider(z, titre("Choisis ton équipage"),
+        el("p", { class: "gl-texte", text: "Tu es sur plusieurs Discord de la course. Choisis une fois pour qui tu rames sur le site : le choix est bloqué jusqu'à la fin du voyage." }),
+        pris
+          ? el("div", { class: "fl-confirmer" },
+            el("p", { class: "gl-texte" }, "Tu rames pour ", el("b", { text: pris.nom }), " jusqu'au trésor ?"),
+            el("div", { class: "fl-boutons" },
+              el("button", { type: "button", class: "btn btn-plein btn-petit", disabled: flOccupe, onclick: () => agirFlotte("flotte-choisir", { commu: pris.id }), text: "Oui, je monte à bord" }),
+              el("button", { type: "button", class: "btn btn-contour btn-petit", disabled: flOccupe, onclick: () => { flChoix = ""; rendreGrandLine(); }, text: "Pas encore" })))
+          : el("div", { class: "fl-boutons" }, serveurs.map((c) => el("button", { type: "button", class: "btn btn-contour btn-petit fl-choix", style: styleCommu(c), disabled: flOccupe, onclick: () => { flChoix = c.id; rendreGrandLine(); } }, drapeauCommu(c), c.nom))),
+        message);
+    }
+    if (serveurs.length === 1) return vider(z, titre(`Tu rames pour ${serveurs[0].nom}`), el("p", { class: "gl-texte", text: "Tu es sur son Discord : c'est automatique." }), message);
+    const liens = classementFlotte().filter((c) => lienDiscord(c));
+    return vider(z, titre("Tu regardes la course"),
+      el("p", { class: "gl-texte", text: "Tu n'es sur aucun Discord de la course. Tu peux suivre les navires d'ici ; pour ramer, rejoins le Discord d'un équipage." }),
+      liens.length ? el("div", { class: "fl-boutons" }, liens.map((c) => el("a", { class: "btn btn-contour btn-petit fl-choix", style: styleCommu(c), href: lienDiscord(c), ...externe }, drapeauCommu(c), c.nom))) : null,
+      message);
+  }
+  function carteReglesFlotte() {
+    return el("div", { class: "carte fl-regles" },
+      el("p", { class: "gl-sur", text: "Qui rame pour qui" }),
+      el("h3", { class: "gl-titre", text: "Ce qui fait avancer chaque navire" }),
+      el("ul", { class: "gl-ramer-liste" },
+        el("li", {}, el("span", { "aria-hidden": "true", text: "💬" }), el("span", { text: "Les messages et le vocal sur son Discord : ils comptent pour la commu où ils se passent." })),
+        el("li", {}, el("span", { "aria-hidden": "true", text: "💜" }), el("span", { text: "Le chat et le temps de live sur la chaîne Twitch de son streamer, et son !boss." })),
+        el("li", {}, el("span", { "aria-hidden": "true", text: "🎮" }), el("span", { text: "Les parties, les votes et le bouton FRAPPER sur le site : ils comptent pour ton équipage." }))),
+      el("p", { class: "note", text: "Les messages ne sont jamais lus, seulement comptés. Sur les serveurs des potes, le bot ne fait que compter." }));
+  }
+
+  // dans l'onglet d'une commu : sa fiche (drapeau, streamer, liens, meilleurs matelots), en tête des panneaux
+  function rendreFicheCommu() {
+    const grille = document.querySelector("#grandline .gl-grille");
+    const c = commu(flVue);
+    let z = $("flotte-fiche");
+    if (!grille || !c) { z?.remove(); return; }
+    if (!z) { z = el("div", { class: "carte fl-fiche", id: "flotte-fiche" }); grille.prepend(z); }
+    z.setAttribute("style", styleCommu(c));
+    const matelots = Array.isArray(c.matelots) ? c.matelots.slice(0, 5) : [];
+    const twitch = lienTwitch(c);
+    const discord = lienDiscord(c);
+    vider(z,
+      el("div", { class: "fl-fiche-tete" },
+        drapeauCommu(c, "grand"),
+        el("div", {},
+          el("p", { class: "gl-sur", text: `${ordinal(rangCommu(c))} de la course${maFlotte?.equipage === c.id ? " · ⭐ ton équipage" : ""}` }),
+          el("h3", { class: "gl-titre fl-fiche-nom", text: c.nom }),
+          el("p", { class: "gl-texte", text: [c.streamer ? `La commu de ${c.streamer}` : "", c.bot === false ? "Le bot n'est pas encore sur son Discord : son navire avance avec ses lives Twitch." : ""].filter(Boolean).join(" · ") || "Un équipage de la course." })),
+        el("div", { class: "fl-fiche-liens" },
+          twitch ? el("a", { class: `btn ${c.live ? "btn-plein" : "btn-contour"} btn-petit`, href: twitch, ...externe, text: c.live ? "🔴 En live sur Twitch" : "💜 Sa chaîne Twitch" }) : null,
+          discord ? el("a", { class: "btn btn-contour btn-petit", href: discord, ...externe, text: "Son Discord" }) : null,
+          el("button", { type: "button", class: "btn btn-contour btn-petit", onclick: (ev) => copierLienFlotte(c, ev.currentTarget), text: "🔗 Copier le lien du navire" }))),
+      matelots.length ? el("div", { class: "fl-matelots" },
+        el("p", { class: "gl-petit-titre", text: "Ses meilleurs matelots du voyage" }),
+        el("ol", { class: "gl-rameurs" }, matelots.map(rameur))) : null,
+    );
+  }
+  async function copierLienFlotte(c, bouton) {
+    const lien = `${location.origin}/#grandline-${c.id}`;
+    let ok = false;
+    try { await navigator.clipboard.writeText(lien); ok = true; } catch {}
+    bouton.textContent = ok ? "✅ Lien copié !" : `🔗 ${lien.replace(/^https?:\/\//, "")}`;
+    setTimeout(() => { if (bouton.isConnected) bouton.textContent = "🔗 Copier le lien du navire"; }, 2600);
+  }
+
+  async function agirFlotte(action, extra = {}) {
+    if (flOccupe || !v4Ouverte()) return;
+    flOccupe = true;
+    if (action !== "flotte") flMessage = null;
+    let d = {};
+    let status = 0;
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      status = r.status;
+      d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
+    } catch {
+      d = { erreur: "Impossible de joindre le navire. Vérifie ta connexion." };
+    }
+    flOccupe = false;
+    if (status === 401) { moi = { connecte: false }; maFlotte = null; maFlotteDemandee = false; rendreCompte(); }
+    if (d.flotte) maFlotte = d.flotte;
+    else if (action === "flotte" && status !== 401) { maFlotte = { erreur: d.texte || d.erreur || "Le navire ne répond pas, réessaie dans un moment." }; maFlotteDemandee = false; }
+    flChoix = "";
+    if (action === "flotte-choisir") {
+      flMessage = d.ok ? { texte: `⭐ Bienvenue à bord ! Tu rames pour ${commu(maFlotte?.equipage)?.nom || "ton équipage"} jusqu'au trésor.` } : { texte: d.texte || d.erreur || "Ça n'a pas marché, réessaie.", erreur: true };
+      if (d.ok) { chargerMonNavire(); if (!reduit.matches) confettisGL(); }
+    }
+    if (infosGL()) rendreGrandLine();
+  }
+  function chargerMaFlotte() {
+    maFlotte = null;
+    maFlotteDemandee = false;
+    if (moi?.connecte && flotteActive()) { maFlotteDemandee = true; agirFlotte("flotte"); }
+  }
+  // ce que la carte (3D ou 2D) reçoit : le navire regardé, à ses couleurs, et les autres navires de la flotte
+  function donneesCarteGL(g) {
+    if (!g || !flotteActive()) return g;
+    const c = commuRegardee();
+    return {
+      ...g,
+      flotte: {
+        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, ensemble: vueCourse(),
+        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, live: Boolean(x.live), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
+      },
+    };
+  }
   const prechargees = new Set();
   const prechargerIle = (id) => { const u = imageIle(id); if (u && !prechargees.has(u)) { prechargees.add(u); const i = new Image(); i.src = u; } };
   const pourcentGL = (g) => Math.min(100, Math.floor((g.milles / Math.max(1, g.longueur)) * 100));
@@ -4557,10 +4881,19 @@
     charger();
   }
 
+  let sousGL = "";
   function rendreGrandLine() {
     const z = $("grandline-cap");
     if (!z) return;
+    rendreFlotte();
     const g = infosGL();
+    const sous = document.querySelector("#grandline .entete-section .sous");
+    if (sous) {
+      sousGL ||= sous.textContent;
+      const noms = classementFlotte().map((c) => c.nom);
+      const texte = noms.length ? `Chaque commu a son navire sur la même mer : ${noms.length > 1 ? `${noms.slice(0, -1).join(", ")} et ${noms.at(-1)}` : noms[0]}. Tout ce que vous faites sur votre Discord, sur le live de votre streamer et sur le site fait avancer votre navire, d'île en île. Le premier au trésor gagne la place d'honneur.` : sousGL;
+      if (sous.textContent !== texte) sous.textContent = texte;
+    }
     const ouvert = glOuvert();
     $("grandline")?.classList.toggle("gl-ferme", !ouvert);
     const pastille = $("pastille-grandline");
@@ -4572,11 +4905,14 @@
     $("grandline-verrou")?.remove();
     cleVerrou = "";
     if (glVue && !carteGL) preparerCarteGL();
-    // « Terre en vue ! » : une nouvelle île pendant la visite (ou il y a moins de 2 h, une fois par visite)
-    const derniere = g.escales?.[0];
-    if (glAvant && (g.voyage > glAvant.voyage || (g.voyage === glAvant.voyage && g.etape > glAvant.etape)) && derniere) terreEnVue(derniere);
-    else if (!glAvant && derniere && Date.now() - derniere.arrivee < 2 * 3600_000) terreEnVue(derniere);
-    glAvant = { voyage: g.voyage, etape: g.etape };
+    // « Terre en vue ! » : une nouvelle île pendant la visite (ou il y a moins de 2 h, une fois par visite), navire par navire
+    const cleNavire = flotteActive() ? commuRegardee().id : "";
+    const avant = glAvant?.cle === cleNavire ? glAvant : null;
+    const derniere = g.escales?.[0] ? { ...g.escales[0], commu: cleNavire } : null;
+    if (avant && (g.voyage > avant.voyage || (g.voyage === avant.voyage && g.etape > avant.etape)) && derniere) terreEnVue(derniere);
+    else if (!avant && derniere && Date.now() - derniere.arrivee < 2 * 3600_000) terreEnVue(derniere);
+    glAvant = { cle: cleNavire, voyage: g.voyage, etape: g.etape };
+    if (carteGL) carteGL.rendu.maj(donneesCarteGL(g));
     rendreCapGL(g);
     rendreMerGL(g);
     rendreEquipageGL(g);
@@ -4584,7 +4920,6 @@
     rendreEscalesGL(g);
     rendreMoiGL(g);
     rendreHudGL(g);
-    if (carteGL) carteGL.rendu.maj(g);
   }
 
   function rendreHudGL(g) {
@@ -4592,7 +4927,9 @@
     if (!h) return;
     const ev = g.evenement;
     vider(h,
-      el("p", { class: "gl-badge" }, el("b", { text: `Voyage ${g.voyage}` }), ` · étape ${Math.min(g.etape + 1, g.etapes)}/${g.etapes}`),
+      flotteActive()
+        ? el("p", { class: "gl-badge fl-badge" }, vueCourse() ? el("b", { text: "🏁 La course" }) : el("b", { text: commuRegardee().nom }), vueCourse() ? ` · ${pluriel(commusFlotte().length, "navire")}` : ` · île ${Math.min(g.etape + 1, g.etapes)}/${g.etapes}`)
+        : el("p", { class: "gl-badge" }, el("b", { text: `Voyage ${g.voyage}` }), ` · étape ${Math.min(g.etape + 1, g.etapes)}/${g.etapes}`),
       ev ? el("p", { class: `gl-alerte gl-alerte-${ev.type}`, text: `${ev.emoji} ${ev.titre}` }) : g.vote ? el("p", { class: "gl-alerte gl-alerte-vote", text: "🗳️ Carrefour : la commu vote !" }) : null,
       carteGL?.type === "3d" ? el("div", { class: "gl-vues" },
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() !== "ensemble"), onclick: () => { carteGL.rendu.vue("navire"); rendreHudGL(g); }, text: "⛵ Le navire" }),
@@ -4615,7 +4952,7 @@
     if (cible) prechargerIle(cible.id);
     vider($("grandline-cap"),
       cible && !g.vote && imageIle(cible.id) ? el("img", { class: "gl-cap-ile", src: imageIle(cible.id), alt: "", width: 360, height: 300, loading: "lazy", decoding: "async" }) : null,
-      el("p", { class: "gl-sur", text: g.actif ? "Le navire de la commu" : "⚓ À l'ancre pour l'instant" }),
+      el("p", { class: "gl-sur", text: g.actif ? nomNavireGL() : "⚓ À l'ancre pour l'instant" }),
       el("h3", { class: "gl-titre" }, cible && !g.vote ? el("span", { class: "gl-emoji", "aria-hidden": "true", text: cible.emoji }) : null, titre),
       el("div", { class: "gl-barre", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(p), "aria-label": "L'étape en cours" },
         el("i", { style: `--p:${p}%` }), el("span", { class: "gl-barre-navire", style: `--p:${p}%`, "aria-hidden": "true", text: "⛵" })),
@@ -4642,11 +4979,12 @@
           el("p", { class: "gl-option-texte", text: c.texte }),
           el("div", { class: "gl-option-barre", "aria-hidden": "true" }, el("i", { style: `--p:${Math.round((c.voix / total) * 100)}%` })),
           el("p", { class: "gl-option-voix", text: `${pluriel(c.voix, "voix").replace("voixs", "voix")}` }),
-          moi?.connecte
+          moi?.connecte && monNavireGL()
             ? el("button", { type: "button", class: `btn ${mien === c.id ? "btn-plein" : "btn-contour"} btn-petit`, disabled: glOccupe, onclick: () => agirGL("grandline-voter", { choix: c.id }), text: mien === c.id ? "Ton choix ✓" : "Voter" })
             : null,
         ))),
-        moi?.connecte ? null : el("p", { class: "note" }, el("a", { href: "/api/auth/login", text: "Connecte-toi avec Discord" }), " pour voter (ou vote avec les boutons sur le Discord)."),
+        !moi?.connecte ? el("p", { class: "note" }, el("a", { href: "/api/auth/login", text: "Connecte-toi avec Discord" }), " pour voter (ou vote avec les boutons sur le Discord).")
+          : !monNavireGL() ? el("p", { class: "note", text: `Seul l'équipage de ${commuRegardee().nom} vote pour ce navire.` }) : null,
       );
     }
     if (ev) {
@@ -4660,7 +4998,8 @@
         ev.type === "vent" ? el("p", { class: "gl-texte", text: `Tout ce que vous faites compte une fois et demie ! ${fin}.` }) : null,
         ev.type === "bouteille" ? [
           el("p", { class: "gl-texte", text: `Elle flotte à côté du navire. Le premier qui l'ouvre gagne ce qu'il y a dedans (et le navire avance) ! ${fin}.` }),
-          moi?.connecte ? el("button", { type: "button", class: "btn btn-plein gl-ouvrir", disabled: glOccupe, onclick: () => agirGL("grandline-bouteille"), text: "🍾 Ouvrir la bouteille" })
+          moi?.connecte && monNavireGL() ? el("button", { type: "button", class: "btn btn-plein gl-ouvrir", disabled: glOccupe, onclick: () => agirGL("grandline-bouteille"), text: "🍾 Ouvrir la bouteille" })
+            : moi?.connecte ? el("p", { class: "note", text: `Seul l'équipage de ${commuRegardee().nom} peut l'ouvrir.` })
             : el("p", { class: "note" }, el("a", { href: "/api/auth/login", text: "Connecte-toi avec Discord" }), " pour l'ouvrir (ou avec le bouton sur le Discord)."),
         ] : null,
       ));
@@ -4723,6 +5062,15 @@
         el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Connexion avec Discord" }));
       return;
     }
+    if (flotteActive() && !monNavireGL()) {
+      const mien = commu(maFlotte?.equipage);
+      const c = commuRegardee();
+      vider(z, el("p", { class: "gl-sur", text: "Toi" }), el("h3", { class: "gl-titre", text: mien ? "Pas ton navire" : "Ton équipage ?" }),
+        el("p", { class: "gl-texte", text: mien ? `Tu rames pour ${mien.nom}. Ici, tu regardes ${c.nom} avancer : tes parties, tes votes et tes coups comptent pour ton équipage.` : "Dans « La course », le site te dit pour quel équipage tu rames (ou te laisse choisir si tu es sur plusieurs Discord de la course)." }),
+        mien ? el("button", { type: "button", class: "btn btn-plein btn-petit", style: styleCommu(mien), onclick: () => choisirVueFlotte(mien.id), text: `⭐ Voir ${mien.nom}` })
+          : el("button", { type: "button", class: "btn btn-contour btn-petit", onclick: () => choisirVueFlotte(""), text: "🏁 Aller à « La course »" }));
+      return;
+    }
     const m = monNavire;
     vider(z, el("p", { class: "gl-sur", text: "Toi" }), el("h3", { class: "gl-titre", text: m?.etape ? "Tu rames !" : "À tes rames !" }),
       m ? el("div", { class: "gl-moi-chiffres" },
@@ -4750,7 +5098,7 @@
     let d = {};
     let status = 0;
     try {
-      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra, ...(flotteActive() ? { commu: commuRegardee().id } : {}) }) });
       status = r.status;
       d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
     } catch {
@@ -4762,7 +5110,7 @@
     if (d.grandline && donnees) donnees = { ...donnees, grandline: d.grandline };
     if (action === "grandline-bouteille" && d.ok) glMessage = { texte: `🍾 Dedans : ${d.message} Le navire avance de ${nombre(d.milles)} milles${d.berrys ? `, et tu gagnes ${berrys(d.berrys)}` : ""} !`, parchemin: true };
     else if (action === "grandline-voter" && d.ok) glMessage = { texte: `🗳️ ${d.change ? "Vote changé" : "C'est noté"} ! Tu peux changer d'avis jusqu'à la fin du vote.` };
-    else if (d.erreur && action !== "grandline") glMessage = { texte: d.erreur === "pas-membre" ? "Rejoins le Discord Barhaw pour monter à bord." : d.texte || d.erreur, erreur: true };
+    else if (d.erreur && action !== "grandline") glMessage = { texte: d.erreur === "pas-membre" ? (flotteActive() ? "Rejoins le Discord d'un équipage de la course pour monter à bord." : "Rejoins le Discord Barhaw pour monter à bord.") : d.texte || d.erreur, erreur: true };
     const fete = d.ok && (action === "grandline-voter" || action === "grandline-bouteille");
     if (infosGL()) rendreGrandLine();
     if (fete) confettisGL();
@@ -4774,7 +5122,7 @@
 
   // « Terre en vue ! » : tout l'écran, comme le début du live, avec l'île atteinte
   function terreEnVue(e) {
-    const cle = `barhaw-terre:${e.voyage}-${e.etape}`;
+    const cle = `barhaw-terre:${e.commu ? `${e.commu}:` : ""}${e.voyage}-${e.etape}`;
     if (lireSession(cle) === "vu" || reduit.matches) return;
     ecrireSession(cle, "vu");
     if (document.hidden) { document.addEventListener("visibilitychange", () => terreEnVue({ ...e, force: true }), { once: true }); return; }
@@ -4827,12 +5175,12 @@
           const { creerGrandLine3D } = await import("/js/grandline-3d.js");
           const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de GRAND LINE en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
           vider(zone, toile);
-          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), surIle: infoIleGL, surBouteille: () => (moi?.connecte ? agirGL("grandline-bouteille") : (glMessage = { texte: "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
+          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
           if (choix3d !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
           toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passerCarte2D(); });
           carteGL = { type: "3d", rendu };
           tailleCarteGL();
-          if (infosGL()) rendu.maj(infosGL());
+          if (infosGL()) rendu.maj(donneesCarteGL(infosGL()));
           if (glVue) rendu.demarrer();
           $("grandline-scene")?.classList.add("en-3d");
           if (choix3d) window.__grandline3d = rendu; // pour les essais (?3d=oui)
@@ -4848,7 +5196,7 @@
     $("grandline-scene")?.classList.remove("en-3d");
     vider($("grandline-etiquettes"));
     carteGL = { type: "2d", rendu: carte2D($("grandline-carte")) };
-    if (infosGL()) carteGL.rendu.maj(infosGL());
+    if (infosGL()) carteGL.rendu.maj(donneesCarteGL(infosGL()));
   }
   function tailleCarteGL() {
     const z = $("grandline-carte");
@@ -4894,6 +5242,24 @@
           ));
         }
         vider(zone, svg);
+        // la flotte (V4) : les autres navires, chacun sur l'étape en cours de sa route
+        for (const o of g.flotte?.autres || []) {
+          const k = (o.etape || 0) + 1;
+          const de = o.route?.[k - 1]?.find((x) => x.etat === "atteinte" || x.etat === "cible") || o.route?.[k - 1]?.[0];
+          const vers = o.route?.[k]?.filter((x) => x.etat !== "ecartee");
+          if (!de || !vers?.length) continue;
+          const [ax, az] = pos(de.id);
+          const cible = vers.find((x) => x.etat === "cible") || vers[0];
+          let [bx, bz] = pos(cible.id);
+          if (o.vote && vers.length > 1) { bx = (ax + vers.reduce((m, x) => m + pos(x.id)[0], 0) / vers.length) / 2; bz = (az + vers.reduce((m, x) => m + pos(x.id)[1], 0) / vers.length) / 2; }
+          const chemin = s("path", { d: `M${X(ax)} ${Y(az)} Q${X((ax + bx) / 2 - (bz - az) * 0.15)} ${Y((az + bz) / 2 + (bx - ax) * 0.15)} ${X(bx)} ${Y(bz)}`, fill: "none" });
+          svg.append(chemin);
+          const L = chemin.getTotalLength();
+          const p = chemin.getPointAtLength(L * Math.min(1, (o.milles || 0) / Math.max(1, o.longueur || 1)));
+          chemin.remove();
+          const c1 = /^#[0-9a-f]{6}$/i.test(String(o.couleurs?.principale || "")) ? o.couleurs.principale : "#9b4dff";
+          svg.append(s("g", { class: "gl-svg-flotte", transform: `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})` }, s("circle", { r: 4.2, fill: c1 }), s("text", { y: 1.6 }, "⛵"), s("title", {}, o.nom || "")));
+        }
         if (navire) {
           const L = navire.chemin.getTotalLength();
           const p = navire.chemin.getPointAtLength(L * Math.min(1, navire.p));
@@ -5257,6 +5623,7 @@
 
   // ---------- chargement ----------
   function rendreTout() {
+    document.documentElement.classList.toggle("v4", v4Ouverte());
     if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEscale();
     rendreEntete();
@@ -5477,6 +5844,7 @@
     chargerMaChasse();
     chargerMaFaille();
     chargerMonNavire();
+    chargerMaFlotte();
     chargerMesFideles();
   }
 
@@ -5512,6 +5880,12 @@
     suivreChasse();
     suivreFaille();
     suivreGrandLine();
+    // la V4 : la classe v4 dès le départ (selon la date), puis à l'heure pile ; les liens directs vers un navire
+    document.documentElement.classList.toggle("v4", Date.now() >= V4_OUVERTURE);
+    const avantV4 = V4_OUVERTURE - Date.now();
+    if (avantV4 > 0 && avantV4 < 2 ** 31 - 1) setTimeout(charger, avantV4 + 1500);
+    lienDirectFlotte();
+    window.addEventListener("hashchange", lienDirectFlotte);
     let dernierRetour = Date.now();
     document.addEventListener("visibilitychange", () => {
       if (document.hidden || Date.now() - dernierRetour < 15_000) return;

@@ -590,11 +590,29 @@ function matiereContour(ep) {
   }
   return contours.get(ep);
 }
+// les couleurs d'un navire : Barhaw par défaut ; chaque commu de la flotte (V4) a les siennes et son emblème
+const hexa = (c, defaut) => (/^#[0-9a-f]{6}$/i.test(String(c || "")) ? String(c).toLowerCase() : defaut);
+function melange(a, b, t) {
+  const x = parseInt(a.slice(1), 16);
+  const y = parseInt(b.slice(1), 16);
+  const c = (d) => Math.round(((x >> d) & 255) * (1 - t) + ((y >> d) & 255) * t);
+  return `#${((c(16) << 16) | (c(8) << 8) | c(0)).toString(16).padStart(6, "0")}`;
+}
+function themeNavire(couleurs = {}, embleme = "B") {
+  const c1 = hexa(couleurs.principale, "#ff4f9a");
+  const c2 = hexa(couleurs.secondaire, "#9b4dff");
+  const e = String(embleme || "B").replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "B";
+  return { cle: `${c1}${c2}${e}`, c1, c2, fonce: melange(c1, "#12050d", 0.55), embleme: e };
+}
+const THEME_BARHAW = themeNavire();
 // les toiles du navire et les drapeaux (dessinées ici ; les UV viennent de Blender)
 const toiles = {};
-function toileGLB(nom) {
-  if (toiles[nom]) return toiles[nom];
-  const voileDessin = (embleme) => (x, l, h) => {
+function toileGLB(nom, theme = THEME_BARHAW) {
+  const cle = `${nom}|${theme.cle}`;
+  if (toiles[cle]) return toiles[cle];
+  const { c1, c2, fonce, embleme } = theme;
+  const lettre = (x, taille, l, y) => { x.font = `900 ${embleme.length > 1 ? Math.round(taille * 0.7) : taille}px 'Dela Gothic One', Arial Black, sans-serif`; x.textAlign = "center"; x.textBaseline = "middle"; return [l / 2, y]; };
+  const voileDessin = (avecEmbleme) => (x, l, h) => {
     x.fillStyle = "#fbf1df";
     x.fillRect(0, 0, l, h);
     x.strokeStyle = "rgba(160,120,80,.18)";
@@ -602,43 +620,45 @@ function toileGLB(nom) {
     for (let k = 1; k < 8; k++) { x.beginPath(); x.moveTo((k * l) / 8, 0); x.lineTo((k * l) / 8, h); x.stroke(); }
     x.fillStyle = "#ffd36b";
     x.fillRect(0, h - 44, l, 8);
-    x.fillStyle = "#ff4f9a";
+    x.fillStyle = c1;
     x.fillRect(0, h - 34, l, 34);
-    if (!embleme) return;
-    x.fillStyle = "#ff4f9a";
+    if (!avecEmbleme) return;
+    x.fillStyle = c1;
     x.beginPath(); x.arc(l / 2, h / 2 - 14, 104, 0, Math.PI * 2); x.fill();
-    x.lineWidth = 12; x.strokeStyle = "#7a1f4d"; x.stroke();
+    x.lineWidth = 12; x.strokeStyle = fonce; x.stroke();
     x.lineWidth = 6; x.strokeStyle = "#ffd36b";
     x.beginPath(); x.arc(l / 2, h / 2 - 14, 84, 0, Math.PI * 2); x.stroke();
-    x.font = "900 150px 'Dela Gothic One', Arial Black, sans-serif";
-    x.textAlign = "center"; x.textBaseline = "middle";
-    x.lineWidth = 10; x.strokeStyle = "#7a1f4d"; x.strokeText("B", l / 2, h / 2 - 8);
-    x.fillStyle = "#fff6fb"; x.fillText("B", l / 2, h / 2 - 8);
+    const [cx, cy] = lettre(x, 150, l, h / 2 - 8);
+    x.lineWidth = 10; x.strokeStyle = fonce; x.strokeText(embleme, cx, cy);
+    x.fillStyle = "#fff6fb"; x.fillText(embleme, cx, cy);
   };
   const dessins = {
     voile_b: [512, 384, voileDessin(true)],
     voile: [512, 384, voileDessin(false)],
     drapeau: [512, 320, (x, l, h) => {
-      x.fillStyle = "#ff4f9a"; x.fillRect(0, 0, l, h);
-      x.fillStyle = "#9b4dff"; x.beginPath(); x.moveTo(0, h); x.lineTo(l, h * 0.55); x.lineTo(l, h); x.closePath(); x.fill();
+      x.fillStyle = c1; x.fillRect(0, 0, l, h);
+      x.fillStyle = c2; x.beginPath(); x.moveTo(0, h); x.lineTo(l, h * 0.55); x.lineTo(l, h); x.closePath(); x.fill();
       x.beginPath();
       for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5; const r = k % 2 ? 52 : 120; x.lineTo(l / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); }
-      x.closePath(); x.fillStyle = "#ffd36b"; x.fill(); x.lineWidth = 8; x.strokeStyle = "#7a1f4d"; x.stroke();
-      x.font = "900 78px 'Dela Gothic One', Arial Black, sans-serif"; x.textAlign = "center"; x.textBaseline = "middle";
-      x.fillStyle = "#7a1f4d"; x.fillText("B", l / 2, h / 2 + 10);
+      x.closePath(); x.fillStyle = "#ffd36b"; x.fill(); x.lineWidth = 8; x.strokeStyle = fonce; x.stroke();
+      const [cx, cy] = lettre(x, 78, l, h / 2 + 10);
+      x.fillStyle = fonce; x.fillText(embleme, cx, cy);
     }],
-    flamme: [256, 32, (x, l, h) => { const d = x.createLinearGradient(0, 0, l, 0); d.addColorStop(0, "#ff4f9a"); d.addColorStop(1, "#9b4dff"); x.fillStyle = d; x.fillRect(0, 0, l, h); }],
+    flamme: [256, 32, (x, l, h) => { const d = x.createLinearGradient(0, 0, l, 0); d.addColorStop(0, c1); d.addColorStop(1, c2); x.fillStyle = d; x.fillRect(0, 0, l, h); }],
   };
   const [l, h, f] = dessins[nom];
   const t = toile(l, h, f);
   t.flipY = false;
-  toiles[nom] = t;
+  toiles[cle] = t;
   return t;
 }
+// les matières qui changent avec les couleurs du navire
+const THEMEES = new Set(["rose", "violet", "voile", "voile_b", "drapeau", "flamme"]);
 const matieres = new Map();
-function matiereGLB(nom) {
-  if (matieres.has(nom)) return matieres.get(nom);
-  const couleur = COULEURS[nom] ?? 0xcccccc;
+function matiereGLB(nom, theme = THEME_BARHAW) {
+  const cle = THEMEES.has(nom) && theme !== THEME_BARHAW ? `${nom}|${theme.cle}` : nom;
+  if (matieres.has(cle)) return matieres.get(cle);
+  const couleur = nom === "rose" && cle !== nom ? parseInt(theme.c1.slice(1), 16) : nom === "violet" && cle !== nom ? parseInt(theme.c2.slice(1), 16) : COULEURS[nom] ?? 0xcccccc;
   let m;
   if (BRILLANTS.has(nom)) m = new THREE.MeshBasicMaterial({ color: couleur });
   else if (nom === "pois") m = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x777777 });
@@ -646,14 +666,14 @@ function matiereGLB(nom) {
   else if (nom === "eau" || nom === "eau_douce") m = plastique(couleur, { shininess: 100, specular: 0xffffff, transparent: true, opacity: 0.85 });
   else if (nom === "verre") m = plastique(couleur, { shininess: 140, specular: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
   else if (nom === "ecaille") m = plastique(couleur, { shininess: 70, specular: 0x6a5a8a });
-  else if (toileGLB.noms.has(nom)) m = new THREE.MeshPhongMaterial({ map: toileGLB(nom), emissiveMap: toileGLB(nom), emissive: 0x8a8580, side: THREE.DoubleSide, shininess: 10 });
+  else if (toileGLB.noms.has(nom)) m = new THREE.MeshPhongMaterial({ map: toileGLB(nom, theme), emissiveMap: toileGLB(nom, theme), emissive: 0x8a8580, side: THREE.DoubleSide, shininess: 10 });
   else m = plastique(couleur, DEUX_FACES.has(nom) ? { side: THREE.DoubleSide } : {});
-  matieres.set(nom, m);
+  matieres.set(cle, m);
   return m;
 }
 toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
 // habiller un modèle : les matières du site, les contours ; renvoie ce qui bouge et les reliefs
-function habiller(racine, { relief, contour = 0.045 }) {
+function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW }) {
   const reliefs = [];
   const bouge = [];
   const reperes = [];
@@ -669,7 +689,7 @@ function habiller(racine, { relief, contour = 0.045 }) {
         o.material = relief();
         reliefs.push(o);
       } else {
-        o.material = matiereGLB(nom);
+        o.material = matiereGLB(nom, theme);
         if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
       }
     }
@@ -946,7 +966,7 @@ function courbe(a, b, sens = 1, force = 0.16) {
   return new THREE.QuadraticBezierCurve3(a, c, b);
 }
 
-export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, modeles = "/modeles/grandline/" }) {
+export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, modeles = "/modeles/grandline/" }) {
   const ratio = Math.min(1.5, window.devicePixelRatio || 1);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: ratio < 1.5, alpha: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -1085,24 +1105,42 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   const porteur = new THREE.Group();
   porteur.add(ombre, navire);
   scene.add(porteur);
-  // le navire modélisé dans Blender remplace le petit navire dessiné ici dès qu'il est chargé
-  let ventNavire = 1;
-  lireGLB(`${modeles}navire.glb`).then((glb) => {
-    if (detruit) return;
-    const modele = sceneGLB(glb);
-    const { bouge } = habiller(modele, { relief: () => null, contour: 0.03 });
-    const anims = animateurs(bouge, () => ventNavire);
-    const nouveau = new THREE.Group();
-    nouveau.add(modele);
-    nouveau.scale.setScalar(1.5);
-    nouveau.userData.animer = (s, vent) => { ventNavire = vent; for (const a of anims) a(s); };
-    nouveau.userData.blender = true;
-    nouveau.position.copy(navire.position);
-    porteur.remove(navire);
-    navire.traverse((o) => o.geometry?.dispose?.());
-    navire = nouveau;
-    porteur.add(navire);
-  }).catch((e) => { erreurs.push(`navire : ${e.message}`); });
+  // le navire modélisé dans Blender remplace le petit navire dessiné ici dès qu'il est chargé ; le fichier est lu une fois,
+  // et chaque navire de la flotte (V4) en est une copie habillée aux couleurs de sa commu
+  let glbNavire = null;
+  const naviresFaits = new Map(); // un navire par jeu de couleurs : il passe du rôle de navire regardé à celui de la flotte sans être refait
+  function navireBlender(theme) {
+    glbNavire ||= lireGLB(`${modeles}navire.glb`);
+    if (naviresFaits.has(theme.cle)) return naviresFaits.get(theme.cle);
+    const fait = glbNavire.then((glb) => {
+      const modele = sceneGLB(glb);
+      const { bouge } = habiller(modele, { relief: () => null, contour: 0.03, theme });
+      let ventIci = 1;
+      const anims = animateurs(bouge, () => ventIci);
+      const g = new THREE.Group();
+      g.add(modele);
+      g.scale.setScalar(1.5);
+      g.userData.animer = (s, vent) => { ventIci = vent; for (const a of anims) a(s); };
+      g.userData.blender = true;
+      return g;
+    });
+    naviresFaits.set(theme.cle, fait);
+    fait.catch(() => naviresFaits.delete(theme.cle));
+    return fait;
+  }
+  let themeNavireActuel = "";
+  function habillerNavire(theme) {
+    if (theme.cle === themeNavireActuel) return;
+    themeNavireActuel = theme.cle;
+    navireBlender(theme).then((nouveau) => {
+      if (detruit || theme.cle !== themeNavireActuel) return;
+      nouveau.position.copy(navire.position);
+      porteur.remove(navire);
+      if (!navire.userData.blender) navire.traverse((o) => o.geometry?.dispose?.());
+      navire = nouveau;
+      porteur.add(navire);
+    }).catch((e) => { erreurs.push(`navire : ${e.message}`); });
+  }
   // les mouettes : elles tournent autour du navire (elles se cachent pendant la tempête)
   const mouettes = [];
   Promise.all([0, 1, 2].map(() => creature("mouette", 0.018))).then((liste) => {
@@ -1222,6 +1260,77 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const [de, a] = etape.plages[k];
     const u = Math.min(0.999, Math.max(0.001, (p - de) / (a - de)));
     return { pos: etape.chemins[k].getPointAt(u), dir: etape.chemins[k].getTangentAt(u) };
+  }
+
+  // ---------- la flotte des commus (V4) : les autres navires, sur la même mer, chacun sur sa route ----------
+  // (l'étape en cours de chacun est calculée comme celle du navire qu'on regarde, sans être dessinée)
+  function etapeDe(d) {
+    const etapes = d.route || [];
+    const k = (d.etape || 0) + 1;
+    if (!etapes[k] || !etapes[k - 1]) return { chemins: [], plages: [] };
+    const avant = etapes[k - 1].find((x) => x.etat === "atteinte") || etapes[k - 1].find((x) => x.etat === "cible") || etapes[k - 1][0];
+    const s0 = avant.id;
+    const vers = etapes[k].filter((x) => x.etat !== "ecartee");
+    if (etapes[k].length > 1) {
+      const tout = etapes[k].reduce((m, x) => m.add(pos(x.id)), v3(0, 0)).multiplyScalar(1 / etapes[k].length);
+      const f = pos(s0).lerp(tout, 0.5);
+      const c1 = courbe(rivage(s0, f), f, k % 2 ? 1 : -1, 0.08);
+      if (d.vote || !vers.length) return { chemins: [c1], plages: [[0, 0.5]] };
+      const c2 = courbe(f, rivage(vers[vers.length - 1].id, f), vers.length > 1 ? -1 : 1, 0.14);
+      return { chemins: [c1, c2], plages: [[0, 0.5], [0.5, 1]] };
+    }
+    const b = etapes[k][0].id;
+    return { chemins: [courbe(rivage(s0, pos(b)), rivage(b, pos(s0)), k % 2 ? 1 : -1)], plages: [[0, 1]] };
+  }
+  function surChemins({ chemins, plages }, p) {
+    if (!chemins.length) return { pos: pos("port"), dir: v3(1, 0) };
+    let k = plages.findIndex(([de, a]) => p >= de && p <= a);
+    if (k < 0) k = p < plages[0][0] ? 0 : plages.length - 1;
+    const [de, a] = plages[k];
+    const u = Math.min(0.999, Math.max(0.001, (p - de) / (a - de)));
+    return { pos: chemins[k].getPointAt(u), dir: chemins[k].getTangentAt(u) };
+  }
+  const flotte = new Map(); // id → { porteur, navire, theme, etape, sig, progres, voulu, d, decal }
+  function navireFlotte(id, theme) {
+    const f = { porteur: new THREE.Group(), navire: null, theme, etape: { chemins: [], plages: [] }, sig: "", progres: -1, voulu: 0, d: null, decal: flotte.size + 1 };
+    const o = new THREE.Mesh(ombre.geometry, ombre.material);
+    o.rotation.x = -Math.PI / 2;
+    o.scale.copy(ombre.scale);
+    f.porteur.add(o);
+    f.porteur.scale.setScalar(0.92);
+    scene.add(f.porteur);
+    navireBlender(theme).then((g) => {
+      if (detruit || flotte.get(id) !== f || themeNavireActuel === theme.cle) return;
+      g.position.set(0, 0, 0);
+      g.rotation.set(0, 0, 0);
+      f.navire = g;
+      f.porteur.add(g);
+    }).catch((e) => { erreurs.push(`navire ${id} : ${e.message}`); });
+    flotte.set(id, f);
+    return f;
+  }
+  function retirerFlotte(id) {
+    const f = flotte.get(id);
+    if (!f) return;
+    scene.remove(f.porteur);
+    flotte.delete(id);
+  }
+  function majFlotte(autres) {
+    const vus = new Set();
+    for (const o of autres) {
+      if (!o?.id || !o.route) continue;
+      vus.add(o.id);
+      const theme = themeNavire(o.couleurs, o.embleme);
+      let f = flotte.get(o.id);
+      if (f && f.theme.cle !== theme.cle) { retirerFlotte(o.id); f = null; }
+      f ||= navireFlotte(o.id, theme);
+      f.d = o;
+      const sig = JSON.stringify([o.voyage, o.etape, Boolean(o.vote), o.route.map((e) => e.map((x) => x.etat))]);
+      if (sig !== f.sig) { f.sig = sig; f.etape = etapeDe(o); f.progres = -1; }
+      f.voulu = Math.min(o.vote ? 0.5 : 1, (o.milles || 0) / Math.max(1, o.longueur || 1));
+      if (f.progres < 0) f.progres = f.voulu;
+    }
+    for (const id of [...flotte.keys()]) if (!vus.has(id)) retirerFlotte(id);
   }
 
   // ---------- les événements en mer ----------
@@ -1424,9 +1533,15 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     for (const e of donnees?.route || []) for (const x of e) if (x.id === id) return x;
     return null;
   }
+  let flotteVue = "";
   function maj(d) {
     if (!d?.route) return;
     const avant = donnees;
+    // la flotte (V4) : on change de navire regardé → il prend tout de suite sa place, sans glisser depuis l'autre
+    const vue = d.flotte?.id || "";
+    if (vue !== flotteVue) { flotteVue = vue; signature = ""; premier = true; if (avant) mode = d.flotte?.ensemble ? "ensemble" : "navire"; }
+    habillerNavire(d.flotte ? themeNavire(d.flotte.couleurs, d.flotte.embleme) : THEME_BARHAW);
+    majFlotte(d.flotte?.autres || []);
     donnees = d;
     const sig = JSON.stringify([d.voyage, d.etape, d.cible?.id, Boolean(d.vote), d.route.map((e) => e.map((x) => x.etat))]);
     const arrivee = avant && (d.voyage > avant.voyage || (d.voyage === avant.voyage && d.etape > avant.etape));
@@ -1484,9 +1599,29 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       vues.add(`ile:${id}`);
     }
     const n = etiquette("navire", "gl-etiquette-navire");
-    const t = `⛵ ${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
+    const t = `⛵ ${d.flotte?.nom ? `${d.flotte.nom} · ` : ""}${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
     if (n.textContent !== t) n.textContent = t;
+    if (d.flotte) n.style.setProperty("--c1", themeNavire(d.flotte.couleurs).c1); else n.style.removeProperty("--c1");
     vues.add("navire");
+    // les autres navires de la flotte : leur nom et leur avance ; un clic les regarde
+    for (const [id, f] of flotte) {
+      const e = etiquette(`flotte:${id}`, "gl-etiquette-flotte");
+      const tf = `${f.d.nom || id} · ${Math.floor(Math.min(1, (f.d.milles || 0) / Math.max(1, f.d.longueur || 1)) * 100)} %${f.d.live ? " · 🔴" : ""}`;
+      if (e.dataset.texte !== tf) {
+        e.dataset.texte = tf;
+        e.textContent = `⛵ ${tf}`;
+        e.style.setProperty("--c1", f.theme.c1);
+        e.setAttribute("role", "button");
+        e.setAttribute("tabindex", "0");
+        e.setAttribute("aria-label", `Regarder le navire de ${f.d.nom || id}`);
+      }
+      if (!e.dataset.pret) {
+        e.dataset.pret = "1";
+        e.addEventListener("click", () => surNavire(id));
+        e.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); surNavire(id); } });
+      }
+      vues.add(`flotte:${id}`);
+    }
     if (d.evenement?.type === "bouteille") {
       const b = etiquette("bouteille", "gl-etiquette-bouteille");
       if (!b.dataset.pret) {
@@ -1583,6 +1718,21 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     navire.rotation.z = Math.sin(s * 1.1 + 1) * 0.035 * houle;
     const vent = evenement?.type === "vent" || donnees?.live ? 1.35 : 1;
     navire.userData.animer(s, vent);
+    // les autres navires de la flotte : chacun glisse jusqu'à sa place sur sa route, et se balance
+    for (const f of flotte.values()) {
+      f.progres += (f.voulu - f.progres) * Math.min(1, dt * 0.8);
+      const { pos: p, dir } = surChemins(f.etape, f.progres);
+      // deux navires au même endroit (au port, au départ) : on les décale un peu
+      const ecart = p.distanceTo(porteur.position) < 6 ? f.decal * 5.5 : 0;
+      f.porteur.position.set(p.x - dir.z * ecart, 0, p.z + dir.x * ecart);
+      f.porteur.rotation.y = -Math.atan2(dir.z, dir.x);
+      if (f.navire) {
+        f.navire.position.y = 0.05 + Math.sin(s * 1.6 + f.decal) * 0.14;
+        f.navire.rotation.x = Math.sin(s * 1.2 + f.decal) * 0.05;
+        f.navire.rotation.z = Math.sin(s * 1.05 + 1 + f.decal) * 0.035;
+        f.navire.userData.animer(s + f.decal, f.d?.live ? 1.35 : 1);
+      }
+    }
     // le sillage
     if (donnees && s > sillageProchain) {
       sillageProchain = s + 0.45;
@@ -1652,6 +1802,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     couche.classList.toggle("compact", mode === "ensemble" && L < 760);
     for (const [cle, e] of etiquettes) {
       if (cle === "navire") placer(e, porteur.position, 13);
+      else if (cle.startsWith("flotte:")) { const f = flotte.get(cle.slice(7)); if (f) placer(e, f.porteur.position, 11); }
       else if (cle === "bouteille" && evenement) placer(e, evenement.groupe.position, 3.5);
       else if (cle.startsWith("ile:")) { const i = iles.get(cle.slice(4)); placer(e, v3(i.x, i.z), i.etat === "inconnue" || i.etat === "ecartee" ? 8 : i.haut); }
     }
@@ -1707,6 +1858,6 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     renderer.dispose();
     renderer.forceContextLoss();
   }
-  return { maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()) }) };
+  return { maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller };

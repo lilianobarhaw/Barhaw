@@ -2409,6 +2409,142 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
   .gl-verrou-carte { padding: 30px 18px 22px; }
 }
 
+/* ---------- LA FLOTTE (V4) : la rangée de drapeaux, la course, la fiche de chaque commu ----------
+   Chaque commu apporte ses deux couleurs (--c1, --c2) ; le reste suit la DA : contour d'encre, ombre franche, kanji en décor. */
+.fl-barre { display: flex; gap: 10px; margin: 26px -4px 0; padding: 8px 4px 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.fl-barre::-webkit-scrollbar { display: none; }
+.fl-onglet {
+  --c1: var(--rose); --c2: var(--violet);
+  position: relative; flex: 0 0 auto; scroll-snap-align: start; display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 7px 14px 7px 10px;
+  border-radius: 14px; border: 2px solid var(--encre); background: #2a1230; color: var(--blanc); cursor: pointer;
+  font-family: var(--fort); font-weight: 800; font-size: 14.5px; line-height: 1.1; white-space: nowrap;
+  box-shadow: 3px 3px 0 rgba(155, 77, 255, 0.55); transition: transform 0.15s var(--doux), box-shadow 0.15s var(--doux), background 0.2s;
+}
+.fl-onglet:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--c2); }
+.fl-onglet:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--c2); }
+.fl-onglet[aria-selected="true"] { background: var(--c1); color: #fff; box-shadow: 4px 4px 0 var(--c2), 4px 4px 0 2px var(--encre); text-shadow: 0 1px 0 rgba(18, 5, 13, 0.45); }
+.fl-onglet-course[aria-selected="true"] { background: var(--degrade); box-shadow: 4px 4px 0 var(--ombre), 4px 4px 0 2px var(--encre); }
+.fl-onglet-icone { font-size: 21px; line-height: 1; }
+.fl-onglet-rang { padding: 2px 7px; border-radius: 7px; background: rgba(18, 5, 13, 0.45); font-size: 11.5px; letter-spacing: 0.03em; }
+.fl-onglet-live { padding: 2px 7px; border-radius: 7px; background: #e0244f; color: #fff; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; animation: battre 1.4s var(--doux) infinite; }
+.fl-onglet-moi { position: absolute; top: -10px; right: -8px; font-size: 17px; filter: drop-shadow(1px 1px 0 var(--encre)); }
+
+/* le drapeau : un fanion à deux couleurs sur son mât, avec le logo ou l'emblème de la commu (tailles en em) */
+.fl-drapeau { --c1: var(--rose); --c2: var(--violet); position: relative; display: inline-block; flex: 0 0 auto; width: 4em; height: 3em; font-size: 10px; }
+.fl-mat { position: absolute; left: 0.05em; top: -0.25em; bottom: -0.55em; width: 0.38em; border-radius: 0.2em; background: #d2a676; border: 1px solid var(--encre); }
+.fl-fanion { position: absolute; left: 0.32em; top: 0; width: 3.7em; height: 2.62em; overflow: visible; transform-origin: 0 50%; animation: fl-flotter 2.8s var(--doux) infinite; }
+.fl-embleme {
+  position: absolute; left: 0.5em; top: 0.12em; width: 1.9em; height: 1.4em; display: grid; place-items: center; pointer-events: none;
+  font-family: var(--titre); font-weight: 400; font-size: 1.3em; line-height: 1; color: #fff; letter-spacing: -0.02em;
+  text-shadow: 1.5px 0 0 var(--encre), -1.5px 0 0 var(--encre), 0 1.5px 0 var(--encre), 0 -1.5px 0 var(--encre), 1.5px 1.5px 0 var(--encre), -1px 1.5px 0 var(--encre);
+}
+.fl-logo { position: absolute; left: 0.85em; top: 0.18em; width: 1.85em; height: 1.85em; border-radius: 50%; object-fit: cover; background: var(--papier); border: 2px solid var(--encre); }
+.fl-drapeau.grand { font-size: 16px; }
+.fl-drapeau.grand .fl-embleme { text-shadow: 2px 0 0 var(--encre), -2px 0 0 var(--encre), 0 2px 0 var(--encre), 0 -2px 0 var(--encre), 2px 2px 0 var(--encre), -2px 2px 0 var(--encre); }
+@keyframes fl-flotter { 0%, 100% { transform: skewY(0deg) scaleX(1); } 50% { transform: skewY(-4deg) scaleX(0.95); } }
+
+/* la partie prend un peu la couleur du navire regardé */
+#grandline.fl-active .gl-scene { box-shadow: 0 0 0 3px var(--sepia), 9px 10px 0 3px var(--fl-c2, var(--ombre)), 0 40px 90px -30px rgba(0, 0, 0, 0.9); transition: box-shadow 0.4s var(--doux); }
+#grandline.fl-vue-course .gl-grille { display: none; }
+.fl-badge b { color: #8e1630; }
+.gl-etiquette-navire { background: var(--c1, var(--rose)); }
+.gl-etiquette-flotte {
+  --c1: var(--violet); background: var(--c1); color: #fff; border-color: var(--encre); font-size: 12px; pointer-events: auto; cursor: pointer;
+  box-shadow: 2px 3px 0 var(--encre); text-shadow: 0 1px 0 rgba(18, 5, 13, 0.5); opacity: 0.92; transition: opacity 0.25s, scale 0.15s var(--doux);
+}
+.gl-etiquette-flotte:hover, .gl-etiquette-flotte:focus-visible { opacity: 1; scale: 1.06; }
+.gl-svg-flotte circle { stroke: #12050d; stroke-width: 0.9; }
+.gl-svg-flotte text { font-size: 5px; text-anchor: middle; }
+
+/* « La course » : une piste par navire, du port au trésor */
+.fl-course {
+  position: relative; margin-top: 22px; padding: 24px clamp(16px, 3vw, 30px) 24px; border-radius: 22px; overflow: hidden;
+  background: var(--panneau); border: 3px solid var(--encre); box-shadow: 0 0 0 2px var(--ligne), 8px 9px 0 var(--ombre);
+}
+.fl-course::before {
+  content: "競走"; position: absolute; right: -10px; top: -26px; font-family: var(--sfx); font-size: clamp(90px, 14vw, 170px); line-height: 1;
+  color: transparent; -webkit-text-stroke: 1.5px rgba(255, 120, 190, 0.16); pointer-events: none; rotate: 6deg;
+}
+.fl-course-tete { position: relative; max-width: 62ch; }
+.fl-pistes { position: relative; list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 12px; }
+.fl-piste {
+  --c1: var(--rose); --c2: var(--violet);
+  display: grid; grid-template-columns: 34px minmax(150px, 230px) minmax(0, 1fr); grid-template-areas: "rang commu mer" ". . info";
+  align-items: center; column-gap: 14px; row-gap: 6px; padding: 12px 16px 12px 12px; border-radius: 16px;
+  background: rgba(255, 170, 220, 0.04); border: 2px solid var(--ligne-douce); transition: border-color 0.3s, box-shadow 0.3s var(--doux);
+}
+.fl-piste.en-tete { background: linear-gradient(90deg, rgba(255, 211, 107, 0.12), rgba(255, 170, 220, 0.04) 55%); }
+.fl-piste.la-mienne { border-color: var(--c1); box-shadow: 4px 4px 0 var(--c2); }
+.fl-piste.gagnante { border-color: #ffd36b; box-shadow: 0 0 0 2px var(--encre), 5px 5px 0 #ffd36b; }
+.fl-rang { grid-area: rang; font-family: var(--titre); font-size: 20px; text-align: center; }
+.fl-piste-commu { grid-area: commu; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 4px 6px 4px 2px; border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; cursor: pointer; }
+.fl-piste-commu:hover .fl-piste-noms b { color: var(--c1); }
+.fl-piste-noms { display: grid; min-width: 0; line-height: 1.2; }
+.fl-piste-noms b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--titre); font-weight: 400; font-size: 16.5px; transition: color 0.2s; }
+.fl-piste-noms small { color: var(--terne); font-size: 12.5px; }
+.fl-piste-mer {
+  grid-area: mer; position: relative; height: 36px; margin-right: 12px; border-radius: 99px;
+  background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.05) 0 8px, transparent 8px 16px), linear-gradient(180deg, #2f5878, #1d3550);
+  border: 2.5px solid var(--encre); box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.08), 3px 3px 0 rgba(18, 5, 13, 0.6);
+}
+.fl-piste-iles i { position: absolute; left: var(--x); top: 50%; width: 11px; height: 11px; translate: -50% -50%; border-radius: 50%; background: #e9cf98; border: 2px solid var(--encre); }
+.fl-piste-iles i:first-child { left: calc(var(--x) + 8px); }
+.fl-piste-iles i.faite { background: var(--c1); }
+.fl-piste-sillage { position: absolute; left: 8px; top: 50%; width: max(0px, calc(var(--av) - 14px)); height: 4px; translate: 0 -50%; border-radius: 2px; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.85) 0 6px, transparent 6px 11px); transition: width 1.2s var(--doux); }
+.fl-piste-navire { position: absolute; left: clamp(14px, var(--av), calc(100% - 14px)); top: 50%; translate: -50% -62%; font-size: 27px; line-height: 1; filter: drop-shadow(2px 2px 0 var(--encre)); transition: left 1.2s var(--doux); animation: fl-tanguer 2.4s var(--doux) infinite; }
+@keyframes fl-tanguer { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+.fl-piste-navire::after { content: ""; position: absolute; left: 50%; top: -5px; width: 11px; height: 8px; background: var(--c1); border: 1.5px solid var(--encre); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.fl-piste-tresor { position: absolute; right: -12px; top: 50%; translate: 0 -55%; font-size: 21px; filter: drop-shadow(2px 2px 0 var(--encre)); }
+.fl-piste-info { grid-area: info; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; color: var(--brume); font-size: 13.5px; }
+.fl-piste-info b { font-family: var(--titre); font-weight: 400; font-size: 17px; color: var(--blanc); }
+.fl-live { color: #ff8db4; font-weight: 800; }
+.fl-sans-bot { padding: 0 8px; border-radius: 7px; border: 1.5px dashed var(--ligne); color: var(--terne); font-size: 12px; }
+.fl-rameurs { color: var(--terne); }
+
+/* la place d'honneur : la commu qui a touché le trésor */
+.fl-honneur {
+  --c1: var(--rose); --c2: var(--violet);
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 22px; padding: 18px 20px; border-radius: 18px;
+  background: linear-gradient(120deg, rgba(255, 211, 107, 0.24), rgba(255, 79, 154, 0.12) 70%); border: 3px solid var(--encre); box-shadow: 0 0 0 2px #ffd36b, 6px 7px 0 var(--c2);
+}
+.fl-honneur > div { flex: 1 1 240px; }
+.fl-couronne { position: absolute; left: 24px; top: -24px; font-size: 32px; rotate: -14deg; filter: drop-shadow(2px 2px 0 var(--encre)); animation: gl-alerte 1.8s var(--doux) infinite; }
+.fl-honneur-sur { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd36b; }
+.fl-honneur-nom { margin: 2px 0 0; font-family: var(--titre); font-size: clamp(23px, 3vw, 32px); line-height: 1.1; }
+
+.fl-course-bas { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }
+.fl-course-bas > .carte { padding: 20px 22px; }
+.fl-moi-commu { display: flex; align-items: center; gap: 14px; margin: 6px 0 12px; }
+.fl-moi-commu .gl-texte { margin: 0; }
+.fl-boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.fl-choix { --c1: var(--rose); --c2: var(--violet); gap: 8px; padding-left: 10px; box-shadow: 3px 3px 0 var(--c2); }
+.fl-choix .fl-drapeau { font-size: 7px; }
+.fl-confirmer { margin-top: 12px; padding: 12px 14px; border-radius: 14px; border: 2px dashed var(--ligne); }
+.fl-confirmer .gl-texte { margin: 0; }
+
+/* la fiche d'une commu, en tête de ses panneaux */
+.gl-grille > .fl-fiche { --c1: var(--rose); --c2: var(--violet); grid-column: 1 / -1; padding: 20px 22px; border: 2.5px solid var(--encre); box-shadow: 0 0 0 2px var(--c1), 6px 7px 0 var(--c2); }
+.fl-fiche-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; }
+.fl-fiche-tete > div:nth-child(2) { flex: 1 1 260px; min-width: 0; }
+.fl-fiche-nom { margin-bottom: 4px; font-size: clamp(24px, 3vw, 32px); }
+.fl-fiche .gl-sur { color: var(--c1); filter: brightness(1.25); }
+.fl-fiche-liens { display: flex; flex-wrap: wrap; gap: 10px; }
+.fl-matelots { margin-top: 16px; }
+.fl-matelots .gl-rameurs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
+.gl-entree .fl-piste { animation: gl-arrivee 0.7s var(--rebond) both; }
+.gl-entree .fl-piste:nth-child(2) { animation-delay: 0.1s; } .gl-entree .fl-piste:nth-child(3) { animation-delay: 0.2s; } .gl-entree .fl-piste:nth-child(4) { animation-delay: 0.3s; }
+
+@media (max-width: 900px) {
+  .fl-course-bas { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .fl-piste { grid-template-columns: 30px minmax(0, 1fr); grid-template-areas: "rang commu" "mer mer" "info info"; padding: 12px; }
+  .fl-piste-mer { margin: 4px 14px 0 4px; }
+  .fl-onglet { min-height: 44px; padding: 6px 12px 6px 9px; font-size: 13.5px; }
+  .fl-onglet .fl-drapeau { font-size: 8.5px; }
+  .fl-fiche-liens { width: 100%; }
+}
+
 /* ---------- les fidèles du stream (partie Ma chaîne) ---------- */
 .fideles { margin-top: 20px; padding: 24px 24px 20px; overflow: hidden; }
 .fid-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
