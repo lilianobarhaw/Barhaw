@@ -22,8 +22,10 @@ PALETTE = {
     "voile": 0xfbf1df, "voile_b": 0xfbf1df, "flamme": 0xff4f9a, "drapeau": 0xff4f9a, "terrain": 0xffffff,
     "gres": 0xd98a4a, "paille": 0xe8c66a, "feu": 0xff9a1f, "eau_douce": 0x5fd0d8, "corail": 0xff7a8a,
     "noir": 0x1f1a22, "sable": 0xe9cf98, "pois": 0xffffff, "gris": 0x8a8796, "champi_pied": 0xf6ead2, "nuage": 0x585466, "mirage": 0xffe3f0,
+    # la V4 : les nouvelles îles, les maîtres des lieux, le vaisseau fantôme
+    "cuivre": 0xc8743a, "laiton": 0xd9b45a, "mousse": 0x5f7a3a, "vase": 0x5a5236, "spectre": 0x8affc8, "os": 0xf0e6cc, "cristal": 0xd7b8ff,
 }
-LUMINEUX = {"lave": 4.0, "lumiere": 3.0, "luciole": 3.0, "feu": 4.0}
+LUMINEUX = {"lave": 4.0, "lumiere": 3.0, "luciole": 3.0, "feu": 4.0, "spectre": 3.0}
 
 
 def lineaire(c):
@@ -70,7 +72,7 @@ def materiau(nom):
             tex.image = bpy.data.images.load(image, check_existing=True)
             nt.links.new(tex.outputs[0], bsdf.inputs["Base Color"])
             bsdf.inputs["Roughness"].default_value = 0.7
-        if nom == "glace":
+        if nom in ("glace", "cristal"):
             bsdf.inputs["Roughness"].default_value = 0.08
         if nom == "terrain":
             # la couleur vient des sommets (attribut « Couleur »)
@@ -490,3 +492,41 @@ def exporter(collection_nom, fichier):
     for o in c.all_objects:
         o.select_set(False)
     return chemin, os.path.getsize(chemin)
+
+
+def inclure(collection_nom):
+    """Remet une collection dans la scène active (pas exclue, visible) : sinon Cycles refuse de cuire ses objets."""
+    def cherche(lc):
+        if lc.collection.name == collection_nom:
+            return lc
+        for e in lc.children:
+            r = cherche(e)
+            if r:
+                return r
+        return None
+    lc = cherche(bpy.context.view_layer.layer_collection)
+    if lc:
+        lc.exclude = False
+        lc.hide_viewport = False
+    return lc is not None
+
+
+def exporter_leger(collection_nom, fichier, ratio=0.4, min_tris=300, garder=("voile", "foc", "drapeau", "flamme")):
+    """La version téléphone : les gros maillages simplifiés (Decimate), les voiles et les drapeaux gardés tels quels."""
+    c = bpy.data.collections[collection_nom]
+    ajoutes = []
+    for o in c.all_objects:
+        if o.type != "MESH" or any(o.name.startswith(g) for g in garder):
+            continue
+        if sum(len(p.vertices) - 2 for p in o.data.polygons) < min_tris:
+            continue
+        m = o.modifiers.new("leger", "DECIMATE")
+        m.decimate_type = "COLLAPSE"
+        m.ratio = ratio
+        m.use_collapse_triangulate = True
+        ajoutes.append((o, m))
+    try:
+        return exporter(collection_nom, fichier)
+    finally:
+        for o, m in ajoutes:
+            o.modifiers.remove(m)

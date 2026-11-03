@@ -56,6 +56,14 @@ const THEMES = {
   phare: { h: 2.6, r: 5.5, sable: 0xcfc1a4, terre: 0x938676, sommet: 0x6e6457 },
   orage: { h: 3.6, r: 8, sable: 0x8f8a99, terre: 0x5c586b, sommet: 0x3d3a4a },
   tresor: { h: 2.4, r: 8.5, sable: 0xf6e0b0, terre: 0xb7c97a, sommet: 0x8ea854 },
+  // la V4 : les nouvelles îles (leur modèle Blender ile-<id>-v4.glb remplace ce dessin dès qu'il est chargé)
+  marais: { h: 0.7, r: 8, sable: 0x6f6a4a, terre: 0x4f6b3c, sommet: 0x3a5230 },
+  cristal: { h: 2, r: 7.5, sable: 0xe8e0f0, terre: 0xb8a9d6, sommet: 0x9a86c6 },
+  ciel: { h: 1.4, r: 4.5, sable: 0xf3e3b8, terre: 0x8fcf6a, sommet: 0x6aae4a, ilots: 3 },
+  epaves: { h: 0.6, r: 8.5, sable: 0xb9b2a4, terre: 0x8a8578, sommet: 0x6c685e },
+  horloge: { h: 2.6, r: 7.5, sable: 0xe6cf9a, terre: 0xb89b62, sommet: 0x8f7442 },
+  geants: { h: 3.4, r: 9, sable: 0xe9d7a6, terre: 0x93b86a, sommet: 0x6f9550 },
+  fort: { h: 2.8, r: 7.5, sable: 0xe4d2a4, terre: 0xa79b82, sommet: 0x7f7562 },
 };
 
 // ---------- le relief : une carte en courbes de niveau, ombrée à la main ----------
@@ -350,6 +358,47 @@ function decor(theme, ile, R, anims) {
       nuage.position.x = Math.sin(s * 0.3) * 0.8;
     });
   }
+  // la V4 : un dessin simple en attendant le modèle (ou si le modèle ne vient pas)
+  if (theme === "marais") for (let k = 0; k < 9; k++) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.5, 8), plastique(0xfff1d6));
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
+    f.position.y = 0.38;
+    b.add(f);
+    poser(b, (R() - 0.5) * t.r * 1.4, (R() - 0.5) * t.r * 1.4, 0.25);
+    anims.push((s) => { f.scale.setScalar(0.85 + Math.sin(s * 9 + k * 1.7) * 0.15); });
+  }
+  if (theme === "cristal") for (let k = 0; k < 7; k++) {
+    const c = avecContour(new THREE.Mesh(new THREE.OctahedronGeometry(0.7 + R() * 0.9, 0), plastique([0x9be7ff, 0xd7a8ff, 0xffb3d1][k % 3], { emissive: 0x2a2050, shininess: 120 })));
+    c.scale.y = 2.2;
+    c.rotation.z = (R() - 0.5) * 0.5;
+    poser(c, (R() - 0.5) * t.r, (R() - 0.5) * t.r, 1.2);
+  }
+  if (theme === "epaves") for (let k = 0; k < 4; k++) {
+    const c = avecContour(new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.7, 3.4, 10, 1, true, 0, Math.PI), plastique(0x5a4a3a, { side: THREE.DoubleSide })));
+    c.rotation.set(Math.PI / 2 + (R() - 0.5) * 0.6, R() * 3, 0.5);
+    poser(c, (R() - 0.5) * t.r * 1.2, (R() - 0.5) * t.r * 1.2, 0.3);
+  }
+  if (theme === "horloge") {
+    const roue = avecContour(new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.35, 8, 24), plastique(0xc89b4a)));
+    roue.rotation.x = Math.PI / 2.4;
+    poser(roue, 0, 0, 2.6);
+    anims.push((s) => { roue.rotation.z = s * 0.5; });
+  }
+  if (theme === "geants") for (let k = 0; k < 3; k++) {
+    const tete = avecContour(new THREE.Mesh(new THREE.SphereGeometry(1.4, 14, 10), plastique(0x88ad62)));
+    tete.scale.set(1, 0.7, 1);
+    poser(tete, -4 + k * 4, (R() - 0.5) * 3, 0.4);
+  }
+  if (theme === "fort") {
+    const tour = avecContour(new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 3.2, 10), plastique(0xb9ad94)));
+    poser(tour, 0, 0, 1.6);
+    for (let k = 0; k < 4; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.4, 8), plastique(0x2a2a33)); c.rotation.z = Math.PI / 2; c.rotation.y = (k / 4) * Math.PI * 2; poser(c, Math.cos((k / 4) * Math.PI * 2) * 2, Math.sin((k / 4) * Math.PI * 2) * 2, 2.6); }
+  }
+  if (theme === "ciel") for (let k = 0; k < 4; k++) {
+    const n = nuageBoule();
+    n.scale.set(1.6, 0.7, 1.4);
+    poser(n, (R() - 0.5) * 6, (R() - 0.5) * 6, -0.6);
+  }
   if (theme === "tresor") {
     const coffre = new THREE.Group();
     const caisse = avecContour(new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 1.2), plastique(0x8a5a2b)));
@@ -488,11 +537,12 @@ const COULEURS = {
   pierre: 0xa39a8c, pierre_fonce: 0x6b6258, roche_noire: 0x3b3236, neige: 0xf4f8ff, glace: 0xbfe6ff, lave: 0xff6a1a, fer: 0x2a2a33,
   corde: 0xc9a66b, lumiere: 0xfff1a8, eau: 0x6fb0c8, turquoise: 0x3fd0c9, luciole: 0xfff27a, gres: 0xd98a4a, paille: 0xe8c66a,
   feu: 0xff9a1f, eau_douce: 0x5fd0d8, corail: 0xff7a8a, noir: 0x1f1a22, sable: 0xe9cf98, gris: 0x8a8796, champi_pied: 0xf6ead2,
-  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
+  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6,
+  cuivre: 0xc8743a, laiton: 0xd9b45a, mousse: 0x5f7a3a, vase: 0x5a5236, spectre: 0x8affc8, os: 0xf0e6cc, cristal: 0xd7b8ff, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
 };
-const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu"]);
+const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu", "spectre"]);
 const DEUX_FACES = new Set(["feuille", "voile", "voile_b", "drapeau", "flamme", "corde"]);
-const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave"]);
+const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "cristal", "spectre", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave"]);
 const TYPES_GLB = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const MAX_GLB = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
 const COMPOSANTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
@@ -506,8 +556,8 @@ async function lireGLB(url) {
   const lj = dv.getUint32(12, true);
   const g = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, lj)));
   const lb = dv.getUint32(20 + lj, true);
-  // les modèles V4 (ile-<id>-v4.glb, navire-<commu>.glb) ont leur lumière cuite
-  return { g, bin: buf.slice(28 + lj, 28 + lj + lb), cuit: /(-v4|navire-[a-z0-9]{2,20})\.glb$/.test(url) };
+  // les modèles V4 (ile-<id>-v4.glb, navire-<commu>.glb, maitre-<île>.glb, fantome.glb) ont leur lumière cuite
+  return { g, bin: buf.slice(28 + lj, 28 + lj + lb), cuit: /(-v4|navire-[a-z0-9]{2,20}|maitre-[a-z]{2,20}|fantome)(-leger)?\.glb$/.test(url) };
 }
 function accesseur(g, bin, i, brut = false) {
   const a = g.accessors[i];
@@ -858,7 +908,7 @@ function matiereGLB(nom, theme = THEME_BARHAW, couleursSommets = false, cuit = f
   let m;
   if (BRILLANTS.has(nom)) m = new THREE.MeshBasicMaterial({ color: couleur });
   else if (nom === "pois") m = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x777777 });
-  else if (nom === "glace") m = plastique(couleur, { shininess: 120, specular: 0xffffff, transparent: true, opacity: 0.86 });
+  else if (nom === "glace" || nom === "cristal") m = plastique(couleur, { shininess: 120, specular: 0xffffff, transparent: true, opacity: nom === "cristal" ? 0.78 : 0.86 });
   else if (nom === "eau" || nom === "eau_douce") m = plastique(couleur, { shininess: 100, specular: 0xffffff, transparent: true, opacity: 0.85 });
   else if (nom === "verre") m = plastique(couleur, { shininess: 140, specular: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
   else if (nom === "ecaille") m = plastique(couleur, { shininess: 70, specular: 0x6a5a8a });
@@ -1071,7 +1121,7 @@ function materiauMer(uniforms) {
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
     fragmentShader: `
-      uniform float uT; uniform float uSombre; uniform vec3 uIles[16];
+      uniform float uT; uniform float uSombre; uniform vec3 uIles[24];
       varying vec2 vXZ;
       float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -1091,7 +1141,7 @@ function materiauMer(uniforms) {
         float n = fbm(p * 0.045 + vec2(uT * 0.008, -uT * 0.005));
         vec3 profond = vec3(0.43, 0.63, 0.80), clair = vec3(0.71, 0.86, 0.94);
         float cote = 0.0, ecume = 0.0;
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 24; i++) {
           vec3 il = uIles[i];
           if (il.z <= 0.0) continue;
           float d = length(p - il.xy) - il.z;
@@ -1177,7 +1227,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   scene.add(hemi, soleil);
 
   // la feuille et la mer
-  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uIles: { value: Array.from({ length: 16 }, () => new THREE.Vector3(0, 0, 0)) } };
+  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
   const merGeo = new THREE.PlaneGeometry(W, H, 180, 110);
   merGeo.rotateX(-Math.PI / 2);
   const mer = new THREE.Mesh(merGeo, materiauMer(uniformsMer));
@@ -1226,9 +1276,11 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     }
     // le nuage qui cache une île encore inconnue
     const nuage = new THREE.Group();
-    for (let k = 0; k < 9; k++) {
+    // la V4 a beaucoup plus d'îles : des nuages un peu plus petits, sinon la mer disparaît sous le brouillard
+    const v4 = ilesV4.length > 0;
+    for (let k = 0; k < (v4 ? 7 : 9); k++) {
       const b = nuageBoule();
-      b.scale.set(3 + R() * 2.5, 1.8 + R() * 1.4, 3 + R() * 2.5);
+      b.scale.set((3 + R() * 2.5) * (v4 ? 0.8 : 1), 1.8 + R() * 1.4, (3 + R() * 2.5) * (v4 ? 0.8 : 1));
       b.position.set((R() - 0.5) * t.r * 1.6, 2 + R() * 2, (R() - 0.5) * t.r * 1.4);
       nuage.add(b);
     }
@@ -1247,17 +1299,21 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     n++;
   }
   let k = 0;
-  for (const i of iles.values()) { if (k < 16) uniformsMer.uIles.value[k].set(i.x, i.z, i.r * 0.92); k++; }
+  // l'écume autour des îles (celles qui ne sont pas sur la route n'en ont pas : voir maj)
+  for (const i of iles.values()) { if (k < 24) { i.indexMer = k; uniformsMer.uIles.value[k].set(i.x, i.z, i.r * 0.92); } k++; }
 
   // ---------- les modèles de Blender : chaque île se charge quand on la voit (en attendant : la version dessinée ici) ----------
   let detruit = false;
   const erreurs = []; // pour les essais (etat())
+  // sur téléphone (ou petit appareil), les modèles V4 existent en version légère (<nom>-leger.glb) : on la prend d'abord
+  const leger = (() => { try { return matchMedia("(max-width: 760px), (pointer: coarse)").matches || (navigator.deviceMemory || 8) <= 4; } catch { return false; } })();
+  const lireV4 = (nom) => (leger ? lireGLB(`${modeles}${nom.replace(/\.glb$/, "-leger.glb")}`).catch(() => lireGLB(`${modeles}${nom}`)) : lireGLB(`${modeles}${nom}`));
   function chargerIle(i) {
     if (i.modele !== undefined || detruit) return;
     i.modele = null;
     // la version V4 d'une île (ile-<id>-v4.glb) quand elle existe et que la V4 est ouverte ; sinon l'île de base
     const v4 = ilesV4.includes(i.id);
-    (v4 ? lireGLB(`${modeles}ile-${i.id}-v4.glb`).catch(() => lireGLB(`${modeles}ile-${i.id}.glb`)) : lireGLB(`${modeles}ile-${i.id}.glb`)).then((glb) => {
+    (v4 ? lireV4(`ile-${i.id}-v4.glb`).catch(() => lireGLB(`${modeles}ile-${i.id}.glb`)) : lireGLB(`${modeles}ile-${i.id}.glb`)).then((glb) => {
       if (detruit) return;
       const modele = sceneGLB(glb);
       const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }), cuit: glb.cuit });
@@ -1282,7 +1338,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     if (!glbCreatures.has(nom)) glbCreatures.set(nom, lireGLB(`${modeles}${nom}.glb`));
     return glbCreatures.get(nom).then((glb) => {
       const modele = sceneGLB(glb);
-      const { bouge, reperes } = habiller(modele, { relief: () => null, contour });
+      const { bouge, reperes } = habiller(modele, { relief: () => null, contour, cuit: glb.cuit });
       const anims = animateurs(bouge);
       for (const r of reperes) {
         const e = effetRepere(r);
@@ -1307,7 +1363,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // et chaque navire de la flotte (V4) en est une copie habillée aux couleurs de sa commu
   const glbNavires = new Map(); // un fichier par modèle (navire.glb, navire-<commu>.glb), lu une fois
   const lireNavire = (m) => {
-    if (!glbNavires.has(m)) glbNavires.set(m, lireGLB(`${modeles}${m}`).catch((e) => (m === "navire.glb" ? Promise.reject(e) : lireNavire("navire.glb"))));
+    if (!glbNavires.has(m)) glbNavires.set(m, (m === "navire.glb" ? lireGLB(`${modeles}${m}`) : lireV4(m)).catch((e) => (m === "navire.glb" ? Promise.reject(e) : lireNavire("navire.glb"))));
     return glbNavires.get(m);
   };
   const naviresFaits = new Map(); // un navire par jeu de couleurs : il passe du rôle de navire regardé à celui de la flotte sans être refait
@@ -1540,7 +1596,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   const mer3d = new THREE.Group();
   scene.add(mer3d);
   let evenement = null; // { type, groupe, maj(s) }
-  function creerEvenement(type) {
+  function creerEvenement(type, ev = {}) {
     const g = new THREE.Group();
     const R = hasard(4242);
     let maj = () => {};
@@ -1578,7 +1634,8 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         hemi.intensity = eclair.visible ? 2.4 : 0.75;
       };
     }
-    if (type === "monstre") {
+    // le monstre marin ; le maître des lieux (V4) sort de l'eau de la même façon, devant son île (maitre-<île>.glb)
+    if (type === "monstre" || type === "maitre") {
       const tentacules = [];
       for (let k = 0; k < 5; k++) {
         const t = new THREE.Group();
@@ -1614,7 +1671,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       let corps = null;
       let anims = [];
       let sortie = 0;
-      creature("monstre", 0.06).then((c) => {
+      const nomModele = type === "maitre" && /^[a-z]{2,20}$/.test(String(ev.ile || "")) ? `maitre-${ev.ile}` : "monstre";
+      if (type === "maitre") g.userData.decalage = v3(7, -2);
+      creature(nomModele, 0.06).then((c) => {
         if (detruit) return;
         for (const o of dessines) { g.remove(o); o.traverse((x) => x.geometry?.dispose?.()); }
         // ce qui sort de l'eau (la tête, les tentacules) ; l'écume reste à la surface
@@ -1623,12 +1682,45 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         c.modele.add(corps);
         corps.position.y = -16;
         anims = c.anims;
+        if (type === "maitre") { c.modele.scale.setScalar(1.35); c.modele.rotation.y = -Math.PI * 0.75; } // plus grand, tourné vers le navire et vers nous
         g.add(c.modele);
-      }).catch((e) => { erreurs.push(`monstre : ${e.message}`); });
+      }).catch((e) => { erreurs.push(`${nomModele} : ${e.message}`); });
       maj = (s, dt) => {
         if (!corps) return majDessin(s, dt);
         sortie = Math.min(1, sortie + dt / 2.6);
         corps.position.y = -16 * Math.pow(1 - sortie, 3);
+        for (const a of anims) a(s, dt);
+      };
+      g.userData.modele = () => Boolean(corps);
+    }
+    if (type === "fantome") {
+      g.userData.decalage = v3(-8, 6);
+      const brume = [];
+      for (let k = 0; k < 9; k++) {
+        const b = nuageBoule(0xc9d4dc, 0.5);
+        b.scale.set(2.4 + R() * 2, 0.8 + R() * 0.6, 2.4 + R() * 2);
+        b.position.set((R() - 0.5) * 14, 0.4, (R() - 0.5) * 10);
+        b.userData.a = R() * 6;
+        g.add(b);
+        brume.push(b);
+      }
+      let corps = null;
+      let anims = [];
+      let sortie = 0;
+      creature("fantome", 0.03).then((c) => {
+        if (detruit) return;
+        corps = c.modele;
+        corps.scale.setScalar(1.5);
+        corps.rotation.y = Math.PI;
+        anims = c.anims;
+        g.add(corps);
+      }).catch((e) => { erreurs.push(`fantome : ${e.message}`); });
+      maj = (s, dt) => {
+        for (const b of brume) { b.position.x += Math.sin(s * 0.3 + b.userData.a) * 0.01; b.material.opacity = 0.38 + Math.sin(s * 0.8 + b.userData.a) * 0.12; }
+        if (!corps) return;
+        sortie = Math.min(1, sortie + dt / 3);
+        corps.position.y = -6 * Math.pow(1 - sortie, 2) + Math.sin(s * 1.1) * 0.25;
+        corps.rotation.z = Math.sin(s * 0.9) * 0.05;
         for (const a of anims) a(s, dt);
       };
       g.userData.modele = () => Boolean(corps);
@@ -1763,6 +1855,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     }
     for (const [id, i] of iles) {
       const e = etatDe(id);
+      // une île qui n'est pas sur la route de ce voyage (les îles de la V4 avant le 22 décembre) n'existe pas sur la carte
+      i.groupe.visible = Boolean(e);
+      if (i.indexMer !== undefined) uniformsMer.uIles.value[i.indexMer].z = e ? i.r * 0.92 : 0;
       i.etat = e?.etat || "inconnue";
       const visible = i.etat === "atteinte" || i.etat === "cible" || i.etat === "vote";
       for (const c of i.contenu) c.visible = visible;
@@ -1777,10 +1872,11 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     if (premier) { progres = progresVoulu; premier = false; }
     // l'événement en mer
     const type = d.evenement?.type || "";
-    if ((evenement?.type || "") !== type) {
+    const cleEv = type === "maitre" ? `maitre:${d.evenement.ile}` : type;
+    if ((evenement?.cle || "") !== cleEv) {
       if (evenement) { mer3d.remove(evenement.groupe); evenement.groupe.traverse((o) => o.geometry?.dispose?.()); hemi.intensity = 1.1; }
-      evenement = type ? creerEvenement(type) : null;
-      if (evenement) mer3d.add(evenement.groupe);
+      evenement = type ? creerEvenement(type, d.evenement) : null;
+      if (evenement) { evenement.cle = cleEv; mer3d.add(evenement.groupe); }
     }
     etincelles.visible = Boolean(d.live);
     majEtiquettes();
@@ -2076,6 +2172,6 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     zoom = 0.8;
     mode = "ile";
   }
-  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
+  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller };

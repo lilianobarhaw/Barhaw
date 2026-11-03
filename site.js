@@ -4457,6 +4457,9 @@
     port: [-86, 30, "port"], moussaillons: [-72, 6, "plage"], recif: [-58, -26, "recif"], braise: [-36, -38, "volcan"], givre: [-42, 4, "glace"],
     lucioles: [-20, -16, "lucioles"], champignons: [-6, 20, "champignons"], engloutie: [10, -10, "ruines"], vents: [12, 38, "moulins"],
     marche: [28, 12, "marche"], arbre: [44, -22, "arbre"], ambre: [48, 32, "dunes"], phare: [64, 2, "phare"], tonnerre: [76, -28, "orage"], tresor: [86, 12, "tresor"],
+    // la V4 (22 décembre) : les nouvelles îles, chacune avec son maître des lieux
+    marais: [-56, 28, "marais"], cristal: [-26, 30, "cristal"], archipel: [-8, -34, "ciel"], cimetiere: [26, -34, "epaves"],
+    horloge: [30, 34, "horloge"], geants: [60, -38, "geants"], forteresse: [72, 30, "fort"],
   };
   const GL_SOURCES = { messages: "Messages", vocal: "Vocal", site: "Jeux du site", boss: "Boss", faille: "La Faille", twitch: "Twitch", stream: "Sur le live", bosslive: "BOSS LIVE" };
   const GL_ACTIONS = [
@@ -4513,13 +4516,15 @@
   // dans img/flotte/<id>.webp (512 × 512), et sa traînée derrière son navire. Ajouter une commu = ces trois choses.
   // Traînées : petales (cerisier), pieces (pièces d'or au V), encre (bulles d'encre) ; sans rien, un sillage d'écume.
   const FLOTTE_STYLES = {
-    barhaw: { drapeau: true, trainee: "petales", navire: true }, // navire : son modèle V4 (modeles/grandline/navire-<id>.glb)
-    veyzo: { drapeau: true, trainee: "pieces" },
-    kikso: { trainee: "encre" },
+    // navire : son propre modèle V4 (modeles/grandline/navire-<id>.glb, avec sa figure de proue) ; sinon le navire V4 commun
+    barhaw: { drapeau: true, trainee: "petales", navire: true }, // renne-raton
+    veyzo: { drapeau: true, trainee: "pieces", navire: true }, // tigre
+    kikso: { trainee: "encre", navire: true }, // pieuvre
   };
   const drapeauImage = (c) => (FLOTTE_STYLES[c?.id]?.drapeau ? `/img/flotte/${c.id}.webp` : lienSur(c?.drapeau));
-  const ILES_V4 = ["phare"]; // les îles déjà refaites en V4 (modeles/grandline/ile-<id>-v4.glb)
-  const modeleNavire = (c) => (FLOTTE_STYLES[c?.id]?.navire && !window.__navireV3 ? `navire-${c.id}.glb` : "");
+  const ILES_V4 = ["phare", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]; // les îles en V4 (modeles/grandline/ile-<id>-v4.glb)
+  // une nouvelle commu n'a besoin que d'un drapeau, de ses couleurs et d'une traînée : elle prend le navire V4 commun
+  const modeleNavire = (c) => (window.__navireV3 || !c?.id ? "" : FLOTTE_STYLES[c.id]?.navire ? `navire-${c.id}.glb` : "navire-v4.glb");
   const traineeCommu = (c) => (["petales", "pieces", "encre"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
     if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
@@ -5013,10 +5018,17 @@
       const fin = `Fin ${quandGL(ev.fin)}`;
       const barre = (v, max, texte) => [el("div", { class: "gl-barre gl-barre-ev" }, el("i", { style: `--p:${Math.min(100, Math.round((v / Math.max(1, max)) * 100))}%` })), el("p", { class: "gl-milles", text: texte })];
       contenu.push(el("div", { class: `gl-ev gl-ev-${ev.type}` },
-        el("p", { class: "gl-sur", text: "En mer" }),
-        el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: ev.emoji }), ev.titre),
+        el("p", { class: "gl-sur", text: ev.type === "maitre" ? "Devant l'île" : "En mer" }),
+        el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: ev.type === "maitre" ? "👹" : ev.emoji }), ev.titre),
         ev.type === "tempete" ? [el("p", { class: "gl-texte", text: "Les vagues ralentissent le navire de moitié. Ramez assez avant la fin pour la traverser : le navire avancera d'autant en plus !" }), ...barre(ev.avance, ev.objectif, `${nombre(ev.avance)} / ${nombre(ev.objectif)} milles ramés · ${fin}`)] : null,
         ev.type === "monstre" ? [el("p", { class: "gl-texte", text: "Le navire est bloqué tant qu'il est là ! Chaque mille ramé est un coup. Repoussez-le pour un gros bonus." }), ...barre(ev.pv, ev.pvMax, `${nombre(ev.pv)} / ${nombre(ev.pvMax)} PV · ${fin}`)] : null,
+        ev.type === "maitre" ? [
+          el("p", { class: "gl-maitre-nom" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: ev.emoji }), ev.nom),
+          ev.texte ? el("p", { class: "gl-texte", text: ev.texte }) : null,
+          el("p", { class: "gl-texte", text: "Le navire est arrêté devant l'île. Chaque mille ramé est un coup : battez-le à temps pour accoster avec son trésor !" }),
+          ...barre(ev.pv, ev.pvMax, `${nombre(ev.pv)} / ${nombre(ev.pvMax)} PV · ${fin}`),
+        ] : null,
+        ev.type === "fantome" ? [el("p", { class: "gl-texte", text: "Le navire gris de Capitaine Calcaire suit le vôtre dans le brouillard. Ramez assez pour le semer : il laissera tomber un coffre !" }), ...barre(ev.avance, ev.objectif, `${nombre(ev.avance)} / ${nombre(ev.objectif)} milles ramés · ${fin}`)] : null,
         ev.type === "vent" ? el("p", { class: "gl-texte", text: `Tout ce que vous faites compte une fois et demie ! ${fin}.` }) : null,
         ev.type === "bouteille" ? [
           el("p", { class: "gl-texte", text: `Elle flotte à côté du navire. Le premier qui l'ouvre gagne ce qu'il y a dedans (et le navire avance) ! ${fin}.` }),
@@ -5180,6 +5192,11 @@
       el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: inconnue ? "❓" : e.emoji }), inconnue ? "???" : e.nom),
       el("p", { class: "gl-texte", text: inconnue ? (e.etat === "ecartee" ? "La commu a choisi une autre route. Peut-être au prochain voyage !" : "Une île encore cachée dans les nuages. Ramez pour la découvrir !") : e.texte }),
       e.arrivee ? el("p", { class: "gl-details", text: `Atteinte ${ilYa(e.arrivee)}${e.navigateur ? ` · 🧭 Navigateur : ${e.navigateur}` : ""}${e.rameurs ? ` · ${pluriel(e.rameurs, "rameur")}` : ""}` }) : null,
+      !inconnue && e.maitre ? el("div", { class: `gl-maitre${e.maitre.vaincu ? " vaincu" : ""}` },
+        el("p", { class: "gl-sur", text: e.maitre.vaincu ? "Maître des lieux · vaincu" : "Maître des lieux" }),
+        el("p", { class: "gl-maitre-nom" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: e.maitre.emoji }), e.maitre.nom),
+        el("p", { class: "gl-texte", text: e.maitre.texte }),
+      ) : null,
     );
     z.hidden = false;
   }

@@ -2179,6 +2179,13 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 .gl-barre-ev { height: 12px; margin-top: 14px; }
 .gl-ev-tempete .gl-barre i { background: repeating-linear-gradient(90deg, #6b7bff 0 10px, #4a5bd6 10px 20px); }
 .gl-ev-monstre .gl-barre i { background: repeating-linear-gradient(90deg, #b07bff 0 10px, #8a3fe6 10px 20px); }
+/* V4 : le maître des lieux (le combat devant l'île, et sa fiche sur la carte de l'île) ; le vaisseau fantôme */
+.gl-ev-maitre .gl-barre i { background: repeating-linear-gradient(90deg, #ff4f9a 0 10px, #6f22c9 10px 20px); }
+.gl-ev-fantome .gl-barre i { background: repeating-linear-gradient(90deg, #c9d4dc 0 10px, #7a8a99 10px 20px); }
+.gl-maitre-nom { display: flex; align-items: center; gap: 0.4em; margin: 2px 0 4px; font-family: var(--titre); font-weight: 400; font-size: 17px; line-height: 1.2; color: var(--blanc); }
+.gl-maitre { margin-top: 12px; padding: 10px 12px; border: 2px solid var(--encre); border-radius: 14px; background: rgba(255, 79, 154, 0.1); box-shadow: 4px 4px 0 var(--ombre); }
+.gl-maitre.vaincu { background: rgba(61, 220, 132, 0.1); }
+.gl-maitre.vaincu .gl-maitre-nom { text-decoration: line-through; text-decoration-thickness: 2px; }
 .gl-ev + .gl-sur, .gl-choix + .note + .gl-ev, .gl-choix + .gl-ev { margin-top: 18px; }
 .gl-ev { padding-top: 2px; }
 .gl-ouvrir { margin-top: 14px; animation: gl-lueur 1.2s var(--doux) infinite; }

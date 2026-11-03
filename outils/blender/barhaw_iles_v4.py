@@ -187,7 +187,7 @@ def ile_phare(id_, coll):
     return decor, [Vector((px, py, zh + 0.5)), Vector((-0.9, -0.8, 1.6)), Vector((2.0, 1.0, 1.6))]
 
 
-def patiner(o, lanternes, echantillons=48):
+def patiner(o, lanternes, echantillons=48, teinte=(1.0, 1.0, 1.0)):
     """Les ombres des recoins (AO), le sale en bas des murs, des taches d'humidité, la chaleur des lanternes."""
     scene = bpy.context.scene
     me = o.data
@@ -200,6 +200,8 @@ def patiner(o, lanternes, echantillons=48):
         scene.cycles.samples = echantillons
         for x in bpy.context.selected_objects:
             x.select_set(False)
+        for c in o.users_collection:
+            B.inclure(c.name)
         o.hide_set(False)
         o.select_set(True)
         bpy.context.view_layer.objects.active = o
@@ -218,20 +220,30 @@ def patiner(o, lanternes, echantillons=48):
         tache = 1.0 - 0.07 * max(0.0, IL.fbm(v.co.x, v.co.y + z, 1.6, 2, 5))
         w = min(1.0, sum(max(0.0, 1 - (v.co - p).length / 1.6) ** 2 for p in lanternes))
         base = ao * sale * tache
-        attr.data[i].color = (min(1.5, base * (1 + w * 0.5)), min(1.5, base * 0.98 * (1 + w * 0.2)), min(1.5, base * (1.04 - w * 0.15)), 1.0)
+        # l'ambiance de l'île (la nuit bleutée du marais…), sauf près des lumières qui gardent leur chaleur
+        tt = [teinte[j] * (1 - w) + w for j in range(3)]
+        attr.data[i].color = (min(1.5, base * tt[0] * (1 + w * 0.5)), min(1.5, base * tt[1] * 0.98 * (1 + w * 0.2)), min(1.5, base * tt[2] * (1.04 - w * 0.15)), 1.0)
     me.update()
     return ok
 
 
-def construire(id_="phare", rendu=True, exporter=True):
+def construire(id_="phare", rendu=True, exporter=True, vignette=True):
+    import barhaw_iles_v4b as NV
     coll = B.collection(f"ile_{id_}_v4")
-    decor, lanternes = ile_phare(id_, coll)
-    infos = {"patine": patiner(decor, lanternes)}
+    fabrique = {"phare": ile_phare, **NV.ILES}[id_]
+    decor, lanternes = fabrique(id_, coll)
+    teintes = {"marais": (0.62, 0.74, 1.0), "cimetiere": (0.82, 0.9, 0.88), "cristal": (0.96, 0.94, 1.04)}
+    infos = {"patine": patiner(decor, lanternes, teinte=teintes.get(id_, (1.0, 1.0, 1.0)))}
     B.nettoyer()
     infos["triangles"] = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in coll.objects if o.type == "MESH")
     if exporter:
         infos["glb"] = B.exporter(coll.name, f"ile-{id_}-v4.glb")
+        infos["leger"] = B.exporter_leger(coll.name, f"ile-{id_}-v4-leger.glb")
     if rendu:
         infos["rendu"] = B.vitrine([coll.name], cam=(16, -27, 20), cible=(0, 0, 3.6), objectif=50, nom=f"ile-{id_}-v4", taille=(1000, 680))
+        B.fin_vitrine()
+    if vignette:
+        # la vignette du site (img/iles/<id>.webp) : l'île seule, fond transparent
+        infos["vignette"] = B.vitrine([coll.name], cam=(17, -25, 17), cible=(0, 0, 2.2), objectif=50, nom=f"vignette-{id_}", taille=(720, 600), mer=False, transparent=True)
         B.fin_vitrine()
     return infos

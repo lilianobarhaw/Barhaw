@@ -14,6 +14,7 @@ COMMUS = {
     "barhaw": {"proue": "renne", "c1": 0xff5aae, "c2": 0x55ccff},
     "veyzo": {"proue": "tigre", "c1": 0xffc23d, "c2": 0xc8150f},
     "kikso": {"proue": "pieuvre", "c1": 0xffb347, "c2": 0xe0533c},
+    "v4": {"proue": "volute", "c1": 0xff4f9a, "c2": 0x8a3ffc},  # le navire commun : toute nouvelle commu le prend, à ses couleurs
 }
 E = N.EXPOSANT
 # les bandes de la coque, du plat-bord à la quille : couleur de la commu, moulure dorée, bordages avec leurs joints,
@@ -401,6 +402,7 @@ def construire(commu="barhaw", rendu=True, exporter=True):
     infos["triangles"] = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in coll.objects if o.type == "MESH")
     if exporter:
         infos["glb"] = B.exporter(coll.name, f"navire-{commu}.glb")
+        infos["leger"] = B.exporter_leger(coll.name, f"navire-{commu}-leger.glb")
     if rendu:
         infos["rendus"] = rendre(coll.name, commu, reg)
     return infos
@@ -443,6 +445,17 @@ def figure_de_proue(L, genre):
             for k in range(3):
                 L.ajouter(B.tube([tete + Vector((0.0 - k * 0.08, s * 0.24, 0.05)), tete + Vector((0.05 - k * 0.08, s * 0.16, 0.2))], 0.02, 5), "noir", M)
             L.ajouter(B.cyl(0.02, 0.0, 0.1, 6), "blanc", M @ B.mat4(tete + Vector((0.28, s * 0.05, -0.12)), (math.pi, 0, 0)))
+    elif genre == "volute":
+        # le navire des commus sans figure à elles : une volute dorée sculptée et une étoile au bout
+        pts = []
+        for j in range(15):
+            a = j / 14 * math.pi * 2.6
+            r = 0.3 * (1 - j / 18)
+            pts.append(tete + Vector((math.cos(a) * r - 0.1, 0, math.sin(a) * r - 0.05)))
+        L.ajouter(B.tube(pts, [0.085 * (1 - j / 20) for j in range(15)], 10), "or", M)
+        for s_ in (-1, 1):
+            L.ajouter(B.tube([tete + Vector((-0.25, s_ * 0.05, -0.2)), tete + Vector((-0.05, s_ * 0.2, -0.1)), tete + Vector((0.15, s_ * 0.12, 0.05))], [0.04, 0.05, 0.03], 8), "bois_clair", M)
+        L.ajouter(B.etoile(0.14, 0.06, 0.05) if hasattr(B, "etoile") else B.sphere(0.1, 10, 8), "or", M @ B.mat4(tete + Vector((0.32, 0, 0.12)), (math.pi / 2, 0, 0)))
     else:
         # une pieuvre : une grosse tête, des tentacules qui s'enroulent autour de l'étrave
         L.ajouter(B.sphere(0.3, 16, 12), "violet", M @ B.mat4(tete + Vector((0, 0, 0.08)), (0, 0, 0), (1.0, 1.0, 1.25)))
@@ -520,6 +533,8 @@ def precalculer(o, lanternes, echantillons=48):
             pass
         for x in bpy.context.selected_objects:
             x.select_set(False)
+        for c in o.users_collection:
+            B.inclure(c.name)
         o.hide_set(False)
         o.hide_render = False
         o.select_set(True)
