@@ -598,11 +598,13 @@ function melange(a, b, t) {
   const c = (d) => Math.round(((x >> d) & 255) * (1 - t) + ((y >> d) & 255) * t);
   return `#${((c(16) << 16) | (c(8) << 8) | c(0)).toString(16).padStart(6, "0")}`;
 }
-function themeNavire(couleurs = {}, embleme = "B") {
+function themeNavire(couleurs = {}, embleme = "B", drapeau = "") {
   const c1 = hexa(couleurs.principale, "#ff4f9a");
   const c2 = hexa(couleurs.secondaire, "#9b4dff");
   const e = String(embleme || "B").replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "B";
-  return { cle: `${c1}${c2}${e}`, c1, c2, fonce: melange(c1, "#12050d", 0.55), embleme: e };
+  // le vrai drapeau de la commu (une image du site) : en haut du grand mât et au milieu de la grande voile
+  const d = /^(\/|https:\/\/|img\/)[\w./:-]+\.(webp|png|jpg)$/i.test(String(drapeau || "")) ? String(drapeau) : "";
+  return { cle: `${c1}${c2}${e}${d}`, c1, c2, fonce: melange(c1, "#12050d", 0.55), embleme: e, drapeau: d };
 }
 const THEME_BARHAW = themeNavire();
 // les toiles du navire et les drapeaux (dessinées ici ; les UV viennent de Blender)
@@ -650,7 +652,163 @@ function toileGLB(nom, theme = THEME_BARHAW) {
   const t = toile(l, h, f);
   t.flipY = false;
   toiles[cle] = t;
+  // le drapeau de la commu, dessiné par-dessus dès qu'il est chargé (sinon : l'emblème reste)
+  if (theme.drapeau && (nom === "drapeau" || nom === "voile_b")) {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      const x = t.image.getContext("2d");
+      if (nom === "drapeau") {
+        x.fillStyle = "#0b0b0b";
+        x.fillRect(0, 0, l, h);
+        const s = Math.max(l / img.width, h / img.height);
+        x.drawImage(img, (l - img.width * s) / 2, (h - img.height * s) / 2, img.width * s, img.height * s);
+      } else {
+        const r = 104;
+        x.save();
+        x.beginPath(); x.arc(l / 2, h / 2 - 14, r, 0, Math.PI * 2); x.closePath();
+        x.fillStyle = "#0b0b0b"; x.fill(); x.clip();
+        x.drawImage(img, l / 2 - r * 1.08, h / 2 - 14 - r * 1.08, r * 2.16, r * 2.16);
+        x.restore();
+        x.lineWidth = 12; x.strokeStyle = fonce; x.beginPath(); x.arc(l / 2, h / 2 - 14, r, 0, Math.PI * 2); x.stroke();
+      }
+      t.needsUpdate = true;
+    };
+    img.src = theme.drapeau;
+  }
   return t;
+}
+
+// ---------- la traînée d'un navire de la flotte (V4) : ce qui tombe du bateau et traîne derrière lui ----------
+// petales : des pétales de cerisier qui tombent des voiles, tourbillonnent et flottent dans le sillage ;
+// pieces : des pièces d'or au V qui tombent du pont, brillent, rebondissent sur l'eau et coulent ;
+// encre : des bulles d'encre qui s'étalent dans le sillage. Peu de particules (moitié moins sur un petit écran).
+let textures = null;
+function texturesTrainee() {
+  if (textures) return textures;
+  const petale = toile(64, 64, (x) => {
+    const d = x.createLinearGradient(0, 0, 64, 64);
+    d.addColorStop(0, "#ffe1ef"); d.addColorStop(1, "#ff8cc0");
+    x.fillStyle = d;
+    x.beginPath(); x.moveTo(32, 60); x.bezierCurveTo(4, 42, 6, 10, 24, 6); x.lineTo(32, 14); x.lineTo(40, 6); x.bezierCurveTo(58, 10, 60, 42, 32, 60); x.fill();
+    x.strokeStyle = "rgba(194,40,110,.55)"; x.lineWidth = 2; x.stroke();
+  });
+  const piece = toile(64, 64, (x) => {
+    x.fillStyle = "#ffcf4a"; x.fillRect(0, 0, 64, 64);
+    x.strokeStyle = "#a8741a"; x.lineWidth = 5; x.beginPath(); x.arc(32, 32, 25, 0, Math.PI * 2); x.stroke();
+    x.font = "900 34px 'Dela Gothic One', Arial Black, sans-serif"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillStyle = "#a8741a"; x.fillText("V", 32, 35);
+  });
+  textures = { petale, piece };
+  return textures;
+}
+function creerTrainee(type, scene, petit) {
+  const n = petit ? 14 : 28;
+  let geo;
+  let mat;
+  if (type === "pieces") {
+    const t = texturesTrainee().piece;
+    geo = new THREE.CylinderGeometry(0.42, 0.42, 0.09, 16);
+    const face = new THREE.MeshPhongMaterial({ map: t, emissive: 0x6a4500, emissiveMap: t, shininess: 110, specular: 0xffffff });
+    mat = [new THREE.MeshPhongMaterial({ color: 0xe8a92a, emissive: 0x5a3a00, shininess: 110, specular: 0xffffff }), face, face];
+  } else if (type === "petales") {
+    geo = new THREE.PlaneGeometry(0.62, 0.62);
+    mat = new THREE.MeshBasicMaterial({ map: texturesTrainee().petale, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, depthWrite: false });
+  } else {
+    geo = new THREE.SphereGeometry(0.38, 10, 7);
+    mat = new THREE.MeshBasicMaterial({ color: type === "encre" ? 0x4a2a78 : 0xffffff, transparent: true, opacity: type === "encre" ? 0.75 : 0.6, depthWrite: false });
+  }
+  const im = new THREE.InstancedMesh(geo, mat, n);
+  im.frustumCulled = false;
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(im);
+  const parts = Array.from({ length: n }, () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99, vie: 1, r: new THREE.Euler(), rv: new THREE.Vector3(), eau: false, k: Math.random() * 10 }));
+  const o = new THREE.Object3D();
+  const cadence = type === "pieces" ? 0.42 : type === "petales" ? 0.2 : 0.35;
+  let t = 0;
+  let prochain = 0;
+  return {
+    type,
+    maj(dt, porteur) {
+      t += dt;
+      const ry = porteur.rotation.y;
+      const fx = Math.cos(ry);
+      const fz = -Math.sin(ry);
+      const lateral = (m) => v3(-fz * m, fx * m);
+      if (t >= prochain) {
+        prochain = t + cadence * (0.6 + Math.random() * 0.8);
+        const q = parts.find((x) => x.age >= x.vie);
+        if (q) {
+          const a = Math.random();
+          q.age = 0;
+          q.eau = false;
+          q.p.copy(porteur.position);
+          if (type === "petales") {
+            q.p.add(lateral((a - 0.5) * 3.2)).add(v3(fx * (Math.random() * 3 - 1.5), fz * (Math.random() * 3 - 1.5), 5 + Math.random() * 4));
+            q.v.set(-fx * 1.6, -0.5, -fz * 1.6).add(lateral((Math.random() - 0.5) * 1.2));
+            q.vie = 7;
+          } else if (type === "pieces") {
+            const cote = a < 0.5 ? -1 : 1;
+            q.p.add(lateral(cote * 1.7)).add(v3(fx * (Math.random() * 2.4 - 1.2), fz * (Math.random() * 2.4 - 1.2), 2.2));
+            q.v.set(-fx * 1.2, 3.4 + Math.random(), -fz * 1.2).add(lateral(cote * 1.3));
+            q.vie = 4.6;
+          } else {
+            q.p.add(v3(-fx * 4, -fz * 4, 0.15)).add(lateral((a - 0.5) * 2));
+            q.v.set(-fx * 0.7, 0, -fz * 0.7);
+            q.vie = 5;
+          }
+          q.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+          q.rv.set((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+        }
+      }
+      parts.forEach((q, k) => {
+        let s = 0;
+        if (q.age < q.vie) {
+          q.age += dt;
+          const fin = Math.max(0, Math.min(1, (q.vie - q.age) / 1.2));
+          if (type === "petales") {
+            if (!q.eau) {
+              q.v.y = Math.max(q.v.y - dt * 0.5, -1.1);
+              q.v.x += Math.sin(t * 2.2 + q.k) * dt * 1.4;
+              q.v.z += Math.cos(t * 1.8 + q.k) * dt * 1.4;
+              q.p.addScaledVector(q.v, dt);
+              q.r.x += q.rv.x * dt; q.r.y += q.rv.y * dt; q.r.z += q.rv.z * dt;
+              if (q.p.y <= 0.14) { q.eau = true; q.p.y = 0.14; q.r.set(-Math.PI / 2, 0, q.r.z); }
+            } else {
+              q.p.x -= fx * 0.35 * dt;
+              q.p.z -= fz * 0.35 * dt;
+              q.p.y = 0.14 + Math.sin(t * 2 + q.k) * 0.04;
+              q.r.z += dt * 0.4;
+            }
+            s = fin;
+          } else if (type === "pieces") {
+            if (!q.eau) {
+              q.v.y -= 9.8 * dt;
+              q.p.addScaledVector(q.v, dt);
+              if (q.p.y <= 0.12) {
+                if (q.v.y < -2.5) { q.p.y = 0.12; q.v.y = -q.v.y * 0.42; q.v.x *= 0.5; q.v.z *= 0.5; } // un rebond sur l'eau
+                else { q.eau = true; q.v.set(0, -0.55, 0); }
+              }
+            } else q.p.addScaledVector(q.v, dt); // elle coule
+            q.r.x = 0.35; q.r.y += dt * 9; q.r.z = 0;
+            s = q.p.y > -0.2 ? 1 : Math.max(0, 1 + (q.p.y + 0.2) * 1.4);
+          } else {
+            q.p.addScaledVector(q.v, dt);
+            q.v.multiplyScalar(1 - dt * 0.5);
+            s = Math.min(1, q.age * 2) * (1 + q.age * 0.35) * fin;
+            q.r.set(0, 0, 0);
+          }
+        }
+        o.position.copy(q.p);
+        o.rotation.copy(q.r);
+        if (type === "encre") o.scale.set(s, s * 0.25, s); else o.scale.setScalar(s);
+        o.updateMatrix();
+        im.setMatrixAt(k, o.matrix);
+      });
+      im.instanceMatrix.needsUpdate = true;
+    },
+    detruire() { scene.remove(im); geo.dispose(); },
+  };
 }
 // les matières qui changent avec les couleurs du navire
 const THEMEES = new Set(["rose", "violet", "voile", "voile_b", "drapeau", "flamme"]);
@@ -1313,6 +1471,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const f = flotte.get(id);
     if (!f) return;
     scene.remove(f.porteur);
+    f.trainee?.detruire();
     flotte.delete(id);
   }
   function majFlotte(autres) {
@@ -1320,10 +1479,11 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     for (const o of autres) {
       if (!o?.id || !o.route) continue;
       vus.add(o.id);
-      const theme = themeNavire(o.couleurs, o.embleme);
+      const theme = themeNavire(o.couleurs, o.embleme, o.drapeau);
       let f = flotte.get(o.id);
       if (f && f.theme.cle !== theme.cle) { retirerFlotte(o.id); f = null; }
       f ||= navireFlotte(o.id, theme);
+      if ((f.trainee?.type || "") !== (o.trainee || "")) { f.trainee?.detruire(); f.trainee = o.trainee ? creerTrainee(o.trainee, scene, L < 760) : null; }
       f.d = o;
       const sig = JSON.stringify([o.voyage, o.etape, Boolean(o.vote), o.route.map((e) => e.map((x) => x.etat))]);
       if (sig !== f.sig) { f.sig = sig; f.etape = etapeDe(o); f.progres = -1; }
@@ -1534,13 +1694,16 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     return null;
   }
   let flotteVue = "";
+  let traineeNavire = null;
   function maj(d) {
     if (!d?.route) return;
     const avant = donnees;
     // la flotte (V4) : on change de navire regardé → il prend tout de suite sa place, sans glisser depuis l'autre
     const vue = d.flotte?.id || "";
     if (vue !== flotteVue) { flotteVue = vue; signature = ""; premier = true; if (avant) mode = d.flotte?.ensemble ? "ensemble" : "navire"; }
-    habillerNavire(d.flotte ? themeNavire(d.flotte.couleurs, d.flotte.embleme) : THEME_BARHAW);
+    habillerNavire(d.flotte ? themeNavire(d.flotte.couleurs, d.flotte.embleme, d.flotte.drapeau) : THEME_BARHAW);
+    const typeTrainee = d.flotte?.trainee || "";
+    if ((traineeNavire?.type || "") !== typeTrainee) { traineeNavire?.detruire(); traineeNavire = typeTrainee ? creerTrainee(typeTrainee, scene, L < 760) : null; }
     majFlotte(d.flotte?.autres || []);
     donnees = d;
     const sig = JSON.stringify([d.voyage, d.etape, d.cible?.id, Boolean(d.vote), d.route.map((e) => e.map((x) => x.etat))]);
@@ -1733,7 +1896,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         f.navire.rotation.z = Math.sin(s * 1.05 + 1 + f.decal) * 0.035;
         f.navire.userData.animer(s + f.decal, f.d?.live ? 1.35 : 1);
       }
+      f.trainee?.maj(dt, f.porteur);
     }
+    traineeNavire?.maj(dt, porteur);
     // le sillage
     if (donnees && s > sillageProchain) {
       sillageProchain = s + 0.45;

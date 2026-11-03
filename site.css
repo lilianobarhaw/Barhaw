@@ -2422,7 +2422,8 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 }
 .fl-onglet:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--c2); }
 .fl-onglet:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--c2); }
-.fl-onglet[aria-selected="true"] { background: var(--c1); color: #fff; box-shadow: 4px 4px 0 var(--c2), 4px 4px 0 2px var(--encre); text-shadow: 0 1px 0 rgba(18, 5, 13, 0.45); }
+.fl-onglet[aria-selected="true"] { background: var(--c1); color: var(--fl-texte, #fff); box-shadow: 4px 4px 0 var(--c2), 4px 4px 0 2px var(--encre); text-shadow: none; }
+.fl-onglet-course[aria-selected="true"] { color: #fff; }
 .fl-onglet-course[aria-selected="true"] { background: var(--degrade); box-shadow: 4px 4px 0 var(--ombre), 4px 4px 0 2px var(--encre); }
 .fl-onglet-icone { font-size: 21px; line-height: 1; }
 .fl-onglet-rang { padding: 2px 7px; border-radius: 7px; background: rgba(18, 5, 13, 0.45); font-size: 11.5px; letter-spacing: 0.03em; }
@@ -2440,6 +2441,8 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 }
 .fl-logo { position: absolute; left: 0.85em; top: 0.18em; width: 1.85em; height: 1.85em; border-radius: 50%; object-fit: cover; background: var(--papier); border: 2px solid var(--encre); }
 .fl-drapeau.grand { font-size: 16px; }
+/* le vrai drapeau d'une commu : son image, en drapeau qui ondule sur son mât */
+.fl-drapeau-img { position: absolute; left: 0.32em; top: -0.1em; width: 3.7em; height: 2.8em; object-fit: cover; background: #0b0b0b; border: 2px solid var(--encre); border-radius: 0.15em 0.5em 0.5em 0.15em; box-shadow: 2px 2px 0 rgba(18, 5, 13, 0.55); transform-origin: 0 50%; animation: fl-flotter 2.8s var(--doux) infinite; }
 .fl-drapeau.grand .fl-embleme { text-shadow: 2px 0 0 var(--encre), -2px 0 0 var(--encre), 0 2px 0 var(--encre), 0 -2px 0 var(--encre), 2px 2px 0 var(--encre), -2px 2px 0 var(--encre); }
 @keyframes fl-flotter { 0%, 100% { transform: skewY(0deg) scaleX(1); } 50% { transform: skewY(-4deg) scaleX(0.95); } }
 

@@ -4506,7 +4506,19 @@
   const flotteActive = () => commusFlotte().length > 0;
   const commu = (id) => (id ? commusFlotte().find((c) => c.id === id) || null : null);
   const hexaCommu = (c, k) => (/^#[0-9a-f]{6}$/i.test(String(c?.couleurs?.[k] || "")) ? c.couleurs[k] : k === "principale" ? "#ff4f9a" : "#9b4dff");
-  const styleCommu = (c) => `--c1:${hexaCommu(c, "principale")};--c2:${hexaCommu(c, "secondaire")}`;
+  // le texte sur la couleur d'une commu : encre sur une couleur claire (l'or de Veyzo), blanc sinon
+  const clair = (h) => { const n = parseInt(h.slice(1), 16); const l = (v) => { v /= 255; return v <= 0.04 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * l(n >> 16) + 0.7152 * l((n >> 8) & 255) + 0.0722 * l(n & 255) > 0.45; };
+  const styleCommu = (c) => `--c1:${hexaCommu(c, "principale")};--c2:${hexaCommu(c, "secondaire")};--fl-texte:${clair(hexaCommu(c, "principale")) ? "#12050d" : "#fff"}`;
+  // Ce que chaque commu apporte, en plus de ses couleurs (/flotte commu sur Discord) : son drapeau, dessiné par elle,
+  // dans img/flotte/<id>.webp (512 × 512), et sa traînée derrière son navire. Ajouter une commu = ces trois choses.
+  // Traînées : petales (cerisier), pieces (pièces d'or au V), encre (bulles d'encre) ; sans rien, un sillage d'écume.
+  const FLOTTE_STYLES = {
+    barhaw: { drapeau: true, trainee: "petales" },
+    veyzo: { drapeau: true, trainee: "pieces" },
+    kikso: { trainee: "encre" },
+  };
+  const drapeauImage = (c) => (FLOTTE_STYLES[c?.id]?.drapeau ? `/img/flotte/${c.id}.webp` : lienSur(c?.drapeau));
+  const traineeCommu = (c) => (["petales", "pieces", "encre"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
     if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
     const n = c.navire;
@@ -4540,6 +4552,13 @@
     );
     const logo = lienSur(c.logo);
     const embleme = String(c.embleme || c.nom || "?").replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "?";
+    // le vrai drapeau de la commu (son image), qui flotte sur son mât ; s'il ne vient pas : le fanion à ses couleurs
+    const image = drapeauImage(c);
+    if (image) {
+      const zone = el("span", { class: `fl-drapeau fl-drapeau-image ${classe}`.trim(), style: styleCommu(c), "aria-hidden": "true" }, el("i", { class: "fl-mat" }));
+      zone.append(el("img", { class: "fl-drapeau-img", src: image, alt: "", width: 64, height: 64, decoding: "async", onerror: () => zone.replaceWith(drapeauCommu({ ...c, drapeau: "", id: `${c.id}-` }, classe)) }));
+      return zone;
+    }
     return el("span", { class: `fl-drapeau ${classe}`.trim(), style: styleCommu(c), "aria-hidden": "true" },
       el("i", { class: "fl-mat" }),
       svg,
@@ -4803,8 +4822,8 @@
     return {
       ...g,
       flotte: {
-        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
-        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
+        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
+        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
       },
     };
   }
