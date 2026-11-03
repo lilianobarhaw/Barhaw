@@ -4518,6 +4518,7 @@
     kikso: { trainee: "encre" },
   };
   const drapeauImage = (c) => (FLOTTE_STYLES[c?.id]?.drapeau ? `/img/flotte/${c.id}.webp` : lienSur(c?.drapeau));
+  const ILES_V4 = ["phare"]; // les îles déjà refaites en V4 (modeles/grandline/ile-<id>-v4.glb)
   const modeleNavire = (c) => (FLOTTE_STYLES[c?.id]?.navire && !window.__navireV3 ? `navire-${c.id}.glb` : "");
   const traineeCommu = (c) => (["petales", "pieces", "encre"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
@@ -5201,9 +5202,12 @@
           const { creerGrandLine3D } = await import("/js/grandline-3d.js");
           const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de GRAND LINE en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
           vider(zone, toile);
-          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
+          // les îles V4 (la démo : le Phare), seulement une fois la V4 ouverte
+          const ilesV4 = v4Ouverte() && !window.__ileV3 ? ILES_V4 : [];
+          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), ilesV4, surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
           if (choix3d !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
-          toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passerCarte2D(); });
+          // la carte passe en 2D seulement si c'est elle qui perd la 3D (pas une ancienne carte qu'on vient de refaire)
+          toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); if (carteGL?.rendu === rendu) passerCarte2D(); });
           carteGL = { type: "3d", rendu };
           tailleCarteGL();
           if (infosGL()) rendu.maj(donneesCarteGL(infosGL()));

@@ -536,7 +536,7 @@ def precalculer(o, lanternes, echantillons=48):
     for i, v in enumerate(me.vertices):
         c = attr.data[i].color
         ao = max(0.0, min(1.0, c[0])) if ok is True else 1.0
-        ao = 0.42 + 0.58 * ao
+        ao = 0.66 + 0.34 * ao  # des ombres douces : le bois reste lisible
         w = 0.0
         for p in lanternes:
             d = (v.co - p).length

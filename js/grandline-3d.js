@@ -506,7 +506,8 @@ async function lireGLB(url) {
   const lj = dv.getUint32(12, true);
   const g = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, lj)));
   const lb = dv.getUint32(20 + lj, true);
-  return { g, bin: buf.slice(28 + lj, 28 + lj + lb) };
+  // les modèles V4 (ile-<id>-v4.glb, navire-<commu>.glb) ont leur lumière cuite
+  return { g, bin: buf.slice(28 + lj, 28 + lj + lb), cuit: /(-v4|navire-[a-z0-9]{2,20})\.glb$/.test(url) };
 }
 function accesseur(g, bin, i, brut = false) {
   const a = g.accessors[i];
@@ -622,14 +623,14 @@ function toileGLB(nom, theme = THEME_BARHAW) {
     x.strokeStyle = "rgba(160,120,80,.18)";
     x.lineWidth = 4;
     for (let k = 1; k < 8; k++) { x.beginPath(); x.moveTo((k * l) / 8, 0); x.lineTo((k * l) / 8, h); x.stroke(); }
-    // l'usure (V4) : des taches d'eau salée et des pièces rapportées, cousues
+    // l'usure (V4, navires de la flotte) : des taches d'eau salée et des pièces rapportées, cousues
     const R = hasard(l + h + (avecEmbleme ? 7 : 3));
-    for (let k = 0; k < 7; k++) {
+    for (let k = 0; k < (theme === THEME_BARHAW ? 0 : 7); k++) {
       const g = x.createRadialGradient(0, 0, 0, 0, 0, 1);
       g.addColorStop(0, "rgba(150,118,80,.2)"); g.addColorStop(1, "rgba(150,118,80,0)");
       x.save(); x.translate(R() * l, R() * h * 0.85); x.scale(30 + R() * 70, 20 + R() * 50); x.fillStyle = g; x.beginPath(); x.arc(0, 0, 1, 0, Math.PI * 2); x.fill(); x.restore();
     }
-    for (let k = 0; k < 2; k++) {
+    for (let k = 0; k < (theme === THEME_BARHAW ? 0 : 2); k++) {
       const [px, py, pw, ph] = [40 + R() * (l - 140), 30 + R() * (h - 150), 50 + R() * 40, 40 + R() * 30];
       x.fillStyle = k ? "#efe0c2" : "#f6e9cf"; x.fillRect(px, py, pw, ph);
       x.strokeStyle = "rgba(120,90,60,.55)"; x.lineWidth = 2; x.setLineDash([6, 5]); x.strokeRect(px + 4, py + 4, pw - 8, ph - 8); x.setLineDash([]);
@@ -829,19 +830,26 @@ const THEMEES = new Set(["rose", "violet", "voile", "voile_b", "drapeau", "flamm
 const matieres = new Map();
 // le grain du bois (V4) : des veines dessinées par la carte graphique, sans texture à charger
 const BOIS = new Set(["bois", "bois2", "bois_fonce", "bois_clair", "planche"]);
-function avecGrain(m) {
+// les modèles V4 ont leur lumière et leurs ombres cuites dans Blender (couleurs de sommets) : on leur ajoute une part de
+// lumière propre, sinon les murs blancs tournés à l'ombre deviennent gris foncé avec l'éclairage de la carte
+const CUIT = 0.5;
+function retoucher(m, { grain = false, cuit = false } = {}) {
+  if (!grain && !cuit) return m;
   m.onBeforeCompile = (s) => {
-    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrain;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGrain = position;");
-    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrain;").replace("#include <color_fragment>",
-      "#include <color_fragment>\nfloat veine = sin(vGrain.x * 34.0 + sin(vGrain.z * 7.0 + vGrain.y * 5.0) * 2.6) * 0.5 + 0.5;\nfloat fin = fract(sin(dot(floor(vGrain * 60.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);\ndiffuseColor.rgb *= 0.84 + 0.12 * veine + 0.06 * fin;");
+    if (grain) {
+      s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrain;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGrain = position;");
+      s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrain;").replace("#include <color_fragment>",
+        "#include <color_fragment>\nfloat veine = sin(vGrain.x * 34.0 + sin(vGrain.z * 7.0 + vGrain.y * 5.0) * 2.6) * 0.5 + 0.5;\nfloat fin = fract(sin(dot(floor(vGrain * 60.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);\ndiffuseColor.rgb *= 0.84 + 0.12 * veine + 0.06 * fin;");
+    }
+    if (cuit) s.fragmentShader = s.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${CUIT.toFixed(2)};`);
   };
-  m.customProgramCacheKey = () => "grain";
+  m.customProgramCacheKey = () => `${grain ? "grain" : ""}|${cuit ? "cuit" : ""}`;
   return m;
 }
-function matiereGLB(nom, theme = THEME_BARHAW, couleursSommets = false) {
+function matiereGLB(nom, theme = THEME_BARHAW, couleursSommets = false, cuit = false) {
   if (couleursSommets && !toileGLB.noms.has(nom) && !BRILLANTS.has(nom)) {
-    const cle = `${nom}|${theme.cle}|vc`;
-    if (!matieres.has(cle)) { const m = matiereGLB(nom, theme).clone(); m.vertexColors = true; if (BOIS.has(nom)) avecGrain(m); matieres.set(cle, m); }
+    const cle = `${nom}|${theme.cle}|vc${cuit ? "|cuit" : ""}`;
+    if (!matieres.has(cle)) { const m = matiereGLB(nom, theme).clone(); m.vertexColors = true; retoucher(m, { grain: BOIS.has(nom), cuit }); matieres.set(cle, m); }
     return matieres.get(cle);
   }
   const cle = THEMEES.has(nom) && theme !== THEME_BARHAW ? `${nom}|${theme.cle}` : nom;
@@ -861,7 +869,7 @@ function matiereGLB(nom, theme = THEME_BARHAW, couleursSommets = false) {
 }
 toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
 // habiller un modèle : les matières du site, les contours ; renvoie ce qui bouge et les reliefs
-function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW }) {
+function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit = false }) {
   const reliefs = [];
   const bouge = [];
   const reperes = [];
@@ -877,7 +885,7 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW }) {
         o.material = relief();
         reliefs.push(o);
       } else {
-        o.material = matiereGLB(nom, theme, Boolean(o.geometry.getAttribute("color")));
+        o.material = matiereGLB(nom, theme, Boolean(o.geometry.getAttribute("color")), cuit);
         if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
       }
     }
@@ -1154,7 +1162,7 @@ function courbe(a, b, sens = 1, force = 0.16) {
   return new THREE.QuadraticBezierCurve3(a, c, b);
 }
 
-export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, modeles = "/modeles/grandline/" }) {
+export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, ilesV4 = [], modeles = "/modeles/grandline/" }) {
   const ratio = Math.min(1.5, window.devicePixelRatio || 1);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: ratio < 1.5, alpha: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -1247,10 +1255,12 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   function chargerIle(i) {
     if (i.modele !== undefined || detruit) return;
     i.modele = null;
-    lireGLB(`${modeles}ile-${i.id}.glb`).then((glb) => {
+    // la version V4 d'une île (ile-<id>-v4.glb) quand elle existe et que la V4 est ouverte ; sinon l'île de base
+    const v4 = ilesV4.includes(i.id);
+    (v4 ? lireGLB(`${modeles}ile-${i.id}-v4.glb`).catch(() => lireGLB(`${modeles}ile-${i.id}.glb`)) : lireGLB(`${modeles}ile-${i.id}.glb`)).then((glb) => {
       if (detruit) return;
       const modele = sceneGLB(glb);
-      const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }) });
+      const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }), cuit: glb.cuit });
       for (const r of reliefs) modele.add(traitDeCote(r.geometry));
       const boite = new THREE.Box3().setFromObject(modele);
       const anims = animateurs(bouge);
@@ -1305,7 +1315,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     if (naviresFaits.has(theme.cle)) return naviresFaits.get(theme.cle);
     const fait = lireNavire(theme.modele || "navire.glb").then((glb) => {
       const modele = sceneGLB(glb);
-      const { bouge } = habiller(modele, { relief: () => null, contour: 0.03, theme });
+      const { bouge } = habiller(modele, { relief: () => null, contour: 0.03, theme, cuit: glb.cuit });
       let ventIci = 1;
       const anims = animateurs(bouge, () => ventIci);
       const g = new THREE.Group();
@@ -2057,6 +2067,15 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     renderer.dispose();
     renderer.forceContextLoss();
   }
-  return { maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
+  // regarder une île de près (la démo V4, les essais)
+  function voirIle(id) {
+    const i = iles.get(id);
+    if (!i) return;
+    vise = v3(i.x, i.z);
+    decalage.set(0, 0, 0);
+    zoom = 0.8;
+    mode = "ile";
+  }
+  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller };
