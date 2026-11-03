@@ -598,13 +598,15 @@ function melange(a, b, t) {
   const c = (d) => Math.round(((x >> d) & 255) * (1 - t) + ((y >> d) & 255) * t);
   return `#${((c(16) << 16) | (c(8) << 8) | c(0)).toString(16).padStart(6, "0")}`;
 }
-function themeNavire(couleurs = {}, embleme = "B", drapeau = "") {
+function themeNavire(couleurs = {}, embleme = "B", drapeau = "", modele = "") {
   const c1 = hexa(couleurs.principale, "#ff4f9a");
   const c2 = hexa(couleurs.secondaire, "#9b4dff");
   const e = String(embleme || "B").replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "B";
   // le vrai drapeau de la commu (une image du site) : en haut du grand mât et au milieu de la grande voile
   const d = /^(\/|https:\/\/|img\/)[\w./:-]+\.(webp|png|jpg)$/i.test(String(drapeau || "")) ? String(drapeau) : "";
-  return { cle: `${c1}${c2}${e}${d}`, c1, c2, fonce: melange(c1, "#12050d", 0.55), embleme: e, drapeau: d };
+  // le navire V4 de la commu (navire-<id>.glb), s'il existe ; sinon le navire de base
+  const m = /^navire-[a-z0-9]{2,20}\.glb$/.test(String(modele || "")) ? String(modele) : "navire.glb";
+  return { cle: `${c1}${c2}${e}${d}${m}`, c1, c2, fonce: melange(c1, "#12050d", 0.55), embleme: e, drapeau: d, modele: m };
 }
 const THEME_BARHAW = themeNavire();
 // les toiles du navire et les drapeaux (dessinées ici ; les UV viennent de Blender)
@@ -620,6 +622,18 @@ function toileGLB(nom, theme = THEME_BARHAW) {
     x.strokeStyle = "rgba(160,120,80,.18)";
     x.lineWidth = 4;
     for (let k = 1; k < 8; k++) { x.beginPath(); x.moveTo((k * l) / 8, 0); x.lineTo((k * l) / 8, h); x.stroke(); }
+    // l'usure (V4) : des taches d'eau salée et des pièces rapportées, cousues
+    const R = hasard(l + h + (avecEmbleme ? 7 : 3));
+    for (let k = 0; k < 7; k++) {
+      const g = x.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, "rgba(150,118,80,.2)"); g.addColorStop(1, "rgba(150,118,80,0)");
+      x.save(); x.translate(R() * l, R() * h * 0.85); x.scale(30 + R() * 70, 20 + R() * 50); x.fillStyle = g; x.beginPath(); x.arc(0, 0, 1, 0, Math.PI * 2); x.fill(); x.restore();
+    }
+    for (let k = 0; k < 2; k++) {
+      const [px, py, pw, ph] = [40 + R() * (l - 140), 30 + R() * (h - 150), 50 + R() * 40, 40 + R() * 30];
+      x.fillStyle = k ? "#efe0c2" : "#f6e9cf"; x.fillRect(px, py, pw, ph);
+      x.strokeStyle = "rgba(120,90,60,.55)"; x.lineWidth = 2; x.setLineDash([6, 5]); x.strokeRect(px + 4, py + 4, pw - 8, ph - 8); x.setLineDash([]);
+    }
     x.fillStyle = "#ffd36b";
     x.fillRect(0, h - 44, l, 8);
     x.fillStyle = c1;
@@ -813,7 +827,23 @@ function creerTrainee(type, scene, petit) {
 // les matières qui changent avec les couleurs du navire
 const THEMEES = new Set(["rose", "violet", "voile", "voile_b", "drapeau", "flamme"]);
 const matieres = new Map();
-function matiereGLB(nom, theme = THEME_BARHAW) {
+// le grain du bois (V4) : des veines dessinées par la carte graphique, sans texture à charger
+const BOIS = new Set(["bois", "bois2", "bois_fonce", "bois_clair", "planche"]);
+function avecGrain(m) {
+  m.onBeforeCompile = (s) => {
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrain;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGrain = position;");
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrain;").replace("#include <color_fragment>",
+      "#include <color_fragment>\nfloat veine = sin(vGrain.x * 34.0 + sin(vGrain.z * 7.0 + vGrain.y * 5.0) * 2.6) * 0.5 + 0.5;\nfloat fin = fract(sin(dot(floor(vGrain * 60.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);\ndiffuseColor.rgb *= 0.84 + 0.12 * veine + 0.06 * fin;");
+  };
+  m.customProgramCacheKey = () => "grain";
+  return m;
+}
+function matiereGLB(nom, theme = THEME_BARHAW, couleursSommets = false) {
+  if (couleursSommets && !toileGLB.noms.has(nom) && !BRILLANTS.has(nom)) {
+    const cle = `${nom}|${theme.cle}|vc`;
+    if (!matieres.has(cle)) { const m = matiereGLB(nom, theme).clone(); m.vertexColors = true; if (BOIS.has(nom)) avecGrain(m); matieres.set(cle, m); }
+    return matieres.get(cle);
+  }
   const cle = THEMEES.has(nom) && theme !== THEME_BARHAW ? `${nom}|${theme.cle}` : nom;
   if (matieres.has(cle)) return matieres.get(cle);
   const couleur = nom === "rose" && cle !== nom ? parseInt(theme.c1.slice(1), 16) : nom === "violet" && cle !== nom ? parseInt(theme.c2.slice(1), 16) : COULEURS[nom] ?? 0xcccccc;
@@ -847,7 +877,7 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW }) {
         o.material = relief();
         reliefs.push(o);
       } else {
-        o.material = matiereGLB(nom, theme);
+        o.material = matiereGLB(nom, theme, Boolean(o.geometry.getAttribute("color")));
         if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
       }
     }
@@ -1265,12 +1295,15 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   scene.add(porteur);
   // le navire modélisé dans Blender remplace le petit navire dessiné ici dès qu'il est chargé ; le fichier est lu une fois,
   // et chaque navire de la flotte (V4) en est une copie habillée aux couleurs de sa commu
-  let glbNavire = null;
+  const glbNavires = new Map(); // un fichier par modèle (navire.glb, navire-<commu>.glb), lu une fois
+  const lireNavire = (m) => {
+    if (!glbNavires.has(m)) glbNavires.set(m, lireGLB(`${modeles}${m}`).catch((e) => (m === "navire.glb" ? Promise.reject(e) : lireNavire("navire.glb"))));
+    return glbNavires.get(m);
+  };
   const naviresFaits = new Map(); // un navire par jeu de couleurs : il passe du rôle de navire regardé à celui de la flotte sans être refait
   function navireBlender(theme) {
-    glbNavire ||= lireGLB(`${modeles}navire.glb`);
     if (naviresFaits.has(theme.cle)) return naviresFaits.get(theme.cle);
-    const fait = glbNavire.then((glb) => {
+    const fait = lireNavire(theme.modele || "navire.glb").then((glb) => {
       const modele = sceneGLB(glb);
       const { bouge } = habiller(modele, { relief: () => null, contour: 0.03, theme });
       let ventIci = 1;
@@ -1479,7 +1512,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     for (const o of autres) {
       if (!o?.id || !o.route) continue;
       vus.add(o.id);
-      const theme = themeNavire(o.couleurs, o.embleme, o.drapeau);
+      const theme = themeNavire(o.couleurs, o.embleme, o.drapeau, o.modele);
       let f = flotte.get(o.id);
       if (f && f.theme.cle !== theme.cle) { retirerFlotte(o.id); f = null; }
       f ||= navireFlotte(o.id, theme);
@@ -1701,7 +1734,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     // la flotte (V4) : on change de navire regardé → il prend tout de suite sa place, sans glisser depuis l'autre
     const vue = d.flotte?.id || "";
     if (vue !== flotteVue) { flotteVue = vue; signature = ""; premier = true; if (avant) mode = d.flotte?.ensemble ? "ensemble" : "navire"; }
-    habillerNavire(d.flotte ? themeNavire(d.flotte.couleurs, d.flotte.embleme, d.flotte.drapeau) : THEME_BARHAW);
+    habillerNavire(d.flotte ? themeNavire(d.flotte.couleurs, d.flotte.embleme, d.flotte.drapeau, d.flotte.modele) : THEME_BARHAW);
     const typeTrainee = d.flotte?.trainee || "";
     if ((traineeNavire?.type || "") !== typeTrainee) { traineeNavire?.detruire(); traineeNavire = typeTrainee ? creerTrainee(typeTrainee, scene, L < 760) : null; }
     majFlotte(d.flotte?.autres || []);

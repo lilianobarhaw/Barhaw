@@ -4513,11 +4513,12 @@
   // dans img/flotte/<id>.webp (512 × 512), et sa traînée derrière son navire. Ajouter une commu = ces trois choses.
   // Traînées : petales (cerisier), pieces (pièces d'or au V), encre (bulles d'encre) ; sans rien, un sillage d'écume.
   const FLOTTE_STYLES = {
-    barhaw: { drapeau: true, trainee: "petales" },
+    barhaw: { drapeau: true, trainee: "petales", navire: true }, // navire : son modèle V4 (modeles/grandline/navire-<id>.glb)
     veyzo: { drapeau: true, trainee: "pieces" },
     kikso: { trainee: "encre" },
   };
   const drapeauImage = (c) => (FLOTTE_STYLES[c?.id]?.drapeau ? `/img/flotte/${c.id}.webp` : lienSur(c?.drapeau));
+  const modeleNavire = (c) => (FLOTTE_STYLES[c?.id]?.navire && !window.__navireV3 ? `navire-${c.id}.glb` : "");
   const traineeCommu = (c) => (["petales", "pieces", "encre"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
     if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
@@ -4822,8 +4823,8 @@
     return {
       ...g,
       flotte: {
-        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
-        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
+        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), modele: modeleNavire(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
+        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), modele: modeleNavire(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
       },
     };
   }
