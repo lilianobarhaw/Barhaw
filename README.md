@@ -14,6 +14,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `api/chopper.js` | La carte et les animations de Chopper ; nourrir, jouer et parler au nom du membre connecté |
 | `api/moi.js` | Qui est connecté |
 | `js/grandline-3d.js` | La carte de GRAND LINE en 3D (chargée seulement à l'approche de la partie GRAND LINE) |
+| `js/traversee-3d.js` | La Traversée (V4), le mini-jeu de GRAND LINE, en 3D : chargée seulement quand on ouvre le jeu (le moteur du jeu est dans `site.js`) |
 | `modeles/grandline/` | Les modèles 3D de GRAND LINE faits dans Blender : le navire, les 15 îles, le monstre marin, la mouette, la bouteille (`.glb` compactés, lus par `js/grandline-3d.js`) |
 | `outils/blender/` | Les scripts Blender qui fabriquent ces modèles (voir plus bas) ; jamais servis par le site |
 | `js/gouter-3d.js`, `js/three-r170.module.min.js` | Le goûter de Chopper en 3D (chargé seulement à l'approche de la partie Chopper) et three.js, la bibliothèque 3D (licence MIT) |

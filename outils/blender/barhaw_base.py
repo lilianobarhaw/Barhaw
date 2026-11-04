@@ -25,6 +25,8 @@ PALETTE = {
     # la V4 : les nouvelles îles, les maîtres des lieux, le vaisseau fantôme
     "cuivre": 0xc8743a, "laiton": 0xd9b45a, "mousse": 0x5f7a3a, "vase": 0x5a5236, "spectre": 0x8affc8, "os": 0xf0e6cc, "cristal": 0xd7b8ff,
     "ocean": 0x4a6aa0, "dauphin": 0x8aa2c4,
+    # La Traversée (V4)
+    "verre": 0x5fd39a, "ventouse": 0xffc6dc, "ventre": 0xffb3d1, "tache": 0x5a2aa8,
 }
 LUMINEUX = {"lave": 4.0, "lumiere": 3.0, "luciole": 3.0, "feu": 4.0, "spectre": 3.0}
 

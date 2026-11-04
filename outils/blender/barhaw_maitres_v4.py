@@ -531,6 +531,467 @@ def amiral_boulet(M):
     ecume(L, 2.8, 14, 92)
 
 
+# ---------- les détails : chaque maître, plus riche (vêtements, accessoires, bestioles, choses qui bougent) ----------
+def gerbe(L, base, n, h, r, graine, mats=("cristal", "violet", "glace"), coeur=None, ouverture=0.5):
+    """Une gerbe de cristaux qui partent d'un même point."""
+    import barhaw_iles_v4b as IL2
+    rnd = random.Random(graine)
+    for k in range(n):
+        a = k * 2 * math.pi / n + rnd.uniform(-0.3, 0.3)
+        d = Vector((math.cos(a) * ouverture, math.sin(a) * ouverture, 1.0))
+        IL2.cristal(L, base, d, h * rnd.uniform(0.6, 1.1), r * rnd.uniform(0.7, 1.1), mats[k % len(mats)], coeur if k == 0 else None)
+
+
+def oiseau(L, p, regard=(1, 0, 0), corps="blanc", ailes="gris", bec="jaune", ech=1.0):
+    """Une petite mouette (ou un perroquet) posée."""
+    p = Vector(p)
+    d = Vector(regard).normalized() * ech
+    L.ajouter(B.sphere(0.22 * ech, 12, 8), corps, B.mat4(p, (0, 0, math.atan2(d.y, d.x)), (1.45, 0.85, 0.9)))
+    L.ajouter(B.sphere(0.15 * ech, 10, 8), corps, B.mat4(p + d * 0.26 + Vector((0, 0, 0.2 * ech))))
+    L.ajouter(B.cyl(0.055 * ech, 0.0, 0.17 * ech, 6), bec, B.mat4(p + d * 0.38 + Vector((0, 0, 0.19 * ech)), Vector((d.x, d.y, -0.1)).to_track_quat("Z", "Y").to_euler()))
+    cote = d.cross(Vector((0, 0, 1))).normalized() * ech
+    for s in (-1, 1):
+        L.ajouter(B.sphere(0.035 * ech, 6, 4), "noir", B.mat4(p + d * 0.33 + cote * s * 0.09 + Vector((0, 0, 0.25 * ech))))
+        L.ajouter(B.sphere(0.17 * ech, 10, 6), ailes, B.mat4(p + cote * s * 0.16 - d * 0.05 + Vector((0, 0, 0.04 * ech)), (0, -0.3, math.atan2(d.y, d.x)), (1.5, 0.35, 0.6)))
+    L.ajouter(B.cyl(0.09 * ech, 0.02 * ech, 0.3 * ech, 5), ailes, B.mat4(p - d * 0.3, Vector((-d.x, -d.y, 0.3)).to_track_quat("Z", "Y").to_euler()))
+
+
+def frange(L, centre, rayon, z, n, mat, graine, longueur=(0.4, 0.9), de=0.0, a=2 * math.pi, largeur=1.0):
+    """Des lambeaux de tissu qui pendent tout autour (un ourlet déchiré) : des bandes pointues, un peu écartées."""
+    rnd = random.Random(graine)
+    c = Vector(centre)
+    l0 = rayon * a / n * 0.62 * largeur
+    for k in range(n):
+        t = de + (k + 0.5) * a / n + rnd.uniform(-0.08, 0.08)
+        lg = rnd.uniform(*longueur)
+        d = Vector((math.cos(t), math.sin(t), 0))
+        p = c + d * rayon + Vector((0, 0, z))
+        pts = [p, p + d * 0.12 + Vector((0, 0, -lg * 0.5)), p + d * (0.18 + rnd.uniform(0, 0.15)) + Vector((rnd.uniform(-0.1, 0.1), rnd.uniform(-0.1, 0.1), -lg))]
+        L.ajouter(B.ruban(pts, [l0, l0 * 0.8, 0.0], haut=d, pli=0.15), mat)
+
+
+def plus_phare(M):
+    L = M.L
+    rnd = random.Random(111)
+    # l'ourlet déchiré du châle, des pièces cousues, un collier de coquillages
+    frange(L, (0, 0, 0), 1.6, 4.3, 20, "nuage", 112, (0.5, 1.2))
+    for k, (a, z) in enumerate(((0.3, 4.9), (-0.9, 4.6), (2.4, 5.0))):
+        p = Vector((math.cos(a) * 1.5, math.sin(a) * 1.5, z))
+        L.ajouter(B.boite(0.42, 0.06, 0.38), "rose_pale", B.mat4(p, (0, 0, a + math.pi / 2)))
+        for j in range(4):
+            q = p + Vector((math.cos(a) * 0.04, math.sin(a) * 0.04, -0.15 + j * 0.1))
+            L.ajouter(B.boite(0.5, 0.03, 0.025), "noir", B.mat4(q, (0, 0.4 * (1 if j % 2 else -1), a + math.pi / 2)))
+    L.ajouter(B.tore(0.98, 0.05, 28, 4), "corde", B.mat4((0.12, 0, 5.05), (0, -0.12, 0)))
+    for k in range(7):
+        a = -1.1 + k * 0.37
+        p = Vector((0.12 + math.cos(a) * 0.98, math.sin(a) * 0.98, 4.95 - math.cos(a * 1.4) * 0.12))
+        L.ajouter(B.demi_sphere(0.16, 10, 4), "creme" if k % 2 else "rose_pale", B.mat4(p, (0, math.pi / 2 - 0.2, a), (1, 0.8, 0.5)))
+    # une longue tresse argentée qui sort de la capuche
+    for k in range(9):
+        L.ajouter(B.sphere(0.16 - k * 0.008, 10, 6), "neige", B.mat4((0.55 + k * 0.03, 0.75 + k * 0.02, 5.75 - k * 0.24), (0, 0, k * 0.6), (1, 0.85, 1.25)))
+    L.ajouter(B.tore(0.1, 0.04, 10, 4), "rose", B.mat4((0.8, 0.95, 3.6)))
+    # le bâton de bois flotté, recourbé, et sa petite cloche
+    m = Vector((1.75, -2.25, 3.4))
+    L.ajouter(B.tube([m + Vector((0.1, -0.1, -2.6)), m + Vector((0, 0, 0)), m + Vector((-0.1, -0.05, 2.2))], [0.12, 0.11, 0.09], 8), "bois_clair")
+    haut = m + Vector((-0.1, -0.05, 2.2))
+    L.ajouter(B.tube(B.courbe(haut, haut + Vector((0.55, 0, 0.1)), haut + Vector((0.2, 0, 0.75)), 7), [0.09, 0.08, 0.075, 0.07, 0.065, 0.06, 0.05], 7), "bois_clair")
+    for k in range(4):
+        L.ajouter(B.tore(0.13, 0.035, 10, 4), "corde", B.mat4(m + Vector((0, 0, -0.5 + k * 0.12))))
+    C = B.Lot()
+    q = haut + Vector((0.55, 0, 0.05))
+    C.ajouter(B.tube([q, q + Vector((0, 0, -0.35))], 0.015, 4), "corde")
+    C.ajouter(B.demi_sphere(0.16, 12, 5, bas=False), "or", B.mat4(q + Vector((0, 0, -0.62)), (0, 0, 0), (1, 1, 1.4)))
+    C.ajouter(B.sphere(0.05, 6, 4), "or", B.mat4(q + Vector((0, 0, -0.66))))
+    M.anim("cloche", C, "balance", origine=tuple(q), axe=[1, 0, 0], ampl=0.25, vitesse=2.2)
+    # une mouette posée sur son épaule
+    oiseau(L, (0.0, 1.55, 5.55), (1, 0.2, 0))
+    # des voiles de brume qui tournent autour d'elle
+    V = B.Lot()
+    for k in range(4):
+        pts, ls = [], []
+        for j in range(22):
+            t = j / 21
+            a = k * math.pi / 2 + t * 3.6
+            r = 2.5 + math.sin(t * 5 + k) * 0.25
+            pts.append(Vector((math.cos(a) * r, math.sin(a) * r, 0.4 + k * 0.9 + t * 1.6)))
+            ls.append(0.28 * math.sin(math.pi * t) + 0.02)
+        V.ajouter(B.ruban(pts, ls, haut=(0, 0, 1), pli=0.05), "glace")
+    M.anim("brume", V, "tourne", axe=[0, 0, 1], vitesse=0.45)
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=2.6)
+
+
+def plus_marais(M):
+    import barhaw_iles_v4b as IL2
+    L = M.L
+    rnd = random.Random(121)
+    # la cape royale violette sur le dos, son col d'hermine, son galon d'or
+    L.ajouter(B.demi_sphere(3.1, 26, 9), "violet", B.mat4((-1.3, 0, 1.0), (0, -0.55, 0), (0.62, 1.18, 1.25)))
+    L.ajouter(B.tore(2.9, 0.12, 36, 5), "or", B.mat4((-1.25, 0, 1.0), (0, -0.55, 0), (0.62, 1.18, 1.0)))
+    for k in range(17):
+        a = math.pi * 0.55 + k * math.pi * 0.9 / 16
+        p = Vector((-0.1 + math.cos(a) * 1.5, math.sin(a) * 2.6, 4.55 - abs(math.sin(a)) * 0.6))
+        L.ajouter(B.sphere(0.36, 10, 8), "creme", B.mat4(p))
+        if k % 3 == 1:
+            L.ajouter(B.sphere(0.07, 6, 4), "noir", B.mat4(p + Vector((0.1, 0, 0.32)), (0, 0, 0), (1, 1, 1.8)))
+    # le sceptre : un roseau, sa massette et une pierre de lune
+    base = Vector((2.4, -3.3, -0.1))
+    L.ajouter(B.tube([base, base + Vector((0.15, -0.1, 3.2)), base + Vector((0.3, -0.15, 5.0))], [0.09, 0.08, 0.06], 7), "vert_fonce")
+    L.ajouter(B.cyl(0.2, 0.2, 0.9, 10), "bois_fonce", B.mat4(base + Vector((0.3, -0.15, 5.0))))
+    L.ajouter(B.sphere(0.2, 10, 8), "bois_fonce", B.mat4(base + Vector((0.3, -0.15, 5.9))))
+    L.ajouter(B.ico(0.28, 1), "cristal", B.mat4(base + Vector((0.3, -0.15, 6.3))))
+    for k in range(3):
+        L.ajouter(B.ruban([base + Vector((0, 0, 1.2 + k * 0.5)), base + Vector((0.3, -0.5 + k * 0.4, 2.0 + k * 0.5)), base + Vector((0.5, -0.8 + k * 0.5, 2.2 + k * 0.5))], [0.08, 0.06, 0.0], haut=(0, 0, 1), pli=0.3), "vert")
+    # des fleurs de nénuphar sur le bord de la feuille
+    for k, a in enumerate((0.8, 2.4, 3.6, 5.2)):
+        p = Vector((math.cos(a) * 3.5, math.sin(a) * 3.5, 0.1))
+        for j in range(2):
+            L.ajouter(B.etoile(0.55 - j * 0.18, 0.2 - j * 0.06, 0.08, 6 + j, 0.5), "rose_pale" if j == 0 else "rose", B.mat4(p + Vector((0, 0, j * 0.12)), (0, 0, a + j * 0.3)))
+        L.ajouter(B.sphere(0.12, 8, 6), "jaune", B.mat4(p + Vector((0, 0, 0.32))))
+    # des gouttes qui coulent de la bouche, des taches sur le dos
+    for k in range(4):
+        L.ajouter(B.sphere(0.12, 8, 6), "eau", B.mat4((3.0, -0.6 + k * 0.4, 2.7 - (k % 2) * 0.3), (0, 0, 0), (0.8, 0.8, 1.4)))
+    for k in range(10):
+        a, b = rnd.uniform(1.6, 4.6), rnd.uniform(0.4, 1.2)
+        p = Vector((math.cos(a) * math.cos(b) * 3.1, math.sin(a) * math.cos(b) * 3.0, 2.3 + math.sin(b) * 2.55))
+        L.ajouter(B.sphere(rnd.uniform(0.25, 0.45), 10, 6), "vert_fonce", B.mat4(p, (0, -b + math.pi / 2, a), (1, 1, 0.2)))
+    # trois libellules qui tournent autour de sa tête
+    D = B.Lot()
+    for k in range(3):
+        a = k * 2 * math.pi / 3
+        c = Vector((math.cos(a) * 3.6, math.sin(a) * 3.6, 6.2 + k * 0.4))
+        d = Vector((-math.sin(a), math.cos(a), 0))
+        D.ajouter(B.tube([c - d * 0.5, c + d * 0.5], [0.05, 0.08], 6), "turquoise")
+        D.ajouter(B.sphere(0.12, 8, 6), "turquoise", B.mat4(c + d * 0.55))
+        cote = d.cross(Vector((0, 0, 1)))
+        for s in (-1, 1):
+            for j in (-0.12, 0.12):
+                D.ajouter(B.boite(0.18, 0.55, 0.02), "glace", B.mat4(c + d * (0.2 + j) + cote * s * 0.32, (0, 0, math.atan2(d.y, d.x) + s * 0.2)))
+    M.anim("libellules", D, "tourne", axe=[0, 0, 1], vitesse=0.9)
+    M.repere("lucioles", "lucioles", (0, 0, 1.0), rayon=6)
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=4.4)
+
+
+def plus_cristal(M):
+    import barhaw_iles_v4b as IL2
+    L = M.L
+    C = B.Lot()
+    # des gerbes de cristaux qui poussent sur le dos et l'abdomen
+    for k, (p, n, h) in enumerate((((-2.6, 0, 0.9), 6, 2.4), ((-1.9, 0.3, 1.3), 5, 1.9), ((-1.2, -0.3, 1.6), 5, 1.6), ((-0.2, 0.3, 3.4), 4, 1.4), ((-0.1, -0.4, 4.4), 4, 1.2))):
+        gerbe(L, p, n, h, 0.26, 130 + k, coeur=C, ouverture=0.6)
+    # un col de grands cristaux derrière la tête, comme une collerette
+    for k in range(9):
+        a = math.pi * 0.55 + k * math.pi * 0.9 / 8
+        IL2.cristal(L, (0.2, 0, 5.2), (math.cos(a) * 0.9 - 0.3, math.sin(a) * 0.9, 0.7), 1.6 + (k % 2) * 0.5, 0.18, ("cristal", "violet", "rose_pale")[k % 3])
+    # le thorax : une armure de facettes
+    for k in range(4):
+        z = 1.6 + k * 0.9
+        L.ajouter(B.cyl(0.78 - k * 0.07, 0.62 - k * 0.07, 0.55, 6), "violet" if k % 2 else "cristal", B.mat4((0.18 + k * 0.1, 0, z), (0, 0.11, k * 0.5)))
+    # la couronne de pointes, les mandibules, les joints des pattes
+    for k in range(7):
+        a = k * 2 * math.pi / 7
+        IL2.cristal(L, (0.85 + math.cos(a) * 0.45, math.sin(a) * 0.6, 6.7), (math.cos(a) * 0.4, math.sin(a) * 0.4, 1), 0.7 - (k % 2) * 0.25, 0.09, "glace" if k % 2 else "cristal")
+    for s in (-1, 1):
+        L.ajouter(B.tube(B.courbe((1.55, s * 0.25, 5.55), (1.75, s * 0.05, 5.05), (1.85, s * 0.35, 5.35), 6), [0.07, 0.06, 0.05, 0.04, 0.03, 0.01], 5), "violet_fonce")
+        for k in range(2):
+            h0 = Vector((-0.3 - k * 0.9, s * 0.5, 1.4))
+            L.ajouter(B.sphere(0.16, 10, 6), "violet", B.mat4(h0 + Vector((0.2, s * 1.6, 1.0))))
+            L.ajouter(B.sphere(0.12, 8, 6), "violet", B.mat4(h0))
+    # les nervures des ailes
+    for s in (-1, 1):
+        for j in range(3):
+            L.ajouter(B.tube([(-0.2, s * 0.55, 3.6), (-1.6, s * (0.9 + j * 0.3), 3.6 + j * 0.25), (-3.3, s * (1.1 + j * 0.25), 3.0 + j * 0.3)], 0.025, 4), "violet")
+    # des éclats de cristal qui flottent et tournent autour d'elle
+    E = B.Lot()
+    rnd = random.Random(133)
+    for k in range(9):
+        a = k * 2 * math.pi / 9
+        r = 3.4 + rnd.uniform(-0.3, 0.4)
+        IL2.cristal(E, (math.cos(a) * r, math.sin(a) * r, 2.6 + rnd.uniform(0, 3.4)), (rnd.uniform(-0.5, 0.5), rnd.uniform(-0.5, 0.5), 1), rnd.uniform(0.9, 1.5), 0.2, ("cristal", "rose_pale", "glace")[k % 3])
+    M.anim("eclats", E, "tourne", axe=[0, 0, 1], vitesse=0.6)
+    M.anim("coeurs", C, "clignote", lent=1)
+    M.repere("etincelles", "etincelles", (1.0, 0, 6.2))
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=3.0)
+
+
+def plus_archipel(M):
+    import barhaw_iles_v4b as IL2
+    L = M.L
+    rnd = random.Random(141)
+    # recalcule la ligne du corps (comme nimbus)
+    pts = []
+    for k in range(48):
+        t = k / 47
+        a = t * math.pi * 3.2
+        r = 3.2 * (1 - t * 0.55)
+        pts.append(Vector((math.cos(a) * r - 1.0, math.sin(a) * r, -0.5 + t * 7.5 + math.sin(t * 9) * 0.6)))
+    # des plaques dorées le long du dos, des nageoires de nuage
+    for k in range(4, 44, 3):
+        p = pts[k]
+        d = (pts[k + 1] - pts[k - 1]).normalized()
+        rr = 0.55 + 0.45 * math.sin(k / 47 * math.pi) + 0.2
+        rot = d.to_track_quat("Y", "Z").to_euler()
+        L.ajouter(B.etoile(0.32, 0.14, 0.08, 4, 0.3), "or", B.mat4(p + Vector((0, 0, rr * 0.95)), (math.pi / 2, 0, math.atan2(d.y, d.x))))
+        if k % 9 == 4:
+            for s in (-1, 1):
+                cote = d.cross(Vector((0, 0, 1))).normalized()
+                L.ajouter(B.ruban([p + cote * s * rr * 0.8, p + cote * s * (rr + 0.7) + Vector((0, 0, -0.2)), p + cote * s * (rr + 1.2) - d * 0.4 + Vector((0, 0, -0.5))], [0.25, 0.3, 0.05], haut=(0, 0, 1), pli=0.2), "glace")
+    # un petit îlot volant, son arbre et une cascade, qui flotte près de lui
+    I = B.Lot()
+    c = Vector((2.6, -2.8, 5.2))
+    I.ajouter(B.caillou(0.9, 142, 0.3, 2, (1.2, 1.0, 0.7)), "pierre", B.mat4(c))
+    I.ajouter(B.demi_sphere(0.95, 14, 4), "vert_clair", B.mat4(c + Vector((0, 0, 0.35)), (0, 0, 0), (1.15, 0.95, 0.3)))
+    IL2.arbre_rond(I, c + Vector((0.2, 0.1, 0.4)), 0.9, 0.7, graine=143)
+    I.ajouter(B.ruban([c + Vector((0.8, 0, 0.1)), c + Vector((1.0, 0, -0.8)), c + Vector((1.05, 0, -1.8))], [0.18, 0.16, 0.05], haut=(1, 0, 0), pli=0.05), "eau_douce")
+    M.anim("ilot", I, "flotte", ampl=0.35, phase=0.6)
+    # des éclairs qui crépitent entre les anneaux
+    E = B.Lot()
+    for k in range(3):
+        a = k * 2.1 + 0.4
+        p0 = Vector((math.cos(a) * 2.2 - 1.0, math.sin(a) * 2.2, 1.5 + k * 1.6))
+        zig = [p0 + Vector((rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3), -j * 0.45)) + Vector((0.25 * (1 if j % 2 else -1), 0, 0)) for j in range(6)]
+        E.ajouter(B.tube(zig, [0.07, 0.08, 0.07, 0.06, 0.05, 0.02], 4), "lumiere")
+    M.anim("eclairs", E, "clignote")
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=3.6)
+
+
+def plus_cimetiere(M):
+    L = M.L
+    rnd = random.Random(151)
+    # le jabot de dentelle, les revers dorés, les manchettes
+    for k in range(3):
+        L.ajouter(B.demi_sphere(0.42 - k * 0.07, 14, 4), "creme", B.mat4((1.05, 0, 4.25 - k * 0.32), (0, math.pi / 2 - 0.3, 0), (1, 1, 0.35)))
+    for s in (-1, 1):
+        L.ajouter(B.tube([(0.9, s * 0.35, 4.6), (1.25, s * 0.6, 3.6), (1.3, s * 0.75, 2.95)], 0.09, 5), "or")
+    # une boucle d'oreille, une chaîne et sa menotte au poignet de la lanterne
+    L.ajouter(B.tore(0.16, 0.035, 12, 4), "or", B.mat4((0.3, -0.95, 5.55), (math.pi / 2, 0, 0)))
+    m = Vector((1.6, -1.9, 3.5))
+    L.ajouter(B.tore(0.22, 0.06, 14, 5), "fer", B.mat4(m + Vector((-0.2, 0, 0.15)), (0, math.pi / 2, 0)))
+    for k in range(7):
+        q = m + Vector((-0.4 - k * 0.12, -0.15 - k * 0.05, -0.1 - k * 0.32))
+        L.ajouter(B.tore(0.1, 0.03, 10, 4), "fer", B.mat4(q, ((k % 2) * math.pi / 2, 0.3, 0)))
+    # deux pistolets à la ceinture
+    for s in (-1, 1):
+        p = Vector((1.15, s * 0.65, 2.75))
+        L.ajouter(B.tube([p, p + Vector((0.15, s * 0.1, -0.9))], [0.07, 0.06], 8), "fer")
+        L.ajouter(B.tube([p, p + Vector((0.2, s * 0.25, 0.35))], [0.08, 0.1], 7), "bois_fonce")
+        L.ajouter(B.sphere(0.07, 6, 4), "or", B.mat4(p + Vector((0.2, s * 0.25, 0.38))))
+    # le perroquet squelette sur l'épaule (ses yeux verts luisent)
+    P = Vector((0.1, -1.35, 5.0))
+    L.ajouter(B.sphere(0.2, 12, 8), "os", B.mat4(P + Vector((0.1, 0, 0.75)), (0, 0, 0), (1.2, 0.9, 1)))
+    L.ajouter(B.cyl(0.08, 0.0, 0.22, 6), "os", B.mat4(P + Vector((0.32, 0, 0.7)), (0, math.pi / 2 + 0.6, 0)))
+    L.ajouter(B.sphere(0.06, 6, 4), "spectre", B.mat4(P + Vector((0.2, 0.12, 0.8))))
+    L.ajouter(B.sphere(0.06, 6, 4), "spectre", B.mat4(P + Vector((0.2, -0.12, 0.8))))
+    L.ajouter(B.tube([P + Vector((0, 0, 0.6)), P + Vector((-0.1, 0, 0.25)), P + Vector((-0.4, 0, -0.1))], 0.04, 5), "os")
+    for k in range(4):
+        L.ajouter(B.tore(0.13 - k * 0.015, 0.02, 10, 3), "os", B.mat4(P + Vector((-0.1 - k * 0.05, 0, 0.45 - k * 0.1)), (0, math.pi / 2 - 0.4, 0)))
+    for s in (-1, 1):
+        for k in range(4):
+            L.ajouter(B.tube([P + Vector((-0.05, s * 0.15, 0.5)), P + Vector((-0.45 - k * 0.12, s * (0.3 + k * 0.05), 0.35 - k * 0.12))], 0.018, 3), "os")
+    # les lambeaux du manteau, plus longs ; des algues accrochées
+    frange(L, (0, 0, 0), 1.7, -0.2, 18, "prune", 152, (0.4, 1.1))
+    for k in range(8):
+        a = rnd.uniform(0, 6.28)
+        p = Vector((math.cos(a) * 1.6, math.sin(a) * 1.6, rnd.uniform(0.8, 2.4)))
+        L.ajouter(B.ruban([p, p + Vector((math.cos(a) * 0.15, math.sin(a) * 0.15, -0.5)), p + Vector((math.cos(a) * 0.2, math.sin(a) * 0.2, -1.0))], [0.08, 0.07, 0.01], haut=(math.cos(a), math.sin(a), 0), pli=0.2), "vert_fonce")
+    # des flammes vertes qui dansent sur l'eau autour de lui
+    F = B.Lot()
+    for k in range(6):
+        a = k * 2 * math.pi / 6 + 0.3
+        p = Vector((math.cos(a) * 2.6, math.sin(a) * 2.6, 0.1))
+        F.ajouter(B.cyl(0.22, 0.0, 0.8, 7), "spectre", B.mat4(p))
+        F.ajouter(B.cyl(0.12, 0.0, 0.5, 6), "spectre", B.mat4(p + Vector((0.15, 0.1, 0.2))))
+    M.anim("feux", F, "clignote")
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=2.4)
+
+
+def plus_horloge(M):
+    import barhaw_iles_v4b as IL2
+    L = M.L
+    # une vitre ronde dans le ventre, et le balancier qui oscille derrière
+    c = Vector((2.25, 0, 0.6))
+    L.ajouter(B.tore(0.75, 0.12, 30, 5), "laiton", B.mat4(c, (0, math.pi / 2, 0)))
+    L.ajouter(B.cyl(0.72, 0.72, 0.04, 30), "noir", B.mat4(c + Vector((-0.12, 0, 0)), (0, math.pi / 2, 0)))
+    P = B.Lot()
+    o = c + Vector((0.02, 0, 0.6))
+    P.ajouter(B.cyl(0.03, 0.03, 0.9, 6), "laiton", B.mat4(o + Vector((0, 0, -0.9))))
+    P.ajouter(B.cyl(0.22, 0.22, 0.05, 18), "or", B.mat4(o + Vector((0, 0, -1.0)), (0, math.pi / 2, 0)))
+    M.anim("balancier", P, "balance", origine=tuple(o), axe=[1, 0, 0], ampl=0.45, vitesse=2.4)
+    L.ajouter(B.cyl(0.7, 0.7, 0.02, 30), "glace", B.mat4(c + Vector((0.08, 0, 0)), (0, math.pi / 2, 0)))
+    # un manomètre, des tuyaux de cuivre du dos à la tête, un monocle
+    g = Vector((1.85, -1.3, 3.6))
+    L.ajouter(B.cyl(0.3, 0.3, 0.12, 18), "laiton", B.mat4(g, (0, math.pi / 2, -0.6)))
+    L.ajouter(B.cyl(0.25, 0.25, 0.14, 18), "creme", B.mat4(g + Vector((0.02, 0, 0)), (0, math.pi / 2, -0.6)))
+    L.ajouter(B.boite(0.03, 0.03, 0.2), "rouge", B.mat4(g + Vector((0.12, 0.03, 0.06)), (0.6, 0, -0.6)))
+    for s in (-1, 1):
+        L.ajouter(B.tube([(-1.6, s * 1.2, 1.5), (-2.3, s * 1.5, 3.2), (-1.6, s * 1.0, 5.0), (-0.6, s * 0.7, 5.6)], 0.14, 8), "cuivre")
+        for t in (0.25, 0.6):
+            L.ajouter(B.tore(0.17, 0.05, 10, 4), "laiton", B.mat4(Vector((-2.0, s * 1.38, 2.3)) if t < 0.5 else Vector((-1.95, s * 1.2, 4.3)), (0.5, 0.4, 0)))
+    L.ajouter(B.tore(0.42, 0.06, 18, 4), "laiton", B.mat4((1.22, -0.5, 6.2), (0, math.pi / 2, 0)))
+    L.ajouter(B.tube(B.courbe((1.25, -0.9, 6.2), (0.9, -1.0, 4.9), (1.4, -1.2, 5.5), 6), 0.015, 3), "laiton")
+    # des engrenages qui tournent sur les épaules et dans le dos
+    for k, (pos, r, sens) in enumerate((((0, 2.95, 4.3), 0.75, 1), ((0, -2.95, 4.3), 0.75, -1), ((-2.3, 0.0, 3.6), 0.9, 1), ((-2.2, 0.0, 1.6), 0.6, -1))):
+        G = B.Lot()
+        rot = (0, 0, 0) if abs(pos[1]) > 1 else (0, 0, math.pi / 2)  # sur les épaules : l'axe vers le côté ; dans le dos : vers l'arrière
+        IL2.engrenage(G, B.mat4(pos, rot), r, 0.16, 12 if r > 0.7 else 9)
+        M.anim(f"roue{k}", G, "tourne", origine=pos, axe=[0, 1, 0] if abs(pos[1]) > 1 else [1, 0, 0], vitesse=0.8 * sens * (1 if r > 0.7 else 1.4))
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=2.6)
+
+
+def plus_geants(M):
+    import barhaw_iles_v4b as IL2
+    L = M.L
+    rnd = random.Random(171)
+    # des lianes qui pendent de la tête et des épaules
+    for k in range(12):
+        a = rnd.uniform(0.6, 5.7)
+        p = Vector((math.cos(a) * 1.9, math.sin(a) * 2.0, 6.0 + rnd.uniform(-0.2, 0.3)))
+        lg = rnd.uniform(1.0, 2.6)
+        L.ajouter(B.tube([p, p + Vector((math.cos(a) * 0.3, math.sin(a) * 0.3, -lg * 0.5)), p + Vector((math.cos(a) * 0.35, math.sin(a) * 0.35, -lg))], [0.05, 0.04, 0.03], 5), "vert_fonce")
+        for j in range(3):
+            q = p + Vector((math.cos(a) * 0.3, math.sin(a) * 0.3, -lg * (0.3 + j * 0.3)))
+            L.ajouter(B.ruban([q, q + Vector((math.cos(a + 1) * 0.2, math.sin(a + 1) * 0.2, -0.1))], [0.1, 0.0], haut=(0, 0, 1), pli=0.3), "feuille")
+    # des runes qui luisent sur la poitrine
+    R = B.Lot()
+    for k in range(5):
+        y = -1.3 + k * 0.65
+        z = 2.6 + (k % 2) * 0.5
+        R.ajouter(B.boite(0.08, 0.1, 0.45), "turquoise", B.mat4((3.05, y, z), (0, 0.25, 0)))
+        R.ajouter(B.boite(0.08, 0.3, 0.08), "turquoise", B.mat4((3.05, y + 0.1, z + 0.1 * (1 if k % 2 else -1)), (0, 0.25, 0.6)))
+    M.anim("runes", R, "clignote", lent=1)
+    # des veines de cristal dans l'épaule, des champignons, un nid d'oiseaux dans les cheveux
+    gerbe(L, (-0.4, 2.6, 3.6), 4, 1.1, 0.16, 172, ("turquoise", "glace", "cristal"))
+    gerbe(L, (-0.6, -2.4, 2.6), 3, 0.8, 0.13, 173, ("turquoise", "glace"))
+    for k in range(6):
+        a = rnd.uniform(0, 6.28)
+        p = Vector((math.cos(a) * 2.9, math.sin(a) * 3.2, rnd.uniform(0.6, 2.4)))
+        L.ajouter(B.cyl(0.07, 0.06, 0.22, 6), "champi_pied", B.mat4(p))
+        L.ajouter(B.demi_sphere(0.2, 10, 4), "rouge", B.mat4(p + Vector((0, 0, 0.2))))
+        L.ajouter(B.sphere(0.04, 4, 3), "blanc", B.mat4(p + Vector((0.08, 0, 0.36))))
+    n = Vector((-0.6, -0.6, 6.95))
+    L.ajouter(B.tore(0.4, 0.13, 16, 6), "paille", B.mat4(n))
+    oiseau(L, n + Vector((0.05, 0.1, 0.15)), (1, 0.3, 0), "jaune", "orange", "orange", 0.8)
+    oiseau(L, n + Vector((-0.2, -0.2, 0.12)), (0.6, -0.8, 0), "turquoise", "violet", "orange", 0.7)
+    # une cascade qui tombe de son épaule gauche
+    s0 = Vector((0.4, -3.1, 3.9))
+    L.ajouter(B.ruban([s0, s0 + Vector((0.3, -0.4, -1.2)), s0 + Vector((0.45, -0.55, -2.6)), s0 + Vector((0.5, -0.6, -4.0))], [0.35, 0.4, 0.45, 0.5], haut=(1, 0, 0), pli=0.1), "eau_douce")
+    for k in range(6):
+        L.ajouter(B.sphere(0.25 + (k % 2) * 0.1, 8, 6), "blanc", B.mat4(s0 + Vector((0.5 + (k - 3) * 0.2, -0.6 + (k % 3 - 1) * 0.2, -3.95)), (0, 0, 0), (1.3, 1.3, 0.6)))
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=3.8)
+    M.repere("spores", "spores", (0, 0, 6.0))
+
+
+def plus_forteresse(M):
+    L = M.L
+    # l'écharpe en travers, les médailles, les franges des épaulettes, les manchettes dorées
+    L.ajouter(B.tube([(1.0, 1.6, 4.4), (2.2, 0.9, 3.2), (2.45, -0.3, 2.2), (2.1, -1.4, 1.5)], 0.22, 10), "turquoise")
+    L.ajouter(B.sphere(0.32, 10, 8), "turquoise", B.mat4((2.1, -1.5, 1.45), (0, 0, 0), (0.6, 1, 1.2)))
+    for k in range(3):
+        p = Vector((2.25 - k * 0.04, 0.95, 3.6 - k * 0.42))
+        L.ajouter(B.boite(0.06, 0.32, 0.28), ("rouge", "turquoise", "violet")[k], B.mat4(p + Vector((0, 0, 0.18))))
+        L.ajouter(B.etoile(0.2, 0.09, 0.06, 5 + k, 0.4), "or", B.mat4(p + Vector((0.05, 0, -0.1)), (0, math.pi / 2, 0)))
+    for s in (-1, 1):
+        for k in range(9):
+            a = k * math.pi / 8 - math.pi / 2
+            q = Vector((math.cos(a) * 0.6, s * 1.6 + math.sin(a) * 0.2 * s, 4.45))
+            L.ajouter(B.tube([q, q + Vector((0, s * 0.1, -0.5))], 0.04, 4), "or")
+            L.ajouter(B.sphere(0.06, 6, 4), "or", B.mat4(q + Vector((0, s * 0.1, -0.55))))
+    L.ajouter(B.tore(0.46, 0.12, 16, 5), "or", B.mat4(Vector((0, 2.4, 3.9)) + Vector((1.1, 0.6, -0.6)) + Vector((0.6, -0.1, 0.9)), (0, math.pi / 2 - 0.5, 0)))
+    # des boulets dans un filet à la ceinture
+    for k in range(3):
+        L.ajouter(B.sphere(0.26, 12, 8), "noir", B.mat4((-0.6 + k * 0.4, -2.45, 0.9 - (k % 2) * 0.3)))
+    L.ajouter(B.tore(0.5, 0.03, 16, 3), "corde", B.mat4((-0.2, -2.45, 0.8), (math.pi / 2, 0, 0)))
+    # le perroquet multicolore sur l'épaule droite (il se dandine)
+    G = B.Lot()
+    o = Vector((0.0, 1.75, 4.65))
+    oiseau(G, o, (1, -0.1, 0), "rouge", "turquoise", "jaune", 1.6)
+    G.ajouter(B.cyl(0.08, 0.0, 0.7, 6), "jaune", B.mat4(o + Vector((-0.45, 0, 0.0)), (0, -math.pi / 2 - 0.5, 0)))
+    G.ajouter(B.cyl(0.07, 0.0, 0.6, 6), "turquoise", B.mat4(o + Vector((-0.45, 0.1, 0.05)), (0, -math.pi / 2 - 0.3, 0.2)))
+    M.anim("perroquet", G, "balance", origine=tuple(o), axe=[1, 0, 0], ampl=0.12, vitesse=2.6)
+    # la mèche du canon qui grésille, des pans de manteau derrière
+    sh = Vector((0, -2.4, 3.9))
+    L.ajouter(B.tube([sh + Vector((1.0, -0.4, 0.75)), sh + Vector((1.1, -0.4, 1.2)), sh + Vector((1.3, -0.3, 1.4))], 0.03, 4), "corde")
+    M.repere("meche", "etincelles", tuple(sh + Vector((1.3, -0.3, 1.45))))
+    for s in (-1, 1):
+        L.ajouter(B.boite(1.2, 0.12, 2.2), "rouge_fonce", B.mat4((-2.1, s * 0.75, 0.2), (0, 0.25, s * 0.25)))
+        L.ajouter(B.boite(1.25, 0.14, 0.18), "or", B.mat4((-2.35, s * 0.75, -0.85), (0, 0.25, s * 0.25)))
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=2.8)
+
+
+def plus_fantome(M):
+    L = M.L
+    rnd = random.Random(191)
+    # les bordages de la coque (des lattes), des trous où brille une lueur verte
+    for k in range(5):
+        z = 0.1 + k * 0.22
+        for s in (-1, 1):
+            pts = []
+            for j in range(14):
+                x = -4.0 + j * 8.0 / 13
+                w = 1.35 * (1 - max(0.0, x / 4.2) * 0.35) * math.sqrt(max(0.0, 1 - (x / 4.2) ** 2)) * (1 - (1.2 - z) ** 2 * 0.25)
+                pts.append((x, s * (w + 0.02), z))
+            L.ajouter(B.tube(pts, 0.03, 4), "bois_fonce")
+    for k in range(4):
+        x = rnd.uniform(-2.5, 2.5)
+        s = rnd.choice((-1, 1))
+        w = 1.35 * (1 - max(0.0, x / 4.2) * 0.35) * math.sqrt(max(0.0, 1 - (x / 4.2) ** 2))
+        L.ajouter(B.cyl(0.22, 0.22, 0.04, 10), "spectre", B.mat4((x, s * (w - 0.05), 0.35), (math.pi / 2, 0, 0)))
+    # la figure de proue : un crâne cornu aux yeux verts
+    f = Vector((4.25, 0, 1.55))
+    L.ajouter(B.sphere(0.32, 12, 10), "os", B.mat4(f, (0, 0.3, 0), (1.1, 0.9, 1)))
+    for s in (-1, 1):
+        L.ajouter(B.sphere(0.08, 6, 4), "spectre", B.mat4(f + Vector((0.28, s * 0.12, 0.05))))
+        L.ajouter(B.tube([f + Vector((-0.05, s * 0.25, 0.2)), f + Vector((-0.2, s * 0.55, 0.5)), f + Vector((0.1, s * 0.7, 0.8))], [0.08, 0.06, 0.01], 6), "os")
+    # la hune du grand mât, sa lanterne ; un fanion déchiré (un œil vert en spirale, inventé)
+    L.ajouter(B.cyl(0.55, 0.45, 0.3, 12), "bois_fonce", B.mat4((-0.6, 0, 6.2)))
+    L.ajouter(B.tore(0.55, 0.04, 16, 3), "fer", B.mat4((-0.6, 0, 6.55)))
+    import barhaw_iles_v4b as IL2
+    D = B.Lot()
+    nx, ny = 7, 3
+    verts, faces = [], []
+    for jj in range(ny + 1):
+        for ii in range(nx + 1):
+            verts.append((ii / nx * 1.6, 0, -jj / ny * 0.9 * (1 - 0.3 * ii / nx) - (rnd.random() * 0.15 if ii == nx else 0)))
+    for jj in range(ny):
+        for ii in range(nx):
+            if rnd.random() < 0.15 and ii > 3:
+                continue
+            q = jj * (nx + 1) + ii
+            faces.append([q, q + nx + 1, q + nx + 2, q + 1])
+    D.faces(verts, faces, "gris", True)
+    D.ajouter(B.tore(0.22, 0.06, 16, 4), "spectre", B.mat4((0.55, 0.02, -0.42), (math.pi / 2, 0, 0)))
+    D.ajouter(B.cyl(0.08, 0.08, 0.04, 10), "spectre", B.mat4((0.55, 0.02, -0.42), (math.pi / 2, 0, 0)))
+    o = D.objet(f"{M.id}_fanion", M.coll, angle=80, origine=(-0.6, 0, 8.25))
+    o.location = Vector((-0.6, 0, 8.25))
+    o["role"] = "anim"
+    B.anime(o, "drapeau", phase=0.7)
+    # des chaînes qui pendent de la proue
+    for s in (-1, 1):
+        for k in range(8):
+            q = Vector((3.6 + k * 0.05, s * (0.95 - k * 0.02), 1.05 - k * 0.15))
+            L.ajouter(B.tore(0.07, 0.022, 8, 3), "fer", B.mat4(q, ((k % 2) * math.pi / 2, 0, 0)))
+    # des flammes vertes sur les plats-bords, des feux follets qui tournent autour du navire
+    F = B.Lot()
+    for k in range(7):
+        x = -3.2 + k * 1.1
+        s = 1 if k % 2 else -1
+        w = 1.35 * (1 - max(0.0, x / 4.2) * 0.35) * math.sqrt(max(0.0, 1 - (x / 4.2) ** 2))
+        F.ajouter(B.cyl(0.13, 0.0, 0.5, 6), "spectre", B.mat4((x, s * w, 1.25)))
+    M.anim("flammes", F, "clignote")
+    W = B.Lot()
+    for k in range(6):
+        a = k * 2 * math.pi / 6
+        c = Vector((math.cos(a) * 5.0, math.sin(a) * 3.0, 2.0 + (k % 3) * 0.8))
+        W.ajouter(B.sphere(0.2, 10, 8), "spectre", B.mat4(c))
+        d = Vector((-math.sin(a), math.cos(a), 0))
+        W.ajouter(B.tube([c, c - d * 0.5 + Vector((0, 0, 0.05)), c - d * 1.0 + Vector((0, 0, 0.15))], [0.16, 0.1, 0.02], 6), "spectre")
+    M.anim("follets", W, "tourne", axe=[0, 0, 1], vitesse=0.5)
+    M.repere("eau", "ecume", (0, 0, 0.05), rayon=4.0)
+
+
+DETAILS = {"phare": plus_phare, "marais": plus_marais, "cristal": plus_cristal, "archipel": plus_archipel, "cimetiere": plus_cimetiere,
+           "horloge": plus_horloge, "geants": plus_geants, "forteresse": plus_forteresse, "fantome": plus_fantome}
+
+
 MAITRES = {"phare": mere_brume, "marais": roi_crapaud, "cristal": mante_prisme, "archipel": nimbus, "cimetiere": calcaire,
            "horloge": grand_remontoir, "geants": ronchon, "forteresse": amiral_boulet, "fantome": vaisseau_fantome}
 
@@ -543,6 +1004,7 @@ def construire(ids=None, rendu=True, exporter=True):
         coll = B.collection(nom.replace("-", "_"))
         M = Modele(nom.replace("-", "_"), coll)
         MAITRES[id_](M)
+        DETAILS[id_](M)
         corps = M.finir()
         infos = {"patine": I.patiner(corps, M.lumieres, teinte=(0.85, 0.95, 0.92) if id_ in ("fantome", "cimetiere") else (1.0, 1.0, 1.0))}
         B.nettoyer()

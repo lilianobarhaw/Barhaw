@@ -3011,3 +3011,91 @@ html.gl-salle-ouverte, html.gl-salle-ouverte body { overflow: hidden; }
 .gl2-sceau text { font-size: 7px; text-anchor: middle; fill: #c2283a; font-family: "Noto Serif JP", serif; }
 .gl2-pause .gl2-houle, .gl2-pause .gl2-rose { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .gl2-houle, .gl2-rose { animation: none; } }
+
+/* ---------- La Traversée (V4) : le mini-jeu de GRAND LINE ---------- */
+.tv-carte { display: grid; grid-template-columns: minmax(200px, 300px) 1fr minmax(240px, 320px); gap: 22px; align-items: stretch; margin: 22px 0 0; padding: 18px; border-color: rgba(255, 120, 190, 0.35); box-shadow: 6px 7px 0 var(--ombre); overflow: hidden; }
+.tv-carte[hidden] { display: none; }
+.tv-affiche { position: relative; min-height: 200px; border: 3px solid var(--encre); border-radius: 16px; overflow: hidden; box-shadow: 4px 4px 0 var(--ombre);
+  background: linear-gradient(180deg, #24092f 0%, #7a2a6a 38%, #ffa9bf 56%, #f08ab8 57%, #5b7fd0 66%, #22377e 100%); }
+.tv-kanji { position: absolute; right: 10px; top: 6px; font-family: var(--sfx); font-size: 44px; line-height: 1; color: rgba(255, 220, 236, 0.22); writing-mode: vertical-rl; }
+.tv-soleil { position: absolute; left: 58%; top: 38%; width: 58px; height: 29px; border-radius: 58px 58px 0 0; background: repeating-linear-gradient(180deg, #fff3dc 0 6px, #fff3dc 6px 9px, #ff8fb0 9px 11px); box-shadow: 0 0 40px 14px rgba(255, 190, 150, 0.45); }
+.tv-houle { position: absolute; left: -10%; right: -10%; bottom: 0; height: 44%; background:
+  radial-gradient(14px 5px at 50% 0, transparent 70%, rgba(255, 255, 255, 0.45) 72% 88%, transparent 90%) 0 10% / 46px 18px repeat-x,
+  radial-gradient(18px 6px at 50% 0, transparent 70%, rgba(255, 255, 255, 0.35) 72% 88%, transparent 90%) 20px 55% / 64px 22px repeat-x;
+  animation: tv-houle 6s linear infinite; }
+@keyframes tv-houle { to { background-position: 46px 10%, 84px 55%; } }
+.tv-bateau { --c1: var(--rose); --c2: var(--violet); position: absolute; left: 42%; bottom: 13%; width: 64px; height: 76px; animation: tv-tangue 2.4s var(--doux) infinite alternate; transform-origin: 50% 90%; }
+.tv-voile { position: absolute; left: 6px; top: 0; width: 52px; height: 42px; border: 3px solid var(--encre); border-radius: 50% 50% 10% 10% / 30% 30% 10% 10%; background: linear-gradient(180deg, var(--c1) 0 62%, var(--c2) 62% 74%, var(--c1) 74%); }
+.tv-voile::before { content: ""; position: absolute; left: 50%; top: -14px; width: 4px; height: 66px; margin-left: -2px; background: #4a2219; z-index: -1; }
+.tv-coque { position: absolute; left: 0; bottom: 0; width: 64px; height: 24px; border: 3px solid var(--encre); border-radius: 4px 4px 32px 32px; background: linear-gradient(180deg, #d2a676 0 22%, #7a3b2e 22%); }
+@keyframes tv-tangue { from { transform: rotate(-5deg) translateY(0); } to { transform: rotate(5deg) translateY(-3px); } }
+.tv-roc { position: absolute; left: 12%; bottom: 22%; width: 34px; height: 58px; border: 3px solid var(--encre); border-radius: 46% 54% 12% 12% / 70% 64% 10% 10%; background: linear-gradient(90deg, #a39a8c 55%, #7c7368 55%); }
+.tv-roc::before { content: ""; position: absolute; left: 2px; right: 2px; top: -4px; height: 12px; border: 3px solid var(--encre); border-radius: 50%; background: #5f7a3a; }
+.tv-roc2 { left: auto; right: 9%; bottom: 30%; width: 22px; height: 36px; }
+.tv-tonneau-mini { position: absolute; left: 70%; bottom: 9%; width: 22px; height: 17px; border: 3px solid var(--encre); border-radius: 8px; background: repeating-linear-gradient(90deg, #c08a55 0 5px, #2a2a33 5px 7px); animation: tv-tangue 1.8s var(--doux) infinite alternate-reverse; }
+.tv-texte { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tv-titre { margin: 0; font-family: var(--titre); font-weight: 400; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.05; color: #fff; text-shadow: 3px 3px 0 var(--ombre); }
+.tv-pitch { margin: 0; color: var(--brume); }
+.tv-regles { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14.5px; color: var(--blanc); }
+.tv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 6px; }
+.tv-classement { min-width: 0; padding: 12px 14px; border-radius: 14px; background: rgba(18, 5, 13, 0.35); border: 1.5px solid var(--ligne); }
+.tv-classement ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.tv-classement li { display: grid; grid-template-columns: 18px auto 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; font-size: 14px; }
+.tv-classement li .fl-drapeau, .tv-fanion-vide { grid-row: 1 / 3; grid-column: 2; font-size: 6.5px; }
+.tv-fanion-vide { width: 26px; }
+.tv-rang { grid-row: 1 / 3; font-family: var(--titre); color: var(--rose); text-align: center; }
+.tv-nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.tv-classement li small { grid-column: 3; color: var(--terne); font-size: 12px; }
+.tv-classement li b { grid-column: 4; grid-row: 1 / 3; font-family: var(--fort); color: #ffd479; white-space: nowrap; }
+@media (max-width: 980px) { .tv-carte { grid-template-columns: minmax(160px, 240px) 1fr; } .tv-classement { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .tv-carte { grid-template-columns: 1fr; padding: 14px; gap: 14px; } .tv-affiche { min-height: 150px; } .tv-actions .btn { width: 100%; } }
+
+/* la salle de jeu, en plein écran */
+.tv-salle { position: fixed; inset: 0; z-index: 900; display: flex; flex-direction: column; background: #12050d; animation: gl-salle-entre 0.45s var(--doux) both; }
+.tv-haut .tv-bouton-pause { margin-left: auto; width: 44px; height: 44px; border: 3px solid var(--encre); border-radius: 50%; background: #fff; color: var(--encre); font-size: 18px; cursor: pointer; box-shadow: 3px 3px 0 var(--ombre); }
+.tv-haut .tv-bouton-pause + .gl-salle-fermer { margin-left: 0; }
+.tv-haut .tv-bouton-pause[hidden] + .gl-salle-fermer { margin-left: auto; }
+.tv-scene { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; background: #ffa9bf; }
+.tv-toile { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: grab; }
+.tv-toile:active { cursor: grabbing; }
+.tv-scene.tv-touche-coque::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 120px 30px rgba(255, 45, 85, 0.6); animation: tv-rouge 0.6s ease-out both; }
+@keyframes tv-rouge { from { opacity: 1; } to { opacity: 0; } }
+.tv-hud { position: absolute; left: 12px; right: 12px; top: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; pointer-events: none; z-index: 2; }
+.tv-coeurs { display: flex; gap: 6px; padding: 3px; }
+.tv-coeur { display: inline-block; width: 30px; height: 27px; filter: drop-shadow(2px 0 0 var(--encre)) drop-shadow(-2px 0 0 var(--encre)) drop-shadow(0 2px 0 var(--encre)) drop-shadow(0 -2px 0 var(--encre)) drop-shadow(3px 3px 0 var(--ombre)); }
+.tv-coeur::before { content: ""; display: block; width: 100%; height: 100%; background: var(--rose); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 29'%3E%3Cpath d='M16 28.5C6 20.6 0 15.2 0 8.6 0 3.8 3.7 0 8.5 0c3.1 0 5.8 1.6 7.5 4.1C17.7 1.6 20.4 0 23.5 0 28.3 0 32 3.8 32 8.6c0 6.6-6 12-16 19.9z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 29'%3E%3Cpath d='M16 28.5C6 20.6 0 15.2 0 8.6 0 3.8 3.7 0 8.5 0c3.1 0 5.8 1.6 7.5 4.1C17.7 1.6 20.4 0 23.5 0 28.3 0 32 3.8 32 8.6c0 6.6-6 12-16 19.9z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.tv-coeur.vide { filter: drop-shadow(2px 0 0 var(--encre)) drop-shadow(-2px 0 0 var(--encre)) drop-shadow(0 2px 0 var(--encre)) drop-shadow(0 -2px 0 var(--encre)); }
+.tv-coeur.vide::before { background: rgba(255, 255, 255, 0.22); }
+.tv-compteurs { text-align: right; }
+.tv-score { margin: 0; font-family: var(--titre); font-size: clamp(26px, 4vw, 40px); line-height: 1; color: #fff; -webkit-text-stroke: 2px var(--encre); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--ombre); }
+.tv-score small { font-size: 0.45em; }
+.tv-petit { margin: 4px 0 0; font-family: var(--fort); font-weight: 800; font-size: 13px; color: #fff; text-shadow: 0 1px 0 var(--encre), 0 0 6px rgba(18, 5, 13, 0.6); }
+.tv-vent { position: absolute; left: 50%; top: 4px; translate: -50% 0; display: flex; align-items: center; gap: 6px; font-size: 22px; }
+.tv-vent i { width: 120px; height: 12px; border: 2.5px solid var(--encre); border-radius: 99px; background: linear-gradient(90deg, #3fd0c9 calc(var(--v) * 100%), rgba(255, 255, 255, 0.25) 0); box-shadow: 2px 2px 0 var(--ombre); }
+.tv-pops { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.tv-pop { position: absolute; translate: -50% -50%; font-family: var(--titre); font-size: 26px; color: #ffd36b; -webkit-text-stroke: 2px var(--encre); paint-order: stroke fill; text-shadow: 2px 2px 0 var(--ombre); animation: tv-pop 1s var(--doux) both; white-space: nowrap; }
+.tv-pop-rose { color: #ff8fcb; }
+.tv-pop-vent { color: #9ff5ee; }
+@keyframes tv-pop { 0% { opacity: 0; transform: scale(0.4); } 20% { opacity: 1; transform: scale(1.15); } 100% { opacity: 0; transform: translateY(-60px) scale(1); } }
+.tv-sfx { left: 50%; top: 22%; translate: -50% 0; --r: -6deg; font-size: clamp(40px, 7vw, 64px); }
+.tv-touches { position: absolute; left: 0; right: 0; bottom: max(14px, env(safe-area-inset-bottom)); display: none; justify-content: space-between; padding: 0 14px; pointer-events: none; z-index: 2; }
+.tv-touche { pointer-events: auto; width: 72px; height: 72px; border: 3px solid var(--encre); border-radius: 50%; background: rgba(255, 255, 255, 0.8); color: var(--encre); font-size: 26px; box-shadow: 3px 3px 0 var(--ombre); touch-action: none; }
+.tv-touche.appui { background: var(--rose); color: #fff; transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ombre); }
+@media (pointer: coarse) { .tv-touches { display: flex; } }
+.tv-ecran { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: 16px; background: rgba(18, 5, 13, 0.42); }
+.tv-ecran[hidden] { display: none; }
+.tv-ecran-depart, .tv-ecran-charge { background: rgba(18, 5, 13, 0.18); pointer-events: none; }
+.tv-panneau { width: min(460px, 100%); max-height: 100%; overflow: auto; padding: 22px 22px 18px; border: 3px solid var(--encre); border-radius: 20px; background: var(--panneau); box-shadow: 6px 6px 0 var(--ombre); text-align: center; display: grid; gap: 10px; justify-items: center; animation: monter 0.35s var(--doux) both; }
+.tv-panneau .tv-regles { text-align: left; }
+.tv-gros { margin: 0; font-family: var(--titre); font-size: clamp(30px, 6vw, 44px); line-height: 1.05; color: #fff; text-shadow: 3px 3px 0 var(--ombre); }
+.tv-fin .tv-gros { background: var(--degrade); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(3px 3px 0 var(--ombre)); }
+.tv-cause { margin: 0; font-family: var(--fort); font-weight: 800; color: #ffc2cf; }
+.tv-detail { margin: 0; color: var(--brume); }
+.tv-boutons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
+.tv-decompte { margin: 0; font-family: var(--sfx); font-size: clamp(48px, 10vw, 104px); line-height: 1.05; text-align: center; color: #fff; -webkit-text-stroke: 2px var(--encre); paint-order: stroke fill; text-shadow: 5px 5px 0 var(--rose); }
+.tv-decompte.pop { animation: sfx-pop 0.5s var(--rebond) both; }
+.tv-charge { margin: 0; display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 99px; background: rgba(18, 5, 13, 0.7); color: #fff; font-family: var(--fort); font-weight: 800; }
+.tv-roue { display: inline-block; font-size: 22px; animation: tv-roue 1.6s linear infinite; }
+@keyframes tv-roue { to { transform: rotate(360deg); } }
+@media (max-width: 600px) { .tv-haut { flex-wrap: nowrap; } .tv-haut .gl-salle-titre { font-size: 18px; } .tv-haut .gl-salle-titre small { display: none; } .tv-coeur { width: 24px; height: 22px; } .tv-vent i { width: 80px; } .tv-panneau { padding: 18px 14px 14px; } .tv-haut .tv-bouton-pause { width: 38px; height: 38px; font-size: 15px; } }
+@media (prefers-reduced-motion: reduce) { .tv-salle, .tv-panneau, .tv-bateau, .tv-houle, .tv-tonneau-mini, .tv-roue { animation: none; } .tv-scene.tv-touche-coque::after { animation-duration: 0.01s; } .tv-pop { animation-duration: 0.6s; } }

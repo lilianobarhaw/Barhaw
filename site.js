@@ -3529,6 +3529,7 @@
     rendreDocteur();
     rendreMemory();
     rendreCourse();
+    rendreTraversee();
   }
 
   // ---------- la chasse : le boss de la semaine et les avis de recherche WANTED ----------
@@ -4913,6 +4914,7 @@
     const z = $("grandline-cap");
     if (!z) return;
     rendreFlotte();
+    rendreTraversee();
     const g = infosGL();
     const sous = document.querySelector("#grandline .entete-section .sous");
     if (sous) {
@@ -5311,6 +5313,842 @@
   function tailleCarteGL() {
     const z = $("grandline-carte");
     if (carteGL?.type === "3d" && z) carteGL.rendu.taille(z.clientWidth, z.clientHeight);
+  }
+
+  // ---------- La Traversée (V4) : le mini-jeu de GRAND LINE ----------
+  // On barre le navire de sa commu dans une mer sans fin : on évite les rochers, les bras du monstre et les tourbillons,
+  // on ramasse les tonneaux (+25 points), une bouteille répare la coque, l'esprit du vent protège 5 s (et attire les
+  // tonneaux). 3 cœurs. Le score : la distance (m) + 25 par tonneau. Le bot ouvre la partie et vérifie la distance
+  // (la vitesse suit ses règles) et le nombre de tonneaux (le site en sème au plus 30 par km, le bot en accepte 36).
+  // Le jeu s'ouvre en plein écran (#la-traversee). La 3D (js/traversee-3d.js) se charge à l'ouverture ; sans elle
+  // (pas de carte graphique, appareil trop lent, ?3d=non), le même jeu se joue dessiné en 2D.
+  const TV = { V0: 12, ACC: 0.25, VMAX: 32, BORD: 8.2, LAT: 12.5, TONNEAU: 25, COEURS: 3, PAR_KM: 30, DEVANT: 175, AVANT: 1.7, ARRIERE: -1.5, R: 0.95 };
+  // les formes qui cognent (x vers l'avant, z sur le côté, rayon), avant l'échelle et la rotation de chaque pièce
+  const FORMES_TV = {
+    aiguille: [[0, 0, 1.75]],
+    jumeaux: [[0.1, 1.05, 1.3], [-0.1, -1.0, 1.15]],
+    recif: [[-1.6, 0, 1.15], [0, 0, 1.25], [1.6, 0, 1.15]],
+    tentacule: [[0, 0, 0.9], [-1.3, 0, 0.6]],
+  };
+  let idsTV = 0; // un numéro par objet, jamais deux fois (même d'une partie à l'autre)
+  function moteurTraversee(regles = {}, hasard = Math.random) {
+    const V0 = Number(regles.v0) || TV.V0;
+    const ACC = Number(regles.acceleration) || TV.ACC;
+    const VMAX = Number(regles.vMax) || TV.VMAX;
+    const m = { t: 0, dist: 0, v: V0, x: 0, vx: 0, coeurs: TV.COEURS, tonneaux: 0, objets: [], prochain: 60, poses: 0, frein: 1, invincible: 0, vent: 0, fini: false, cause: "", palier: 0, bonus: 380 };
+    const R = (a, b) => a + hasard() * (b - a);
+    const borne = (z, b = 7) => Math.max(-b, Math.min(b, z));
+    // les tonneaux posés jusqu'à une distance : jamais plus que ce que le bot accepte
+    const permis = (pos) => Math.floor((pos / 1000) * TV.PAR_KM) + 3;
+    const ajouter = (o) => { o.id = ++idsTV; o.phase = hasard() * 6.28; m.objets.push(o); return o; };
+    function cercles(o) {
+      const c = Math.cos(o.rot || 0);
+      const s = Math.sin(o.rot || 0);
+      const e = o.ech || 1;
+      return (FORMES_TV[o.modele] || []).map(([x, z, r]) => [(x * c + z * s) * e, (-x * s + z * c) * e, r * e]);
+    }
+    function rocher(x, z, modele, ech = R(0.9, 1.1)) {
+      modele ||= hasard() < 0.6 ? "aiguille" : "jumeaux";
+      const rot = modele === "recif" ? Math.PI / 2 : modele === "jumeaux" ? (hasard() < 0.5 ? Math.PI : 0) + R(-0.2, 0.2) : R(-3, 3);
+      const o = ajouter({ type: "rocher", modele, x, z, ech, rot });
+      o.cercles = cercles(o);
+      return o;
+    }
+    function tonneau(x, z) {
+      if (m.poses + 1 > permis(x)) return;
+      m.poses++;
+      ajouter({ type: "tonneau", modele: "tonneau", x, z: borne(z, 7.6), r: 1.4 });
+    }
+    function motif(p) {
+      const n = Math.min(1, p / 3000);
+      const choix = [["rocher", 3], ["porte", p > 150 ? 2.6 : 0], ["tonneaux", 2], ["tourbillon", p > 320 ? 1.1 + n : 0], ["tentacules", p > 480 ? 1 + n * 1.4 : 0], ["recif", p > 700 ? 0.9 + n : 0], ["slalom", p > 950 ? 0.9 + n : 0]];
+      let u = hasard() * choix.reduce((a, c) => a + c[1], 0);
+      let k = "rocher";
+      for (const [nom, w] of choix) { if (w && (u -= w) < 0) { k = nom; break; } }
+      if (k === "porte") {
+        // deux aiguilles et un passage (de plus en plus étroit), des tonneaux pour viser le milieu
+        const w = 6.8 - n * 1.4;
+        const g = R(-3.5, 3.5);
+        rocher(p, g - w / 2 - 1.75, "aiguille", 1);
+        rocher(p, g + w / 2 + 1.75, "aiguille", 1);
+        if (g - w / 2 - 5.6 > -9.5) rocher(p + 2, g - w / 2 - 5.6, "jumeaux", 0.9);
+        if (g + w / 2 + 5.6 < 9.5) rocher(p + 2, g + w / 2 + 5.6, "jumeaux", 0.9);
+        for (let j = 0; j < 3; j++) tonneau(p - 14 + j * 7, g);
+        return 6;
+      }
+      if (k === "tonneaux") {
+        const z0 = R(-5.5, 5.5);
+        const amp = R(1.5, 3);
+        for (let j = 0; j < 5; j++) tonneau(p + j * 7, borne(z0 + Math.sin(j * 0.8) * amp));
+        if (n > 0.3) rocher(p + 14, z0 > 0 ? z0 - 6.8 : z0 + 6.8, "aiguille");
+        return 30;
+      }
+      if (k === "tourbillon") {
+        const z = R(-4.5, 4.5);
+        ajouter({ type: "tourbillon", modele: "tourbillon", x: p + 5, z, ech: 1, rot: R(0, 6.28), attire: 6.4, coeur: 1.5 });
+        // des tonneaux sur le bord : risqué
+        const cote = z > 0 ? -1 : 1;
+        for (let j = 0; j < 3; j++) { const a = (j - 1) * 0.6; tonneau(p + 5 + Math.sin(a) * 4.8, z + cote * Math.cos(a) * 4.8); }
+        return 12;
+      }
+      if (k === "tentacules") {
+        const z1 = R(-6, 6);
+        const t1 = ajouter({ type: "tentacule", modele: "tentacule", x: p, z: z1, ech: R(0.9, 1.1), rot: R(-0.25, 0.25), etat: "attente", montee: 0 });
+        t1.cercles = cercles(t1);
+        if (n > 0.35 && hasard() < 0.55) {
+          const z2 = z1 > 0 ? z1 - R(5, 7.5) : z1 + R(5, 7.5);
+          const t2 = ajouter({ type: "tentacule", modele: "tentacule", x: p + 9, z: z2, ech: R(0.9, 1.1), rot: R(-0.25, 0.25), etat: "attente", montee: 0 });
+          t2.cercles = cercles(t2);
+        }
+        return 10;
+      }
+      if (k === "recif") {
+        // un mur de récifs d'un bord à l'autre, avec un passage
+        const w = 6.6 - n;
+        const g = R(-4.5, 4.5);
+        for (let z = g - w / 2 - 2.75; z > -12; z -= 5.2) rocher(p, z, "recif", 1);
+        for (let z = g + w / 2 + 2.75; z < 12; z += 5.2) rocher(p, z, "recif", 1);
+        tonneau(p, g);
+        return 5;
+      }
+      if (k === "slalom") {
+        const s = hasard() < 0.5 ? -1 : 1;
+        for (let j = 0; j < 3; j++) {
+          const z = s * (j % 2 ? -1 : 1) * R(2.5, 4.2);
+          rocher(p + j * 17, z, "aiguille");
+          tonneau(p + j * 17 + 2, borne(-Math.sign(z) * R(3, 5)));
+        }
+        return 36;
+      }
+      // un rocher seul, parfois des tonneaux à côté
+      const z = R(-6.5, 6.5);
+      rocher(p, z);
+      if (hasard() < 0.55) { const c = z > 0 ? -1 : 1; for (let j = 0; j < 3; j++) tonneau(p - 8 + j * 6, z + c * R(3.5, 5)); }
+      return 6;
+    }
+    function semer() {
+      while (m.prochain < m.dist + TV.DEVANT) {
+        const p = m.prochain;
+        if (p >= m.bonus) {
+          // la bouteille (elle compte pour 2 tonneaux si la coque est déjà intacte) ou l'esprit du vent
+          if ((m.coeurs < TV.COEURS || hasard() < 0.4) && m.poses + 2 <= permis(p)) { m.poses += 2; ajouter({ type: "bouteille", modele: "bouteille", x: p, z: R(-6, 6), r: 1.6 }); }
+          else ajouter({ type: "bourrasque", modele: "bourrasque", x: p, z: R(-6, 6), r: 1.9 });
+          m.bonus = p + R(420, 650);
+          m.prochain = p + 16;
+          continue;
+        }
+        const longueur = motif(p);
+        m.prochain = p + longueur + Math.max(15, 34 - p / 140) + R(0, 8);
+      }
+    }
+    function choc(o, ev) {
+      o.touche = true;
+      m.coeurs -= 1;
+      m.invincible = 1.6;
+      m.frein = 0.5;
+      m.vx = -Math.sign((o.z - m.x) || 1) * 9;
+      ev.push({ type: "choc", objet: o, x: m.dist + 1, z: m.x });
+      if (m.coeurs <= 0) { m.fini = true; m.cause = o.type; ev.push({ type: "naufrage", objet: o, x: m.dist, z: m.x }); }
+    }
+    function prendre(o, ev) {
+      o.pris = true;
+      if (o.type === "tonneau") { m.tonneaux++; ev.push({ type: "tonneau", objet: o }); }
+      else if (o.type === "bouteille") {
+        if (m.coeurs < TV.COEURS) { m.coeurs++; ev.push({ type: "coeur", objet: o }); }
+        else { m.tonneaux += 2; ev.push({ type: "bouteille", objet: o }); }
+      } else if (o.type === "bourrasque") { m.vent = 5; ev.push({ type: "vent", objet: o }); }
+    }
+    // entree : { dir: −1 à 1 (le clavier, les boutons) } ou { cible: la place visée sur le côté (le doigt, la souris) }
+    function avancer(dt, entree = {}) {
+      const ev = [];
+      if (m.fini) return ev;
+      // la vitesse avant d'avancer (jamais plus que ce que le bot calcule)
+      m.frein = Math.min(1, m.frein + dt * 0.5);
+      m.v = Math.min(VMAX, V0 + ACC * m.t) * m.frein;
+      m.dist += m.v * dt;
+      m.t += dt;
+      let vise = (entree.dir || 0) * TV.LAT;
+      if (typeof entree.cible === "number") vise = Math.max(-TV.LAT * 1.25, Math.min(TV.LAT * 1.25, (entree.cible - m.x) * 5.5));
+      m.vx += (vise - m.vx) * Math.min(1, dt * 8);
+      for (const o of m.objets) {
+        if (o.type !== "tourbillon") continue;
+        const dz = o.z - m.x;
+        const d = Math.hypot(o.x - m.dist, dz);
+        if (d < o.attire && d > 0.01) { const f = 1 - d / o.attire; m.vx += Math.sign(dz) * 26 * f * dt; m.frein = Math.min(m.frein, 1 - f * 0.25); }
+      }
+      m.x += m.vx * dt;
+      if (Math.abs(m.x) > TV.BORD) { m.x = Math.sign(m.x) * TV.BORD; m.vx *= -0.3; }
+      m.invincible = Math.max(0, m.invincible - dt);
+      m.vent = Math.max(0, m.vent - dt);
+      // les bras du monstre : l'eau bouillonne de loin, ils sortent juste avant que le navire arrive
+      for (const o of m.objets) {
+        if (o.type !== "tentacule") continue;
+        const devant = o.x - m.dist;
+        if (o.etat === "attente" && devant < m.v * 1.25 + 8) { o.etat = "monte"; ev.push({ type: "alerte", objet: o }); }
+        if (o.etat === "monte") o.montee = Math.min(1, o.montee + dt / 0.6);
+        if (o.etat === "monte" && devant < -10) o.etat = "descend";
+        if (o.etat === "descend") o.montee = Math.max(0, o.montee - dt / 0.8);
+      }
+      const pts = [[m.dist + TV.AVANT, m.x], [m.dist + TV.ARRIERE, m.x]];
+      const touche = (cx, cz, r) => pts.some(([px, pz]) => (px - cx) ** 2 + (pz - cz) ** 2 < (r + TV.R) ** 2);
+      for (const o of m.objets) {
+        if (o.pris || o.touche || o.brise || Math.abs(o.x - m.dist) > 11) continue;
+        if (o.type === "rocher" || (o.type === "tentacule" && o.montee > 0.55)) {
+          if (!o.cercles.some(([cx, cz, r]) => touche(o.x + cx, o.z + cz, r))) continue;
+          // le bouclier du vent : on passe à travers (les rochers volent en éclats)
+          if (m.vent > 0) { if (o.type === "rocher") o.brise = m.t; else o.touche = true; ev.push({ type: "brise", objet: o }); continue; }
+          if (m.invincible > 0) continue;
+          choc(o, ev);
+        } else if (o.type === "tourbillon") {
+          if (m.invincible <= 0 && m.vent <= 0 && Math.hypot(o.x - m.dist, o.z - m.x) < o.coeur + 0.6) choc(o, ev);
+        } else {
+          const dx = o.x - (m.dist + 0.3);
+          const dz = o.z - m.x;
+          const d = Math.hypot(dx, dz);
+          if (m.vent > 0 && o.type === "tonneau" && d < 8.5 && d > 0.01) { const k = Math.min(1, (24 * dt) / d); o.x -= dx * k; o.z -= dz * k; }
+          if (d < o.r + 0.6) prendre(o, ev);
+        }
+      }
+      semer();
+      m.objets = m.objets.filter((o) => !o.pris && o.x > m.dist - 30);
+      const p = Math.floor(m.dist / 500);
+      if (p > m.palier) { m.palier = p; ev.push({ type: "palier", metres: p * 500 }); }
+      return ev;
+    }
+    semer();
+    return { m, avancer, score: () => Math.floor(m.dist) + m.tonneaux * TV.TONNEAU };
+  }
+  if (new URLSearchParams(location.search).has("3d")) window.__moteurTraversee = moteurTraversee; // pour les essais
+
+  const tv = { etat: "ferme", moteur: null, partie: "", fin: null, boucle: 0, dernier: 0, rendu: null, ctx: null, el: null, retour: null, entree: { g: 0, d: 0, cible: null, glisse: null }, record: 0, regles: null, hud: "", essai3d: "", demande: 0 };
+  try { tv.record = Number(localStorage.getItem("barhaw-traversee")) || 0; } catch {}
+  if (new URLSearchParams(location.search).has("3d")) window.__tv = tv; // pour les essais
+  const CAUSES_TV = { rocher: "La coque a cédé sur les rochers !", tentacule: "Le monstre a emporté ton navire !", tourbillon: "Aspiré par le tourbillon !" };
+  const traverseeVoulue = () => location.hash === "#la-traversee";
+  const traverseeOuverte = () => v4Ouverte() && glOuvert();
+  // le navire qu'on barre : celui de son équipage ; sinon celui de la commu qu'on regarde
+  const commuTraversee = () => commu(maFlotte?.equipage) || commuRegardee?.() || commu("barhaw") || null;
+  const scoreTV = (x) => `${nombre(x.score)} pts`;
+
+  function rendreTraversee() {
+    const z = $("traversee");
+    if (!z) return;
+    const ouvert = traverseeOuverte();
+    z.hidden = !ouvert;
+    if (!ouvert) { if (z.firstChild) { vider(z); delete z.dataset.cle; } return; }
+    if (traverseeVoulue() && tv.etat === "ferme") ouvrirTraversee();
+    const s = infosJeux()?.traversee || null;
+    const moiT = mesJeux?.traversee || null;
+    const c = commuTraversee();
+    const meilleur = Math.max(moiT?.meilleur || 0, tv.record);
+    const cle = JSON.stringify([s, moiT, c?.id, c?.couleurs, meilleur, Boolean(moi?.connecte), mesJeux?.eclatsDuJour]);
+    if (z.dataset.cle === cle) return;
+    z.dataset.cle = cle;
+    const ligne = (x, k) => {
+      const eq = commu(x.equipe);
+      return el("li", {}, el("span", { class: "tv-rang", text: String(k + 1) }), eq ? drapeauCommu(eq, "tv-fanion") : el("span", { class: "tv-fanion-vide" }), el("span", { class: "tv-nom", text: x.nom }),
+        el("small", { text: `${nombre(x.distance ?? x.score)} m · ${nombre(x.tonneaux || 0)} 🛢️` }), el("b", { text: scoreTV(x) }));
+    };
+    vider(z,
+      el("div", { class: "tv-affiche", "aria-hidden": "true" },
+        el("span", { class: "tv-kanji", text: "航路" }),
+        el("span", { class: "tv-soleil" }),
+        el("span", { class: "tv-houle" }),
+        el("span", { class: "tv-bateau", style: c ? styleCommu(c) : "" }, el("i", { class: "tv-voile" }), el("i", { class: "tv-coque" })),
+        el("span", { class: "tv-roc" }), el("span", { class: "tv-roc tv-roc2" }), el("span", { class: "tv-tonneau-mini" })),
+      el("div", { class: "tv-texte" },
+        el("p", { class: "gl-sur", text: "Le mini-jeu de GRAND LINE" }),
+        el("h3", { class: "tv-titre" }, "La ", el("span", { class: "degrade", text: "Traversée" })),
+        el("p", { class: "tv-pitch", text: `Prends la barre du navire ${c ? `de ${c.nom}` : "de ta commu"} et file droit devant, de plus en plus vite. Chaque partie fait aussi avancer ton navire sur GRAND LINE.` }),
+        el("ul", { class: "tv-regles" },
+          el("li", { text: "🪨 Évite les rochers, les bras du monstre et les tourbillons : ta coque tient 3 coups." }),
+          el("li", { text: `🛢️ Ramasse les tonneaux : +${TV.TONNEAU} points chacun, en plus des mètres parcourus.` }),
+          el("li", { text: "🍾 La bouteille répare la coque. 🌬️ L'esprit du vent te protège 5 s et attire les tonneaux." })),
+        el("div", { class: "tv-actions" },
+          el("a", { class: "btn btn-plein tv-jouer", href: "#la-traversee", id: "tv-jouer", onclick: (e) => { e.preventDefault(); ouvrirTraversee(); } }, el("span", { "aria-hidden": "true", text: "⛵" }), " Prendre la barre"),
+          el("p", { class: "note", text: `${meilleur ? `Ton meilleur : ${nombre(meilleur)} points. ` : ""}${noteEclat(moiT, `${nombre(s?.eclat || 2000)} points`)}` }))),
+      el("div", { class: "tv-classement" },
+        el("p", { class: "jeu-classement-titre", text: "Les meilleurs barreurs de la semaine" }),
+        el("p", { class: "jeu-record" }, el("span", { text: "Record" }), s?.record ? `${scoreTV(s.record)} · ${s.record.nom}` : "à prendre !"),
+        s?.semaine?.length ? el("ol", {}, s.semaine.map(ligne)) : el("p", { class: "note", text: "Personne n'a encore pris la mer cette semaine." })),
+    );
+  }
+
+  // ---------- la salle de jeu (plein écran) ----------
+  function ouvrirTraversee() {
+    if (tv.etat !== "ferme" || !traverseeOuverte()) return;
+    const c = commuTraversee();
+    tv.etat = "accueil";
+    tv.retour = { focus: document.activeElement, haut: scrollY };
+    const fermer = el("button", { class: "gl-salle-fermer", type: "button", "aria-label": "Quitter La Traversée et revenir au site", onclick: () => fermerTraversee() }, el("span", { "aria-hidden": "true", text: "✕" }), el("span", { class: "gl-salle-fermer-texte", text: "Revenir" }));
+    const pause = el("button", { class: "tv-bouton-pause", type: "button", id: "tv-pause", "aria-label": "Pause", hidden: true, onclick: () => mettreEnPause(tv.etat !== "pause") }, el("span", { "aria-hidden": "true", text: "⏸" }));
+    const toile = el("canvas", { class: "tv-toile", id: "tv-toile", role: "img", "aria-label": "La Traversée : le navire file sur la mer, évite les obstacles et ramasse les tonneaux" });
+    const o = el("div", { class: "tv-salle", role: "dialog", "aria-modal": "true", "aria-label": "La Traversée", style: c ? styleCommu(c) : "" },
+      el("div", { class: "gl-salle-haut tv-haut" },
+        el("p", { class: "gl-salle-titre" }, el("span", { class: "gl-salle-kanji", "aria-hidden": "true", text: "航路" }), "LA TRAVERSÉE",
+          el("small", { text: c ? `Le navire de ${c.nom}` : "" })),
+        pause, fermer),
+      el("div", { class: "tv-scene", id: "tv-scene" },
+        toile,
+        el("div", { class: "tv-hud", id: "tv-hud", "aria-hidden": "true" }),
+        el("div", { class: "tv-pops", id: "tv-pops", "aria-hidden": "true" }),
+        el("span", { class: "sfx tv-sfx", id: "tv-sfx", "aria-hidden": "true" }),
+        el("div", { class: "tv-touches", "aria-hidden": "true" },
+          el("button", { class: "tv-touche", type: "button", tabindex: "-1", "data-dir": "-1", text: "◀" }),
+          el("button", { class: "tv-touche", type: "button", tabindex: "-1", "data-dir": "1", text: "▶" })),
+        el("div", { class: "tv-ecran", id: "tv-ecran", "aria-live": "polite" }),
+      ));
+    document.body.append(o);
+    tv.el = o;
+    document.documentElement.classList.add("gl-salle-ouverte");
+    if (!traverseeVoulue()) history.pushState(null, "", "#la-traversee");
+    brancherCommandesTV(o);
+    document.addEventListener("keydown", toucheTV);
+    document.addEventListener("keyup", relacheTV);
+    window.addEventListener("resize", tailleTV);
+    tailleTV();
+    ecranTV("accueil");
+    fermer.focus({ preventScroll: true });
+    preparerRenduTV();
+  }
+  function fermerTraversee({ hash = true } = {}) {
+    if (tv.etat === "ferme") return;
+    cancelAnimationFrame(tv.boucle);
+    const envoi = tv.etat === "jeu" || tv.etat === "pause" ? finTraversee({ abandon: true }) : null; // une partie quittée compte quand même
+    tv.etat = "ferme";
+    document.removeEventListener("keydown", toucheTV);
+    document.removeEventListener("keyup", relacheTV);
+    window.removeEventListener("resize", tailleTV);
+    try { tv.rendu?.detruire?.(); } catch {}
+    tv.rendu = null;
+    tv.ctx = null;
+    tv.el?.remove();
+    tv.el = null;
+    tv.moteur = null;
+    document.documentElement.classList.remove("gl-salle-ouverte");
+    if (hash && traverseeVoulue()) history.replaceState(null, "", "#traversee");
+    const { focus, haut } = tv.retour || {};
+    scrollTo({ top: haut || 0, behavior: "auto" });
+    (focus?.isConnected ? focus : $("tv-jouer"))?.focus?.({ preventScroll: true });
+    envoi?.then?.(() => rendreTraversee());
+  }
+  window.addEventListener("hashchange", () => { if (traverseeVoulue()) { if (traverseeOuverte()) ouvrirTraversee(); } else if (tv.etat !== "ferme") fermerTraversee({ hash: false }); });
+
+  // la 3D, si l'appareil sait la faire ; sinon le même jeu en 2D
+  async function preparerRenduTV() {
+    const toile = $("tv-toile");
+    const choix = new URLSearchParams(location.search).get("3d");
+    tv.essai3d = "";
+    if (choix !== "non" && !navigator.connection?.saveData) {
+      try {
+        const essai = document.createElement("canvas").getContext("webgl2");
+        if (!essai) throw new Error("pas de WebGL 2");
+        const info = essai.getExtension("WEBGL_debug_renderer_info");
+        const logiciel = info && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(essai.getParameter(info.UNMASKED_RENDERER_WEBGL)));
+        essai.getExtension("WEBGL_lose_context")?.loseContext();
+        if (logiciel && choix !== "oui") throw new Error("rendu logiciel");
+        ecranTV("charge");
+        const { creerTraversee3D } = await import("/js/traversee-3d.js");
+        if (tv.etat === "ferme" || $("tv-toile") !== toile) return;
+        const c = commuTraversee();
+        const rendu = creerTraversee3D(toile, { navire: c ? { couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), modele: modeleNavire(c) || "navire-v4.glb", trainee: traineeCommu(c) } : { modele: "navire-v4.glb" }, reduit: reduit.matches });
+        tailleTV(rendu);
+        if (choix !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
+        toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passerTV2D(); });
+        // les modèles (le navire, les rochers…) : on les attend un peu, pas trop
+        await Promise.race([rendu.pret, new Promise((ok) => setTimeout(ok, 9000))]);
+        if (tv.etat === "ferme") { rendu.detruire(); return; }
+        tv.rendu = rendu;
+        tv.essai3d = "3d";
+        if (choix) window.__traversee3D = rendu;
+        apercuTV();
+        ecranTV("accueil");
+        return;
+      } catch (e) { tv.essai3d = `2d (${e.message})`; }
+    }
+    passerTV2D();
+  }
+  function passerTV2D() {
+    if (tv.etat === "ferme") return;
+    try { tv.rendu?.detruire?.(); } catch {}
+    tv.rendu = null;
+    // le canvas a peut-être servi à WebGL : un neuf pour dessiner en 2D
+    const ancien = $("tv-toile");
+    const toile = el("canvas", { class: "tv-toile", id: "tv-toile", role: "img", "aria-label": ancien?.getAttribute("aria-label") || "La Traversée" });
+    ancien?.replaceWith(toile);
+    brancherCommandesTV(tv.el);
+    tv.ctx = toile.getContext("2d");
+    tailleTV();
+    apercuTV();
+    if (tv.etat === "accueil") ecranTV("accueil");
+  }
+  function tailleTV(rendu = tv.rendu) {
+    const s = $("tv-scene");
+    const toile = $("tv-toile");
+    if (!s || !toile) return;
+    const l = s.clientWidth || 360;
+    const h = s.clientHeight || 640;
+    if (rendu) { rendu.taille(l, h); return; }
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    toile.width = Math.round(l * dpr);
+    toile.height = Math.round(h * dpr);
+    tv.echelle = dpr;
+    if (tv.etat !== "jeu") apercuTV();
+  }
+  // avant de partir : la mer, le navire au port
+  function apercuTV() {
+    const m = (tv.moteur || moteurTraversee(reglesTV())).m;
+    if (tv.rendu) tv.rendu.dessiner(m, 0.016);
+    else if (tv.ctx) dessinerTV2D(m, 0.016);
+  }
+  const reglesTV = () => {
+    const r = infosJeux()?.traversee;
+    return { v0: Number(r?.v0) || TV.V0, acceleration: Number(r?.acceleration) || TV.ACC, vMax: Number(r?.vMax) || TV.VMAX };
+  };
+
+  // les écrans par-dessus le jeu : l'accueil, le chargement, le départ, la pause, la fin
+  function ecranTV(type, f = null) {
+    const z = $("tv-ecran");
+    if (!z) return;
+    const c = commuTraversee();
+    const tactile = matchMedia("(pointer: coarse)").matches;
+    z.className = `tv-ecran tv-ecran-${type}`;
+    z.hidden = type === "jeu";
+    if (type === "jeu") { vider(z); return; }
+    if (type === "charge") { vider(z, el("p", { class: "tv-charge" }, el("span", { class: "tv-roue", "aria-hidden": "true", text: "☸" }), "Le navire se prépare…")); return; }
+    if (type === "depart") { vider(z, el("p", { class: "tv-decompte", id: "tv-decompte", text: "3" })); return; }
+    if (type === "pause") {
+      vider(z, el("div", { class: "tv-panneau" },
+        el("p", { class: "tv-gros", text: "Pause" }),
+        el("p", { class: "note", text: "Le navire t'attend." }),
+        el("div", { class: "tv-boutons" },
+          el("button", { class: "btn btn-plein", type: "button", onclick: () => mettreEnPause(false), text: "Reprendre" }),
+          el("button", { class: "btn btn-contour", type: "button", onclick: () => fermerTraversee(), text: "Quitter" }))));
+      z.querySelector("button")?.focus({ preventScroll: true });
+      return;
+    }
+    if (type === "fin" && f) {
+      vider(z, el("div", { class: "tv-panneau tv-fin" },
+        el("p", { class: "tv-cause", text: CAUSES_TV[f.cause] || (f.abandon ? "Retour au port." : "Naufrage !") }),
+        el("p", { class: "tv-gros degrade", text: `${nombre(f.score)} pts` }),
+        el("p", { class: "tv-detail", text: `${nombre(f.distance)} m parcourus · ${nombre(f.tonneaux)} tonneau${f.tonneaux > 1 ? "x" : ""}` }),
+        f.envoi ? el("p", { class: "note", text: "Le bot note ton score…" }) : null,
+        f.message ? el("p", { class: "note", text: f.message }) : null,
+        ...messagesFin(f),
+        f.milles ? el("p", { class: "jeu-butin", text: `⛵ +${nombre(f.milles)} milles pour ${c?.nom || "ton navire"} sur GRAND LINE` }) : null,
+        el("div", { class: "tv-boutons" },
+          el("button", { class: "btn btn-plein", type: "button", id: "tv-rejouer", onclick: lancerTraversee, disabled: f.envoi ? true : null, text: "Repartir" }),
+          el("button", { class: "btn btn-contour", type: "button", onclick: () => fermerTraversee(), text: "Revenir à la carte" }))));
+      if (!f.envoi) $("tv-rejouer")?.focus({ preventScroll: true });
+      return;
+    }
+    // l'accueil
+    const s = infosJeux()?.traversee;
+    vider(z, el("div", { class: "tv-panneau" },
+      el("p", { class: "gl-sur", text: c ? `Le navire de ${c.nom}` : "Ton navire" }),
+      el("p", { class: "tv-gros", text: "Prends la barre !" }),
+      el("ul", { class: "tv-regles" },
+        el("li", { text: tactile ? "👆 Glisse le doigt (ou appuie sur ◀ ▶) pour barrer." : "⌨️ ← → (ou Q et D) pour barrer, ou glisse la souris en restant appuyé." }),
+        el("li", { text: "🪨 Évite les rochers, les bras du monstre et les tourbillons. 3 cœurs." }),
+        el("li", { text: `🛢️ Tonneaux : +${TV.TONNEAU} points. 🍾 Bouteille : +1 cœur. 🌬️ Vent : bouclier 5 s.` })),
+      el("div", { class: "tv-boutons" }, el("button", { class: "btn btn-plein", type: "button", id: "tv-partir", onclick: lancerTraversee, text: "Larguer les amarres !" })),
+      el("p", { class: "note", text: moi?.connecte ? `${s?.record ? `Record de la semaine : ${scoreTV(s.record)} (${s.record.nom}). ` : ""}${noteEclat(mesJeux?.traversee, `${nombre(s?.eclat || 2000)} points`)}` : "Connecte-toi avec Discord pour que ton score compte (et fasse ramer ton navire)." })));
+    $("tv-partir")?.focus({ preventScroll: true });
+  }
+
+  // ---------- une partie ----------
+  async function lancerTraversee() {
+    if (!["accueil", "fin"].includes(tv.etat) || !tv.el) return;
+    if (!tv.rendu && !tv.ctx) return; // le rendu n'est pas prêt
+    tv.etat = "depart";
+    tv.partie = "";
+    tv.fin = null;
+    tv.moteur = moteurTraversee(reglesTV());
+    tv.entree = { g: 0, d: 0, cible: null, glisse: null };
+    tv.hud = "";
+    $("tv-pops") && vider($("tv-pops"));
+    ecranTV("depart");
+    majHudTV();
+    apercuTV();
+    const ouverture = moi?.connecte ? demanderJeux("jeu-ouvrir", { jeu: "traversee" }) : null;
+    const d = $("tv-decompte");
+    for (const t of ["3", "2", "1", "Larguez les amarres !"]) {
+      if (tv.etat !== "depart") return;
+      if (d) { d.textContent = t; d.classList.remove("pop"); void d.offsetWidth; d.classList.add("pop"); }
+      await new Promise((ok) => setTimeout(ok, reduit.matches ? 260 : t.length > 1 ? 650 : 560));
+    }
+    if (tv.etat !== "depart") return;
+    if (ouverture) { const r = await ouverture; if (r.d.partie) tv.partie = r.d.partie; else if (r.d.erreur) tv.messageOuverture = r.d.erreur; }
+    else tv.messageOuverture = "";
+    if (tv.etat !== "depart") return;
+    tv.etat = "jeu";
+    ecranTV("jeu");
+    $("tv-pause").hidden = false;
+    tv.dernier = performance.now();
+    tv.images = 0;
+    tv.tempsImages = 0;
+    cancelAnimationFrame(tv.boucle);
+    tv.boucle = requestAnimationFrame(imageTV);
+  }
+  function imageTV(t) {
+    if (tv.etat !== "jeu") return;
+    const dt = Math.min(0.05, Math.max(0, (t - tv.dernier) / 1000));
+    // la 3D trop lourde pour l'appareil (moins de 24 images par seconde) : le jeu passe en 2D
+    if (tv.rendu && new URLSearchParams(location.search).get("3d") !== "oui" && ++tv.images > 10) {
+      tv.tempsImages += t - tv.dernier;
+      if (tv.images === 70 && tv.tempsImages / 60 > 1000 / 24) passerTV2D();
+    }
+    tv.dernier = t;
+    const e = tv.entree;
+    const dir = (e.d ? 1 : 0) - (e.g ? 1 : 0);
+    const evs = tv.moteur.avancer(dt, dir ? { dir } : { cible: e.cible });
+    for (const ev of evs) evenementTV(ev);
+    if (tv.rendu) tv.rendu.dessiner(tv.moteur.m, dt);
+    else dessinerTV2D(tv.moteur.m, dt);
+    majHudTV();
+    if (tv.moteur.m.fini) { finTraversee(); return; }
+    tv.boucle = requestAnimationFrame(imageTV);
+  }
+  const SFX_TV = { choc: ["ドカン！", "ガン！", "バキッ！"], tonneau: ["ゲット！"], vent: ["ビュー！"], brise: ["バリン！"], coeur: ["キラッ！"], naufrage: ["ザブーン！"] };
+  function evenementTV(ev) {
+    tv.rendu?.evenement?.(ev);
+    tv.effets2D?.push({ ...ev, age: 0 });
+    const m = tv.moteur.m;
+    const o = ev.objet;
+    if (ev.type === "tonneau") popTV(o.x, o.z, `+${TV.TONNEAU}`, "or");
+    else if (ev.type === "bouteille") popTV(o.x, o.z, `+${TV.TONNEAU * 2}`, "or");
+    else if (ev.type === "coeur") popTV(o.x, o.z, "+1 ❤", "rose");
+    else if (ev.type === "vent") popTV(o.x, o.z, "Bouclier !", "vent");
+    else if (ev.type === "palier") sfxTV(`${nombre(ev.metres)} m!`);
+    if (SFX_TV[ev.type] && ev.type !== "tonneau") sfxTV(SFX_TV[ev.type][Math.floor(Math.random() * SFX_TV[ev.type].length)]);
+    if (ev.type === "choc") {
+      const s = $("tv-scene");
+      s?.classList.remove("tv-touche-coque"); void s?.offsetWidth; s?.classList.add("tv-touche-coque");
+      navigator.vibrate?.(reduit.matches ? 0 : 60);
+    }
+    if (ev.type === "tonneau" && m.tonneaux % 10 === 0) sfxTV("ゲット！");
+  }
+  function sfxTV(texte) {
+    const s = $("tv-sfx");
+    if (!s) return;
+    s.textContent = texte;
+    s.classList.remove("eclat"); void s.offsetWidth; s.classList.add("eclat");
+  }
+  // un « +25 » qui monte au-dessus de ce qu'on vient de ramasser
+  function popTV(x, z, texte, genre) {
+    const zone = $("tv-pops");
+    if (!zone) return;
+    const [sx, sy] = tv.rendu ? tv.rendu.versEcran(x, 2.2, z) : projeterTV2D(x, z, 2.2);
+    const p = el("span", { class: `tv-pop tv-pop-${genre}`, text: texte, style: `left:${(Math.max(0.06, Math.min(0.94, sx)) * 100).toFixed(1)}%;top:${(Math.max(0.1, Math.min(0.9, sy)) * 100).toFixed(1)}%` });
+    zone.append(p);
+    setTimeout(() => p.remove(), 1000);
+    while (zone.children.length > 8) zone.firstChild.remove();
+  }
+  function majHudTV() {
+    const z = $("tv-hud");
+    const mo = tv.moteur;
+    if (!z || !mo) return;
+    const m = mo.m;
+    const cle = `${m.coeurs}|${Math.floor(m.dist)}|${m.tonneaux}|${m.vent > 0 ? Math.ceil(m.vent * 4) : 0}|${Math.round(m.v)}`;
+    if (cle === tv.hud) return;
+    tv.hud = cle;
+    vider(z,
+      el("div", { class: "tv-coeurs", title: "La coque" }, Array.from({ length: TV.COEURS }, (_, k) => el("span", { class: `tv-coeur${k < m.coeurs ? "" : " vide"}` }))),
+      el("div", { class: "tv-compteurs" },
+        el("p", { class: "tv-score" }, el("b", { text: nombre(mo.score()) }), el("small", { text: " pts" })),
+        el("p", { class: "tv-petit", text: `${nombre(Math.floor(m.dist))} m · 🛢️ ${nombre(m.tonneaux)} · ${Math.round(m.v * 1.94)} nœuds` })),
+      m.vent > 0 ? el("div", { class: "tv-vent" }, el("span", { text: "🌬️" }), el("i", { style: `--v:${(m.vent / 5).toFixed(2)}` })) : null);
+  }
+  function mettreEnPause(oui) {
+    if (oui && tv.etat === "jeu") {
+      tv.etat = "pause";
+      cancelAnimationFrame(tv.boucle);
+      ecranTV("pause");
+    } else if (!oui && tv.etat === "pause") {
+      tv.etat = "jeu";
+      ecranTV("jeu");
+      tv.dernier = performance.now();
+      tv.boucle = requestAnimationFrame(imageTV);
+      $("tv-scene")?.focus?.({ preventScroll: true });
+    }
+  }
+  async function finTraversee({ abandon = false } = {}) {
+    const mo = tv.moteur;
+    if (!mo) return;
+    const m = mo.m;
+    cancelAnimationFrame(tv.boucle);
+    const distance = Math.floor(m.dist);
+    const score = mo.score();
+    if (score > tv.record) { tv.record = score; try { localStorage.setItem("barhaw-traversee", String(score)); } catch {} }
+    let fin = { distance, tonneaux: m.tonneaux, score, cause: m.cause, abandon, message: "" };
+    const partie = tv.partie;
+    tv.partie = "";
+    if (!abandon) {
+      tv.etat = "envoi";
+      $("tv-pause").hidden = true;
+      // le naufrage, le temps de le voir
+      const fond = performance.now();
+      const couler = (t) => {
+        if (tv.etat !== "envoi" && tv.etat !== "fin") return;
+        const dt = Math.min(0.05, (t - (couler.d || t)) / 1000);
+        couler.d = t;
+        if (tv.rendu) tv.rendu.dessiner(m, dt); else dessinerTV2D(m, dt);
+        if (t - fond < 1400) requestAnimationFrame(couler);
+      };
+      requestAnimationFrame(couler);
+      ecranTV("fin", { ...fin, envoi: Boolean(partie) });
+    }
+    if (partie) {
+      const { d } = await demanderJeux("traversee-fin", { partie, distance, tonneaux: m.tonneaux });
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
+      else if (d.erreur) fin.message = d.erreur;
+    } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
+    else if (tv.messageOuverture) fin.message = tv.messageOuverture;
+    if (abandon) { if (fin.record || fin.perso) setTimeout(charger, 1500); return fin; }
+    tv.fin = fin;
+    if (tv.etat === "envoi") { tv.etat = "fin"; ecranTV("fin", fin); }
+    rendreTraversee();
+    if (fin.record || fin.perso || fin.milles) setTimeout(charger, 1500);
+    return fin;
+  }
+
+  // ---------- les commandes : le clavier, le doigt (ou la souris), les boutons ◀ ▶ ----------
+  function brancherCommandesTV(o) {
+    const toile = $("tv-toile");
+    if (!o || !toile || toile.dataset.branche) return;
+    toile.dataset.branche = "1";
+    toile.addEventListener("pointerdown", (e) => {
+      if (tv.etat !== "jeu" || !tv.moteur) return;
+      e.preventDefault();
+      toile.setPointerCapture?.(e.pointerId);
+      tv.entree.glisse = { x0: e.clientX, n0: tv.moteur.m.x, id: e.pointerId };
+      tv.entree.cible = tv.moteur.m.x;
+    });
+    toile.addEventListener("pointermove", (e) => {
+      const g = tv.entree.glisse;
+      if (!g || g.id !== e.pointerId || !tv.moteur) return;
+      const l = toile.clientWidth || 360;
+      // tout le chenal en un peu moins que la largeur de l'écran
+      tv.entree.cible = Math.max(-TV.BORD, Math.min(TV.BORD, g.n0 + ((e.clientX - g.x0) / l) * TV.BORD * 2.6));
+    });
+    for (const ev of ["pointerup", "pointercancel"]) toile.addEventListener(ev, (e) => { if (tv.entree.glisse?.id === e.pointerId) { tv.entree.glisse = null; tv.entree.cible = null; } });
+    if (o.dataset.boutons) return;
+    o.dataset.boutons = "1";
+    for (const b of o.querySelectorAll(".tv-touche")) {
+      const cote = b.dataset.dir === "1" ? "d" : "g";
+      b.addEventListener("pointerdown", (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); tv.entree[cote] = 1; b.classList.add("appui"); });
+      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => { tv.entree[cote] = 0; b.classList.remove("appui"); });
+    }
+  }
+  const GAUCHE_TV = ["ArrowLeft", "KeyA", "KeyQ"];
+  const DROITE_TV = ["ArrowRight", "KeyD"];
+  function toucheTV(e) {
+    if (e.target?.closest?.("input, textarea, select")) return;
+    if (e.key === "Escape") { e.preventDefault(); if (tv.etat === "jeu") mettreEnPause(true); else if (tv.etat !== "depart" && tv.etat !== "envoi") fermerTraversee(); return; }
+    if (e.code === "KeyP" || (e.code === "Space" && tv.etat === "pause")) { e.preventDefault(); mettreEnPause(tv.etat === "jeu"); return; }
+    if (GAUCHE_TV.includes(e.code)) { e.preventDefault(); tv.entree.g = 1; }
+    else if (DROITE_TV.includes(e.code)) { e.preventDefault(); tv.entree.d = 1; }
+    else if ((e.code === "Space" || e.code === "Enter") && (tv.etat === "accueil" || tv.etat === "fin") && !e.target?.closest?.("button, a")) { e.preventDefault(); lancerTraversee(); }
+  }
+  function relacheTV(e) {
+    if (GAUCHE_TV.includes(e.code)) tv.entree.g = 0;
+    if (DROITE_TV.includes(e.code)) tv.entree.d = 0;
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden && tv.etat === "jeu") mettreEnPause(true); });
+
+  // ---------- la Traversée en 2D (sans 3D) : la même mer, vue de derrière le navire, en fausse perspective ----------
+  tv.effets2D = [];
+  const TV2 = { D0: 14, HORIZON: 0.34, NAVIRE: 0.86 };
+  function projeterTV2D(x, z, y = 0, m = tv.moteur?.m) {
+    const toile = $("tv-toile");
+    if (!toile || !m) return [0.5, 0.5, 0];
+    const l = toile.width;
+    const h = toile.height;
+    const D = Math.max(1.5, x - m.dist + TV2.D0);
+    const f = TV2.D0 / D;
+    const hor = h * TV2.HORIZON;
+    const basN = h * TV2.NAVIRE;
+    const s = (l / 2 / (portraitTV() ? 8.5 : 12)) * f;
+    const cz = m.x * (portraitTV() ? 1 : 0.6);
+    return [(l / 2 + (z - cz) * s) / l, (hor + (basN - hor) * f - y * s) / h, s];
+  }
+  const portraitTV = () => { const t = $("tv-toile"); return t ? t.width / t.height < 0.9 : false; };
+  function dessinerTV2D(m, dt) {
+    const ctx = tv.ctx;
+    if (!ctx) return;
+    const toile = ctx.canvas;
+    const l = toile.width;
+    const h = toile.height;
+    const t = (tv.t2 = (tv.t2 || 0) + dt);
+    const hor = h * TV2.HORIZON;
+    const proj = (x, z, y = 0) => { const [a, b, s] = projeterTV2D(x, z, y, m); return [a * l, b * h, s]; };
+    // le ciel du soir, le soleil à bandes, les nuages
+    const ciel = ctx.createLinearGradient(0, 0, 0, hor);
+    ciel.addColorStop(0, "#24092f"); ciel.addColorStop(0.55, "#7a2a6a"); ciel.addColorStop(1, "#ffa9bf");
+    ctx.fillStyle = ciel; ctx.fillRect(0, 0, l, hor + 1);
+    const sx = l * 0.68;
+    const sr = Math.min(l, h) * 0.09;
+    const soleil = ctx.createRadialGradient(sx, hor - sr * 0.3, 2, sx, hor - sr * 0.3, sr * 2.4);
+    soleil.addColorStop(0, "rgba(255,240,214,.95)"); soleil.addColorStop(0.35, "rgba(255,190,150,.55)"); soleil.addColorStop(1, "rgba(255,150,180,0)");
+    ctx.fillStyle = soleil; ctx.beginPath(); ctx.arc(sx, hor - sr * 0.3, sr * 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff3dc"; ctx.beginPath(); ctx.arc(sx, hor - sr * 0.3, sr, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = "#ff8fb0";
+    for (let k = 0; k < 3; k++) ctx.fillRect(sx - sr, hor - sr * 0.3 - sr * (0.2 + k * 0.22), sr * 2, sr * 0.06);
+    ctx.fillStyle = "rgba(255,210,226,.55)";
+    for (let k = 0; k < 4; k++) {
+      const cx = ((k * 0.31 + 0.1 - m.dist * 0.00004) % 1.2 + 1.2) % 1.2 * l - l * 0.1;
+      const cy = hor * (0.45 + (k % 2) * 0.2);
+      ctx.beginPath(); ctx.ellipse(cx, cy, l * 0.09, h * 0.012, 0, 0, Math.PI * 2); ctx.ellipse(cx + l * 0.04, cy - h * 0.012, l * 0.05, h * 0.01, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // la mer, et ses lignes de vagues qui arrivent
+    const mer = ctx.createLinearGradient(0, hor, 0, h);
+    mer.addColorStop(0, "#f08ab8"); mer.addColorStop(0.12, "#5b7fd0"); mer.addColorStop(1, "#22377e");
+    ctx.fillStyle = mer; ctx.fillRect(0, hor, l, h - hor);
+    ctx.strokeStyle = "rgba(255,255,255,.35)";
+    ctx.lineWidth = Math.max(1, l / 500);
+    const pas = 7;
+    for (let k = Math.ceil(m.dist / pas); k < m.dist / pas + 26; k++) {
+      const x = k * pas;
+      const [, y, s] = proj(x, 0);
+      if (y < hor) continue;
+      ctx.beginPath();
+      for (let j = -3; j <= 3; j++) {
+        const [a] = proj(x, j * 4 + ((k * 13) % 5) - 2);
+        ctx.moveTo(a - s * 0.9, y);
+        ctx.quadraticCurveTo(a, y - s * 0.25, a + s * 0.9, y);
+      }
+      ctx.stroke();
+    }
+    // les bords du chenal : des rangées de récifs lointains (des petites dents sombres)
+    // ce qu'on croise, du plus loin au plus près
+    const vus = m.objets.filter((o) => !o.pris && o.x > m.dist - 4 && o.x < m.dist + 160).sort((a, b) => b.x - a.x);
+    ctx.lineJoin = "round";
+    for (const o of vus) dessinerObjetTV2D(ctx, o, proj, t, m);
+    // le sillage et le navire
+    dessinerNavireTV2D(ctx, m, proj, t, l, h);
+    // les éclats
+    tv.effets2D = tv.effets2D.filter((e) => (e.age += dt) < 0.8);
+    for (const e of tv.effets2D) {
+      const o = e.objet || {};
+      const [a, b, s] = proj(e.x ?? o.x ?? m.dist, e.z ?? o.z ?? m.x, 1);
+      const c = { choc: "#ffffff", naufrage: "#ffffff", tonneau: "#ffd36b", coeur: "#ff8fcb", bouteille: "#ffd36b", vent: "#9ff5ee", brise: "#e3dccf" }[e.type];
+      if (!c) continue;
+      ctx.strokeStyle = c;
+      ctx.globalAlpha = 1 - e.age / 0.8;
+      ctx.lineWidth = s * 0.25;
+      ctx.beginPath(); ctx.ellipse(a, b + s, s * (1 + e.age * 5), s * (0.3 + e.age * 1.5), 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (m.invincible > 0 && !reduit.matches) { ctx.fillStyle = `rgba(255,45,85,${(m.invincible / 1.6) * 0.18})`; ctx.fillRect(0, 0, l, h); }
+  }
+  function trait(ctx, s) { ctx.strokeStyle = "#12050d"; ctx.lineWidth = Math.max(1.2, s * 0.12); ctx.stroke(); }
+  function dessinerObjetTV2D(ctx, o, proj, t, m) {
+    const [a, b, s] = proj(o.x, o.z);
+    const e = o.ech || 1;
+    if (o.type === "rocher") {
+      const enfonce = o.brise ? Math.min(1, (m.t - o.brise) * 1.5) : 0;
+      if (enfonce >= 1) return;
+      const formes = o.modele === "jumeaux" ? [[1.05, 1.25, 2.6], [-1.0, 1.1, 2.2]] : o.modele === "recif" ? [[-1.6, 1.1, 0.9], [0, 1.3, 1.1], [1.6, 1.1, 0.9]] : [[0, 1.6, 4.6]];
+      for (const [dz, r, hh] of formes) {
+        const z = o.modele === "recif" ? dz : dz * Math.cos(o.rot || 0);
+        const [x0] = proj(o.x, o.z + z * e);
+        const w = r * e * s;
+        const hp = hh * e * s * (1 - enfonce);
+        ctx.fillStyle = o.modele === "jumeaux" && dz > 0 ? "#3b3236" : "#8f867a";
+        ctx.beginPath();
+        ctx.moveTo(x0 - w, b);
+        ctx.quadraticCurveTo(x0 - w * 1.05, b - hp * 0.7, x0 - w * 0.3, b - hp);
+        ctx.quadraticCurveTo(x0 + w * 0.2, b - hp * 1.05, x0 + w * 0.5, b - hp * 0.8);
+        ctx.quadraticCurveTo(x0 + w * 1.1, b - hp * 0.5, x0 + w, b);
+        ctx.closePath(); ctx.fill(); trait(ctx, s);
+        ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fillRect(x0, b - hp * 0.7, w * 0.6, hp * 0.6);
+        if (o.modele === "aiguille") { ctx.fillStyle = "#5f7a3a"; ctx.beginPath(); ctx.ellipse(x0 - w * 0.05, b - hp * 0.95, w * 0.5, s * 0.3, 0, 0, Math.PI * 2); ctx.fill(); trait(ctx, s); }
+        if (o.modele === "recif") { for (let k = 0; k < 3; k++) { ctx.fillStyle = ["#ff7a8a", "#9b4dff", "#ff4f9a"][k]; ctx.beginPath(); ctx.arc(x0 + (k - 1) * w * 0.5, b - hp * 0.9, s * 0.28, 0, Math.PI * 2); ctx.fill(); } }
+      }
+      ctx.fillStyle = "rgba(255,255,255,.85)";
+      ctx.beginPath(); ctx.ellipse(a, b, s * 2.4 * e, s * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (o.type === "tourbillon") {
+      for (let k = 0; k < 5; k++) {
+        const r = (4.2 - k * 0.8) * s;
+        ctx.strokeStyle = k % 2 ? "#ffffff" : "#5fd0d8";
+        ctx.lineWidth = s * 0.3;
+        ctx.beginPath(); ctx.ellipse(a, b, r, r * 0.28, 0, t * (2 + k) % 6.28, t * (2 + k) % 6.28 + 4.4); ctx.stroke();
+      }
+      ctx.fillStyle = "#1c2a66"; ctx.beginPath(); ctx.ellipse(a, b, s * 0.9, s * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (o.type === "tentacule") {
+      const mo = o.montee || 0;
+      if (mo < 0.98) {
+        ctx.fillStyle = "#ffffff";
+        for (let k = 0; k < 7; k++) { const u = t * 3 + k; ctx.beginPath(); ctx.arc(a + Math.cos(u) * s * 1.3, b - Math.abs(Math.sin(u * 2)) * s * 0.4, s * 0.25, 0, Math.PI * 2); ctx.fill(); }
+        if (o.etat === "attente" && Math.floor(t * 6) % 2 === 0) { ctx.fillStyle = "#ff2d55"; ctx.beginPath(); ctx.arc(a, b - s * 3.2, s * 0.8, 0, Math.PI * 2); ctx.fill(); trait(ctx, s); ctx.fillStyle = "#fff"; ctx.font = `900 ${Math.round(s * 1.2)}px 'Dela Gothic One', sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("!", a, b - s * 3.1); }
+      }
+      if (mo > 0.02) {
+        const hp = 5 * e * s * mo;
+        const bal = Math.sin(t * 2 + o.phase) * s * 0.6;
+        ctx.fillStyle = "#5e2bb0";
+        ctx.beginPath();
+        ctx.moveTo(a - s * 0.8 * e, b);
+        ctx.quadraticCurveTo(a - s * 0.9 + bal, b - hp * 0.6, a - s * 0.3 + bal, b - hp);
+        ctx.quadraticCurveTo(a - s * 1.4 + bal, b - hp * 1.08, a - s * 1.2 + bal, b - hp * 0.8);
+        ctx.quadraticCurveTo(a + s * 0.3 + bal, b - hp * 0.95, a + s * 0.8 * e, b);
+        ctx.closePath(); ctx.fill(); trait(ctx, s);
+        ctx.fillStyle = "#ffc6dc";
+        for (let k = 1; k < 5; k++) { ctx.beginPath(); ctx.arc(a - s * 0.45 + bal * (k / 5), b - hp * (k / 6), s * 0.16, 0, Math.PI * 2); ctx.fill(); }
+      }
+    } else if (o.type === "tonneau" || o.type === "bouteille") {
+      const y = b - s * (0.5 + Math.sin(t * 3 + o.phase) * 0.12);
+      ctx.fillStyle = "rgba(255,211,107,.35)"; ctx.beginPath(); ctx.ellipse(a, b, s * 1.6, s * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      if (o.type === "tonneau") {
+        ctx.fillStyle = "#c08a55"; ctx.beginPath(); ctx.ellipse(a, y, s * 0.75, s * 0.55, 0, 0, Math.PI * 2); ctx.fill(); trait(ctx, s);
+        ctx.strokeStyle = "#2a2a33"; ctx.lineWidth = s * 0.1;
+        for (const k of [-0.35, 0.35]) { ctx.beginPath(); ctx.moveTo(a + k * s, y - s * 0.52); ctx.lineTo(a + k * s, y + s * 0.52); ctx.stroke(); }
+      } else {
+        ctx.fillStyle = "rgba(95,211,154,.8)"; ctx.beginPath(); ctx.ellipse(a, y, s * 0.6, s * 0.25, -0.3, 0, Math.PI * 2); ctx.fill(); trait(ctx, s);
+        ctx.fillStyle = "#fbf1df"; ctx.fillRect(a - s * 0.3, y - s * 0.08, s * 0.45, s * 0.16);
+      }
+    } else if (o.type === "bourrasque") {
+      const y = b - s * (2.4 + Math.sin(t * 2 + o.phase) * 0.35);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(a, y, s * 0.8, 0, Math.PI * 2); ctx.arc(a - s * 0.6, y + s * 0.2, s * 0.5, 0, Math.PI * 2); ctx.arc(a + s * 0.6, y + s * 0.2, s * 0.5, 0, Math.PI * 2); ctx.fill(); trait(ctx, s);
+      ctx.fillStyle = "#12050d"; ctx.beginPath(); ctx.arc(a - s * 0.25, y - s * 0.1, s * 0.1, 0, Math.PI * 2); ctx.arc(a + s * 0.25, y - s * 0.1, s * 0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffb3d1"; ctx.beginPath(); ctx.arc(a, y + s * 0.25, s * 0.12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#3fd0c9"; ctx.lineWidth = s * 0.15; ctx.beginPath(); ctx.ellipse(a, y, s * 1.4, s * 0.45, 0, t * 3, t * 3 + 3.5); ctx.stroke();
+    }
+  }
+  function dessinerNavireTV2D(ctx, m, proj, t, l, h) {
+    const [a, b, s] = proj(m.dist, m.x);
+    const c = commuTraversee();
+    const c1 = hexaCommu(c, "principale");
+    const c2 = hexaCommu(c, "secondaire");
+    // le sillage : deux traînées d'écume qui s'écartent
+    ctx.strokeStyle = "rgba(255,255,255,.75)";
+    ctx.lineWidth = s * 0.35;
+    for (const k of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(a + k * s * 1.0, b + s * 0.4);
+      ctx.quadraticCurveTo(a + k * s * 2.5, b + s * 2.5, a + k * s * 4.6 - m.vx * s * 0.08, h + s);
+      ctx.stroke();
+    }
+    if (m.invincible > 0 && !reduit.matches && Math.floor(m.invincible * 12) % 2 === 0) return;
+    ctx.save();
+    ctx.translate(a, b + Math.sin(t * 2.2) * s * 0.06);
+    ctx.scale(0.8, 0.8);
+    ctx.rotate(Math.max(-0.25, Math.min(0.25, m.vx * 0.018)));
+    // la coque vue de l'arrière, le mât, la voile aux couleurs de la commu
+    ctx.fillStyle = "#7a3b2e";
+    ctx.beginPath(); ctx.moveTo(-s * 1.35, -s * 1.2); ctx.lineTo(s * 1.35, -s * 1.2); ctx.quadraticCurveTo(s * 1.25, s * 0.4, 0, s * 0.55); ctx.quadraticCurveTo(-s * 1.25, s * 0.4, -s * 1.35, -s * 1.2); ctx.fill(); trait(ctx, s);
+    ctx.fillStyle = "#d2a676"; ctx.fillRect(-s * 1.2, -s * 1.05, s * 2.4, s * 0.22);
+    ctx.fillStyle = "#4a2219"; ctx.fillRect(-s * 0.09, -s * 5.2, s * 0.18, s * 4.1);
+    ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.moveTo(-s * 1.6, -s * 4.6); ctx.quadraticCurveTo(0, -s * (4.2 - (m.vent > 0 ? 0.6 : 0.25)), s * 1.6, -s * 4.6); ctx.lineTo(s * 1.45, -s * 2.0); ctx.quadraticCurveTo(0, -s * 1.7, -s * 1.45, -s * 2.0); ctx.closePath(); ctx.fill(); trait(ctx, s);
+    ctx.fillStyle = c2; ctx.fillRect(-s * 1.5, -s * 3.0, s * 3.0, s * 0.35);
+    ctx.fillStyle = c2; ctx.beginPath(); ctx.moveTo(0, -s * 5.2); ctx.lineTo(s * 0.9, -s * 5.0 + Math.sin(t * 6) * s * 0.1); ctx.lineTo(0, -s * 4.75); ctx.fill();
+    ctx.restore();
+    if (m.vent > 0) {
+      ctx.strokeStyle = `rgba(159,245,238,${m.vent < 1 && Math.floor(m.vent * 8) % 2 ? 0.25 : 0.85})`;
+      ctx.lineWidth = s * 0.2;
+      ctx.beginPath(); ctx.ellipse(a, b - s * 2.2, s * 3.1, s * 3.4, 0, 0, Math.PI * 2); ctx.stroke();
+    }
   }
 
   // la carte en 2D (SVG) : la même carte, à plat, pour les appareils sans 3D et les mouvements réduits

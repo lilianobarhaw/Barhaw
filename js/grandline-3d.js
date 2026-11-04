@@ -2460,4 +2460,4 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   }
   return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
-export { lireGLB, sceneGLB, habiller };
+export { lireGLB, sceneGLB, habiller, animateurs, themeNavire, creerTrainee, pastille, toile };
