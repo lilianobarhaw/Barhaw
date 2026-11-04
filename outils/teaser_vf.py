@@ -93,7 +93,7 @@ def main():
             panneaux.append(None)
             continue
         c = Image.open(f).convert("RGBA")
-        c = c.crop((0, int(c.height * 0.075), c.width, c.height))
+        c = c.crop((0, 0, c.width, min(c.height, int(c.width * 1.25))))
         k = 560 / c.height
         c = c.resize((int(c.width * k), 560), Image.LANCZOS)
         cadre_p = Image.new("RGBA", (c.width + 26, c.height + 26), (0, 0, 0, 0))
