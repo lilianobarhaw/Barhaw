@@ -16,6 +16,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/img/favicon-32.png" type="image/png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<script src="/js/vf-tot.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
@@ -85,6 +86,10 @@
       </div>
     </div>
     <div class="hero-chopper revele">
+      <figure class="carte-postale vf-seul" id="carte-postale">
+        <img class="carte-postale-image" src="/img/accueil-vf.webp" srcset="/img/accueil-vf-petit.webp 480w, /img/accueil-vf.webp 960w" sizes="(max-width: 900px) 92vw, 46vw" alt="Port Barhaw au coucher du soleil : le navire de la commu au mouillage, des mouettes au-dessus" width="960" height="600" loading="lazy" decoding="async">
+        <figcaption class="carte-postale-tampon"><span aria-hidden="true">港</span> Port Barhaw</figcaption>
+      </figure>
       <span class="concentration" aria-hidden="true"></span>
       <div class="orbite">
         <span class="anneau" aria-hidden="true"></span>
@@ -128,7 +133,7 @@
     <span class="kanji" aria-hidden="true">航海</span>
     <div class="entete-section">
       <p class="surtitre revele">L'aventure de la commu</p>
-      <h2 class="titre-section revele" id="titre-grandline">GRAND <span class="degrade">LINE.</span></h2>
+      <h2 class="titre-section revele" id="titre-grandline">GRAND <span class="degrade">LINE.</span><img class="titre-objet vf-seul" src="/img/objets/bouteille.webp" alt="" width="203" height="160" loading="lazy" decoding="async"></h2>
       <a class="bl-gl" id="bl-gl" href="#boss-live" hidden>⚔️ <b id="bl-gl-titre">Le boss attaque le navire !</b> <span id="bl-gl-texte">Venez le détruire : chaque coup rapporte des milles.</span></a>
       <p class="sous revele">Le navire de la commu avance d'île en île grâce à tout ce que vous faites : un message sur le Discord, du vocal, une partie sur le site, une game sur la Faille, le chat Twitch… Tempêtes, monstres marins, votes aux carrefours, et un trésor au bout du voyage.</p>
       <svg class="gl-boussole" viewBox="0 0 100 100" aria-hidden="true">
@@ -137,13 +142,17 @@
         <text x="50" y="17" class="gl-b-n">N</text>
       </svg>
     </div>
+    <div class="fl-barre" id="flotte-barre" hidden></div>
     <div class="gl-vagues" aria-hidden="true"><i></i><i></i><span class="gl-vagues-navire"><b>⛵</b></span></div>
     <div class="gl-scene revele" id="grandline-scene">
       <div class="gl-carte" id="grandline-carte"><p class="gl-attente">La carte se déplie…</p></div>
       <div class="gl-etiquettes" id="grandline-etiquettes" aria-hidden="true"></div>
       <div class="gl-hud" id="grandline-hud"></div>
       <div class="gl-info carte" id="grandline-info" role="dialog" aria-label="L'île" hidden></div>
+      <a class="gl-ouvrir-3d" id="gl-ouvrir-3d" href="#grandline-3d" hidden><span aria-hidden="true">🌊</span> GRAND LINE en 3D</a>
     </div>
+    <div class="fl-course" id="flotte-course" hidden></div>
+    <div class="carte tv-carte" id="traversee" hidden></div>
     <div class="gl-grille">
       <div class="carte gl-cap revele" id="grandline-cap"></div>
       <div class="carte gl-mer revele" id="grandline-mer" aria-live="polite"></div>
@@ -160,7 +169,7 @@
     <span class="kanji" aria-hidden="true">魔王</span>
     <div class="entete-section">
       <p class="surtitre revele">Pendant le live</p>
-      <h2 class="titre-section revele" id="titre-boss-live">BOSS <span class="degrade">LIVE.</span> <span class="etiquette" id="etat-boss"></span></h2>
+      <h2 class="titre-section revele" id="titre-boss-live">BOSS <span class="degrade">LIVE.</span><img class="titre-objet vf-seul" src="/img/objets/casque.webp" alt="" width="177" height="160" loading="lazy" decoding="async"> <span class="etiquette" id="etat-boss"></span></h2>
       <p class="sous revele">Quand Liliano tape <b>!boss</b> en live, un boss se réveille : MORGHAST le Roi-Abysse, VORAXIA la Reine-Tempête ou KRAKOR le Colosse de Lave. Vous avez <b>5 minutes</b> pour le détruire, tous ensemble. S'il s'enfuit, il revient… et souvent plus costaud.</p>
     </div>
     <div class="bl-scene bl-dort" id="bl-scene">
@@ -188,6 +197,7 @@
           <li><b>⚔️ Le bouton FRAPPER</b> ici, connecté avec Discord.</li>
           <li><b>🔥 Sous 25 %</b> il enrage : chaque coup compte plus. Les <b>30 dernières secondes</b>, tout compte double !</li>
           <li><b>🏆 Victoire</b> : berrys et milles GRAND LINE pour chaque membre qui a frappé, bonus pour le podium.</li>
+          <li id="bl-regle-vs" hidden><b>⚔️ !bossvs</b> : Liliano invite une autre commu de la course qui est en live. Le même boss, les deux chats frappent, et à la fin on découvre quelle commu a frappé le plus fort. Les milles vont au navire de chaque commu.</li>
         </ul>
         <p class="bl-relier">Ton Twitch n'est pas relié ? Tes coups comptent pour le chat, mais pas à ton nom : relie-le dans <a href="#chaine">Ma chaîne</a>.</p>
       </div>
@@ -232,7 +242,7 @@
     <span class="kanji" aria-hidden="true">配信</span>
     <div class="entete-section">
       <p class="surtitre revele">Sur Twitch</p>
-      <h2 class="titre-section revele" id="titre-chaine">Ma <span class="degrade">chaîne.</span> <span class="etiquette" id="etat-chaine"></span></h2>
+      <h2 class="titre-section revele" id="titre-chaine">Ma <span class="degrade">chaîne.</span><img class="titre-objet vf-seul" src="/img/objets/camera.webp" alt="" width="84" height="160" loading="lazy" decoding="async"> <span class="etiquette" id="etat-chaine"></span></h2>
     </div>
     <div class="lecteur-zone revele" id="lecteur-zone">
       <div class="lecteur" id="lecteur"><div class="lecteur-attente">Le lecteur se charge quand tu arrives ici…</div></div>
@@ -247,7 +257,7 @@
     <span class="kanji" aria-hidden="true">仲間</span>
     <div class="entete-section">
       <p class="surtitre revele">La commu</p>
-      <h2 class="titre-section revele" id="titre-potes">Les <span class="degrade">potes.</span></h2>
+      <h2 class="titre-section revele" id="titre-potes">Les <span class="degrade">potes.</span><img class="titre-objet vf-seul" src="/img/objets/chopes.webp" alt="" width="106" height="160" loading="lazy" decoding="async"></h2>
       <p class="sous revele">Les chaînes Twitch de la commu. Ceux qui sont en live passent en premier.</p>
     </div>
     <div class="potes" id="potes-liste"></div>
@@ -258,7 +268,7 @@
     <span class="kanji" aria-hidden="true">動画</span>
     <div class="entete-section">
       <p class="surtitre revele">Vidéos</p>
-      <h2 class="titre-section revele" id="titre-youtube">Sur <span class="degrade">YouTube.</span></h2>
+      <h2 class="titre-section revele" id="titre-youtube">Sur <span class="degrade">YouTube.</span><img class="titre-objet vf-seul" src="/img/objets/clap.webp" alt="" width="187" height="160" loading="lazy" decoding="async"></h2>
       <a class="btn btn-contour btn-petit revele" id="lien-youtube" href="#" target="_blank" rel="noopener" hidden>S'abonner</a>
     </div>
     <div id="youtube-contenu"></div>
@@ -269,7 +279,7 @@
     <span class="kanji" aria-hidden="true">船医</span>
     <div class="entete-section">
       <p class="surtitre revele">La mascotte</p>
-      <h2 class="titre-section revele" id="titre-chopper">Chopper<span class="degrade">.</span> <span class="etiquette" id="niveau-chopper"></span></h2>
+      <h2 class="titre-section revele" id="titre-chopper">Chopper<span class="degrade">.</span><img class="titre-objet vf-seul" src="/img/objets/gamelle.webp" alt="" width="244" height="160" loading="lazy" decoding="async"> <span class="etiquette" id="niveau-chopper"></span></h2>
       <p class="sous revele">Un tamagotchi commun : toute la commu le fait vivre, ici et sur le Discord.</p>
     </div>
     <div class="chopper-grille">
@@ -407,7 +417,7 @@
     <span class="kanji" aria-hidden="true">集合</span>
     <div class="entete-section">
       <p class="surtitre revele">Le serveur</p>
-      <h2 class="titre-section revele" id="titre-discord">Rejoins le <span class="degrade">Discord.</span></h2>
+      <h2 class="titre-section revele" id="titre-discord">Rejoins le <span class="degrade">Discord.</span><img class="titre-objet vf-seul" src="/img/objets/cloche.webp" alt="" width="159" height="160" loading="lazy" decoding="async"></h2>
     </div>
     <div class="carte discord-carte revele" id="discord-carte"></div>
     <ul class="discord-plus">

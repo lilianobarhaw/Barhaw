@@ -7,7 +7,7 @@
 //          et applique les mêmes règles que sur Discord (une fois par jour pour nourrir et jouer).
 //          Le goûter de Chopper : jeu-debut ouvre une partie chez le bot, jeu-fin rend le score (vérifié par le bot).
 //   POST /api/chopper  { action: "cartes" | "carte-tirer" } → l'album du membre, ou sa carte du jour (tirée par le bot)
-//   POST /api/chopper  { action: "jeux" | "jeu-ouvrir" | "rumble-fin" | "quiz-repondre" | "docteur-fin" | "memory-fin" | "course-fin", jeu, niveau, partie, … }
+//   POST /api/chopper  { action: "jeux" | "jeu-ouvrir" | "rumble-fin" | "quiz-repondre" | "docteur-fin" | "memory-fin" | "course-fin" | "traversee-fin", jeu, niveau, partie, … }
 //        → les jeux du site (la Rumble Ball, le quiz One Piece, Docteur Chopper, le Memory, la course), vérifiés et corrigés par le bot
 //   POST /api/chopper  { action: "chasse" | "prime-activer" | "prime-retirer" | "boss-attaquer" }
 //        → la chasse : son avis de recherche WANTED (créer, retirer) et l'attaque du jour contre le boss de la semaine
@@ -15,14 +15,18 @@
 //        → La Faille des potes : relier son compte LoL (Riot ID puis icône de profil), le retirer, voir ses games notées
 //   POST /api/chopper  { action: "grandline" | "grandline-voter" | "grandline-bouteille", choix }
 //        → GRAND LINE : ce que le membre a ramé, son vote au carrefour (choix : l'île), ouvrir la bouteille à la mer
+//   POST /api/chopper  { action: "flotte" | "flotte-choisir", commu }
+//        → la flotte des commus (V4) : de quels serveurs de la course le membre est membre (le bot répond oui ou non,
+//          serveur par serveur), son équipage, et son choix d'équipage s'il est sur plusieurs (bloqué jusqu'au trésor).
+//          Les actions de GRAND LINE disent aussi quel navire elles visent (commu) : le bot vérifie que c'est son équipage.
 //   POST /api/chopper  { action: "fideles" | "fideles-code" | "fideles-retirer" }
 //        → les fidèles du stream : son temps sur le live, un code pour relier son Twitch (« !lier CODE » dans le chat), tout retirer
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper"]);
-const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper"]);
+const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course", "traversee"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
 
@@ -76,18 +80,24 @@ export async function POST(req) {
     corps.jeu = JEUX.has(d.jeu) ? d.jeu : "rumble";
     if (corps.jeu === "quiz") corps.niveau = NIVEAUX.has(d.niveau) ? d.niveau : "moyen";
   }
-  if (["rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin"].includes(action)) corps.partie = /^[0-9a-f]{24}$/.test(String(d.partie || "")) ? String(d.partie) : "";
+  if (["rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin"].includes(action)) corps.partie = /^[0-9a-f]{24}$/.test(String(d.partie || "")) ? String(d.partie) : "";
   if (action === "docteur-fin") {
     corps.soignes = entier(d.soignes, 0, 500);
     corps.score = entier(d.score, 0, 10000);
   }
   if (action === "memory-fin") corps.coups = entier(d.coups, 0, 500);
   if (action === "course-fin") corps.distance = entier(d.distance, 0, 1_000_000);
+  if (action === "traversee-fin") {
+    corps.distance = entier(d.distance, 0, 1_000_000);
+    corps.tonneaux = entier(d.tonneaux, 0, 100_000);
+  }
   if (action === "rumble-fin") {
     corps.transformations = entier(d.transformations, 0, 7);
     corps.score = entier(d.score, 0, 1000);
   }
   if (action === "grandline-voter") corps.choix = /^[a-z]{2,20}$/.test(String(d.choix || "")) ? String(d.choix) : "";
+  // la flotte (V4) : le navire visé (l'identifiant d'une commu de la course) ; le bot vérifie le reste
+  if ((action.startsWith("grandline") || action === "flotte-choisir") && /^[a-z0-9]{2,20}$/.test(String(d.commu || ""))) corps.commu = String(d.commu);
   if (action === "faille-lier") corps.riotId = String(d.riotId || "").replace(/[\u0000-\u001f]/g, "").slice(0, 40);
   if (action === "quiz-repondre") corps.choix = d.choix === null ? null : entier(d.choix, 0, 3);
   try {
