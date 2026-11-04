@@ -1957,11 +1957,14 @@
     function majHud() {
       $("gouter-score").textContent = String(s.score);
       $("gouter-combo").textContent = s.combo >= 3 ? `Combo ×${s.combo}` : "";
+      // en VF : à 10 bonbons d'affilée, la « fièvre du goûter » fait briller le cadre
+      $("gouter-jeu")?.classList.toggle("fievre", jeuxVF() && s.etat === "jeu" && s.combo >= 10);
     }
 
     async function finir() {
       s.etat = "fin";
       $("gouter-hud").hidden = true;
+      $("gouter-jeu")?.classList.remove("fievre");
       const score = s.score;
       const record = score > meilleurLocal;
       if (record) { meilleurLocal = score; try { localStorage.setItem("barhaw-gouter", String(score)); } catch {} }
@@ -1972,7 +1975,9 @@
         resultat,
         el("button", { class: "btn btn-plein", type: "button", onclick: () => lancer(), text: "Rejouer" }),
       );
-      if (!s.partie) return;
+      // en VF : le même écran de fin clair que les autres jeux (le résultat arrive du bot juste après)
+      const finGouter = (f, note = "") => { if (jeuxVF() && s.etat === "fin") ecran(finVF({ semaine: donnees?.chopper?.jeu?.semaine, gros: `${score} points`, score: "Fin du goûter !", note, f, rejouer: () => lancer() })); };
+      if (!s.partie) { finGouter({ perso: record && score > 0, message: compteJeu() ? "" : "Connecte-toi avec Discord pour que ton score compte." }); return; }
       const partie = s.partie;
       s.partie = "";
       try {
@@ -1984,6 +1989,7 @@
         }
         if (d.ok) {
           if (d.butin) recevoirButin(d.butin);
+          finGouter({ record: d.record, perso: d.perso, butin: d.butin, milles: d.milles }, d.recompense ? `Chopper est content : ${d.recompense}.` : d.restant > 0 ? "Attrape au moins un bonbon pour que la partie rapporte." : "Tes 3 parties qui rapportent sont faites pour aujourd'hui.");
           resultat.textContent = [
             d.record ? "Nouveau record du goûter, bravo !" : d.perso ? "Nouveau record perso cette semaine !" : `Ton meilleur cette semaine : ${d.meilleur} points.`,
             d.recompense ? `Chopper est content : ${d.recompense}.` : d.restant > 0 ? "Attrape au moins un bonbon pour que la partie rapporte." : "Tes 3 parties qui rapportent sont faites pour aujourd'hui.",
@@ -3432,7 +3438,7 @@
       if (logiciel && choix3D !== "oui") throw new Error("rendu logiciel");
       const { creerCourse3D } = await import("/js/course-3d.js");
       const toile = el("canvas", { class: "co-3d", "aria-hidden": "true" });
-      trois.rendu = creerCourse3D(toile, { CO, photo: photoCourse });
+      trois.rendu = creerCourse3D(toile, { CO, photo: photoCourse, vf: jeuxVF, iles: ["phare", "cristal", "archipel", "forteresse", "champignons", "tonnerre"].map((n) => `/img/jeux/course-ile-${n}.webp`) });
       trois.toile = toile;
       // un essai de quelques images, hors de la page : si l'appareil peine, on garde la 2D
       if (choix3D !== "oui" && trois.rendu.tropLent()) { trois.rendu.detruire(); trois.rendu = null; throw new Error("trop lent"); }
@@ -3471,7 +3477,14 @@
     $("co-scene")?.classList.remove("en-3d");
     dessinerCourse(co.moteur?.m || null);
   }
-  const teteCourse = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La course de Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏃" }));
+  const teteCourse = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La course de Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏃" }), fermerJeu(fermerCourse));
+  // les pistes de la VF 1.0 (en 3D) : elles changent tous les 250 m
+  const NOMS_PISTES = ["Coucher de soleil", "Nuit étoilée", "Tempête", "Aurore"];
+  function fermerCourse() {
+    if (co.etat === "jeu" || co.etat === "pret") { cancelAnimationFrame(co.boucle); co.etat = "accueil"; }
+    pleinEcranJeu($("course"), false);
+    rendreCourse();
+  }
   const texteCourse = (x) => `${nombre(x.score)} m`;
   const reglesCourse = () => {
     const c = infosJeux()?.course;
@@ -3483,7 +3496,9 @@
     if (!z || co.etat === "jeu" || co.etat === "choc" || co.etat === "envoi" || co.etat === "pret") return;
     const moiC = mesJeux?.course;
     const meilleur = Math.max(moiC?.meilleur || 0, co.record);
-    const ecran = co.etat === "fin" && co.fin
+    const ecran = co.etat === "fin" && co.fin && jeuxVF()
+      ? finVF({ semaine: infosJeux()?.course?.semaine, gros: `${nombre(co.fin.distance)} m`, score: CAUSES[co.fin.cause] || "Bonk !", f: co.fin, rejouer: lancerCourse, texteRejouer: "Recourir" })
+      : co.etat === "fin" && co.fin
       ? el("div", { class: "jeu-ecran co-ecran" },
         el("p", { class: "jeu-gros degrade", text: `${nombre(co.fin.distance)} m` }),
         el("p", { class: "jeu-score", text: CAUSES[co.fin.cause] || "Bonk !" }),
@@ -3704,15 +3719,25 @@
     co.pause = false;
     co.particules = [];
     co.moteur = moteurCourse(reglesCourse());
+    co.piste = 0;
     const z = $("course");
+    pleinEcranJeu(z, true);
+    // en VF : un grand pavé « Sauter » sous la course, pour le pouce (reste appuyé pour sauter plus haut)
+    const pave = jeuxVF() ? el("button", { class: "co-pave", type: "button", tabindex: "-1", "aria-label": "Sauter (reste appuyé pour sauter plus haut)" }, el("b", { text: "SAUTE !" }), el("small", { text: "reste appuyé pour sauter plus haut" })) : null;
     vider(z, teteCourse(),
       el("div", { class: "co-scene en-jeu", id: "co-scene" },
         el("canvas", { class: "co-canvas", id: "co-canvas", role: "img", "aria-label": "La course de Chopper en cours" }),
         el("span", { class: "sfx co-sfx", id: "co-sfx", "aria-hidden": "true" }),
         el("span", { class: "co-depart", id: "co-depart", "aria-hidden": "true", text: "3" }),
+        jeuxVF() ? el("span", { class: "co-piste", id: "co-piste", "aria-hidden": "true" }) : null,
       ),
-      el("p", { class: "note co-aide", text: "Clic, toucher ou Espace pour sauter · reste appuyé pour sauter plus haut" }),
+      pave || el("p", { class: "note co-aide", text: "Clic, toucher ou Espace pour sauter · reste appuyé pour sauter plus haut" }),
     );
+    if (pave) {
+      pave.addEventListener("pointerdown", (e) => { if (co.etat === "jeu") { e.preventDefault(); pave.setPointerCapture?.(e.pointerId); pave.classList.add("appui"); appuiCourse(true); } });
+      for (const ev of ["pointerup", "pointercancel"]) pave.addEventListener(ev, () => { pave.classList.remove("appui"); if (co.etat === "jeu") appuiCourse(false); });
+      pave.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
     preparerCanvasCourse();
     brancherCourse3D();
     trois.images = 0; trois.tempsImages = 0;
@@ -3727,9 +3752,11 @@
       depart.textContent = t;
       depart.classList.remove("pop"); void depart.offsetWidth; depart.classList.add("pop");
       await new Promise((ok) => setTimeout(ok, reduit.matches ? 250 : 520));
+      if (co.etat !== "pret") return; // refermé pendant le compte à rebours
     }
     depart.textContent = "";
     if (ouverture) { const { d } = await ouverture; if (d.partie) co.partie = d.partie; }
+    if (co.etat !== "pret") return;
     co.etat = "jeu";
     co.dernier = performance.now();
     cancelAnimationFrame(co.boucle);
@@ -3761,6 +3788,13 @@
     if (m.sol && !etaitAuSol) for (let k = 0; k < 6; k++) co.particules.push({ x: CO.X + (k - 3) * 5, y: CO.SOL - 2, r: 2 + Math.random() * 3, a: 0.6, vx: (k - 3) * 30, vy: -30 - Math.random() * 30 });
     for (const p of co.particules) { p.x += p.vx * dt; p.y += p.vy * dt; p.a -= dt * 1.4; }
     co.particules = co.particules.filter((p) => p.a > 0).slice(-40);
+    // en VF (et en 3D) : une nouvelle piste tous les 250 m, annoncée en haut de l'écran
+    const piste = Math.floor(m.dist / CO.M / 250);
+    if (piste !== co.piste && course3D() && jeuxVF()) {
+      co.piste = piste;
+      const b = $("co-piste");
+      if (b) { b.textContent = `Piste ${(piste % 4) + 1} · ${NOMS_PISTES[piste % 4]}`; b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+    }
     if (ev === "palier") {
       const sfx = $("co-sfx");
       const metres = m.palier * 100;
@@ -3779,16 +3813,18 @@
     sfx.textContent = m.choc.type === "boulet" ? "ドカーン！" : m.choc.type === "mouette" ? "グワッ！" : "ゴン！";
     sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
     $("co-scene")?.classList.add("choc");
+    if (jeuxVF()) navigator.vibrate?.(70); // sur téléphone, le choc se sent aussi
     if (distance > co.record) { co.record = distance; try { localStorage.setItem("barhaw-course", String(distance)); } catch {} }
     let fin = { distance, cause: m.choc.type, message: "" };
     const attente = new Promise((ok) => setTimeout(ok, reduit.matches ? 300 : 1100));
     if (co.partie) {
       co.etat = "envoi";
       const { d } = await demanderJeux("course-fin", { partie: co.partie, distance });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
       else if (d.erreur) fin.message = d.erreur;
     } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ta distance compte.";
     await attente;
+    if (co.etat === "accueil") return; // refermé entre-temps
     co.etat = "fin";
     co.fin = fin;
     rendreCourse();

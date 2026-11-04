@@ -3343,3 +3343,23 @@ html.v4 .dc-remede:hover .dc-remede-img { transform: rotate(-8deg) scale(1.12); 
   html.v4 .mm-table .mm-grille { transform: none; }
   html.v4 .qz-ecran .qz-question, .jeu-badge { animation: none; }
 }
+
+/* la course (VF 1.0) : le nom de la piste quand elle change, et un grand pavé « SAUTE ! » pour le pouce */
+.co-piste { position: absolute; left: 50%; top: 10px; z-index: 3; translate: -50% 0; padding: 4px 14px; border: 2px solid var(--encre); border-radius: 99px; background: var(--papier); color: var(--encre); font-family: var(--fort); font-weight: 800; font-size: 13px; white-space: nowrap; box-shadow: 3px 3px 0 var(--ombre); opacity: 0; pointer-events: none; }
+.co-piste.pop { animation: co-piste 2.6s var(--doux) both; }
+@keyframes co-piste { 0% { opacity: 0; translate: -50% -10px; } 12%, 80% { opacity: 1; translate: -50% 0; } 100% { opacity: 0; translate: -50% -6px; } }
+.co-pave { display: grid; place-items: center; align-content: center; gap: 2px; width: 100%; min-height: 96px; padding: 14px; border: 2.5px solid var(--encre); border-radius: 18px; background: linear-gradient(180deg, #ff6fae, #c9367a); color: #fff; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: 0 7px 0 #7a1847, 4px 11px 0 var(--ombre); transition: transform 0.08s, box-shadow 0.08s; }
+.co-pave b { font-family: var(--titre); font-weight: 400; font-size: 26px; letter-spacing: 0.04em; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3); }
+.co-pave small { font-family: var(--fort); font-weight: 800; font-size: 12px; opacity: 0.9; }
+.co-pave.appui { transform: translateY(5px); box-shadow: 0 2px 0 #7a1847, 2px 5px 0 var(--ombre); }
+@media (max-width: 760px) { html.v4 .jeu-panneau.en-jeu .co-pave { min-height: max(150px, 30vh); } }
+
+/* le goûter (VF 1.0) : l'écran de fin clair tient dans le cadre, et la « fièvre » à 10 bonbons d'affilée */
+html.v4 .gouter-ecran { overflow-y: auto; place-content: safe center; }
+html.v4 .gouter-ecran .jeu-fin-vf { gap: 8px; }
+html.v4 .gouter-ecran .jeu-gros { font-size: clamp(26px, 3.4vw, 34px); }
+html.v4 .gouter-ecran .jeu-gains { padding: 8px 12px; }
+html.v4 .gouter-jeu.fievre { box-shadow: inset 0 0 0 3px #ffd479, inset 0 0 40px rgba(255, 212, 121, 0.45); animation: gouter-fievre 0.9s ease-in-out infinite alternate; }
+html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px rgba(255, 212, 121, 0.8); }
+@keyframes gouter-fievre { from { box-shadow: inset 0 0 0 3px #ffd479, inset 0 0 26px rgba(255, 212, 121, 0.3); } to { box-shadow: inset 0 0 0 3px var(--rose), inset 0 0 48px rgba(255, 79, 154, 0.5); } }
+@media (prefers-reduced-motion: reduce) { html.v4 .gouter-jeu.fievre { animation: none; } .co-piste.pop { animation-duration: 2.6s; } }

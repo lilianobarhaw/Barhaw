@@ -4,9 +4,11 @@
 #   rumble   : l'arène (le ring, ses cordes, les gradins qui brillent) ; rumble-avant = les cordes de devant, à part
 #   docteur  : le cabinet (lit d'examen, étagère à bocaux, fenêtre de nuit, bureau)
 #   remedes  : les 8 remèdes de Docteur Chopper (pansement, glace, sieste, viande, tisane, câlin, crème, barbe à papa)
+#   iles     : six îles de GRAND LINE vues de côté, pour l'horizon de la course de Chopper (img/jeux/course-ile-<nom>.webp)
 # Usage dans Blender :
-#   import barhaw_jeux_vf as J ; J.rendre("memory")   (ou "quiz", "rumble", "rumble-avant", "docteur", "remedes")
+#   import barhaw_jeux_vf as J ; J.rendre("memory")   (ou "quiz", "rumble", "rumble-avant", "docteur", "remedes", "iles")
 import math
+import bpy
 from mathutils import Vector
 import barhaw_base as B
 
@@ -337,12 +339,38 @@ def remedes(taille=(320, 320), noms=None):
     return faits
 
 
+# ---------- les îles de l'horizon de la course (déjà faites pour GRAND LINE), vues de côté ----------
+ILES_COURSE = ("ile_phare_v4", "ile_cristal_v4", "ile_archipel_v4", "ile_forteresse_v4", "ile_champignons", "ile_tonnerre")
+
+
+def iles_course(taille=(640, 360)):
+    faits = {}
+    for nom in ILES_COURSE:
+        coll = bpy.data.collections.get(nom)
+        objs = [o for o in coll.all_objects if o.type == "MESH"] if coll else []
+        if not objs:
+            continue
+        coins = [o.matrix_world @ Vector(k) for o in objs for k in o.bound_box]
+        mn = Vector((min(v.x for v in coins), min(v.y for v in coins), min(v.z for v in coins)))
+        mx = Vector((max(v.x for v in coins), max(v.y for v in coins), max(v.z for v in coins)))
+        c = (mn + mx) / 2
+        R = max((mx - mn).x, (mx - mn).z * 1.6) / 2
+        cam = c + Vector((0, -1, 0.16)).normalized() * R * 3.2
+        try:
+            faits[nom] = B.vitrine([coll.name], cam=tuple(cam), cible=tuple(c), objectif=50, nom="course-" + nom.replace("ile_", "").replace("_v4", ""), taille=taille, mer=False, trait=1.2, transparent=True)
+        finally:
+            B.fin_vitrine()
+    return faits
+
+
 SCENES = {"memory": memory, "quiz": quiz, "rumble": rumble, "rumble-avant": lambda: rumble(avant=True), "docteur": docteur}
 
 
 def rendre(nom, taille=TAILLE):
     if nom == "remedes":
         return remedes()
+    if nom == "iles":
+        return iles_course()
     B.nettoyer()
     colls, cam, cible, objectif = SCENES[nom]()
     try:
