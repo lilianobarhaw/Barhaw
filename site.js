@@ -4494,7 +4494,7 @@
   const v4Ouverte = () => { const o = donnees?.v4?.ouvert; return o === true || (o !== false && Date.now() >= V4_OUVERTURE); };
   const ID_COMMU = /^[a-z0-9]{2,20}$/;
   // les identifiants déjà pris dans GRAND LINE (les liens directs sont #grandline-<commu>)
-  const RESERVES_GL = new Set(["scene", "carte", "etiquettes", "hud", "info", "cap", "mer", "moi", "equipage", "journal", "escales", "ramer", "verrou", "course", "fiche"]);
+  const RESERVES_GL = new Set(["scene", "carte", "etiquettes", "hud", "info", "cap", "mer", "moi", "equipage", "journal", "escales", "ramer", "verrou", "course", "fiche", "3d"]);
   let flVue = ""; // "" : la course ; sinon la commu qu'on regarde
   let flDemandee = ""; // arrivée par un lien direct (#grandline-veyzo) : appliquée dès que la flotte est là
   let maFlotte = null; // { equipage, serveurs, bloque } pour le membre connecté
@@ -4587,7 +4587,7 @@
   // un lien direct (barhaw.vercel.app/#grandline-veyzo), à l'arrivée ou plus tard
   function lienDirectFlotte() {
     const m = /^#grandline-([a-z0-9]{2,20})$/.exec(location.hash);
-    if (!m) return;
+    if (!m || m[1] === "3d") return;
     flDemandee = m[1] === "course" ? "" : m[1];
     if (flotteActive()) { choisirVueFlotte(flDemandee, { lien: false }); flDemandee = ""; }
   }
@@ -4932,6 +4932,12 @@
     $("grandline-verrou")?.remove();
     cleVerrou = "";
     if (glVue && !carteGL) preparerCarteGL();
+    // la V4 : le lien direct vers la carte en 3D (#grandline-3d)
+    if (salleVoulue() && !SALLE.ouverte && v4Ouverte()) ouvrirSalleGL();
+    const b3 = $("gl-ouvrir-3d");
+    if (b3) b3.hidden = !v4Ouverte() || SALLE.ouverte || carteGL?.type !== "2d";
+    const sousSalle = $("gl-salle-sous");
+    if (sousSalle) sousSalle.textContent = flotteActive() ? commuRegardee()?.nom || "" : g?.cible ? `Cap sur ${g.cible.nom}` : "";
     // « Terre en vue ! » : une nouvelle île pendant la visite (ou il y a moins de 2 h, une fois par visite), navire par navire
     const cleNavire = flotteActive() ? commuRegardee().id : "";
     const avant = glAvant?.cle === cleNavire ? glAvant : null;
@@ -5209,20 +5215,24 @@
   let preparationGL = false;
   async function preparerCarteGLVraiment(zone) {
     const choix3d = new URLSearchParams(location.search).get("3d");
-    if (choix3d !== "non" && !navigator.connection?.saveData && !reduit.matches) {
+    // la V4 : sur la page, la carte en 2D (légère, vivante) ; la 3D s'ouvre en grand avec le bouton « GRAND LINE en 3D »
+    const salle = SALLE.ouverte;
+    if (v4Ouverte() && !salle) { passerCarte2D(); return; }
+    // (avec « réduire les animations », la carte reste en 2D, même dans la salle)
+    if ((salle || choix3d !== "non") && !navigator.connection?.saveData && !reduit.matches) {
       try {
         const essai = document.createElement("canvas").getContext("webgl2");
         const info = essai?.getExtension("WEBGL_debug_renderer_info");
         const logiciel = info && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(essai.getParameter(info.UNMASKED_RENDERER_WEBGL)));
         essai?.getExtension("WEBGL_lose_context")?.loseContext();
-        if (essai && (!logiciel || choix3d === "oui")) {
+        if (essai && (!logiciel || choix3d === "oui" || salle)) {
           const { creerGrandLine3D } = await import("/js/grandline-3d.js");
           const toile = el("canvas", { class: "gl-toile", "aria-label": "La carte de GRAND LINE en 3D : glisse pour te déplacer, clique sur une île", role: "img" });
           vider(zone, toile);
           // les îles V4 (la démo : le Phare), seulement une fois la V4 ouverte
           const ilesV4 = v4Ouverte() && !window.__ileV3 ? ILES_V4 : [];
           const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), ilesV4, surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
-          if (choix3d !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
+          if (choix3d !== "oui" && !salle && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
           // la carte passe en 2D seulement si c'est elle qui perd la 3D (pas une ancienne carte qu'on vient de refaire)
           toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); if (carteGL?.rendu === rendu) passerCarte2D(); });
           carteGL = { type: "3d", rendu };
@@ -5244,7 +5254,60 @@
     vider($("grandline-etiquettes"));
     carteGL = { type: "2d", rendu: carte2D($("grandline-carte")) };
     if (infosGL()) carteGL.rendu.maj(donneesCarteGL(infosGL()));
+    const b = $("gl-ouvrir-3d");
+    if (b) b.hidden = !v4Ouverte() || SALLE.ouverte;
   }
+
+  // ---------- la salle GRAND LINE (V4) : la carte en 3D en plein écran, la mer qui vit ; #grandline-3d l'ouvre directement ----------
+  const SALLE = { ouverte: false, el: null, retour: null };
+  const salleVoulue = () => location.hash === "#grandline-3d";
+  function ouvrirSalleGL() {
+    if (SALLE.ouverte || !v4Ouverte() || !glOuvert()) return;
+    const scene = $("grandline-scene");
+    const barre = $("flotte-barre");
+    if (!scene) return;
+    SALLE.ouverte = true;
+    SALLE.retour = { scene: [scene.parentNode, scene.nextSibling], barre: barre ? [barre.parentNode, barre.nextSibling] : null, focus: document.activeElement, haut: scrollY };
+    const fermer = el("button", { class: "gl-salle-fermer", type: "button", "aria-label": "Fermer la carte en 3D et revenir au site", onclick: () => fermerSalleGL() }, el("span", { "aria-hidden": "true", text: "✕" }), el("span", { class: "gl-salle-fermer-texte", text: "Revenir" }));
+    const g = infosGL();
+    const o = el("div", { class: "gl-salle", role: "dialog", "aria-modal": "true", "aria-label": "GRAND LINE en 3D" },
+      el("div", { class: "gl-salle-haut" },
+        el("p", { class: "gl-salle-titre" }, el("span", { class: "gl-salle-kanji", "aria-hidden": "true", text: "大航海" }), "GRAND LINE",
+          el("small", { id: "gl-salle-sous", text: flotteActive() ? commuRegardee()?.nom || "" : g?.cible ? `Cap sur ${g.cible.nom}` : "" })),
+        fermer));
+    if (barre && !barre.hidden) o.firstChild.insertBefore(barre, fermer);
+    o.append(scene);
+    document.body.append(o);
+    SALLE.el = o;
+    document.documentElement.classList.add("gl-salle-ouverte");
+    if (!salleVoulue()) history.pushState(null, "", "#grandline-3d");
+    $("gl-ouvrir-3d").hidden = true;
+    // la carte 2D laisse la place à la 3D (à la taille de l'écran)
+    if (carteGL?.type) { try { carteGL.rendu.detruire(); } catch {} }
+    carteGL = null;
+    glVue = true;
+    preparerCarteGL().then(() => { tailleCarteGL(); fermer.focus({ preventScroll: true }); });
+    document.addEventListener("keydown", toucheSalle);
+  }
+  function toucheSalle(e) { if (e.key === "Escape" && !$("grandline-info")?.matches(":not([hidden])")) fermerSalleGL(); }
+  function fermerSalleGL({ hash = true } = {}) {
+    if (!SALLE.ouverte) return;
+    document.removeEventListener("keydown", toucheSalle);
+    const { scene, barre, focus, haut } = SALLE.retour;
+    if (carteGL?.type) { try { carteGL.rendu.detruire(); } catch {} }
+    carteGL = null;
+    scene[0].insertBefore($("grandline-scene"), scene[1]);
+    if (barre) barre[0].insertBefore($("flotte-barre"), barre[1]);
+    SALLE.el?.remove();
+    SALLE.el = null;
+    SALLE.ouverte = false;
+    document.documentElement.classList.remove("gl-salle-ouverte");
+    if (hash && salleVoulue()) history.replaceState(null, "", "#grandline");
+    passerCarte2D();
+    scrollTo({ top: haut, behavior: "auto" });
+    (focus?.isConnected ? focus : $("gl-ouvrir-3d"))?.focus?.({ preventScroll: true });
+  }
+  window.addEventListener("hashchange", () => { if (salleVoulue()) ouvrirSalleGL(); else if (SALLE.ouverte) fermerSalleGL({ hash: false }); });
   function tailleCarteGL() {
     const z = $("grandline-carte");
     if (carteGL?.type === "3d" && z) carteGL.rendu.taille(z.clientWidth, z.clientHeight);
@@ -5256,11 +5319,110 @@
     const s = (tag, attrs = {}, ...enfants) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); e.append(...enfants.flat().filter(Boolean)); return e; };
     const X = (x) => x + 118;
     const Y = (z) => z + 73;
+    // la V4 : une carte dessinée qui vit (la houle, les fonds autour des îles, la rose des vents, des baleines, des dauphins,
+    // des navires marchands, des mouettes, un serpent de mer, des nuages qui passent) ; tout en SVG, rien à charger
+    const anime = (tag, attrs) => s(tag, { repeatCount: "indefinite", ...attrs });
+    function vie2D(svg, g) {
+      const defs = s("defs", {},
+        s("pattern", { id: "gl2-vagues", width: 12, height: 7, patternUnits: "userSpaceOnUse" }, s("path", { d: "M0 4 q1.5 -2 3 0 t3 0", class: "gl2-vague" }), s("path", { d: "M6 1.2 q1.5 -2 3 0 t3 0", class: "gl2-vague" })),
+        s("radialGradient", { id: "gl2-fond", cx: "50%", cy: "50%", r: "62%" }, s("stop", { offset: "0%", "stop-color": "#8ec3dd" }), s("stop", { offset: "100%", "stop-color": "#b9dceb" })),
+        s("clipPath", { id: "gl2-mer" }, s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10 })));
+      svg.append(defs);
+      const mer = s("g", { "clip-path": "url(#gl2-mer)", class: "gl2-vie", "aria-hidden": "true" });
+      mer.append(s("rect", { x: 14, y: 15, width: 208, height: 116, fill: "url(#gl2-fond)" }));
+      // la houle : un motif de vaguelettes qui glisse
+      mer.append(s("g", { class: "gl2-houle" }, s("rect", { x: 2, y: 9, width: 236, height: 130, fill: "url(#gl2-vagues)" })));
+      // les lignes de rhumb depuis la rose des vents
+      const rose = [36, 112];
+      const rhumbs = s("g", { class: "gl2-rhumbs" });
+      for (let k = 0; k < 16; k++) { const a = (k * Math.PI) / 8; rhumbs.append(s("line", { x1: rose[0], y1: rose[1], x2: rose[0] + Math.cos(a) * 260, y2: rose[1] + Math.sin(a) * 260 })); }
+      mer.append(rhumbs);
+      // les fonds autour des îles connues (des courbes de niveau) et l'écume qui respire
+      for (const e of g.route.flat()) {
+        if (e.etat === "inconnue" || e.etat === "ecartee") continue;
+        const [x, z] = GL_PLACES[e.id] || [0, 0];
+        mer.append(s("circle", { cx: X(x), cy: Y(z), r: 13.5, class: "gl2-fond" }), s("circle", { cx: X(x), cy: Y(z), r: 10, class: "gl2-fond" }),
+          s("circle", { cx: X(x), cy: Y(z), r: 8, class: "gl2-ecume" }, anime("animate", { attributeName: "r", values: "7.5;9.5;7.5", dur: `${4 + (x % 3)}s` }), anime("animate", { attributeName: "opacity", values: "0.8;0.1;0.8", dur: `${4 + (x % 3)}s` })));
+      }
+      // deux baleines qui font le tour de la mer, et leur jet d'eau
+      [["M30 40 C70 20 140 22 200 38 S210 120 150 118 S30 110 30 40Z", 90, 0], ["M60 120 C110 128 180 125 205 100 S190 30 130 32 S50 80 60 120Z", 120, -40]].forEach(([d, dur, debut], k) => {
+        const b = s("g", { class: "gl2-baleine" },
+          s("path", { d: "M-5 0 C-4 -2.6 3 -2.8 5 -0.6 C6 0.4 5 1.6 3 1.8 L-3 1.6 C-4.4 1.4 -5.2 0.8 -5 0Z", class: "gl2-baleine-corps" }),
+          s("path", { d: "M-5 0 L-7.4 -1.6 L-6.6 0.2 L-7.4 1.8Z", class: "gl2-baleine-corps" }),
+          s("circle", { cx: 3.4, cy: -0.6, r: 0.35, fill: "#12050d" }),
+          s("g", { class: "gl2-jet", transform: "translate(1.4 -2.6)" }, s("path", { d: "M0 0 C-1 -1.6 -2 -2 -2.6 -1.6 M0 0 C0 -2 0 -2.6 0 -3 M0 0 C1 -1.6 2 -2 2.6 -1.6" }),
+            anime("animate", { attributeName: "opacity", values: "0;0;1;0", keyTimes: "0;0.7;0.8;1", dur: "7s", begin: `${k * 2.5}s` })),
+          anime("animateMotion", { path: d, dur: `${dur}s`, begin: `${debut}s`, rotate: "auto" }));
+        mer.append(b);
+      });
+      // des dauphins qui sautent (trois, l'un après l'autre), près du milieu
+      const dauphins = s("g", { class: "gl2-dauphins", transform: "translate(92 98)" });
+      for (let k = 0; k < 3; k++) {
+        dauphins.append(s("path", { d: "M-2 0 C-1 -1.4 1.2 -1.4 2.2 -0.2 L2.8 -0.4 L2.4 0.3 C1 0.6 -1 0.6 -2 0Z M0 -1 L0.4 -1.8 L0.9 -1Z", class: "gl2-dauphin" },
+          anime("animateTransform", { attributeName: "transform", type: "translate", values: `${k * 5} 2;${k * 5 + 4} -4;${k * 5 + 8} 2;${k * 5 + 8} 2`, keyTimes: "0;0.18;0.36;1", dur: "5s", begin: `${k * 0.35}s` }),
+          anime("animate", { attributeName: "opacity", values: "0;1;1;0;0", keyTimes: "0;0.05;0.33;0.38;1", dur: "5s", begin: `${k * 0.35}s` })));
+      }
+      mer.append(dauphins);
+      // deux navires marchands qui font la navette entre les îles (des petites voiles crème)
+      [["M20 70 C60 50 100 90 150 60 S215 70 220 90", 75], ["M215 40 C170 30 120 60 80 45 S30 60 18 90", 95]].forEach(([d, dur], k) => {
+        mer.append(s("g", { class: "gl2-marchand" },
+          s("path", { d: "M-2.6 0.4 L2.6 0.4 L1.8 1.6 L-1.8 1.6Z", class: "gl2-coque" }),
+          s("path", { d: "M0 0.4 L0 -3.6 L2.2 -0.2Z", class: "gl2-voile" }), s("path", { d: "M-0.3 0 L-0.3 -2.8 L-2 -0.2Z", class: "gl2-voile" }),
+          anime("animateMotion", { path: d, dur: `${dur}s`, begin: `${-k * 30}s` })));
+      });
+      // le serpent de mer, au bord de la carte : ses bosses sortent et replongent
+      const serpent = s("g", { class: "gl2-serpent", transform: "translate(196 118)" });
+      for (let k = 0; k < 4; k++) {
+        serpent.append(s("path", { d: `M${k * 3.4 - 6} 0 a1.7 1.9 0 0 1 3.4 0`, class: "gl2-bosse" },
+          anime("animate", { attributeName: "opacity", values: "0;1;1;0;0", keyTimes: "0;0.1;0.4;0.5;1", dur: "11s", begin: `${k * 0.4}s` })));
+      }
+      serpent.append(s("path", { d: "M7.6 0 c0 -2.4 1.6 -3.4 2.8 -2.6 c0.8 0.6 0.4 1.4 -0.4 1.4", class: "gl2-bosse" }, anime("animate", { attributeName: "opacity", values: "0;1;1;0;0", keyTimes: "0;0.1;0.4;0.5;1", dur: "11s", begin: "1.6s" })));
+      mer.append(serpent);
+      svg.append(mer, s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl2-bord" }));
+      // au-dessus de la mer : la rose des vents, les mouettes, les nuages et leur ombre, le sceau
+      const haut = s("g", { class: "gl2-vie", "aria-hidden": "true" });
+      const r = s("g", { class: "gl2-rose", transform: `translate(${rose[0]} ${rose[1]})` },
+        s("circle", { r: 7.4, class: "gl2-rose-cercle" }), s("circle", { r: 5.6, class: "gl2-rose-cercle" }),
+        s("path", { d: "M0 -8 L1.3 -1.3 L8 0 L1.3 1.3 L0 8 L-1.3 1.3 L-8 0 L-1.3 -1.3Z", class: "gl2-rose-etoile" }),
+        s("path", { d: "M0 -8 L1.3 -1.3 L0 0Z M8 0 L1.3 1.3 L0 0Z M0 8 L-1.3 1.3 L0 0Z M-8 0 L-1.3 -1.3 L0 0Z", class: "gl2-rose-ombre" }),
+        s("text", { y: -9.4, class: "gl2-rose-n" }, "N"));
+      haut.append(r);
+      for (let k = 0; k < 4; k++) {
+        haut.append(s("path", { d: "M-1.6 0 Q-0.8 -0.9 0 0 Q0.8 -0.9 1.6 0", class: "gl2-mouette" },
+          anime("animateMotion", { path: `M${-10 - k * 6} ${30 + k * 9} C60 ${10 + k * 12} 160 ${50 + k * 6} 250 ${22 + k * 10}`, dur: `${34 + k * 7}s`, begin: `${-k * 9}s` }),
+          anime("animateTransform", { attributeName: "transform", type: "scale", values: "1 1;1 0.4;1 1", dur: "0.9s", additive: "sum" })));
+      }
+      for (let k = 0; k < 2; k++) {
+        const y = 32 + k * 52;
+        const nuage = s("g", { class: "gl2-nuage" },
+          s("ellipse", { cx: 3, cy: 9, rx: 13, ry: 3.4, class: "gl2-nuage-ombre" }),
+          s("path", { d: "M-10 2 a4 4 0 0 1 5 -4 a6 6 0 0 1 11 0 a4 4 0 0 1 4 4 Z", class: "gl2-nuage-corps" }),
+          anime("animateTransform", { attributeName: "transform", type: "translate", values: `-30 ${y};260 ${y}`, dur: `${70 + k * 30}s`, begin: `${-k * 40}s` }));
+        haut.append(nuage);
+      }
+      haut.append(s("g", { class: "gl2-sceau", transform: "translate(208 27) rotate(-8)" }, s("rect", { x: -5, y: -5, width: 10, height: 10, rx: 1.4 }), s("text", { y: 2.8 }, "海")));
+      svg.append(haut);
+    }
+    let signature = "";
+    let visible2D = true;
+    const io2D = "IntersectionObserver" in window ? new IntersectionObserver(([e]) => {
+      visible2D = e.isIntersecting && !document.hidden;
+      const svg = zone.querySelector("svg");
+      if (!svg) return;
+      try { if (visible2D && !reduit.matches) svg.unpauseAnimations(); else svg.pauseAnimations(); } catch {}
+      zone.classList.toggle("gl2-pause", !visible2D || reduit.matches);
+    }) : null;
+    io2D?.observe(zone);
     return {
       maj(g) {
+        // la carte n'est redessinée que si quelque chose a changé (les images et les animations ne repartent pas à zéro)
+        const sig = JSON.stringify([g.route?.map((e) => e.map((x) => [x.id, x.etat])), Math.round(g.milles || 0), g.longueur, Boolean(g.vote), g.flotte?.id, g.flotte?.autres?.map((o) => [o.id, o.etape, Math.round(o.milles || 0)]), v4Ouverte()]);
+        if (sig === signature && zone.querySelector("svg")) return;
+        signature = sig;
         const pos = (id) => GL_PLACES[id] || [0, 0];
         const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de GRAND LINE : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
         svg.append(s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl-svg-mer" }));
+        if (v4Ouverte()) vie2D(svg, g);
         const traits = s("g", { class: "gl-svg-route" });
         let navire = null;
         g.route.forEach((etape, k) => {
@@ -5312,9 +5474,12 @@
           const p = navire.chemin.getPointAtLength(L * Math.min(1, navire.p));
           svg.append(s("g", { class: "gl-svg-navire", transform: `translate(${p.x} ${p.y})` }, s("text", { y: 2, text: "" }, "⛵")));
         }
+        // les animations de la carte vivante s'arrêtent avec les mouvements réduits, et quand la carte n'est pas à l'écran
+        if (reduit.matches || !visible2D) try { svg.pauseAnimations(); } catch {}
+        zone.classList.toggle("gl2-pause", reduit.matches || !visible2D);
       },
       taille() {},
-      detruire() { vider(zone); },
+      detruire() { io2D?.disconnect(); zone.classList.remove("gl2-pause"); vider(zone); },
     };
   }
 
@@ -5506,6 +5671,10 @@
     $("bl-sources").textContent = c && (actif || recent) ? Object.entries(c.sources || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${BL_SOURCES[k] || k} ${blFmt(v)}`).join(" · ") : "";
     const j = c && (actif || recent) ? c.journal : [];
     vider($("bl-journal"), ...(j.length ? j.map((x) => el("li", { text: x.texte })) : [el("li", { class: "bl-vide", text: horsLigne ? "⚓ Le bateau fait une pause au port." : "Le boss dort." })]));
+    // la V4 : le BOSS LIVE VS (deux commus, le même boss)
+    const regleVs = $("bl-regle-vs");
+    if (regleVs) regleVs.hidden = !v4Ouverte();
+    blVs(c, actif, recent);
     // partout sur le site : la pastille du menu, l'alerte en bas, le bandeau sur GRAND LINE
     $("pastille-boss").hidden = !actif;
     $("bl-gl").hidden = !actif;
@@ -5514,6 +5683,65 @@
     clearInterval(BL.chrono);
     if (actif) BL.chrono = setInterval(blChrono, 250);
     if ((actif || BL.vu) && !BL.charge) blCharger3D();
+  }
+  // ---------- le BOSS LIVE VS : le bandeau des deux commus ; à la fin, 10 s de suspense puis les jauges ----------
+  function blVs(c, actif, recent) {
+    const scene = $("bl-scene");
+    const vs = c?.vs && (actif || recent) ? c.vs : null;
+    scene.classList.toggle("bl-en-vs", Boolean(vs));
+    let bandeau = $("bl-vs");
+    if (!vs) { bandeau?.remove(); $("bl-vs-fin")?.remove(); clearInterval(BL.vsMinuteur); BL.vsVu = ""; return; }
+    const [a, z] = vs.equipes;
+    const cle = `${c.id}`;
+    if (!bandeau || bandeau.dataset.cle !== cle) {
+      bandeau?.remove();
+      bandeau = el("div", { class: "bl-vs", id: "bl-vs", "data-cle": cle, "aria-label": `${a.nom} contre ${z.nom}` },
+        el("span", { class: "bl-vs-equipe", style: styleCommu(a) }, drapeauCommu(a, "bl-vs-drapeau"), el("b", { text: a.nom })),
+        el("span", { class: "bl-vs-x", "aria-hidden": "true", text: "VS" }),
+        el("span", { class: "bl-vs-equipe", style: styleCommu(z) }, drapeauCommu(z, "bl-vs-drapeau"), el("b", { text: z.nom })),
+        el("span", { class: "kanji bl-vs-kanji", "aria-hidden": "true", text: "対決" }));
+      scene.append(bandeau);
+    }
+    if (!c.fini) { $("bl-vs-fin")?.remove(); return; }
+    // la fin : le décompte (10 → 1), puis les jauges dès que le résultat arrive
+    let fin = $("bl-vs-fin");
+    if (!fin || fin.dataset.cle !== cle) {
+      fin?.remove();
+      fin = el("div", { class: "bl-vs-fin", id: "bl-vs-fin", "data-cle": cle, role: "status", "aria-live": "polite" });
+      scene.append(fin);
+    }
+    const majVs = () => {
+      const reste = Math.ceil((vs.revele - blMaintenant()) / 1000);
+      const res = BL.d?.combat?.id === c.id ? BL.d.combat.vs?.resultat : null;
+      if (res && reste <= 0) {
+        clearInterval(BL.vsMinuteur);
+        if (fin.dataset.etat === "jauges") return;
+        fin.dataset.etat = "jauges";
+        const max = Math.max(...res.map((e) => e.part));
+        const egalite = res.length > 1 && Math.round(res[0].part * 100) === Math.round(res[1].part * 100);
+        vider(fin,
+          el("p", { class: "bl-vs-question", text: egalite ? "ÉGALITÉ PARFAITE !" : "QUI A FRAPPÉ LE PLUS FORT ?" }),
+          el("span", { class: "sfx bl-vs-sfx", "aria-hidden": "true", text: "ドン！" }),
+          ...res.map((e, k) => el("div", { class: `bl-jauge${!egalite && e.part === max ? " bl-jauge-gagne" : ""}`, style: `${styleCommu(e)};--p:${Math.round(e.part * 1000) / 10}%;--retard:${k * 0.45}s` },
+            el("p", { class: "bl-jauge-nom" }, drapeauCommu(e, "bl-vs-drapeau"), el("b", { text: e.nom }), !egalite && e.part === max ? el("span", { class: "bl-jauge-couronne", "aria-hidden": "true", text: "👑" }) : null),
+            el("div", { class: "bl-jauge-barre" }, el("i")),
+            el("p", { class: "bl-jauge-chiffres", text: `${Math.round(e.part * 100)} % · ${blFmt(e.degats)} dégâts${e.membres ? ` · ${pluriel(e.membres, "membre")}` : ""}` }))),
+          el("p", { class: "bl-vs-milles", text: "Les milles sont partis au navire de chaque commu sur GRAND LINE." }));
+        return;
+      }
+      if (fin.dataset.etat === "jauges") return;
+      fin.dataset.etat = "decompte";
+      const n = Math.max(0, reste);
+      if (fin.dataset.n === String(n) && fin.firstChild) return;
+      fin.dataset.n = String(n);
+      vider(fin,
+        el("p", { class: "bl-vs-question", text: "QUI A FRAPPÉ LE PLUS FORT ?" }),
+        el("p", { class: `bl-vs-decompte${n <= 3 ? " bl-vs-chaud" : ""}`, text: n > 0 ? String(n) : "…" }),
+        el("p", { class: "bl-vs-sous", text: `${c.gagne ? `🏆 ${c.nom} est détruit !` : `💨 ${c.nom} s'est enfui…`} ${a.nom} ou ${z.nom} ?` }));
+    };
+    majVs();
+    clearInterval(BL.vsMinuteur);
+    if (fin.dataset.etat !== "jauges") BL.vsMinuteur = setInterval(majVs, 200);
   }
   async function blCharger3D() {
     if (BL.charge) return;
@@ -5541,7 +5769,9 @@
     } catch { d = { horsLigne: true }; }
     BL.d = d;
     blRendre();
-    const ms = document.hidden ? 30_000 : d.actif ? 2500 : BL.vu ? 12_000 : 40_000;
+    const vs = d.combat?.vs;
+    const suspense = Boolean(vs && d.combat.fini && !vs.resultat && blMaintenant() < (vs.revele || 0) + 30_000);
+    const ms = document.hidden ? 30_000 : suspense ? 1000 : d.actif ? 2500 : BL.vu ? 12_000 : 40_000;
     BL.minuteur = setTimeout(blCharger, ms);
   }
   async function blFrapper() {

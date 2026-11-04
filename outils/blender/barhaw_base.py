@@ -24,6 +24,7 @@ PALETTE = {
     "noir": 0x1f1a22, "sable": 0xe9cf98, "pois": 0xffffff, "gris": 0x8a8796, "champi_pied": 0xf6ead2, "nuage": 0x585466, "mirage": 0xffe3f0,
     # la V4 : les nouvelles îles, les maîtres des lieux, le vaisseau fantôme
     "cuivre": 0xc8743a, "laiton": 0xd9b45a, "mousse": 0x5f7a3a, "vase": 0x5a5236, "spectre": 0x8affc8, "os": 0xf0e6cc, "cristal": 0xd7b8ff,
+    "ocean": 0x4a6aa0, "dauphin": 0x8aa2c4,
 }
 LUMINEUX = {"lave": 4.0, "lumiere": 3.0, "luciole": 3.0, "feu": 4.0, "spectre": 3.0}
 

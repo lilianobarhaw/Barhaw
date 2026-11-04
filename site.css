@@ -2911,6 +2911,35 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 body.bl-tremble { animation: bl-secoue 0.3s 3; }
 .bl-tampon { position: absolute; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 16px; text-align: center; pointer-events: none; overflow: hidden; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.45), transparent 70%); transition: opacity 0.6s; }
 .bl-tampon.bl-tampon-fin { opacity: 0; }
+/* V4 : le BOSS LIVE VS (deux commus, le même boss) : le bandeau, puis à la fin le décompte et les jauges */
+.bl-vs { position: absolute; left: 50%; top: 108px; translate: -50% 0; z-index: 3; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); padding: 6px 14px; border: 3px solid var(--encre); border-radius: 999px; background: rgba(18, 5, 13, 0.82); box-shadow: 4px 4px 0 var(--ombre); }
+.bl-vs-equipe { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--titre); font-size: clamp(13px, 1.6vw, 17px); color: #fff; }
+.bl-vs-equipe b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 2px 0 var(--encre); }
+.bl-vs-drapeau { width: 30px; height: auto; flex: none; }
+.bl-vs-x { font-family: var(--titre); font-size: clamp(18px, 2.6vw, 26px); color: var(--rose); text-shadow: 0 2px 0 var(--encre), 0 0 14px rgba(255, 79, 154, 0.8); rotate: -8deg; }
+.bl-vs-kanji { position: absolute; right: -22px; top: -26px; font-size: 26px; opacity: 0.85; }
+.bl-en-vs .bl-tampon { display: none; }
+.bl-scene:has(.bl-vs-fin) :is(.bl-etat, .bl-frapper, .bl-son, .bl-vs) { visibility: hidden; }
+.bl-vs-fin { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 96px 18px 18px; text-align: center; background: radial-gradient(ellipse at center, rgba(18, 5, 13, 0.92), rgba(18, 5, 13, 0.78) 70%); }
+.bl-vs-question { margin: 0; font-family: var(--titre); font-size: clamp(20px, 3.4vw, 34px); color: #fff; text-shadow: 0 3px 0 var(--encre), 0 0 18px rgba(155, 77, 255, 0.8); }
+.bl-vs-decompte { margin: 0; font-family: var(--titre); font-size: clamp(90px, 18vw, 180px); line-height: 1; color: var(--rose); text-shadow: 0 6px 0 var(--encre), 7px 9px 0 var(--ombre), 0 0 40px rgba(255, 79, 154, 0.7); animation: bl-vs-coup 1s ease-out infinite; font-variant-numeric: tabular-nums; }
+.bl-vs-decompte.bl-vs-chaud { color: #ffd36b; text-shadow: 0 6px 0 var(--encre), 7px 9px 0 #b3122e, 0 0 50px rgba(255, 211, 107, 0.8); }
+.bl-vs-sous, .bl-vs-milles { margin: 0; font-family: var(--fort); font-weight: 800; color: var(--brume); }
+.bl-vs-sfx { position: absolute; right: 6%; top: 96px; font-size: clamp(34px, 6vw, 64px); --r: 10deg; }
+@keyframes bl-vs-coup { 0% { transform: scale(1.35); opacity: 0.4; } 25% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.94); } }
+.bl-jauge { width: min(560px, 86vw); text-align: left; animation: bl-jauge-arrive 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) var(--retard) both; }
+.bl-jauge-nom { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-family: var(--titre); font-size: clamp(16px, 2.2vw, 22px); color: #fff; text-shadow: 0 2px 0 var(--encre); }
+.bl-jauge-nom b { font-weight: 400; }
+.bl-jauge-couronne { font-size: 1.3em; animation: bl-couronne 1.4s ease-in-out infinite alternate; }
+.bl-jauge-barre { position: relative; height: 26px; border: 3px solid var(--encre); border-radius: 999px; background: rgba(255, 255, 255, 0.08); box-shadow: 4px 4px 0 var(--ombre); overflow: hidden; }
+.bl-jauge-barre i { position: absolute; inset: 0 auto 0 0; width: var(--p); border-radius: 999px; background: repeating-linear-gradient(115deg, var(--c1) 0 14px, var(--c2) 14px 22px); animation: bl-jauge-remplit 1.6s cubic-bezier(0.3, 0.9, 0.3, 1) calc(var(--retard) + 0.3s) both; }
+.bl-jauge-gagne .bl-jauge-barre { box-shadow: 4px 4px 0 var(--ombre), 0 0 26px -2px var(--c1); }
+.bl-jauge-chiffres { margin: 6px 0 0; font-family: var(--fort); font-weight: 800; font-size: 14px; color: var(--brume); font-variant-numeric: tabular-nums; }
+@keyframes bl-jauge-arrive { from { opacity: 0; transform: translateY(24px) scale(0.9); } }
+@keyframes bl-jauge-remplit { from { width: 0; } }
+@keyframes bl-couronne { from { rotate: -10deg; } to { rotate: 10deg; translate: 0 -3px; } }
+@media (max-width: 600px) { .bl-vs { top: 100px; gap: 6px; padding: 5px 10px; } .bl-vs-drapeau { width: 22px; } .bl-vs-kanji { display: none; } .bl-vs-fin { padding-top: 110px; gap: 6px; } .bl-vs-sfx { top: 112px; right: 4px; font-size: 30px; } .bl-jauge-barre { height: 20px; } }
+@media (prefers-reduced-motion: reduce) { .bl-vs-decompte, .bl-jauge, .bl-jauge-barre i, .bl-jauge-couronne { animation: none; } }
 .bl-tampon-titre { margin: 0; padding: 10px 28px; border-radius: 18px; font-family: var(--titre); font-size: clamp(36px, 7vw, 74px); color: #fff; border: 5px solid currentColor; rotate: -6deg; animation: bl-tampon 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
 .bl-gagne .bl-tampon-titre { color: #ffd36b; text-shadow: 0 4px 0 var(--encre), 0 0 30px #ffd36b; background: rgba(40, 20, 0, 0.5); }
 .bl-perdu .bl-tampon-titre { color: #9fb6ff; text-shadow: 0 4px 0 var(--encre), 0 0 30px #6f8bff; background: rgba(0, 10, 40, 0.5); }
@@ -2934,3 +2963,51 @@ body.bl-tremble { animation: bl-secoue 0.3s 3; }
   .bl-intro-flash { display: none; }
   body.bl-tremble { animation: none; }
 }
+
+/* ---------- V4 : GRAND LINE en 2D sur la page, et la « salle » en 3D plein écran ---------- */
+.gl-ouvrir-3d { position: absolute; left: 50%; bottom: 18px; translate: -50% 0; z-index: 3; display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: 3px solid var(--encre); border-radius: 999px; background: var(--rose); color: #fff; font-family: var(--titre); font-size: clamp(15px, 1.8vw, 19px); text-decoration: none; text-shadow: 0 2px 0 var(--encre); box-shadow: 5px 5px 0 var(--ombre); animation: gl-appel-3d 2.4s ease-in-out infinite; }
+.gl-ouvrir-3d:hover, .gl-ouvrir-3d:focus-visible { background: #ff6aad; translate: -50% -2px; }
+.gl-ouvrir-3d[hidden] { display: none; }
+@keyframes gl-appel-3d { 0%, 100% { box-shadow: 5px 5px 0 var(--ombre), 0 0 0 0 rgba(255, 79, 154, 0.5); } 50% { box-shadow: 5px 5px 0 var(--ombre), 0 0 0 12px rgba(255, 79, 154, 0); } }
+html.gl-salle-ouverte, html.gl-salle-ouverte body { overflow: hidden; }
+.gl-salle { position: fixed; inset: 0; z-index: 900; display: flex; flex-direction: column; background: #12050d; animation: gl-salle-entre 0.45s var(--doux) both; }
+@keyframes gl-salle-entre { from { opacity: 0; transform: scale(1.03); } }
+.gl-salle-haut { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 12px 8px 16px; border-bottom: 3px solid var(--encre); background: linear-gradient(90deg, #2a0b1f, #1b0716); box-shadow: 0 4px 0 var(--ombre); position: relative; z-index: 2; }
+.gl-salle-titre { display: flex; align-items: baseline; gap: 10px; margin: 0; font-family: var(--titre); font-size: clamp(18px, 2.4vw, 26px); color: #fff; text-shadow: 0 2px 0 var(--encre), 3px 3px 0 var(--ombre); white-space: nowrap; }
+.gl-salle-titre small { font-family: var(--fort); font-weight: 800; font-size: 14px; color: var(--brume); text-shadow: none; overflow: hidden; text-overflow: ellipsis; }
+.gl-salle-kanji { font-size: 0.8em; color: var(--rose); }
+.gl-salle-haut .fl-barre { flex: 1; min-width: 0; margin: 0; padding-left: 8px; }
+.gl-salle-fermer { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 3px solid var(--encre); border-radius: 999px; background: #fff; color: var(--encre); font-family: var(--titre); font-size: 15px; cursor: pointer; box-shadow: 3px 3px 0 var(--ombre); }
+.gl-salle-fermer:hover, .gl-salle-fermer:focus-visible { background: var(--jaune, #ffd36b); }
+.gl-salle .gl-scene { flex: 1; height: auto; min-height: 0; margin: 0; border-radius: 0; box-shadow: none; animation: none; }
+.gl-salle .gl-carte { position: absolute; inset: 0; }
+@media (max-width: 600px) { .gl-salle-haut { flex-wrap: wrap; gap: 6px; padding: 6px 8px; } .gl-salle-haut .fl-barre { order: 3; flex-basis: 100%; padding-left: 0; } .gl-salle-fermer-texte, .gl-salle-kanji { display: none; } .gl-ouvrir-3d { bottom: 12px; padding: 10px 16px; } }
+@media (prefers-reduced-motion: reduce) { .gl-ouvrir-3d, .gl-salle { animation: none; } }
+.gl-salle .gl-toile { touch-action: none; }
+/* la carte 2D vivante (V4) */
+.gl2-vague { fill: none; stroke: #ffffff; stroke-width: 0.35; stroke-linecap: round; opacity: 0.55; }
+.gl2-houle { animation: gl2-houle 9s linear infinite; }
+@keyframes gl2-houle { from { transform: translate(0, 0); } to { transform: translate(-12px, 7px); } }
+.gl2-rhumbs line { stroke: #5a3719; stroke-width: 0.18; opacity: 0.22; }
+.gl2-fond { fill: none; stroke: #4f86a6; stroke-width: 0.3; stroke-dasharray: 1 1.2; opacity: 0.55; }
+.gl2-ecume { fill: none; stroke: #ffffff; stroke-width: 0.6; }
+.gl2-baleine-corps { fill: #4b5d8a; stroke: #12050d; stroke-width: 0.35; }
+.gl2-jet path { fill: none; stroke: #ffffff; stroke-width: 0.5; stroke-linecap: round; }
+.gl2-dauphin { fill: #7f95b8; stroke: #12050d; stroke-width: 0.25; }
+.gl2-coque { fill: #8a4a2a; stroke: #12050d; stroke-width: 0.3; }
+.gl2-voile { fill: #fbf1df; stroke: #12050d; stroke-width: 0.25; }
+.gl2-bosse { fill: #3f8f6a; stroke: #12050d; stroke-width: 0.35; }
+.gl2-bord { fill: none; stroke: #5a3719; stroke-width: 0.8; }
+.gl2-rose-cercle { fill: none; stroke: #5a3719; stroke-width: 0.35; }
+.gl2-rose-etoile { fill: #f3e2bd; stroke: #5a3719; stroke-width: 0.35; }
+.gl2-rose-ombre { fill: #c2283a; opacity: 0.85; }
+.gl2-rose-n { font-family: var(--titre); font-size: 3.6px; text-anchor: middle; fill: #5a3719; }
+.gl2-rose { animation: gl2-rose 12s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes gl2-rose { from { rotate: -4deg; } to { rotate: 4deg; } }
+.gl2-mouette { fill: none; stroke: #3a2412; stroke-width: 0.35; stroke-linecap: round; }
+.gl2-nuage-corps { fill: #ffffff; stroke: #c9b89a; stroke-width: 0.3; opacity: 0.92; }
+.gl2-nuage-ombre { fill: #2a3d55; opacity: 0.12; }
+.gl2-sceau rect { fill: none; stroke: #c2283a; stroke-width: 0.8; }
+.gl2-sceau text { font-size: 7px; text-anchor: middle; fill: #c2283a; font-family: "Noto Serif JP", serif; }
+.gl2-pause .gl2-houle, .gl2-pause .gl2-rose { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .gl2-houle, .gl2-rose { animation: none; } }

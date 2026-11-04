@@ -538,7 +538,7 @@ const COULEURS = {
   corde: 0xc9a66b, lumiere: 0xfff1a8, eau: 0x6fb0c8, turquoise: 0x3fd0c9, luciole: 0xfff27a, gres: 0xd98a4a, paille: 0xe8c66a,
   feu: 0xff9a1f, eau_douce: 0x5fd0d8, corail: 0xff7a8a, noir: 0x1f1a22, sable: 0xe9cf98, gris: 0x8a8796, champi_pied: 0xf6ead2,
   mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6,
-  cuivre: 0xc8743a, laiton: 0xd9b45a, mousse: 0x5f7a3a, vase: 0x5a5236, spectre: 0x8affc8, os: 0xf0e6cc, cristal: 0xd7b8ff, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
+  cuivre: 0xc8743a, laiton: 0xd9b45a, mousse: 0x5f7a3a, vase: 0x5a5236, spectre: 0x8affc8, os: 0xf0e6cc, cristal: 0xd7b8ff, ocean: 0x4a6aa0, dauphin: 0x8aa2c4, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
 };
 const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu", "spectre"]);
 const DEUX_FACES = new Set(["feuille", "voile", "voile_b", "drapeau", "flamme", "corde"]);
@@ -1121,7 +1121,7 @@ function materiauMer(uniforms) {
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
     fragmentShader: `
-      uniform float uT; uniform float uSombre; uniform vec3 uIles[24];
+      uniform float uT; uniform float uSombre; uniform float uVie; uniform vec3 uIles[24];
       varying vec2 vXZ;
       float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -1155,6 +1155,17 @@ function materiauMer(uniforms) {
         float lignes = smoothstep(0.94, 1.0, sin(p.x * 0.75 + sin(p.y * 0.45) * 2.2 + uT * 0.55) * sin(p.y * 1.05 + uT * 0.35));
         mer = mix(mer, vec3(0.97, 0.99, 1.0), lignes * 0.35);
         mer = mix(mer, vec3(1.0), ecume * 0.6);
+        // la V4 : les hauts-fonds turquoise autour des îles, les moutons que pousse le vent, les reflets du soleil, les courants
+        if (uVie > 0.5) {
+          mer = mix(mer, vec3(0.42, 0.86, 0.84), cote * cote * 0.42);
+          float mouton = smoothstep(0.78, 0.86, bruit(p * 0.55 + vec2(uT * 0.35, uT * 0.12))) * smoothstep(0.45, 0.7, fbm(p * 0.06 + vec2(uT * 0.02, 0.0)));
+          mer = mix(mer, vec3(1.0), mouton * 0.35 * (1.0 - cote));
+          vec2 cel = floor(p * 0.9), fc = fract(p * 0.9) - 0.5;
+          float eclat = step(0.985, h21(cel + floor(uT * 1.3) * 7.0)) * (1.0 - smoothstep(0.04, 0.11, length(fc * vec2(1.0, 2.2))));
+          mer = mix(mer, vec3(1.0, 0.98, 0.88), eclat * 0.9 * (1.0 - cote));
+          float courant = smoothstep(0.975, 1.0, sin(p.y * 0.22 + sin(p.x * 0.045) * 3.2)) * step(0.55, fract(p.x * 0.12 - uT * 0.25));
+          mer = mix(mer, vec3(0.93, 0.97, 1.0), courant * 0.32);
+        }
         mer -= h21(floor(p * 9.0)) * 0.035;
         mer = mix(mer, vec3(0.19, 0.22, 0.32), uSombre * 0.6);
         // les terres du bord de la carte, en sépia hachuré (comme une vieille carte)
@@ -1227,7 +1238,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   scene.add(hemi, soleil);
 
   // la feuille et la mer
-  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
+  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uVie: { value: ilesV4.length ? 1 : 0 }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
   const merGeo = new THREE.PlaneGeometry(W, H, 180, 110);
   merGeo.rotateX(-Math.PI / 2);
   const mer = new THREE.Mesh(merGeo, materiauMer(uniformsMer));
@@ -1412,6 +1423,270 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       mouettes.push(m);
     });
   }).catch((e) => { erreurs.push(`mouette : ${e.message}`); });
+  // ---------- la mer qui vit (V4) : baleines, dauphins, tortues, raies, poissons volants, navires marchands,
+  // pêcheurs, bouées, épaves qui dérivent, nuages de pluie (modèles : vie-mer.glb ; les mouvements sont calculés ici) ----------
+  const vie = [];
+  const pointDeMer = (R, marge = 6) => {
+    for (let k = 0; k < 80; k++) {
+      const x = (R() * 2 - 1) * (MER_X - 16);
+      const z = (R() * 2 - 1) * (MER_Z - 12);
+      let ok = true;
+      for (const i of iles.values()) if (Math.hypot(x - i.x, z - i.z) < i.r + marge) { ok = false; break; }
+      if (ok) return v3(x, z);
+    }
+    return v3((R() * 2 - 1) * 60, (R() * 2 - 1) * 30);
+  };
+  const cap = (dx, dz) => Math.atan2(-dz, dx); // l'angle pour qu'un modèle tourné vers +x regarde dans ce sens
+  // des éclaboussures (des ronds d'écume) et les jets d'eau des baleines
+  const eclabs = Array.from({ length: 12 }, () => {
+    const r = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.8, 18), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+    r.rotation.x = -Math.PI / 2;
+    r.userData.age = 9;
+    scene.add(r);
+    return r;
+  });
+  let prochaineEclab = 0;
+  const eclabousse = (x, z, taille = 1) => { const r = eclabs[prochaineEclab++ % eclabs.length]; r.position.set(x, 0.12, z); r.userData = { age: 0, taille }; };
+  function jetDeau() {
+    const nb = 18;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(nb * 3), 3));
+    const p = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, map: pastille(), transparent: true, opacity: 0.9, depthWrite: false }));
+    p.visible = false;
+    p.userData = { age: 9, graines: Array.from({ length: nb }, () => [Math.random() * Math.PI * 2, 0.3 + Math.random() * 0.7, 0.6 + Math.random() * 0.4]) };
+    scene.add(p);
+    return p;
+  }
+  if (ilesV4.length) lireV4("vie-mer.glb").then((glb) => {
+    if (detruit) return;
+    const base = sceneGLB(glb);
+    const sortes = new Map();
+    for (const o of base.children) { const k = String(o.name).split("_")[0]; if (!sortes.has(k)) sortes.set(k, []); sortes.get(k).push(o); }
+    const faire = (k, ech = 1) => {
+      const modele = new THREE.Group();
+      for (const o of sortes.get(k) || []) modele.add(o.clone(true));
+      const { bouge } = habiller(modele, { relief: () => null, contour: 0.03, cuit: true });
+      const g = new THREE.Group();
+      g.add(modele);
+      g.scale.setScalar(ech);
+      g.rotation.order = "YXZ";
+      scene.add(g);
+      return { g, anims: animateurs(bouge) };
+    };
+    const R = hasard(4747);
+    const n = (beaucoup, peu) => (leger ? peu : beaucoup);
+    // les baleines : un grand cercle lent, elles plongent et ressortent en soufflant
+    for (let k = 0; k < n(2, 1); k++) {
+      const { g, anims } = faire("baleine", 0.95);
+      const c = pointDeMer(R, 14);
+      const rr = 9 + R() * 6, w = (0.03 + R() * 0.015) * (k ? -1 : 1), ph = R() * 6.28, dec = R() * 30;
+      const jet = jetDeau();
+      let avant = 0;
+      vie.push((s, dt) => {
+        const a = ph + s * w;
+        g.position.set(c.x + Math.cos(a) * rr, 0, c.z + Math.sin(a) * rr);
+        g.rotation.y = cap(-Math.sin(a) * Math.sign(w), Math.cos(a) * Math.sign(w));
+        const u = (s + dec) % 32;
+        let y = -0.55 + Math.sin(s * 0.8 + ph) * 0.08, tangage = 0;
+        if (u > 16 && u < 19) { const t = (u - 16) / 3; y = -0.55 - t * 5; tangage = -0.35 * Math.sin(t * Math.PI); }
+        else if (u >= 19 && u < 28) y = -7;
+        else if (u >= 28 && u < 31) { const t = (u - 28) / 3; y = -5.5 + t * 5; tangage = 0.3 * Math.sin(t * Math.PI); }
+        g.position.y = y;
+        g.rotation.z = tangage;
+        g.visible = y > -6;
+        // le jet d'eau : en sortant de l'eau, et une fois en surface
+        if ((avant < 30.5 && u >= 30.5) || (avant < 8 && u >= 8)) { jet.userData.age = 0; jet.visible = true; eclabousse(g.position.x, g.position.z, 2); }
+        avant = u;
+        if (jet.visible) {
+          const j = jet.userData;
+          j.age += dt;
+          const tete = v3(g.position.x + Math.cos(-g.rotation.y) * 2.2, g.position.z + Math.sin(-g.rotation.y) * 2.2);
+          const pos = jet.geometry.attributes.position;
+          j.graines.forEach(([an, f, h], i) => { const t = Math.min(1, j.age / 1.6); pos.setXYZ(i, tete.x + Math.cos(an) * f * t * 1.4, 1 + h * 4.5 * Math.sin(t * Math.PI * 0.85), tete.z + Math.sin(an) * f * t * 1.4); });
+          pos.needsUpdate = true;
+          jet.material.opacity = 0.9 * (1 - Math.min(1, j.age / 1.8));
+          if (j.age > 1.8) jet.visible = false;
+        }
+        for (const f of anims) f(s, dt);
+      });
+    }
+    // les dauphins : par trois, ils sautent l'un après l'autre
+    for (let b = 0; b < n(3, 2); b++) {
+      const c = pointDeMer(R, 8);
+      const rr = 7 + R() * 5, w = (0.1 + R() * 0.05) * (b % 2 ? -1 : 1), ph = R() * 6.28;
+      for (let k = 0; k < 3; k++) {
+        const { g } = faire("dauphin", 1.0);
+        const off = k * 0.4 + b * 1.7;
+        let avant = 0;
+        vie.push((s) => {
+          const a = ph + s * w - k * 0.09 * Math.sign(w);
+          g.position.x = c.x + Math.cos(a) * (rr + k * 0.6);
+          g.position.z = c.z + Math.sin(a) * (rr + k * 0.6);
+          g.rotation.y = cap(-Math.sin(a) * Math.sign(w), Math.cos(a) * Math.sign(w));
+          const v = (s + off) % 5.5;
+          if (v < 1.4) {
+            const t = v / 1.4;
+            g.position.y = Math.sin(t * Math.PI) * 2.2 - 0.3;
+            g.rotation.z = Math.cos(t * Math.PI) * 0.75;
+            if (avant >= 1.4 || (avant < 1.3 && v >= 1.3)) eclabousse(g.position.x, g.position.z, 0.8);
+          } else { g.position.y = -0.42 + Math.sin(s * 2 + k) * 0.05; g.rotation.z = 0; }
+          avant = v;
+        });
+      }
+    }
+    // les tortues : de petits cercles près des îles
+    const ilesListe = [...iles.values()];
+    for (let k = 0; k < n(4, 2); k++) {
+      const { g, anims } = faire("tortue", 0.9);
+      const i = ilesListe[Math.floor(R() * ilesListe.length)];
+      const an = R() * 6.28;
+      const c = v3(i.x + Math.cos(an) * (i.r + 4), i.z + Math.sin(an) * (i.r + 4));
+      const rr = 2 + R() * 1.5, w = 0.1 + R() * 0.05, ph = R() * 6.28;
+      vie.push((s, dt) => {
+        if (!i.groupe.visible) { g.visible = false; return; }
+        g.visible = true;
+        const a = ph + s * w;
+        g.position.set(c.x + Math.cos(a) * rr, -0.22 + Math.sin(s * 1.1 + ph) * 0.05, c.z + Math.sin(a) * rr);
+        g.rotation.y = cap(-Math.sin(a), Math.cos(a));
+        for (const f of anims) f(s, dt);
+      });
+    }
+    // les raies : elles planent en rond, et sautent de temps en temps
+    for (let k = 0; k < n(2, 1); k++) {
+      const { g, anims } = faire("raie", 1.0);
+      const c = pointDeMer(R, 10);
+      const rr = 6 + R() * 4, w = 0.07 * (k ? -1 : 1), ph = R() * 6.28, off = R() * 20;
+      let avant = 0;
+      vie.push((s, dt) => {
+        const a = ph + s * w;
+        g.position.x = c.x + Math.cos(a) * rr;
+        g.position.z = c.z + Math.sin(a) * rr;
+        g.rotation.y = cap(-Math.sin(a) * Math.sign(w), Math.cos(a) * Math.sign(w));
+        const v = (s + off) % 20;
+        if (v < 1.8) { const t = v / 1.8; g.position.y = Math.sin(t * Math.PI) * 3 - 0.3; g.rotation.x = Math.sin(t * Math.PI * 2) * 0.3; if (avant > 1.7 || (avant < 1.75 && v >= 1.75)) eclabousse(g.position.x, g.position.z, 1.4); }
+        else { g.position.y = -0.32; g.rotation.x = 0; }
+        avant = v;
+        for (const f of anims) f(s, dt);
+      });
+    }
+    // les poissons volants : un banc jaillit, file au ras de l'eau, replonge
+    for (let b = 0; b < n(2, 1); b++) {
+      const banc = Array.from({ length: n(6, 4) }, () => faire("poisson", 1.1).g);
+      const off = b * 4.5;
+      let cycle = -1, depart = v3(0, 0), dir = 0;
+      vie.push((s) => {
+        const v = (s + off) % 9;
+        const nc = Math.floor((s + off) / 9);
+        if (nc !== cycle) { cycle = nc; const r2 = hasard(900 + nc * 7 + b); depart = pointDeMer(r2, 8); dir = r2() * 6.28; }
+        banc.forEach((g, i) => {
+          const t = (v - i * 0.09) / 1.5;
+          g.visible = t > 0 && t < 1;
+          if (!g.visible) return;
+          const lat = (i - banc.length / 2) * 0.7;
+          g.position.set(depart.x + Math.cos(dir) * t * 11 - Math.sin(dir) * lat, Math.sin(t * Math.PI) * 1.7, depart.z + Math.sin(dir) * t * 11 + Math.cos(dir) * lat);
+          g.rotation.y = cap(Math.cos(dir), Math.sin(dir));
+          g.rotation.z = Math.cos(t * Math.PI) * 0.5;
+        });
+      });
+    }
+    // les navires marchands : une boucle entre les îles
+    for (let k = 0; k < n(3, 2); k++) {
+      const { g } = faire("marchand", 0.85);
+      const pts = Array.from({ length: 5 }, () => pointDeMer(R, 7)).sort((a, b) => Math.atan2(a.z, a.x) - Math.atan2(b.z, b.x));
+      const courbe = new THREE.CatmullRomCurve3(pts, true, "centripetal");
+      const L = courbe.getLength();
+      const off = R(), ph = R() * 6.28;
+      vie.push((s) => {
+        const u = (off + (s * 1.5) / L) % 1;
+        const p = courbe.getPointAt(u);
+        const t = courbe.getTangentAt(u);
+        g.position.set(p.x, Math.sin(s * 1.2 + ph) * 0.08, p.z);
+        g.rotation.y = cap(t.x, t.z);
+        g.rotation.x = Math.sin(s * 0.9 + ph) * 0.05;
+      });
+    }
+    // les barques de pêche, au mouillage près des îles
+    for (let k = 0; k < n(4, 2); k++) {
+      const { g, anims } = faire("peche", 0.95);
+      const i = ilesListe[Math.floor(R() * ilesListe.length)];
+      const an = R() * 6.28;
+      g.position.set(i.x + Math.cos(an) * (i.r + 3.5), 0, i.z + Math.sin(an) * (i.r + 3.5));
+      const ph = R() * 6.28;
+      vie.push((s, dt) => {
+        g.visible = i.groupe.visible;
+        if (!g.visible) return;
+        g.position.y = Math.sin(s * 1.3 + ph) * 0.07;
+        g.rotation.y = an + Math.sin(s * 0.15 + ph) * 0.4;
+        g.rotation.x = Math.sin(s * 1.1 + ph) * 0.06;
+        for (const f of anims) f(s, dt);
+      });
+    }
+    // les bouées
+    for (let k = 0; k < n(6, 3); k++) {
+      const { g, anims } = faire("bouee", 1.0);
+      const p = pointDeMer(R, 6);
+      const ph = R() * 6.28;
+      g.position.copy(p);
+      vie.push((s, dt) => {
+        g.position.y = Math.sin(s * 1.6 + ph) * 0.1 - 0.05;
+        g.rotation.x = Math.sin(s * 1.2 + ph) * 0.12;
+        g.rotation.z = Math.cos(s * 1.4 + ph) * 0.1;
+        for (const f of anims) f(s + ph, dt);
+      });
+    }
+    // les épaves qui dérivent avec le courant
+    for (let k = 0; k < n(6, 3); k++) {
+      const { g } = faire("epave", 1.0);
+      const p = pointDeMer(R, 5);
+      const ph = R() * 6.28, v = 0.35 + R() * 0.3;
+      vie.push((s) => {
+        let x = p.x + s * v;
+        const larg = (MER_X - 12) * 2;
+        x = ((((x + MER_X - 12) % larg) + larg) % larg) - (MER_X - 12);
+        g.position.set(x, Math.sin(s * 1.4 + ph) * 0.08, p.z + Math.sin(s * 0.1 + ph) * 3);
+        g.rotation.y = s * 0.08 + ph;
+      });
+    }
+  }).catch((e) => { erreurs.push(`vie-mer : ${e.message}`); });
+  // les nuages de pluie qui traversent la carte (V4)
+  const pluies = [];
+  if (ilesV4.length) {
+    const R = hasard(3131);
+    for (let k = 0; k < (leger ? 1 : 2); k++) {
+      const g = new THREE.Group();
+      for (let j = 0; j < 7; j++) {
+        const b = nuageBoule(0x6b6f86, 0.94);
+        b.scale.set(2.4 + R() * 2, 1.2 + R(), 2.2 + R() * 1.6);
+        b.position.set((R() - 0.5) * 9, R() * 1.2, (R() - 0.5) * 6);
+        g.add(b);
+      }
+      const nb = 90;
+      const pos = new Float32Array(nb * 6);
+      const gouttes = Array.from({ length: nb }, () => [(R() - 0.5) * 10, R() * 15, (R() - 0.5) * 7]);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const pluie = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xc9d8f0, transparent: true, opacity: 0.55 }));
+      pluie.position.y = -15;
+      g.add(pluie);
+      const ombre = new THREE.Mesh(new THREE.CircleGeometry(7, 24), new THREE.MeshBasicMaterial({ color: 0x1a2a44, transparent: true, opacity: 0.13, depthWrite: false }));
+      ombre.rotation.x = -Math.PI / 2;
+      scene.add(g, ombre);
+      const z0 = (R() * 2 - 1) * (MER_Z - 16), v = 1.1 + R() * 0.6, x0 = (R() * 2 - 1) * MER_X;
+      pluies.push((s, dt) => {
+        const larg = MER_X * 2 + 30;
+        const x = ((((x0 + s * v + MER_X + 15) % larg) + larg) % larg) - MER_X - 15;
+        g.position.set(x, 16, z0 + Math.sin(s * 0.05 + k) * 6);
+        ombre.position.set(x + 2, 0.15, g.position.z + 1);
+        for (let i = 0; i < nb; i++) {
+          const d = gouttes[i];
+          d[1] -= dt * 22;
+          if (d[1] < 0) d[1] += 15;
+          pos.set([d[0], d[1], d[2], d[0] - 0.12, d[1] + 0.9, d[2]], i * 6);
+        }
+        geo.attributes.position.needsUpdate = true;
+      });
+    }
+  }
   // le sillage : des ronds d'écume qui s'élargissent
   const sillages = Array.from({ length: 10 }, () => {
     const s = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.9, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
@@ -2077,6 +2352,17 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       evenement.groupe.position.set(porteur.position.x + decal.x, 0, porteur.position.z + decal.z);
       evenement.maj(s, dt);
     }
+    // la mer qui vit (V4)
+    for (const f of vie) f(s, dt);
+    for (const f of pluies) f(s, dt);
+    for (const r of eclabs) {
+      const u = r.userData;
+      if (u.age > 1.4) { r.material.opacity = 0; continue; }
+      u.age += dt;
+      const k = (u.taille || 1) * (1 + u.age * 2.4);
+      r.scale.set(k, k, k);
+      r.material.opacity = 0.75 * Math.max(0, 1 - u.age / 1.4);
+    }
     for (const m of mouettes) {
       const u = m.userData;
       m.visible = evenement?.type !== "tempete";
@@ -2172,6 +2458,6 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     zoom = 0.8;
     mode = "ile";
   }
-  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
+  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller };
