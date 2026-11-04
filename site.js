@@ -4488,10 +4488,11 @@
   const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
   const imageIle = (id) => (/^[a-z]{2,20}$/.test(String(id || "")) ? `/img/iles/${id}.webp` : "");
   // ---------- LA FLOTTE (V4) : un navire par commu de potes, sur la même mer, et la course jusqu'au trésor ----------
-  // La V4 sort le mardi 22 décembre 2026 à 21 h (heure de Paris), en direct : avant, rien de la V4 ne se voit (comme
+  // La VF 1.0 (la grande mise à jour, appelée « v4 » dans le code) sort le mardi 22 décembre 2026 à 21 h 30 (heure de Paris),
+  // en direct : avant, rien d'elle ne se voit (comme
   // GRAND LINE avant la V3). Le bot peut l'ouvrir plus tôt ou la retenir (donnees.v4.ouvert) ; sans réponse du bot,
   // c'est la date qui compte. Le bot ne donne la flotte (donnees.flotte) qu'une fois la V4 ouverte.
-  const V4_OUVERTURE = Date.parse("2026-12-22T20:00:00Z");
+  const V4_OUVERTURE = Date.parse("2026-12-22T20:30:00Z");
   const v4Ouverte = () => { const o = donnees?.v4?.ouvert; return o === true || (o !== false && Date.now() >= V4_OUVERTURE); };
   const ID_COMMU = /^[a-z0-9]{2,20}$/;
   // les identifiants déjà pris dans GRAND LINE (les liens directs sont #grandline-<commu>)
