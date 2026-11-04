@@ -4921,7 +4921,7 @@
     // navire : son propre modèle V4 (modeles/grandline/navire-<id>.glb, avec sa figure de proue) ; sinon le navire V4 commun
     barhaw: { drapeau: true, trainee: "petales", navire: true }, // renne-raton
     veyzo: { drapeau: true, trainee: "pieces", navire: true }, // tigre
-    kikso: { trainee: "encre", navire: true }, // pieuvre
+    kikso: { drapeau: true, trainee: "encre", navire: true }, // Squirt.exe : le calmar à bandeau, figure de proue pieuvre
   };
   const drapeauImage = (c) => (FLOTTE_STYLES[c?.id]?.drapeau ? `/img/flotte/${c.id}.webp` : lienSur(c?.drapeau));
   const ILES_V4 = ["phare", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]; // les îles en V4 (modeles/grandline/ile-<id>-v4.glb)
