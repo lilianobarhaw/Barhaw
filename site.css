@@ -3373,3 +3373,29 @@ html.v4 .gouter-jeu.fievre { box-shadow: inset 0 0 0 3px #ffd479, inset 0 0 40px
 html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px rgba(255, 212, 121, 0.8); }
 @keyframes gouter-fievre { from { box-shadow: inset 0 0 0 3px #ffd479, inset 0 0 26px rgba(255, 212, 121, 0.3); } to { box-shadow: inset 0 0 0 3px var(--rose), inset 0 0 48px rgba(255, 79, 154, 0.5); } }
 @media (prefers-reduced-motion: reduce) { html.v4 .gouter-jeu.fievre { animation: none; } .co-piste.pop { animation-duration: 2.6s; } }
+
+/* ---------- V4 : l'événement caritatif du week-end (M_oo_de pour Les P'tits Doudous) ---------- */
+.caritatif-bandeau { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 0 0 20px; padding: 10px 14px; border: 2.5px solid var(--encre); border-radius: 18px; background: linear-gradient(120deg, rgba(255, 79, 154, 0.24), rgba(155, 77, 255, 0.2)), #1d0a1c; box-shadow: 4px 5px 0 var(--ombre); }
+.caritatif-bandeau .caritatif-doudou { flex: none; width: 46px; height: 46px; animation: doudou-saute 2.4s var(--doux) infinite; }
+.caritatif-texte { flex: 1 1 220px; margin: 0; font-size: 14.5px; line-height: 1.4; color: var(--brume); }
+.caritatif-texte b { color: var(--blanc); }
+.caritatif-live { display: inline-block; margin: 0; padding: 4px 12px; border: 2px solid var(--encre); border-radius: 99px; background: rgba(255, 255, 255, 0.08); color: var(--brume); font-family: var(--fort); font-weight: 800; font-size: 13px; white-space: nowrap; }
+.caritatif-live.on { background: #e0284f; color: #fff; box-shadow: 0 0 14px rgba(224, 40, 79, 0.6); }
+.caritatif-intro { position: fixed; inset: 0; z-index: 95; display: grid; padding: calc(84px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior: contain; background: radial-gradient(circle at 50% 40%, rgba(255, 79, 154, 0.35), rgba(18, 5, 13, 0.94) 70%); animation: caritatif-fondu 0.4s var(--doux) both; transition: opacity 0.45s var(--doux); }
+.caritatif-intro.part { opacity: 0; }
+.caritatif-carte { position: relative; z-index: 1; width: min(520px, 100%); margin: auto; padding: 72px 26px 22px; border: 3px solid var(--encre); border-radius: 24px; background: linear-gradient(170deg, #2a0f2e, #170818); box-shadow: 0 0 0 3px rgba(255, 120, 190, 0.35), 8px 9px 0 var(--ombre), 0 30px 80px -20px rgba(255, 79, 154, 0.5); text-align: center; animation: caritatif-pop 0.6s var(--rebond) both; }
+.caritatif-doudou.grand { position: absolute; top: -66px; left: 50%; width: 128px; height: 128px; margin-left: -64px; filter: drop-shadow(4px 6px 0 rgba(0, 0, 0, 0.35)); animation: doudou-saute 1.6s var(--doux) infinite; }
+.caritatif-titre { margin: 6px 0 10px; font-family: var(--titre); font-weight: 400; font-size: clamp(26px, 4.2vw, 36px); line-height: 1.12; text-wrap: balance; }
+.caritatif-sous { margin: 0 0 14px; color: var(--brume); font-size: 15px; line-height: 1.55; }
+.caritatif-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 16px; }
+.caritatif-entrer { margin-top: 16px; padding: 6px 10px; border: 0; background: none; color: var(--brume); font-family: var(--fort); font-weight: 800; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.caritatif-entrer:hover, .caritatif-entrer:focus-visible { color: var(--blanc); }
+.caritatif-coeurs { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+.caritatif-coeurs i { position: absolute; left: calc(var(--x) * 1%); bottom: -40px; width: 26px; height: 24px; background: var(--rose); opacity: 0; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 23 2.6 12.4A6.4 6.4 0 0 1 13 4.6a6.4 6.4 0 0 1 10.4 7.8Z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 23 2.6 12.4A6.4 6.4 0 0 1 13 4.6a6.4 6.4 0 0 1 10.4 7.8Z'/%3E%3C/svg%3E") center / contain no-repeat; scale: var(--t); animation: coeur-monte calc(6.5s * var(--t)) linear var(--d) infinite; }
+.caritatif-coeurs i:nth-child(3n) { background: var(--violet); }
+.caritatif-coeurs i:nth-child(4n) { background: #ffd3e6; }
+@keyframes coeur-monte { 0% { opacity: 0; transform: translate(0, 0) rotate(-10deg); } 10% { opacity: 0.9; } 50% { transform: translate(18px, -55vh) rotate(8deg); } 100% { opacity: 0; transform: translate(-12px, -110vh) rotate(-6deg); } }
+@keyframes doudou-saute { 0%, 100% { transform: translateY(0) rotate(-4deg); } 45% { transform: translateY(-10px) rotate(4deg); } 60% { transform: translateY(0) rotate(0deg) scale(1.04, 0.96); } }
+@keyframes caritatif-fondu { from { opacity: 0; } }
+@keyframes caritatif-pop { 0% { opacity: 0; transform: translateY(26px) scale(0.92); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .caritatif-coeurs { display: none; } .caritatif-doudou, .caritatif-doudou.grand, .caritatif-carte, .caritatif-intro { animation: none; } .caritatif-intro { transition: none; } }
