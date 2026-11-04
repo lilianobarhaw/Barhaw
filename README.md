@@ -136,6 +136,7 @@ Tout ce qui suit ne se voit qu'une fois la VF 1.0 ouverte (classe `v4` sur la pa
 - **Le menu** : 4 rubriques (le Live, l'Aventure, les Jeux, la Commu) qui s'ouvrent en panneau ; sur téléphone, une barre en bas de l'écran. Chaque lien a son petit objet et une ligne qui dit ce qu'on y trouve.
 - **Les titres** : treize objets Blender à côté des titres (`barhaw_objets.py`) ; la caméra (Ma chaîne), les chopes (Potes), le clap (YouTube), la gamelle (Chopper), la bouteille à la mer (GRAND LINE), le casque (BOSS LIVE) et la cloche (Discord) arrivent avec la VF.
 - **Les cartes et les boutons** : les mêmes bords, ombres et coins partout ; les cartes arrivent avec un petit rebond, et le titre fait « pop » quand on y arrive par le menu.
+- **L'aperçu en avance** : connecté avec le Discord du propriétaire du serveur Barhaw (Liliano), un bouton 見 « Aperçu VF 1.0 » apparaît dans l'en-tête avant le 22/12. Il bascule entre le site d'aujourd'hui et la VF ; personne d'autre ne le voit (c'est le bot qui dit qui est le propriétaire). La Traversée s'y joue pour du beurre : rien n'est envoyé au bot.
 
 ## L'escale : quand le bot fait une pause
 

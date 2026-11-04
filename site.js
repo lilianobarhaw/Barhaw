@@ -477,6 +477,69 @@
     else window.addEventListener("load", () => setTimeout(lancer, 300), { once: true });
   }
 
+  // ---------- l'aperçu de la VF 1.0 : pour Liliano seul, avant le 22 décembre à 21 h 30 ----------
+  // Le bot dit « apercuVF » seulement au propriétaire du serveur Barhaw connecté avec Discord, et seulement avant l'ouverture.
+  // Un bouton 見 dans l'en-tête bascule entre le site d'aujourd'hui et la VF 1.0 ; le choix est retenu sur cet appareil.
+  // Rien ne change pour les autres visiteurs. La Traversée se joue, mais ses parties ne comptent qu'à l'ouverture.
+  const CLE_APERCU_VF = "barhaw-apercu-vf";
+  const apercuVF = { permis: false, actif: false };
+  function majApercuVF(permis) {
+    if (permis === apercuVF.permis) return;
+    apercuVF.permis = permis;
+    let voulu = false;
+    try { voulu = localStorage.getItem(CLE_APERCU_VF) === "1"; } catch {}
+    const avant = apercuVF.actif;
+    apercuVF.actif = permis && voulu;
+    rendreBoutonApercuVF();
+    if (avant !== apercuVF.actif) appliquerApercuVF();
+  }
+  function appliquerApercuVF() {
+    if (donnees) rendreTout();
+    else {
+      document.documentElement.classList.toggle("v4", v4Ouverte());
+      rendreMenuVF();
+      rendreAccueilVF();
+    }
+  }
+  function basculerApercuVF() {
+    if (!apercuVF.permis) return;
+    apercuVF.actif = !apercuVF.actif;
+    try { localStorage.setItem(CLE_APERCU_VF, apercuVF.actif ? "1" : "0"); } catch {}
+    rendreBoutonApercuVF();
+    appliquerApercuVF();
+    bulleApercuVF(apercuVF.actif
+      ? "Tu vois la VF 1.0 en avance : toi seul la vois. La Traversée se joue, mais tes parties ne comptent qu'à partir du 22 décembre à 21 h 30."
+      : "Retour au site d'aujourd'hui, celui que tout le monde voit.");
+  }
+  function rendreBoutonApercuVF() {
+    let b = $("apercu-vf");
+    if (!apercuVF.permis) { b?.remove(); $("apercu-vf-bulle")?.remove(); return; }
+    if (!b) {
+      b = el("button", { class: "apercu-vf", id: "apercu-vf", type: "button", onclick: basculerApercuVF });
+      document.querySelector(".entete-droite")?.prepend(b);
+    }
+    vider(b,
+      el("span", { class: "apercu-vf-oeil", "aria-hidden": "true", text: "見" }),
+      el("span", { class: "apercu-vf-texte", text: apercuVF.actif ? "Quitter l'aperçu" : "Aperçu VF 1.0" }),
+    );
+    b.classList.toggle("actif", apercuVF.actif);
+    b.setAttribute("aria-pressed", String(apercuVF.actif));
+    b.setAttribute("aria-label", apercuVF.actif ? "Quitter l'aperçu de la VF 1.0" : "Voir la VF 1.0 en avance (toi seul la vois)");
+    b.title = apercuVF.actif ? "Revenir au site d'aujourd'hui" : "Voir la VF 1.0 en avance (toi seul la vois)";
+  }
+  let minuteurBulleVF = 0;
+  function bulleApercuVF(texte) {
+    let p = $("apercu-vf-bulle");
+    if (!p) {
+      p = el("p", { class: "apercu-vf-bulle", id: "apercu-vf-bulle", role: "status" });
+      document.body.append(p);
+    }
+    p.textContent = texte;
+    p.hidden = false;
+    clearTimeout(minuteurBulleVF);
+    minuteurBulleVF = setTimeout(() => { p.hidden = true; }, 7000);
+  }
+
   // le grand kanji de chaque partie glisse un peu moins vite que la page
   function kanjis() {
     const liste = [...document.querySelectorAll(".kanji")];
@@ -1413,10 +1476,12 @@
     occupe = false;
     if (r?.status === 401) {
       moi = { connecte: false };
+      majApercuVF(false);
       rendreCompte();
       rendreActions();
       return;
     }
+    if (d.nom) majApercuVF(d.apercuVF === true); // la réponse du bot pour un membre : l'aperçu de la VF, pour Liliano seul
     if (d.erreur === "pas-membre") {
       chopperMoi = { pasMembre: true };
       rendreActions();
@@ -4616,7 +4681,9 @@
   // GRAND LINE avant la V3). Le bot peut l'ouvrir plus tôt ou la retenir (donnees.v4.ouvert) ; sans réponse du bot,
   // c'est la date qui compte. Le bot ne donne la flotte (donnees.flotte) qu'une fois la V4 ouverte.
   const V4_OUVERTURE = Date.parse("2026-12-22T20:30:00Z");
-  const v4Ouverte = () => { const o = donnees?.v4?.ouvert; return o === true || (o !== false && Date.now() >= V4_OUVERTURE); };
+  // la VF ouverte pour tout le monde (selon le bot, sinon selon la date) ; ou seulement à l'écran de Liliano, en aperçu
+  const v4Officielle = () => { const o = donnees?.v4?.ouvert; return o === true || (o !== false && Date.now() >= V4_OUVERTURE); };
+  const v4Ouverte = () => v4Officielle() || apercuVF.actif;
   const ID_COMMU = /^[a-z0-9]{2,20}$/;
   // les identifiants déjà pris dans GRAND LINE (les liens directs sont #grandline-<commu>)
   const RESERVES_GL = new Set(["scene", "carte", "etiquettes", "hud", "info", "cap", "mer", "moi", "equipage", "journal", "escales", "ramer", "verrou", "course", "fiche", "3d"]);
@@ -5894,7 +5961,9 @@
     ecranTV("depart");
     majHudTV();
     apercuTV();
-    const ouverture = moi?.connecte ? demanderJeux("jeu-ouvrir", { jeu: "traversee" }) : null;
+    // en aperçu de la VF (avant le 22/12), la partie se joue pour du beurre : rien n'est demandé au bot
+    const pourDuBeurre = apercuVF.actif && !v4Officielle();
+    const ouverture = moi?.connecte && !pourDuBeurre ? demanderJeux("jeu-ouvrir", { jeu: "traversee" }) : null;
     const d = $("tv-decompte");
     for (const t of ["3", "2", "1", "Larguez les amarres !"]) {
       if (tv.etat !== "depart") return;
@@ -5903,7 +5972,7 @@
     }
     if (tv.etat !== "depart") return;
     if (ouverture) { const r = await ouverture; if (r.d.partie) tv.partie = r.d.partie; else if (r.d.erreur) tv.messageOuverture = r.d.erreur; }
-    else tv.messageOuverture = "";
+    else tv.messageOuverture = pourDuBeurre ? "Aperçu de la VF 1.0 : cette partie ne compte pas encore (ouverture le 22 décembre à 21 h 30)." : "";
     if (tv.etat !== "depart") return;
     tv.etat = "jeu";
     ecranTV("jeu");
@@ -7122,7 +7191,7 @@
     suivreFaille();
     suivreGrandLine();
     // la V4 : la classe v4 dès le départ (selon la date), puis à l'heure pile ; les liens directs vers un navire
-    document.documentElement.classList.toggle("v4", Date.now() >= V4_OUVERTURE);
+    document.documentElement.classList.toggle("v4", v4Ouverte());
     const avantV4 = V4_OUVERTURE - Date.now();
     if (avantV4 > 0 && avantV4 < 2 ** 31 - 1) setTimeout(charger, avantV4 + 1500);
     lienDirectFlotte();
