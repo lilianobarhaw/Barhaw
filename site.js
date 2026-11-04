@@ -355,6 +355,128 @@
     window.matchMedia("(min-width: 1321px)").addEventListener?.("change", (m) => { if (m.matches) menu(false); });
   }
 
+  // ---------- la VF 1.0 : le menu en 4 rubriques (le Live, l'Aventure, les Jeux, la Commu) ----------
+  // Avant la VF 1.0, le menu reste celui d'aujourd'hui (14 liens, le burger sur téléphone). Une fois la VF 1.0 ouverte,
+  // les mêmes liens (avec leurs pastilles « Live », compteurs…) sont rangés dans 4 rubriques : un menu déroulant en haut
+  // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
+  const RUBRIQUES_VF = [
+    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "tournoi", "evenements"] },
+    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "chasse", "chopper"] },
+    { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
+    { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["potes", "youtube", "discord"] },
+  ];
+  const LIENS_VF = {
+    chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], tournoi: ["trophee", "Le TOURNOI BARHAW"],
+    evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
+    chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
+    faille: ["epees", "Les games de LoL entre potes"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
+  };
+  const TAILLES_OBJETS = { camera: 84, bouteille: 203, borne: 100, chopes: 106, casque: 177, trophee: 112, lanterne: 99, panneau: 126, gamelle: 244, coffre: 150, epees: 144, clap: 187, cloche: 159 };
+  const objetMenu = (nom, classe) => el("img", { class: classe, src: `/img/objets/${nom}.webp`, alt: "", width: Math.round((TAILLES_OBJETS[nom] || 120) / 4), height: 40, loading: "lazy", decoding: "async" });
+  const menuVF = { fait: false, places: new Map() };
+  function rendreMenuVF() {
+    const nav = $("nav");
+    if (!nav) return;
+    const vf = document.documentElement.classList.contains("v4");
+    if (vf && !menuVF.fait) {
+      menuVF.fait = true;
+      nav.classList.add("vf");
+      nav.setAttribute("aria-label", "Les rubriques du site");
+      for (const r of RUBRIQUES_VF) {
+        const bouton = el("button", { class: "rubrique-bouton", type: "button", "aria-expanded": "false", "aria-controls": `rubrique-${r.id}` },
+          objetMenu(r.icone, "rubrique-icone"), el("span", { class: "rubrique-nom", text: r.nom }), el("span", { class: "rubrique-court", text: r.court }), el("i", { class: "rubrique-point", hidden: true }));
+        const panneau = el("div", { class: "rubrique-panneau", id: `rubrique-${r.id}`, role: "group", "aria-label": r.nom });
+        for (const id of r.liens) {
+          const a = nav.querySelector(`a[data-lien="${id}"]`);
+          if (!a) continue;
+          // une place gardée dans le menu d'origine, pour l'y remettre si la VF 1.0 se referme
+          const place = el("span", { hidden: true });
+          a.before(place);
+          menuVF.places.set(a, place);
+          const [objet, desc] = LIENS_VF[id] || [];
+          if (!a.querySelector(".lien-icone") && objet) a.prepend(objetMenu(objet, "lien-icone"));
+          if (!a.querySelector(".lien-desc") && desc) a.append(el("small", { class: "lien-desc", text: desc }));
+          panneau.append(a);
+        }
+        nav.append(el("div", { class: "rubrique", "data-rubrique": r.id }, bouton, panneau));
+        bouton.addEventListener("click", (e) => { e.stopPropagation(); ouvrirRubrique(bouton.getAttribute("aria-expanded") === "true" ? null : r.id); });
+      }
+      const accueil = nav.querySelector(".nav-accueil");
+      if (accueil && !accueil.querySelector(".lien-icone")) accueil.prepend(el("img", { class: "lien-icone accueil-icone", src: "/img/chopper-visage.jpg", alt: "", width: 28, height: 28, loading: "lazy", decoding: "async" }));
+    } else if (!vf && menuVF.fait) {
+      menuVF.fait = false;
+      ouvrirRubrique(null);
+      for (const [a, place] of menuVF.places) { place.replaceWith(a); }
+      menuVF.places.clear();
+      nav.querySelectorAll(".rubrique").forEach((r) => r.remove());
+      nav.classList.remove("vf");
+      nav.setAttribute("aria-label", "Sections du site");
+    }
+    if (!menuVF.fait) return;
+    // un point rose sur la rubrique quand quelque chose y est en direct (le live, le boss, un pote, une game)
+    for (const r of nav.querySelectorAll(".rubrique")) {
+      const vivant = [...r.querySelectorAll(".pastille-live, .compteur")].some((b) => !b.hidden && !b.classList.contains("compteur-v3"));
+      r.querySelector(".rubrique-point").hidden = !vivant;
+    }
+  }
+  function ouvrirRubrique(id) {
+    for (const b of document.querySelectorAll("#nav .rubrique-bouton")) {
+      const oui = b.getAttribute("aria-controls") === `rubrique-${id}`;
+      b.setAttribute("aria-expanded", String(oui));
+      b.parentElement.classList.toggle("ouverte", oui);
+    }
+    document.documentElement.classList.toggle("rubrique-ouverte", Boolean(id));
+  }
+  document.addEventListener("click", (e) => {
+    if (!menuVF.fait) return;
+    const lien = e.target.closest?.("#nav .rubrique-panneau a, #nav > a.nav-accueil");
+    if (lien) { ouvrirRubrique(null); signalerArrivee(lien); return; }
+    if (!e.target.closest?.("#nav .rubrique")) ouvrirRubrique(null);
+  });
+  // en arrivant sur une partie depuis le menu, son titre fait un petit « pop » (une tache d'encre rose derrière)
+  function signalerArrivee(lien) {
+    if (reduit.matches) return;
+    const id = (lien.getAttribute("href") || "").split("#")[1];
+    const titre = id && document.getElementById(id)?.querySelector(".titre-section");
+    if (!titre) return;
+    let fait = false;
+    const pop = () => {
+      if (fait) return;
+      fait = true;
+      titre.classList.remove("arrivee");
+      void titre.offsetWidth;
+      titre.classList.add("arrivee");
+      setTimeout(() => titre.classList.remove("arrivee"), 1100);
+    };
+    addEventListener("scrollend", pop, { once: true });
+    setTimeout(pop, 1000);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !menuVF.fait) return;
+    const ouverte = document.querySelector("#nav .rubrique.ouverte .rubrique-bouton");
+    if (ouverte) { ouvrirRubrique(null); ouverte.focus(); }
+  });
+
+  // ---------- la VF 1.0 : l'accueil, une carte postale vivante de Port Barhaw (rendue dans Blender, 6 s qui bouclent) ----------
+  // L'image fixe d'abord ; la vidéo (moins de 400 ko) ne se charge qu'après la page, et jamais avec « réduire les animations »
+  // ou en économie de données, ni sur une connexion lente (3G ou moins).
+  function rendreAccueilVF() {
+    const carte = $("carte-postale");
+    if (!carte || carte.dataset.video || !document.documentElement.classList.contains("v4")) return;
+    if (reduit.matches || navigator.connection?.saveData || /2g$|^3g$/.test(navigator.connection?.effectiveType || "")) return;
+    carte.dataset.video = "1";
+    const lancer = () => {
+      const v = el("video", { class: "carte-postale-video", muted: true, loop: true, playsinline: true, autoplay: true, preload: "auto", poster: "/img/accueil-vf.webp", "aria-hidden": "true", tabindex: "-1" },
+        el("source", { src: "/videos/accueil-vf.webm", type: "video/webm" }), el("source", { src: "/videos/accueil-vf.mp4", type: "video/mp4" }));
+      v.muted = true;
+      v.addEventListener("playing", () => carte.classList.add("joue"), { once: true });
+      carte.querySelector(".carte-postale-image")?.after(v);
+      v.play?.().catch(() => {});
+    };
+    if (document.readyState === "complete") setTimeout(lancer, 300);
+    else window.addEventListener("load", () => setTimeout(lancer, 300), { once: true });
+  }
+
   // le grand kanji de chaque partie glisse un peu moins vite que la page
   function kanjis() {
     const liste = [...document.querySelectorAll(".kanji")];
@@ -569,6 +691,7 @@
     $("compteur-potes").hidden = !n;
     $("compteur-potes").textContent = n;
     $("hero-live").textContent = live ? "Regarder le live" : "Voir la chaîne";
+    rendreMenuVF();
     rendreFlottant();
     rendreModeLive();
   }
@@ -6740,6 +6863,8 @@
   // ---------- chargement ----------
   function rendreTout() {
     document.documentElement.classList.toggle("v4", v4Ouverte());
+    rendreMenuVF();
+    rendreAccueilVF();
     if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEscale();
     rendreEntete();

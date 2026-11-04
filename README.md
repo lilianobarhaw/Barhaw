@@ -14,6 +14,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `api/chopper.js` | La carte et les animations de Chopper ; nourrir, jouer et parler au nom du membre connecté |
 | `api/moi.js` | Qui est connecté |
 | `js/grandline-3d.js` | La carte de GRAND LINE en 3D (chargée seulement à l'approche de la partie GRAND LINE) |
+| `js/vf-tot.js` | La VF 1.0 dès le premier affichage (le 22/12 à 21 h 30) : met la page en VF avant `site.js` et lance tout de suite l'image de l'accueil |
 | `js/traversee-3d.js` | La Traversée (V4), le mini-jeu de GRAND LINE, en 3D : chargée seulement quand on ouvre le jeu (le moteur du jeu est dans `site.js`) |
 | `modeles/grandline/` | Les modèles 3D de GRAND LINE faits dans Blender : le navire, les 15 îles, le monstre marin, la mouette, la bouteille (`.glb` compactés, lus par `js/grandline-3d.js`) |
 | `outils/blender/` | Les scripts Blender qui fabriquent ces modèles (voir plus bas) ; jamais servis par le site |
@@ -126,6 +127,15 @@ Les noms comptent : les matières portent les noms de la palette (le site remet 
 ## Les objets 3D des titres
 
 Six petits objets faits dans Blender (`outils/blender/barhaw_objets.py`, rendus sur fond transparent dans `img/objets/`, 32 Ko en tout) se balancent à côté des titres : la lanterne (Events), le trophée (Tournoi), le coffre de cartes (Cartes), la borne d'arcade (Jeux), le tableau des primes (Chasse) et les épées (Faille). Ils tombent en place quand le titre apparaît.
+
+## La VF 1.0 : le visuel (22 décembre 2026, 21 h 30)
+
+Tout ce qui suit ne se voit qu'une fois la VF 1.0 ouverte (classe `v4` sur la page ; les éléments `vf-seul` sont cachés avant).
+
+- **L'accueil** : une carte postale vivante de Port Barhaw (le navire au mouillage, la mer, les mouettes), faite dans Blender (`outils/blender/barhaw_accueil_vf.py`, 144 images qui bouclent). L'image fixe (`img/accueil-vf*.webp`, 28 Ko) arrive tout de suite ; la vidéo (`videos/accueil-vf.webm` ou `.mp4`, moins de 400 Ko) seulement après la page, jamais avec « réduire les animations », en économie de données ou en 3G.
+- **Le menu** : 4 rubriques (le Live, l'Aventure, les Jeux, la Commu) qui s'ouvrent en panneau ; sur téléphone, une barre en bas de l'écran. Chaque lien a son petit objet et une ligne qui dit ce qu'on y trouve.
+- **Les titres** : treize objets Blender à côté des titres (`barhaw_objets.py`) ; la caméra (Ma chaîne), les chopes (Potes), le clap (YouTube), la gamelle (Chopper), la bouteille à la mer (GRAND LINE), le casque (BOSS LIVE) et la cloche (Discord) arrivent avec la VF.
+- **Les cartes et les boutons** : les mêmes bords, ombres et coins partout ; les cartes arrivent avec un petit rebond, et le titre fait « pop » quand on y arrive par le menu.
 
 ## L'escale : quand le bot fait une pause
 

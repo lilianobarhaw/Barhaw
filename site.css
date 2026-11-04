@@ -3099,3 +3099,135 @@ html.gl-salle-ouverte, html.gl-salle-ouverte body { overflow: hidden; }
 @keyframes tv-roue { to { transform: rotate(360deg); } }
 @media (max-width: 600px) { .tv-haut { flex-wrap: nowrap; } .tv-haut .gl-salle-titre { font-size: 18px; } .tv-haut .gl-salle-titre small { display: none; } .tv-coeur { width: 24px; height: 22px; } .tv-vent i { width: 80px; } .tv-panneau { padding: 18px 14px 14px; } .tv-haut .tv-bouton-pause { width: 38px; height: 38px; font-size: 15px; } }
 @media (prefers-reduced-motion: reduce) { .tv-salle, .tv-panneau, .tv-bateau, .tv-houle, .tv-tonneau-mini, .tv-roue { animation: none; } .tv-scene.tv-touche-coque::after { animation-duration: 0.01s; } .tv-pop { animation-duration: 0.6s; } }
+
+/* =====================================================================================================
+   LA VF 1.0 (le 22 décembre à 21 h 30) : tout ce qui suit ne s'applique qu'une fois la VF 1.0 ouverte (html.v4)
+   ===================================================================================================== */
+html:not(.v4) .vf-seul { display: none !important; }
+
+/* ---------- des tokens communs : les mêmes bords, ombres, coins partout ---------- */
+html.v4 {
+  --bord: 2.5px solid var(--encre);
+  --ombre-carte: 6px 7px 0 var(--ombre);
+  --ombre-petite: 3px 3px 0 var(--ombre);
+  --coin: 18px;
+  --coin-petit: 12px;
+}
+html.v4 .carte { border: var(--bord); border-radius: var(--coin); box-shadow: var(--ombre-carte); }
+html.v4 .carte:not(a):not(.survol):hover { border-color: var(--encre); }
+html.v4 a.carte:hover, html.v4 .carte.survol:hover { border-color: var(--encre); box-shadow: 9px 10px 0 var(--ombre); }
+html.v4 .btn { border-width: 2.5px; border-radius: var(--coin-petit); box-shadow: var(--ombre-petite); }
+html.v4 .btn:hover { box-shadow: 5px 5px 0 var(--ombre); }
+html.v4 .btn-contour { border-color: var(--encre); box-shadow: 3px 3px 0 rgba(155, 77, 255, 0.7); }
+html.v4 .btn-petit { border-radius: 10px; }
+
+/* ---------- les apparitions : les cartes arrivent avec un petit rebond, le titre fait « pop » quand on y arrive par le menu ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  html.v4 .carte.revele { transition: opacity 0.6s var(--doux), transform 0.75s var(--rebond), box-shadow 0.25s, border-color 0.25s; }
+  html.v4 .carte.revele:not(.vu) { transform: translateY(30px) scale(0.96) rotate(-1deg); }
+  html.v4 .titre-section.arrivee { animation: titre-arrivee 0.7s var(--rebond); }
+  html.v4 .titre-section.arrivee::before { content: ""; position: absolute; z-index: -1; left: -0.4em; top: 50%; width: 2.4em; height: 2.4em; translate: 0 -50%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 79, 154, 0.5), rgba(155, 77, 255, 0.25) 45%, transparent 68%); pointer-events: none; animation: tache-encre 0.9s var(--doux) both; }
+}
+@keyframes titre-arrivee { 0% { scale: 1; } 30% { scale: 1.06; rotate: -1.5deg; } 60% { scale: 0.98; rotate: 0.6deg; } 100% { scale: 1; rotate: 0deg; } }
+@keyframes tache-encre { 0% { scale: 0.2; opacity: 1; } 100% { scale: 1.7; opacity: 0; } }
+
+/* ---------- les objets 3D des titres ---------- */
+.titre-objet[src*="cloche"] { transform-origin: 50% 8%; animation-name: objet-pendule; }
+.titre-section.vu .titre-objet[src*="cloche"] { animation: objet-arrivee 0.7s var(--rebond) 0.3s both, objet-pendule 4s var(--doux) 1s infinite; }
+.titre-objet[src*="bouteille"] { animation-name: objet-tangue; }
+.titre-section.vu .titre-objet[src*="bouteille"] { animation: objet-arrivee 0.7s var(--rebond) 0.3s both, objet-tangue 3.6s var(--doux) 1s infinite; }
+@keyframes objet-tangue { 0%, 100% { rotate: -4deg; translate: 0 0; } 50% { rotate: 4deg; translate: 0 -3px; } }
+
+/* ---------- l'accueil : la carte postale vivante de Port Barhaw ---------- */
+html.v4 .hero-chopper { display: block; place-items: normal; min-height: 0; padding: 10px 0 92px; }
+.carte-postale { position: relative; width: 100%; margin: 0; aspect-ratio: 16 / 10; border: 3px solid var(--encre); border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, #5a2268, #d8679f 55%, #33589f 56%); box-shadow: 9px 10px 0 var(--ombre), 0 30px 60px -20px rgba(0, 0, 0, 0.6); rotate: 1.2deg; transition: rotate 0.5s var(--rebond); }
+.carte-postale:hover { rotate: -0.6deg; }
+.carte-postale-image, .carte-postale-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.carte-postale-video { opacity: 0; transition: opacity 0.8s var(--doux); }
+.carte-postale.joue .carte-postale-video { opacity: 1; }
+.carte-postale::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: inset 0 0 0 6px rgba(255, 242, 248, 0.85), inset 0 0 0 8px var(--encre); }
+.carte-postale-tampon { position: absolute; top: 18px; right: 18px; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 5px 12px 6px; border: 2px dashed var(--rose-fonce); border-radius: 10px; background: rgba(255, 242, 248, 0.92); color: var(--rose-fonce); font-family: var(--titre); font-size: 14px; rotate: -5deg; box-shadow: 2px 2px 0 rgba(18, 5, 13, 0.35); }
+.carte-postale-tampon span { font-family: var(--sfx); font-size: 18px; color: var(--violet); }
+html.v4 .hero-chopper .orbite { position: absolute; left: -5%; bottom: 0; width: min(170px, 32%); z-index: 3; }
+html.v4 .hero-chopper .satellite, html.v4 .hero-chopper .concentration { display: none; }
+html.v4 .hero-chopper .orbite::before { inset: -10%; }
+html.v4 .hero-chopper .pp-hero { right: -18%; bottom: -12%; width: 46%; }
+html.v4 .hero-chopper .bulle-hero { top: auto; bottom: 8px; left: 27%; right: auto; max-width: 236px; z-index: 5; } /* sous la carte : le navire reste visible */
+html.v4 .hero-chopper .sfx-hero { left: auto; right: 0; bottom: 4px; z-index: 4; }
+html.v4 .hero-chopper .etincelle { z-index: 4; }
+@media (max-width: 900px) {
+  html.v4 .hero-chopper { padding: 0 6px 96px; }
+  html.v4 .hero-chopper .orbite { width: min(120px, 30%); left: -2%; bottom: 6px; }
+  html.v4 .hero-chopper .bulle-hero { left: calc(min(120px, 30%) + 4px); right: 0; bottom: 6px; max-width: 300px; }
+  html.v4 .hero-chopper .autocollant.au-hero { width: min(150px, 38%); left: -2%; top: -14px; }
+  .carte-postale { border-radius: 18px; }
+  .carte-postale-tampon { top: 12px; right: 12px; font-size: 12px; }
+}
+@media (max-width: 600px) { html.v4 .hero-chopper .sfx-hero { display: none; } }
+@media (prefers-reduced-motion: reduce) { .carte-postale { rotate: 0deg; transition: none; } .carte-postale-video { display: none; } }
+
+/* ---------- le menu en 4 rubriques ---------- */
+.nav .lien-icone, .nav .lien-desc { display: none; }
+html.v4 .burger, html.v4 .nav .compte-menu { display: none !important; }
+html.v4 .nav.vf { position: static; inset: auto; z-index: auto; flex-direction: row; justify-content: center; gap: 6px; padding: 0; overflow: visible; background: none; opacity: 1; visibility: visible; transition: none; }
+html.v4 .nav.vf > a, html.v4 .nav.vf .rubrique-bouton { opacity: 1; transform: none; }
+html.v4 .nav.vf > .nav-accueil { display: inline-flex; align-items: center; gap: 8px; font-family: var(--fort); font-size: 15px; padding: 8px 12px; border-radius: 12px; }
+html.v4 .nav.vf > .nav-accueil .accueil-icone { display: inline-block; width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 2px solid var(--encre); }
+html.v4 .nav.vf > .nav-accueil { border: 2px solid transparent; background: none; color: var(--brume); transition: background 0.2s, color 0.2s, border-color 0.2s; }
+html.v4 .nav.vf > .nav-accueil:hover, html.v4 .nav.vf > .nav-accueil[aria-current="true"] { color: var(--blanc); background: rgba(255, 79, 154, 0.14); border-color: rgba(255, 120, 190, 0.35); }
+html.v4 .nav.vf > .nav-discord { display: none; }
+.rubrique { position: relative; }
+html.rubrique-ouverte .entete { z-index: 48; } /* une rubrique ouverte passe devant les bulles « en live » */
+.rubrique-bouton { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 10px; border: 2px solid transparent; border-radius: 12px; background: none; color: var(--brume); font-family: var(--fort); font-weight: 800; font-size: 15px; cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s; }
+.rubrique-bouton::after { content: ""; width: 7px; height: 7px; margin-left: 2px; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; rotate: 45deg; translate: 0 -2px; transition: rotate 0.25s var(--doux), translate 0.25s var(--doux); }
+.rubrique-bouton:hover, .rubrique.ouverte .rubrique-bouton, .rubrique:has(a[aria-current="true"]) .rubrique-bouton { color: var(--blanc); background: rgba(255, 79, 154, 0.14); border-color: rgba(255, 120, 190, 0.35); }
+.rubrique.ouverte .rubrique-bouton::after { rotate: 225deg; translate: 0 2px; }
+.rubrique-icone { width: auto; height: 28px; filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)); transition: scale 0.25s var(--rebond), rotate 0.25s var(--rebond); }
+.rubrique-bouton:hover .rubrique-icone, .rubrique.ouverte .rubrique-icone { scale: 1.15; rotate: -6deg; }
+.rubrique-court { display: none; }
+.rubrique-point { position: absolute; top: 5px; left: 32px; width: 10px; height: 10px; border-radius: 50%; background: var(--rose); border: 2px solid var(--encre); animation: battre 1.6s ease-in-out infinite; }
+.rubrique-point[hidden] { display: none; }
+.rubrique-panneau { position: absolute; top: calc(100% + 10px); left: 50%; translate: -50% 6px; z-index: 50; display: grid; gap: 4px; min-width: 300px; padding: 10px; border: 2.5px solid var(--encre); border-radius: 18px; background: var(--panneau); box-shadow: 6px 7px 0 var(--ombre), 0 20px 40px -10px rgba(0, 0, 0, 0.6); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s var(--doux), translate 0.25s var(--doux), visibility 0.2s; }
+.rubrique-panneau::before { content: ""; position: absolute; top: -9px; left: 50%; width: 14px; height: 14px; margin-left: -7px; background: #241029; border-left: 2.5px solid var(--encre); border-top: 2.5px solid var(--encre); rotate: 45deg; }
+.rubrique.ouverte .rubrique-panneau { opacity: 1; visibility: visible; pointer-events: auto; translate: -50% 0; }
+@media (hover: hover) and (min-width: 901px) {
+  .rubrique:hover .rubrique-panneau, .rubrique:focus-within .rubrique-panneau { opacity: 1; visibility: visible; pointer-events: auto; translate: -50% 0; }
+  .rubrique-panneau::after { content: ""; position: absolute; left: 0; right: 0; top: -14px; height: 14px; } /* le pont entre le bouton et le panneau */
+}
+html.v4 .nav.vf .rubrique-panneau a { display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 8px 12px 8px 8px; border-radius: 12px; background: none; font-family: var(--fort); font-size: 15px; font-weight: 800; color: var(--blanc); opacity: 1; transform: none; white-space: normal; }
+html.v4 .nav.vf .rubrique-panneau a:hover, html.v4 .nav.vf .rubrique-panneau a:focus-visible { background: rgba(255, 79, 154, 0.16); }
+html.v4 .nav.vf .rubrique-panneau a[aria-current="true"] { background: rgba(155, 77, 255, 0.22); }
+html.v4 .nav.vf .lien-icone { display: block; grid-row: 1 / 3; width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.45)); transition: scale 0.25s var(--rebond); }
+html.v4 .nav.vf a:hover .lien-icone { scale: 1.12; }
+html.v4 .nav.vf .lien-desc { display: block; grid-column: 2; font-family: var(--texte); font-weight: 500; font-size: 12.5px; color: var(--terne); }
+html.v4 .nav.vf .rubrique-panneau a > .pastille-live, html.v4 .nav.vf .rubrique-panneau a > .compteur { justify-self: start; }
+@media (max-width: 1320px) and (min-width: 901px) { html.v4 .entete .cta-discord { display: none; } html.v4 .rubrique-bouton { padding: 7px 10px; font-size: 14px; } }
+
+/* sur téléphone : une barre en bas de l'écran (l'accueil et les 4 rubriques), chaque rubrique s'ouvre au-dessus */
+@media (max-width: 900px) {
+  html.v4 { --barre: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  html.v4 body { padding-bottom: var(--barre); }
+  html.v4 .entete-droite .compte { display: flex; }
+  html.v4 .entete-droite .compte .nom-compte, html.v4 .entete-droite .compte .sortir { display: none; }
+  html.v4 .entete-droite { margin-right: 52px; }
+  html.v4 .musique-zone { right: 12px; }
+  html.v4 .nav.vf { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 46; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; height: var(--barre); padding: 0 4px env(safe-area-inset-bottom, 0px); background: rgba(18, 7, 15, 0.96); border-top: 2.5px solid var(--encre); box-shadow: 0 -4px 0 rgba(111, 34, 201, 0.55); }
+  html.v4 .nav.vf > .nav-accueil, html.v4 .rubrique-bouton { flex-direction: column; justify-content: center; gap: 2px; width: 100%; height: 64px; padding: 4px 2px; border: 0; border-radius: 0; font-size: 11.5px; background: none; }
+  html.v4 .nav.vf > .nav-accueil { font-size: 11.5px; }
+  html.v4 .nav.vf > .nav-accueil .accueil-icone { width: 28px; height: 28px; }
+  .rubrique-bouton::after { display: none; }
+  .rubrique-nom { display: none; }
+  .rubrique-court { display: block; }
+  .rubrique-icone { height: 30px; }
+  .rubrique-point { top: 6px; left: calc(50% + 8px); }
+  .rubrique:has(a[aria-current="true"]) .rubrique-bouton, .rubrique.ouverte .rubrique-bouton, html.v4 .nav.vf > .nav-accueil[aria-current="true"] { color: var(--blanc); background: linear-gradient(0deg, rgba(255, 79, 154, 0.25), transparent); }
+  .rubrique { position: static; }
+  .rubrique-panneau { position: fixed; left: 10px; right: 10px; top: auto; bottom: calc(var(--barre) + 10px); translate: 0 16px; min-width: 0; max-height: calc(100svh - var(--barre) - 90px); overflow-y: auto; }
+  .rubrique-panneau::before { display: none; }
+  .rubrique.ouverte .rubrique-panneau { translate: 0 0; }
+  /* le voile derrière la rubrique ouverte : dans l'en-tête, juste sous la barre */
+  html.rubrique-ouverte .entete::before { content: ""; position: fixed; inset: 0 0 var(--barre); z-index: 45; background: rgba(12, 4, 10, 0.55); }
+  html.v4 .flottant-live, html.v4 .pote-live { bottom: calc(var(--barre) + 12px); }
+  html.v4 .escale-retour, html.v4 .bl-alerte { bottom: calc(var(--barre) + 14px); }
+}
+@media (prefers-reduced-motion: reduce) { .rubrique-panneau, .rubrique-bouton::after, .rubrique-icone { transition: none; } .rubrique-point { animation: none; } }

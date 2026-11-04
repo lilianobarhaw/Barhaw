@@ -77,6 +77,15 @@ def materiau(nom):
             bsdf.inputs["Roughness"].default_value = 0.7
         if nom in ("glace", "cristal"):
             bsdf.inputs["Roughness"].default_value = 0.08
+        if nom == "verre":
+            # le verre (rendus seulement) : presque transparent, pour voir ce qu'il y a dedans
+            bsdf.inputs["Roughness"].default_value = 0.05
+            bsdf.inputs["Alpha"].default_value = 0.25
+            for k, v in (("surface_render_method", "BLENDED"), ("blend_method", "BLEND")):
+                try:
+                    setattr(m, k, v)
+                except Exception:
+                    pass
         if nom == "terrain":
             # la couleur vient des sommets (attribut « Couleur »)
             attr = nt.nodes.new("ShaderNodeVertexColor")
