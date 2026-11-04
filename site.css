@@ -3308,10 +3308,20 @@ html.v4 .qz-choix-liste .qz-choix.fausse { background: linear-gradient(180deg, #
 /* la Rumble Ball : l'arène, le cadran posé sur le ring, Chopper debout au milieu, les cordes de devant par-dessus */
 html.v4 .rb-scene { min-height: 300px; padding: 0; background-image: url(/img/jeux/rumble.webp); background-position: 50% 62%; }
 html.v4 .rb-scene .concentration { opacity: 0.18; }
-html.v4 .rb-cadran { width: min(250px, 66vw); perspective: 800px; translate: 0 16%; }
-html.v4 .rb-cadran svg { transform: rotateX(38deg); transform-origin: 50% 70%; }
-html.v4 .rb-piste { fill: rgba(18, 5, 13, 0.28); stroke: rgba(255, 220, 240, 0.55); }
-html.v4 .rb-chopper { top: 40%; width: 38%; box-shadow: 0 0 0 3px var(--encre), 0 0 calc(12px + var(--niveau, 0) * 4px) var(--aura, rgba(255, 79, 154, 0.4)); }
+/* le cadran est peint à plat sur le tapis du ring (penché comme le décor), Chopper se tient debout en son centre */
+html.v4 .rb-cadran { width: min(240px, 64vw); translate: 0 20%; transform: rotateX(63deg); }
+html.v4 .rb-cadran::before { inset: 4%; transform: none; background: radial-gradient(closest-side, rgba(255, 79, 154, 0.16), rgba(255, 79, 154, 0.05) 70%, transparent); border: 0; }
+html.v4 .rb-cadran::after { display: none; }
+html.v4 .rb-piste { fill: none; stroke: rgba(255, 236, 246, 0.85); stroke-width: 7; }
+html.v4 .rb-zone { stroke-width: 16; filter: drop-shadow(0 0 8px rgba(255, 79, 154, 1)); }
+html.v4 .rb-aiguille line { stroke: #fff; stroke-width: 7; }
+html.v4 .rb-aiguille circle { r: 11px; fill: #ffd479; stroke-width: 3; filter: drop-shadow(0 0 6px rgba(255, 212, 121, 0.95)); }
+html.v4 .rb-ombre { width: 34%; }
+html.v4 .rb-chopper { width: 36%; translate: -50% -100%; transform-origin: 50% 100%; transform: rotateX(-63deg); box-shadow: 0 0 0 3px var(--encre), 0 0 calc(12px + var(--niveau, 0) * 4px) var(--aura, rgba(255, 79, 154, 0.4)); }
+html.v4 .rb-scene.choc .rb-cadran { animation: rb-vibrer-vf 0.1s steps(2) 4; }
+html.v4 .rb-scene.choc .rb-chopper { animation: rb-saute-vf 0.45s var(--rebond); }
+@keyframes rb-vibrer-vf { 0% { transform: rotateX(63deg) rotate(0deg); } 50% { transform: rotateX(63deg) rotate(1.4deg) scale(1.015); } 100% { transform: rotateX(63deg) rotate(-1deg); } }
+@keyframes rb-saute-vf { 0% { transform: rotateX(-63deg); } 40% { transform: rotateX(-63deg) translateY(-34%); } 100% { transform: rotateX(-63deg); } }
 html.v4 .rb-avant { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; pointer-events: none; }
 .rb-onde { position: absolute; left: 50%; top: 66%; z-index: 1; width: 42%; aspect-ratio: 2.6; translate: -50% -50%; border: 4px solid var(--rose); border-radius: 50%; opacity: 0; pointer-events: none; }
 html.v4 .rb-scene.choc .rb-onde { animation: rb-onde 0.6s var(--doux); }
