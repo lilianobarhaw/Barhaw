@@ -540,6 +540,75 @@
     minuteurBulleVF = setTimeout(() => { p.hidden = true; }, 7000);
   }
 
+  // ---------- V4 : l'événement caritatif du week-end (M_oo_de pour Les P'tits Doudous) ----------
+  // Du vendredi 6 novembre 18 h au lundi 9 novembre 3 h (Paris) : une animation à l'arrivée (une fois par jour et par
+  // appareil), puis un bandeau en haut de la page, qui dit si M_oo_de est en live. Le bot donne l'état du live
+  // (lib/caritatif.js) ; si le bot est en pause ou pas encore à jour, la date suffit pour montrer l'événement.
+  const CARITATIF = {
+    debut: Date.parse("2026-11-06T17:00:00Z"), fin: Date.parse("2026-11-09T02:00:00Z"),
+    chaine: "m_oo_de", nom: "M_oo_de", association: { nom: "Les P'tits Doudous", lien: "https://lesptitsdoudous.org/" },
+  };
+  const CLE_CARITATIF = "barhaw-caritatif-vu";
+  let introCaritatifFaite = false;
+  function infosCaritatif() {
+    const c = donnees?.caritatif;
+    if (c === null) return null; // le bot dit : ce n'est pas le week-end de l'événement
+    const t = Date.now();
+    if (!c && !(t >= CARITATIF.debut && t < CARITATIF.fin)) return null;
+    const pote = (donnees?.amis || []).find((a) => String(a.login || "").toLowerCase() === CARITATIF.chaine);
+    return { ...CARITATIF, ...(c || {}), enLive: c ? Boolean(c.enLive) : Boolean(pote?.enLive), viewers: c?.viewers || pote?.viewers || 0, connu: Boolean(c || pote) };
+  }
+  function rendreCaritatif() {
+    const c = infosCaritatif();
+    let b = $("caritatif-bandeau");
+    if (!c) { b?.remove(); return; }
+    const lien = `https://www.twitch.tv/${c.chaine}`;
+    const etatLive = c.enLive ? `🔴 En live maintenant${c.viewers ? ` · ${nombre(c.viewers)} viewers` : ""}` : c.connu ? "Pas en live pour l'instant" : "";
+    if (!b) {
+      b = el("aside", { class: "caritatif-bandeau", id: "caritatif-bandeau", "aria-label": "L'événement caritatif du week-end" });
+      document.querySelector("#accueil .hero-texte")?.prepend(b);
+    }
+    vider(b,
+      el("img", { class: "caritatif-doudou", src: "/img/jeux/remede-calin.webp", alt: "", width: 46, height: 46, decoding: "async" }),
+      el("p", { class: "caritatif-texte" }, el("b", { text: `Ce week-end, ${c.nom} joue pour ${c.association.nom}` }), el("span", { text: " : des dons pour rendre l'hôpital plus doux aux enfants opérés." })),
+      etatLive ? el("span", { class: `caritatif-live${c.enLive ? " on" : ""}`, text: etatLive }) : null,
+      el("a", { class: "btn btn-plein btn-petit", href: lien, target: "_blank", rel: "noopener", text: c.enLive ? "Regarder le live" : "Sa chaîne Twitch" }),
+    );
+    introCaritatif(c, etatLive, lien);
+  }
+  // l'animation d'arrivée : des cœurs qui montent, un doudou qui saute, et l'essentiel en une carte
+  function introCaritatif(c, etatLive, lien) {
+    if (introCaritatifFaite || $("caritatif-intro") || document.querySelector(".cine")) return;
+    const jour = new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
+    try { if (localStorage.getItem(CLE_CARITATIF) === jour) return; localStorage.setItem(CLE_CARITATIF, jour); } catch {}
+    introCaritatifFaite = true;
+    const echap = (e) => { if (e.key === "Escape") fermer(); };
+    const fermer = () => {
+      document.removeEventListener("keydown", echap);
+      o.classList.add("part");
+      setTimeout(() => o.remove(), reduit.matches ? 0 : 450);
+    };
+    const o = el("div", { class: "caritatif-intro", id: "caritatif-intro", role: "dialog", "aria-modal": "true", "aria-labelledby": "caritatif-titre" },
+      el("div", { class: "caritatif-coeurs", "aria-hidden": "true" }, Array.from({ length: 18 }, (_, k) => el("i", { style: `--x: ${(k * 37) % 100}; --d: ${((k * 7) % 18) * 0.25}s; --t: ${0.7 + (k % 4) * 0.22}` }))),
+      el("div", { class: "caritatif-carte" },
+        el("img", { class: "caritatif-doudou grand", src: "/img/jeux/remede-calin.webp", alt: "", width: 128, height: 128, decoding: "async" }),
+        el("p", { class: "surtitre", text: "Ce week-end · événement caritatif" }),
+        el("h2", { class: "caritatif-titre", id: "caritatif-titre" }, `${c.nom} joue pour `, el("span", { class: "degrade", text: c.association.nom })),
+        el("p", { class: "caritatif-sous", text: "L'association rend l'hospitalisation plus douce pour les enfants opérés, leurs parents et les soignants. Les dons se font pendant son live, du vendredi 18 h au lundi 3 h." }),
+        etatLive ? el("p", { class: `caritatif-live${c.enLive ? " on" : ""}`, text: etatLive }) : null,
+        el("div", { class: "caritatif-actions" },
+          el("a", { class: "btn btn-plein", href: lien, target: "_blank", rel: "noopener", text: c.enLive ? "Regarder le live" : "Voir sa chaîne Twitch" }),
+          el("a", { class: "btn btn-contour", href: c.association.lien, target: "_blank", rel: "noopener", text: "Découvrir l'association" }),
+        ),
+        el("button", { class: "caritatif-entrer", type: "button", onclick: () => fermer(), text: "Entrer sur le site →" }),
+      ),
+    );
+    o.addEventListener("click", (e) => { if (e.target === o) fermer(); });
+    document.addEventListener("keydown", echap);
+    document.body.append(o);
+    o.querySelector(".caritatif-entrer")?.focus({ preventScroll: true });
+  }
+
   // le grand kanji de chaque partie glisse un peu moins vite que la page
   function kanjis() {
     const liste = [...document.querySelectorAll(".kanji")];
@@ -7075,6 +7144,7 @@
     document.documentElement.classList.toggle("v4", v4Ouverte());
     rendreMenuVF();
     rendreAccueilVF();
+    rendreCaritatif();
     if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEscale();
     rendreEntete();
