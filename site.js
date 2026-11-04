@@ -1957,11 +1957,14 @@
     function majHud() {
       $("gouter-score").textContent = String(s.score);
       $("gouter-combo").textContent = s.combo >= 3 ? `Combo ×${s.combo}` : "";
+      // en VF : à 10 bonbons d'affilée, la « fièvre du goûter » fait briller le cadre
+      $("gouter-jeu")?.classList.toggle("fievre", jeuxVF() && s.etat === "jeu" && s.combo >= 10);
     }
 
     async function finir() {
       s.etat = "fin";
       $("gouter-hud").hidden = true;
+      $("gouter-jeu")?.classList.remove("fievre");
       const score = s.score;
       const record = score > meilleurLocal;
       if (record) { meilleurLocal = score; try { localStorage.setItem("barhaw-gouter", String(score)); } catch {} }
@@ -1972,7 +1975,9 @@
         resultat,
         el("button", { class: "btn btn-plein", type: "button", onclick: () => lancer(), text: "Rejouer" }),
       );
-      if (!s.partie) return;
+      // en VF : le même écran de fin clair que les autres jeux (le résultat arrive du bot juste après)
+      const finGouter = (f, note = "") => { if (jeuxVF() && s.etat === "fin") ecran(finVF({ semaine: donnees?.chopper?.jeu?.semaine, gros: `${score} points`, score: "Fin du goûter !", note, f, rejouer: () => lancer() })); };
+      if (!s.partie) { finGouter({ perso: record && score > 0, message: compteJeu() ? "" : "Connecte-toi avec Discord pour que ton score compte." }); return; }
       const partie = s.partie;
       s.partie = "";
       try {
@@ -1984,6 +1989,7 @@
         }
         if (d.ok) {
           if (d.butin) recevoirButin(d.butin);
+          finGouter({ record: d.record, perso: d.perso, butin: d.butin, milles: d.milles }, d.recompense ? `Chopper est content : ${d.recompense}.` : d.restant > 0 ? "Attrape au moins un bonbon pour que la partie rapporte." : "Tes 3 parties qui rapportent sont faites pour aujourd'hui.");
           resultat.textContent = [
             d.record ? "Nouveau record du goûter, bravo !" : d.perso ? "Nouveau record perso cette semaine !" : `Ton meilleur cette semaine : ${d.meilleur} points.`,
             d.recompense ? `Chopper est content : ${d.recompense}.` : d.restant > 0 ? "Attrape au moins un bonbon pour que la partie rapporte." : "Tes 3 parties qui rapportent sont faites pour aujourd'hui.",
@@ -2679,11 +2685,12 @@
 
   // le classement d'un jeu (record + top 5 de la semaine)
   function tableauJeu(s, texte, titre = "") {
+    if (!titre && document.documentElement.classList.contains("v4")) titre = "Le classement de la semaine";
     return el("div", { class: "jeu-classement" },
       titre ? el("p", { class: "jeu-classement-titre", text: titre }) : null,
       el("p", { class: "jeu-record" }, el("span", { text: "Record" }), s?.record ? `${texte(s.record)} · ${s.record.nom}` : "à prendre !"),
       s?.semaine?.length
-        ? el("ol", {}, s.semaine.map((x) => el("li", {}, el("span", { text: x.nom }), el("small", { text: texte(x) }))))
+        ? el("ol", {}, s.semaine.map((x) => el("li", { class: moi?.connecte && x.nom === moi.nom ? "moi" : "" }, el("span", { text: x.nom }), el("small", { text: texte(x) }))))
         : el("p", { class: "note", text: "Personne n'a encore joué cette semaine." }),
     );
   }
@@ -2701,6 +2708,41 @@
     return `${seuil} = 1 éclat pour tes cartes.`;
   };
 
+  // ---------- la VF 1.0 : les jeux en relief (décors faits dans Blender, écran de fin, plein écran sur téléphone) ----------
+  const jeuxVF = () => document.documentElement.classList.contains("v4");
+  // sur téléphone, une partie (et son écran de fin) prend tout l'écran ; le bouton ✕ la referme
+  function pleinEcranJeu(z, oui) {
+    if (!z) return;
+    z.classList.toggle("en-jeu", Boolean(oui) && jeuxVF());
+    document.documentElement.classList.toggle("jeu-plein", Boolean(document.querySelector(".jeu-panneau.en-jeu")));
+  }
+  const fermerJeu = (onclick) => el("button", { class: "jeu-fermer", type: "button", "aria-label": "Fermer le jeu", title: "Fermer", onclick }, "✕");
+  // l'écran de fin, en clair : le résultat, le record, ce que la partie a rapporté et ta place de la semaine
+  function finVF({ semaine = [], gros, score, note = "", f, rejouer, texteRejouer = "Rejouer" }) {
+    const gains = [];
+    if (f.butin?.degats) gains.push(["⚔️", `−${nombre(f.butin.degats)} PV au boss de la semaine`]);
+    if (f.butin?.berrys) gains.push(["฿", `+${berrys(f.butin.berrys)} sur ton avis de recherche`]);
+    if (f.milles) gains.push(["⛵", `+${nombre(f.milles)} mille${f.milles > 1 ? "s" : ""} pour ton navire sur GRAND LINE`]);
+    if (f.eclat) gains.push(["💎", "+1 éclat pour tes cartes"]);
+    const rang = moi?.connecte ? (semaine || []).findIndex((x) => x.nom === moi.nom) + 1 : 0;
+    return el("div", { class: "jeu-ecran jeu-fin-vf" },
+      el("p", { class: "jeu-gros degrade", text: gros }),
+      score ? el("p", { class: "jeu-score", text: score }) : null,
+      f.record || f.perso ? el("p", { class: `jeu-badge${f.record ? " site" : ""}`, text: f.record ? "★ Nouveau record du site !" : "★ Nouveau record perso !" }) : null,
+      note ? el("p", { class: "note", text: note }) : null,
+      f.message ? el("p", { class: "note", text: f.message }) : null,
+      moi?.connecte
+        ? el("div", { class: "jeu-gains" },
+          el("p", { class: "jeu-gains-titre", text: "Ce que ta partie a rapporté" }),
+          gains.length ? el("ul", {}, gains.map(([i, t]) => el("li", {}, el("span", { "aria-hidden": "true", text: i }), el("span", { text: t })))) : el("p", { class: "note", text: "Rien cette fois : vise un meilleur score !" }),
+          f.eclatPlafond ? el("p", { class: "note", text: `Tes ${infosJeux()?.eclatsParJour || 2} éclats du jour sont déjà gagnés.` }) : null,
+          rang ? el("p", { class: "jeu-rang", text: `Tu es ${rang === 1 ? "1er" : `${rang}e`} du classement de la semaine` }) : null,
+        )
+        : el("a", { class: "btn btn-contour btn-petit", href: "/api/auth/login", text: "Se connecter avec Discord" }),
+      el("button", { class: "btn btn-plein", type: "button", onclick: rejouer, text: texteRejouer }),
+    );
+  }
+
   // --- la Rumble Ball ---
   const rb = { etat: "accueil", manche: 0, score: 0, angle: 0, vitesse: 0, zone: 0, largeur: 0, t0: 0, boucle: 0, partie: "", fin: null, dernier: null };
   function rumbleScene() {
@@ -2713,15 +2755,26 @@
       el("span", { class: "sfx rb-sfx", id: "rb-sfx", "aria-hidden": "true" }),
     );
     cadran.addEventListener("pointerdown", (e) => { if (rb.etat === "jeu") { e.preventDefault(); appuyerRumble(); } });
-    return el("div", { class: "rb-scene" }, el("span", { class: "concentration", "aria-hidden": "true" }), cadran);
+    // en VF : l'arène (décor Blender) derrière, et les cordes de devant par-dessus Chopper
+    const avant = jeuxVF() ? el("img", { class: "rb-avant", src: "/img/jeux/rumble-avant.webp", srcset: "/img/jeux/rumble-avant-petit.webp 720w, /img/jeux/rumble-avant.webp 1200w", sizes: "(max-width: 760px) 100vw, 560px", alt: "", "aria-hidden": "true", decoding: "async" }) : null;
+    return el("div", { class: "rb-scene" }, el("span", { class: "concentration", "aria-hidden": "true" }), cadran, avant, jeuxVF() ? el("span", { class: "rb-onde", "aria-hidden": "true" }) : null);
   }
+  function fermerRumble() {
+    if (rb.etat === "jeu" || rb.etat === "pause") { cancelAnimationFrame(rb.boucle); rb.etat = "accueil"; }
+    pleinEcranJeu($("rumble"), false);
+    if (rb.etat !== "envoi") rendreRumble();
+  }
+  const teteRumble = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La Rumble Ball" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "💊" }), fermerJeu(fermerRumble));
   function rendreRumble() {
     const z = $("rumble");
     if (!z || rb.etat === "jeu") return;
     const s = infosJeux()?.rumble;
     const moiR = mesJeux?.rumble;
     let ecran;
-    if (rb.etat === "fin" && rb.fin) {
+    if (rb.etat === "fin" && rb.fin && jeuxVF()) {
+      const f = rb.fin;
+      ecran = finVF({ semaine: s?.semaine, gros: f.transformations === 7 ? "MONSTER POINT !!" : `${f.transformations}/7 transformations`, score: `${nombre(f.score)} points`, f, rejouer: lancerRumble });
+    } else if (rb.etat === "fin" && rb.fin) {
       const f = rb.fin;
       ecran = el("div", { class: "jeu-ecran" },
         el("p", { class: "jeu-gros degrade", text: f.transformations === 7 ? "MONSTER POINT !!" : `${f.transformations}/7` }),
@@ -2738,7 +2791,7 @@
       );
     }
     vider(z,
-      el("div", { class: "jeu-tete" }, el("h3", { text: "La Rumble Ball" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "💊" })),
+      teteRumble(),
       rumbleScene(),
       el("div", { class: "rb-hud" }, el("span", { id: "rb-manche", text: rb.etat === "fin" ? "Partie finie" : "Prêt ?" }), el("b", { id: "rb-score", text: `${nombre(rb.score)} pts` })),
       ecran,
@@ -2783,8 +2836,9 @@
   async function lancerRumble() {
     rb.etat = "jeu"; rb.manche = 0; rb.score = 0; rb.fin = null; rb.partie = "";
     const z = $("rumble");
+    pleinEcranJeu(z, true);
     vider(z,
-      el("div", { class: "jeu-tete" }, el("h3", { text: "La Rumble Ball" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "💊" })),
+      teteRumble(),
       rumbleScene(),
       el("div", { class: "rb-hud" }, el("span", { id: "rb-manche", text: "" }), el("b", { id: "rb-score", text: "0 pts" })),
       el("div", { class: "jeu-ecran" }, el("button", { class: "btn btn-plein rb-bouton", type: "button", onclick: appuyerRumble, text: "Appuie !" }), el("p", { class: "note", text: "Ou la barre espace, ou un tap sur le cadran." })),
@@ -2812,6 +2866,7 @@
     sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
     const scene = $("rumble").querySelector(".rb-scene");
     scene.classList.remove("choc"); void scene.offsetWidth; scene.classList.add("choc");
+    scene.style.setProperty("--niveau", String(rb.manche));
     if (rb.manche >= 7) {
       rb.score += 300;
       ch.className = "rb-chopper forme-8";
@@ -2834,7 +2889,7 @@
     const attente = new Promise((ok) => setTimeout(ok, delai));
     if (rb.partie) {
       const { d } = await demanderJeux("rumble-fin", { partie: rb.partie, transformations, score });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
       else if (d.erreur) fin.message = [message, d.erreur].filter(Boolean).join(" ");
     } else if (!moi?.connecte) {
       fin.message = [message, "Connecte-toi avec Discord pour que ton score compte."].filter(Boolean).join(" ");
@@ -2861,7 +2916,13 @@
   const qz = { etat: "accueil", niveau: NIVEAUX_QUIZ.some((x) => x[0] === niveauSauve) ? niveauSauve : "moyen", partie: "", question: null, bonnes: 0, points: 0, palier: 0, fin: null, minuteur: 0, verrou: false, erreur: "" };
   const texteQuiz = (x) => `${x.score} pt${x.score > 1 ? "s" : ""} ·${x.bonnes ?? "?"}/10 · ${Math.round((x.temps || 0) / 1000)} s`;
   function teteQuiz() {
-    return el("div", { class: "jeu-tete" }, el("h3", { text: "Le quiz One Piece" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏴‍☠️" }));
+    return el("div", { class: "jeu-tete" }, el("h3", { text: "Le quiz One Piece" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏴‍☠️" }), fermerJeu(fermerQuiz));
+  }
+  function fermerQuiz() {
+    clearTimeout(qz.minuteur);
+    if (qz.etat === "question" || qz.etat === "palier") qz.etat = "accueil";
+    pleinEcranJeu($("quiz"), false);
+    rendreQuiz();
   }
   function choixNiveau() {
     return el("div", { class: "qz-niveaux", role: "group", "aria-label": "Niveau du quiz" }, NIVEAUX_QUIZ.map(([k, nom, pts]) => el("button", {
@@ -2880,6 +2941,13 @@
         el("p", { class: "jeu-regle", text: "Choisis ton niveau : 10 questions en 3 paliers qui montent en difficulté, 15 secondes chacune. Les questions viennent du bot : connecte-toi avec Discord pour jouer." }),
         el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord" }),
       );
+    } else if (qz.etat === "fin" && qz.fin && jeuxVF()) {
+      const f = qz.fin;
+      ecran = finVF({
+        semaine: s?.semaine, gros: `${f.bonnes}/10`, score: `${f.points} point${f.points > 1 ? "s" : ""} · ${Math.round(f.temps / 1000)} s · ${nomNiveau(f.niveau)}`,
+        note: f.bonnes === 10 ? "Sans faute ! Un vrai nakama." : f.bonnes >= 7 ? "Bien joué, tu connais ton One Piece !" : f.bonnes >= 4 ? "Pas mal… Relis quelques tomes !" : "Aïe. Chopper va devoir te soigner.",
+        f, rejouer: lancerQuiz, texteRejouer: `Rejouer en ${nomNiveau(qz.niveau).toLowerCase()}`,
+      });
     } else if (qz.etat === "fin" && qz.fin) {
       const f = qz.fin;
       ecran = el("div", { class: "jeu-ecran" },
@@ -2899,7 +2967,9 @@
       );
     }
     vider(z, teteQuiz(), choixNiveau(),
-      el("div", { class: "qz-affiche", "aria-hidden": "true" }, el("span", { class: "qz-wanted", text: "WANTED" }), el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 }), el("span", { class: "qz-prime", text: "50 ฿" })),
+      jeuxVF()
+        ? el("div", { class: "qz-plateau qz-plateau-accueil", "aria-hidden": "true" }, el("div", { class: "qz-ecran" }, el("b", { class: "qz-ecran-titre", text: "QUIZ" }), el("small", { text: `Niveau ${nomNiveau(qz.niveau).toLowerCase()}` })))
+        : el("div", { class: "qz-affiche", "aria-hidden": "true" }, el("span", { class: "qz-wanted", text: "WANTED" }), el("img", { src: "/img/chopper-visage.jpg", alt: "", width: 480, height: 480 }), el("span", { class: "qz-prime", text: "50 ฿" })),
       ecran,
       infosJeux()?.quiz ? tableauJeu(s, texteQuiz, `Classement · ${nomNiveau(qz.niveau)}`) : null,
     );
@@ -2913,6 +2983,7 @@
     if (!d.ok || !d.question) { qz.etat = "accueil"; qz.erreur = d.texte || d.erreur || "Le quiz n'a pas pu démarrer, réessaie."; rendreQuiz(); return; }
     qz.partie = d.partie; qz.bonnes = 0; qz.points = 0; qz.palier = 0; qz.fin = null;
     if (d.niveau) qz.niveau = d.niveau;
+    pleinEcranJeu($("quiz"), true);
     poserQuestion(d.question);
   }
   // un nouveau palier : une case manga avant la question
@@ -2927,21 +2998,30 @@
         el("b", { text: PALIERS[q.palier - 1] || "" }),
         el("span", { class: "sfx eclat qz-banniere-sfx", "aria-hidden": "true", text: q.palier === 3 ? "ゴゴゴ" : q.palier === 2 ? "ドン！" : "スタート！" }),
       ));
-      setTimeout(() => poserQuestion(q), reduit.matches ? 300 : 1100);
+      setTimeout(() => { if (qz.etat === "palier") poserQuestion(q); }, reduit.matches ? 300 : 1100);
       return;
     }
     qz.etat = "question";
     qz.question = q;
     const barre = el("i", {});
     const boutons = q.choix.map((c, k) => el("button", { class: "qz-choix", type: "button", onclick: () => repondreQuiz(k), text: c }));
+    // en VF : la question s'affiche sur le grand écran du plateau télé, et ses 15 ampoules s'éteignent une par seconde
+    const question = jeuxVF()
+      ? el("div", { class: "qz-plateau" },
+        el("div", { class: "qz-ecran" },
+          el("div", { class: "qz-ampoules", "aria-hidden": "true" }, Array.from({ length: 15 }, (_, i) => el("i", { style: `--i: ${i}` }))),
+          el("p", { class: "qz-question", text: q.q }),
+        ),
+        el("span", { class: "sfx qz-sfx", "aria-hidden": "true" }),
+      )
+      : [el("div", { class: "qz-temps", "aria-hidden": "true" }, barre), el("p", { class: "qz-question", text: q.q })];
     vider(z, teteQuiz(),
       el("div", { class: "qz-haut" }, el("span", { text: `${nomNiveau(qz.niveau)} · Question ${q.numero}/10` }), el("b", { text: `${qz.points} pts` })),
       el("div", { class: "qz-infos" },
         el("span", { class: `qz-pastille palier-${q.palier || 1}`, text: `Palier ${q.palier || 1} · ${PALIERS[(q.palier || 1) - 1]}` }),
         el("span", { class: `qz-pastille dif-${q.difficulte || "moyen"}`, text: `+${q.valeur || 1} pt${(q.valeur || 1) > 1 ? "s" : ""}` }),
       ),
-      el("div", { class: "qz-temps", "aria-hidden": "true" }, barre),
-      el("p", { class: "qz-question", text: q.q }),
+      question,
       el("div", { class: "qz-choix-liste" }, boutons),
     );
     barre.style.animationDuration = "15s";
@@ -2957,6 +3037,7 @@
     boutons.forEach((b) => { b.disabled = true; });
     if (k !== null) boutons[k]?.classList.add("choisi");
     z.querySelector(".qz-temps i")?.classList.add("arret");
+    z.querySelector(".qz-ampoules")?.classList.add("arret");
     const { d } = await demanderJeux("quiz-repondre", { partie: qz.partie, choix: k });
     qz.verrou = false;
     if (!d.ok) { qz.etat = "accueil"; qz.erreur = d.erreur || "Le quiz s'est arrêté, relance-le."; rendreQuiz(); return; }
@@ -2966,11 +3047,18 @@
     qz.points = d.points ?? qz.points;
     const pts = z.querySelector(".qz-haut b");
     if (pts) pts.textContent = `${qz.points} pts`;
-    z.append(el("p", { class: `qz-verdict ${d.juste ? "juste" : "faux"}`, text: d.juste ? `Bonne réponse ! +${qz.question?.valeur || 1}` : d.tropTard || k === null ? "Trop tard !" : "Raté !" }));
+    z.append(el("p", { class: `qz-verdict ${d.juste ? "juste" : "faux"}`, text: d.juste ? `Bonne réponse ! +${qz.question?.valeur || 1}` : d.tropTard || k === null ? "Trop tard !" : "Raté !" }));
+    const plateau = z.querySelector(".qz-plateau");
+    if (plateau) {
+      plateau.classList.add(d.juste ? "juste" : "faux");
+      const sfx = plateau.querySelector(".qz-sfx");
+      if (sfx) { sfx.textContent = d.juste ? "正解！" : "ブブー"; sfx.classList.add("eclat"); }
+    }
     setTimeout(() => {
+      if (qz.etat === "accueil") return; // le jeu a été refermé entre-temps
       if (d.fin) {
         qz.etat = "fin";
-        qz.fin = { bonnes: d.bonnes, points: d.points, temps: d.temps, niveau: d.niveau || qz.niveau, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+        qz.fin = { bonnes: d.bonnes, points: d.points, temps: d.temps, niveau: d.niveau || qz.niveau, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
         rendreQuiz();
         if (d.record || d.perso) setTimeout(charger, 1500);
       } else poserQuestion(d.question);
@@ -2999,13 +3087,20 @@
     ["Boude et veut une récompense", "bonbon"], ["A besoin de sucre tout de suite", "bonbon"], ["Fait une crise de gourmandise", "bonbon"], ["Veut un goûter comme Chopper", "bonbon"],
   ];
   const dc = { etat: "accueil", fin: null, partie: "", fin_t: 0, score: 0, soignes: 0, combo: 0, patient: null, boucle: 0, bloque: 0, dernier: -1 };
-  const teteDocteur = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Docteur Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🩺" }));
+  const teteDocteur = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Docteur Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🩺" }), fermerJeu(fermerDocteur));
+  function fermerDocteur() {
+    if (dc.etat === "jeu") { cancelAnimationFrame(dc.boucle); dc.etat = "accueil"; }
+    pleinEcranJeu($("docteur"), false);
+    rendreDocteur();
+  }
   const texteDocteur = (x) => `${x.soignes ?? "?"} patient${x.soignes > 1 ? "s" : ""} · ${nombre(x.score)} pts`;
   function rendreDocteur() {
     const z = $("docteur");
     if (!z || dc.etat === "jeu" || dc.etat === "envoi") return;
     const moiD = mesJeux?.docteur;
-    const ecran = dc.etat === "fin" && dc.fin
+    const ecran = dc.etat === "fin" && dc.fin && jeuxVF()
+      ? finVF({ semaine: infosJeux()?.docteur?.semaine, gros: `${dc.fin.soignes} patient${dc.fin.soignes > 1 ? "s" : ""} soigné${dc.fin.soignes > 1 ? "s" : ""}`, score: `${nombre(dc.fin.score)} points`, f: dc.fin, rejouer: lancerDocteur, texteRejouer: "Rouvrir le cabinet" })
+      : dc.etat === "fin" && dc.fin
       ? el("div", { class: "jeu-ecran" },
         el("p", { class: "jeu-gros degrade", text: `${dc.fin.soignes} patient${dc.fin.soignes > 1 ? "s" : ""}` }),
         el("p", { class: "jeu-score", text: `${nombre(dc.fin.score)} points` }),
@@ -3044,6 +3139,7 @@
   async function lancerDocteur() {
     dc.etat = "jeu"; dc.score = 0; dc.soignes = 0; dc.combo = 0; dc.fin = null; dc.partie = ""; dc.bloque = 0;
     const z = $("docteur");
+    pleinEcranJeu(z, true);
     const barre = el("i", {});
     vider(z, teteDocteur(),
       el("div", { class: "dc-hud" }, el("span", { id: "dc-temps", text: "45 s" }), el("span", { id: "dc-combo", text: "" }), el("b", { id: "dc-score", text: "0 pts" })),
@@ -3052,7 +3148,7 @@
         el("div", { class: "dc-patient", id: "dc-patient" }),
         el("span", { class: "sfx dc-sfx", id: "dc-sfx", "aria-hidden": "true" }),
       ),
-      el("div", { class: "dc-remedes", id: "dc-remedes" }, REMEDES.map((x, k) => el("button", { class: "dc-remede", type: "button", "data-remede": x.id, onclick: () => soigner(x.id), title: `Touche ${k + 1}` }, el("span", { class: "dc-emoji", "aria-hidden": "true", text: x.e }), el("span", { text: x.nom })))),
+      el("div", { class: "dc-remedes", id: "dc-remedes" }, REMEDES.map((x, k) => el("button", { class: "dc-remede", type: "button", "data-remede": x.id, onclick: () => soigner(x.id), title: `Touche ${k + 1}` }, jeuxVF() ? el("img", { class: "dc-remede-img", src: `/img/jeux/remede-${x.id}.webp`, alt: "", width: 64, height: 64, decoding: "async" }) : el("span", { class: "dc-emoji", "aria-hidden": "true", text: x.e }), el("span", { text: x.nom })))),
     );
     nouveauPatient();
     if (moi?.connecte) {
@@ -3101,9 +3197,10 @@
     let fin = { soignes: dc.soignes, score: dc.score, message: "" };
     if (dc.partie) {
       const { d } = await demanderJeux("docteur-fin", { partie: dc.partie, soignes: dc.soignes, score: dc.score });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
       else if (d.erreur) fin.message = d.erreur;
     } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
+    if (dc.etat !== "envoi") return; // refermé entre-temps
     dc.etat = "fin";
     dc.fin = fin;
     rendreDocteur();
@@ -3117,14 +3214,22 @@
 
   // --- le Memory des mèmes : 8 paires à retrouver ---
   const mm = { etat: "accueil", cartes: [], retournees: [], trouvees: new Set(), coups: 0, t0: 0, partie: "", verrou: false, fin: null, minuteur: 0 };
-  const teteMemory = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Le Memory des mèmes" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🧠" }));
+  const teteMemory = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Le Memory des mèmes" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🧠" }), fermerJeu(fermerMemory));
+  function fermerMemory() {
+    clearInterval(mm.minuteur);
+    if (mm.etat === "jeu") mm.etat = "accueil";
+    pleinEcranJeu($("memory"), false);
+    rendreMemory();
+  }
   const texteMemory = (x) => `${nombre(x.score)} pts · ${x.coups ?? "?"} coups`;
   const scoreMemoryLocal = (coups, ms) => Math.max(50, Math.round(1000 - 25 * (coups - 8) - (4 * ms) / 1000));
   function rendreMemory() {
     const z = $("memory");
     if (!z || mm.etat === "jeu" || mm.etat === "envoi") return;
     const moiM = mesJeux?.memory;
-    const ecran = mm.etat === "fin" && mm.fin
+    const ecran = mm.etat === "fin" && mm.fin && jeuxVF()
+      ? finVF({ semaine: infosJeux()?.memory?.semaine, gros: `${nombre(mm.fin.score)} pts`, score: `${mm.fin.coups} coups · ${Math.round(mm.fin.temps / 1000)} s`, f: mm.fin, rejouer: lancerMemory, texteRejouer: "Redistribuer les cartes" })
+      : mm.etat === "fin" && mm.fin
       ? el("div", { class: "jeu-ecran" },
         el("p", { class: "jeu-gros degrade", text: `${nombre(mm.fin.score)} pts` }),
         el("p", { class: "jeu-score", text: `${mm.fin.coups} coups · ${Math.round(mm.fin.temps / 1000)} s` }),
@@ -3138,7 +3243,9 @@
         el("p", { class: "note", text: `${moiM?.meilleur ? `Ton meilleur score de la semaine : ${nombre(moiM.meilleur)} pts. ` : ""}${noteEclat(moiM, `${infosJeux()?.memory?.eclat || 650} points`)}` }),
       );
     vider(z, teteMemory(),
-      el("div", { class: "mm-apercu", "aria-hidden": "true" }, [0, 1, 2, 3].map(() => dosCarte())),
+      jeuxVF()
+        ? el("div", { class: "mm-table mm-table-accueil", "aria-hidden": "true" }, el("div", { class: "mm-apercu" }, [0, 1, 2, 3].map(() => dosCarte())))
+        : el("div", { class: "mm-apercu", "aria-hidden": "true" }, [0, 1, 2, 3].map(() => dosCarte())),
       ecran,
       infosJeux()?.memory ? tableauJeu(infosJeux().memory, texteMemory) : null,
     );
@@ -3149,9 +3256,8 @@
     mm.retournees = []; mm.trouvees = new Set(); mm.coups = 0; mm.verrou = false; mm.fin = null; mm.partie = "";
     mm.etat = "jeu";
     const z = $("memory");
-    vider(z, teteMemory(),
-      el("div", { class: "dc-hud" }, el("span", { id: "mm-coups", text: "0 coup" }), el("span", { id: "mm-paires", text: "0/8 paires" }), el("b", { id: "mm-temps", text: "0 s" })),
-      el("div", { class: "mm-grille" }, mm.cartes.map((id, k) => {
+    pleinEcranJeu(z, true);
+    const grille = el("div", { class: "mm-grille" }, mm.cartes.map((id, k) => {
         const img = imageCarte(id);
         const b = el("button", { class: "mm-carte", type: "button", "aria-label": `Carte ${k + 1}`, onclick: () => retournerMemory(k, b) },
           el("span", { class: "mm-interieur" },
@@ -3162,7 +3268,11 @@
           ),
         );
         return b;
-      })),
+      }));
+    // en VF : les cartes sont posées sur la table de jeu (décor Blender), un peu penchée
+    vider(z, teteMemory(),
+      el("div", { class: "dc-hud" }, el("span", { id: "mm-coups", text: "0 coup" }), el("span", { id: "mm-paires", text: "0/8 paires" }), el("b", { id: "mm-temps", text: "0 s" })),
+      jeuxVF() ? el("div", { class: "mm-table" }, grille) : grille,
     );
     mm.t0 = performance.now();
     clearInterval(mm.minuteur);
@@ -3204,10 +3314,11 @@
     const attente = new Promise((ok) => setTimeout(ok, 900));
     if (mm.partie) {
       const { d } = await demanderJeux("memory-fin", { partie: mm.partie, coups: mm.coups });
-      if (d.ok) fin = { ...fin, score: d.score, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+      if (d.ok) fin = { ...fin, score: d.score, temps: d.temps, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
       else if (d.erreur) fin.message = d.erreur;
     } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ton score compte.";
     await attente;
+    if (mm.etat !== "envoi") return; // refermé entre-temps
     mm.etat = "fin";
     mm.fin = fin;
     rendreMemory();
@@ -3327,7 +3438,7 @@
       if (logiciel && choix3D !== "oui") throw new Error("rendu logiciel");
       const { creerCourse3D } = await import("/js/course-3d.js");
       const toile = el("canvas", { class: "co-3d", "aria-hidden": "true" });
-      trois.rendu = creerCourse3D(toile, { CO, photo: photoCourse });
+      trois.rendu = creerCourse3D(toile, { CO, photo: photoCourse, vf: jeuxVF, iles: ["phare", "cristal", "archipel", "forteresse", "champignons", "tonnerre"].map((n) => `/img/jeux/course-ile-${n}.webp`) });
       trois.toile = toile;
       // un essai de quelques images, hors de la page : si l'appareil peine, on garde la 2D
       if (choix3D !== "oui" && trois.rendu.tropLent()) { trois.rendu.detruire(); trois.rendu = null; throw new Error("trop lent"); }
@@ -3366,7 +3477,14 @@
     $("co-scene")?.classList.remove("en-3d");
     dessinerCourse(co.moteur?.m || null);
   }
-  const teteCourse = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La course de Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏃" }));
+  const teteCourse = () => el("div", { class: "jeu-tete" }, el("h3", { text: "La course de Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🏃" }), fermerJeu(fermerCourse));
+  // les pistes de la VF 1.0 (en 3D) : elles changent tous les 250 m
+  const NOMS_PISTES = ["Coucher de soleil", "Nuit étoilée", "Tempête", "Aurore"];
+  function fermerCourse() {
+    if (co.etat === "jeu" || co.etat === "pret") { cancelAnimationFrame(co.boucle); co.etat = "accueil"; }
+    pleinEcranJeu($("course"), false);
+    rendreCourse();
+  }
   const texteCourse = (x) => `${nombre(x.score)} m`;
   const reglesCourse = () => {
     const c = infosJeux()?.course;
@@ -3378,7 +3496,9 @@
     if (!z || co.etat === "jeu" || co.etat === "choc" || co.etat === "envoi" || co.etat === "pret") return;
     const moiC = mesJeux?.course;
     const meilleur = Math.max(moiC?.meilleur || 0, co.record);
-    const ecran = co.etat === "fin" && co.fin
+    const ecran = co.etat === "fin" && co.fin && jeuxVF()
+      ? finVF({ semaine: infosJeux()?.course?.semaine, gros: `${nombre(co.fin.distance)} m`, score: CAUSES[co.fin.cause] || "Bonk !", f: co.fin, rejouer: lancerCourse, texteRejouer: "Recourir" })
+      : co.etat === "fin" && co.fin
       ? el("div", { class: "jeu-ecran co-ecran" },
         el("p", { class: "jeu-gros degrade", text: `${nombre(co.fin.distance)} m` }),
         el("p", { class: "jeu-score", text: CAUSES[co.fin.cause] || "Bonk !" }),
@@ -3599,15 +3719,25 @@
     co.pause = false;
     co.particules = [];
     co.moteur = moteurCourse(reglesCourse());
+    co.piste = 0;
     const z = $("course");
+    pleinEcranJeu(z, true);
+    // en VF : un grand pavé « Sauter » sous la course, pour le pouce (reste appuyé pour sauter plus haut)
+    const pave = jeuxVF() ? el("button", { class: "co-pave", type: "button", tabindex: "-1", "aria-label": "Sauter (reste appuyé pour sauter plus haut)" }, el("b", { text: "SAUTE !" }), el("small", { text: "reste appuyé pour sauter plus haut" })) : null;
     vider(z, teteCourse(),
       el("div", { class: "co-scene en-jeu", id: "co-scene" },
         el("canvas", { class: "co-canvas", id: "co-canvas", role: "img", "aria-label": "La course de Chopper en cours" }),
         el("span", { class: "sfx co-sfx", id: "co-sfx", "aria-hidden": "true" }),
         el("span", { class: "co-depart", id: "co-depart", "aria-hidden": "true", text: "3" }),
+        jeuxVF() ? el("span", { class: "co-piste", id: "co-piste", "aria-hidden": "true" }) : null,
       ),
-      el("p", { class: "note co-aide", text: "Clic, toucher ou Espace pour sauter · reste appuyé pour sauter plus haut" }),
+      pave || el("p", { class: "note co-aide", text: "Clic, toucher ou Espace pour sauter · reste appuyé pour sauter plus haut" }),
     );
+    if (pave) {
+      pave.addEventListener("pointerdown", (e) => { if (co.etat === "jeu") { e.preventDefault(); pave.setPointerCapture?.(e.pointerId); pave.classList.add("appui"); appuiCourse(true); } });
+      for (const ev of ["pointerup", "pointercancel"]) pave.addEventListener(ev, () => { pave.classList.remove("appui"); if (co.etat === "jeu") appuiCourse(false); });
+      pave.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
     preparerCanvasCourse();
     brancherCourse3D();
     trois.images = 0; trois.tempsImages = 0;
@@ -3622,9 +3752,11 @@
       depart.textContent = t;
       depart.classList.remove("pop"); void depart.offsetWidth; depart.classList.add("pop");
       await new Promise((ok) => setTimeout(ok, reduit.matches ? 250 : 520));
+      if (co.etat !== "pret") return; // refermé pendant le compte à rebours
     }
     depart.textContent = "";
     if (ouverture) { const { d } = await ouverture; if (d.partie) co.partie = d.partie; }
+    if (co.etat !== "pret") return;
     co.etat = "jeu";
     co.dernier = performance.now();
     cancelAnimationFrame(co.boucle);
@@ -3656,6 +3788,13 @@
     if (m.sol && !etaitAuSol) for (let k = 0; k < 6; k++) co.particules.push({ x: CO.X + (k - 3) * 5, y: CO.SOL - 2, r: 2 + Math.random() * 3, a: 0.6, vx: (k - 3) * 30, vy: -30 - Math.random() * 30 });
     for (const p of co.particules) { p.x += p.vx * dt; p.y += p.vy * dt; p.a -= dt * 1.4; }
     co.particules = co.particules.filter((p) => p.a > 0).slice(-40);
+    // en VF (et en 3D) : une nouvelle piste tous les 250 m, annoncée en haut de l'écran
+    const piste = Math.floor(m.dist / CO.M / 250);
+    if (piste !== co.piste && course3D() && jeuxVF()) {
+      co.piste = piste;
+      const b = $("co-piste");
+      if (b) { b.textContent = `Piste ${(piste % 4) + 1} · ${NOMS_PISTES[piste % 4]}`; b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+    }
     if (ev === "palier") {
       const sfx = $("co-sfx");
       const metres = m.palier * 100;
@@ -3674,16 +3813,18 @@
     sfx.textContent = m.choc.type === "boulet" ? "ドカーン！" : m.choc.type === "mouette" ? "グワッ！" : "ゴン！";
     sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
     $("co-scene")?.classList.add("choc");
+    if (jeuxVF()) navigator.vibrate?.(70); // sur téléphone, le choc se sent aussi
     if (distance > co.record) { co.record = distance; try { localStorage.setItem("barhaw-course", String(distance)); } catch {} }
     let fin = { distance, cause: m.choc.type, message: "" };
     const attente = new Promise((ok) => setTimeout(ok, reduit.matches ? 300 : 1100));
     if (co.partie) {
       co.etat = "envoi";
       const { d } = await demanderJeux("course-fin", { partie: co.partie, distance });
-      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin };
+      if (d.ok) fin = { ...fin, record: d.record, perso: d.perso, eclat: d.eclat, eclatPlafond: d.eclatPlafond, butin: d.butin, milles: d.milles };
       else if (d.erreur) fin.message = d.erreur;
     } else if (!moi?.connecte) fin.message = "Connecte-toi avec Discord pour que ta distance compte.";
     await attente;
+    if (co.etat === "accueil") return; // refermé entre-temps
     co.etat = "fin";
     co.fin = fin;
     rendreCourse();

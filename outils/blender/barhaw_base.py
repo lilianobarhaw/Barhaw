@@ -389,7 +389,7 @@ class Sol:
 
 
 # ---------- la vitrine : un rendu pour montrer le travail ----------
-def vitrine(collections, cam, cible, objectif=50, nom="rendu", taille=(1600, 1000), mer=True, mer_taille=80, trait=1.6, transparent=False):
+def vitrine(collections, cam, cible, objectif=50, nom="rendu", taille=(1600, 1000), mer=True, mer_taille=80, trait=1.6, transparent=False, fond=0xf3e3c3, fond_force=1.15):
     scene = bpy.context.scene
     garder = set(collections) | {"vitrine"}
     for c in scene.collection.children:
@@ -430,10 +430,10 @@ def vitrine(collections, cam, cible, objectif=50, nom="rendu", taille=(1600, 100
         monde.use_nodes = True
     except Exception:
         pass
-    fond = next((n for n in monde.node_tree.nodes if n.type == "BACKGROUND"), None) if monde.node_tree else None
-    if fond:
-        fond.inputs[0].default_value = rgba(0xf3e3c3)
-        fond.inputs[1].default_value = 1.15
+    noeud = next((n for n in monde.node_tree.nodes if n.type == "BACKGROUND"), None) if monde.node_tree else None
+    if noeud:
+        noeud.inputs[0].default_value = rgba(fond)
+        noeud.inputs[1].default_value = fond_force
     scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x, scene.render.resolution_y = taille
     scene.render.resolution_percentage = 100

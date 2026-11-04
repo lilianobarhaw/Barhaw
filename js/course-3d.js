@@ -22,7 +22,7 @@ function toile(l, h, dessin) {
 }
 const hasard = (graine) => () => { graine = (graine * 16807) % 2147483647; return (graine - 1) / 2147483646; };
 
-export function creerCourse3D(canvas, { CO, photo }) {
+export function creerCourse3D(canvas, { CO, photo, vf = () => false, iles: imagesIles = [] }) {
   const M = CO.M; // unités du jeu par mètre
   const ratio = Math.min(1.5, window.devicePixelRatio || 1);
   // l'anticrénelage seulement sur les écrans à petite densité (sur les écrans fins, les pixels sont déjà petits)
@@ -130,6 +130,88 @@ export function creerCourse3D(canvas, { CO, photo }) {
     scene.add(i);
     return i;
   });
+
+  // ---------- VF 1.0 : quatre pistes qui se suivent (tous les 250 m), et les îles de GRAND LINE à l'horizon ----------
+  // Coucher de soleil, puis nuit étoilée, tempête et aurore ; les îles sont des rendus Blender (img/jeux/course-ile-*.webp).
+  const PISTES = [
+    { ciel: ["#1c0a26", "#5a1d55", "#ff8fb3"], mer: [0x2a0f3e, 0x5b2a78, 0xc95a95, 0xffbee6, 0xffc48f], soleil: 1, lune: 0, etoiles: 0, pluie: 0, teinte: 0xffc6de },
+    { ciel: ["#05030f", "#191043", "#4b2f7c"], mer: [0x0d0820, 0x1d1745, 0x3e2d6e, 0x9fa8ff, 0xdfe6ff], soleil: 0, lune: 1, etoiles: 1, pluie: 0, teinte: 0x8676c6 },
+    { ciel: ["#100c16", "#2d2537", "#5f5569"], mer: [0x15121c, 0x2a2533, 0x4a4458, 0xcfc8dc, 0xb8b0c8], soleil: 0, lune: 0, etoiles: 0, pluie: 1, teinte: 0x7a7088 },
+    { ciel: ["#081020", "#1d3b5c", "#5fd8c4"], mer: [0x0b1a2a, 0x18405a, 0x3c8f96, 0xc8fff2, 0xffd7f0], soleil: 0, lune: 0, etoiles: 1, pluie: 0, teinte: 0x9fd8d2 },
+  ];
+  const LONGUEUR_PISTE = 250; // en mètres
+  const FONDU = 30; // le passage d'une piste à l'autre, en mètres
+  const lune = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: toile(128, 128, (x) => {
+      const g = x.createRadialGradient(64, 64, 2, 64, 64, 64);
+      g.addColorStop(0, "#ffffff"); g.addColorStop(0.36, "#e9e6ff"); g.addColorStop(0.44, "rgba(200, 190, 255, 0.45)"); g.addColorStop(1, "rgba(160, 150, 255, 0)");
+      x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+      x.fillStyle = "rgba(170, 160, 220, 0.5)";
+      for (const [cx, cy, r] of [[54, 56, 6], [72, 70, 4], [66, 50, 3]]) { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); }
+    }),
+    transparent: true, opacity: 0, depthWrite: false,
+  }));
+  lune.scale.set(46, 46, 1);
+  lune.position.set(-40, 40, -330);
+  scene.add(lune);
+  const alea2 = hasard(31);
+  const ptsEtoiles = new Float32Array(180 * 3);
+  for (let k = 0; k < 180; k++) ptsEtoiles.set([-260 + alea2() * 520, 8 + alea2() * 90, -300 - alea2() * 20], k * 3);
+  const geoEtoiles = new THREE.BufferGeometry();
+  geoEtoiles.setAttribute("position", new THREE.BufferAttribute(ptsEtoiles, 3));
+  const etoiles = new THREE.Points(geoEtoiles, new THREE.PointsMaterial({ color: 0xfff6ff, size: 1.6, transparent: true, opacity: 0, depthWrite: false }));
+  scene.add(etoiles);
+  const NB_GOUTTES = 160;
+  const ptsPluie = new Float32Array(NB_GOUTTES * 6);
+  const gouttes = Array.from({ length: NB_GOUTTES }, () => ({ x: -12 + alea2() * 44, y: alea2() * 14, z: -8 + alea2() * 12 }));
+  const geoPluie = new THREE.BufferGeometry();
+  geoPluie.setAttribute("position", new THREE.BufferAttribute(ptsPluie, 3));
+  const pluie = new THREE.LineSegments(geoPluie, new THREE.LineBasicMaterial({ color: 0xd8d0ff, transparent: true, opacity: 0, depthWrite: false }));
+  pluie.frustumCulled = false;
+  scene.add(pluie);
+  const ilesVF = imagesIles.map((src, k) => {
+    const userData = { x: -150 + k * 64 + alea2() * 16, h: 14 + alea2() * 8, ratio: 0.5 };
+    const tex = new THREE.TextureLoader().load(src, (t) => { userData.ratio = t.image.height / t.image.width; });
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.96 });
+    const sp = new THREE.Sprite(mat);
+    sp.userData = userData;
+    sp.visible = false;
+    scene.add(sp);
+    return sp;
+  });
+  const cA = new THREE.Color(), cB = new THREE.Color();
+  let cleCiel = "";
+  function ambiance(d) {
+    const enVF = vf();
+    const p = enVF ? Math.max(0, Math.floor(d / LONGUEUR_PISTE)) : 0;
+    const f = p === 0 ? 1 : Math.min(1, (d - p * LONGUEUR_PISTE) / FONDU);
+    const A = PISTES[(p + PISTES.length - 1) % PISTES.length];
+    const B = PISTES[p % PISTES.length];
+    const m = (a, b) => a + (b - a) * f;
+    // le ciel : redessiné seulement quand il change (pendant les fondus)
+    const cle = `${p}:${f.toFixed(2)}`;
+    if (cle !== cleCiel) {
+      cleCiel = cle;
+      const c = scene.background.image;
+      const x = c.getContext("2d");
+      const g = x.createLinearGradient(0, 0, 0, c.height);
+      const arrets = [0, 0.42, 0.62];
+      B.ciel.forEach((h, k) => g.addColorStop(arrets[k], "#" + cA.set(A.ciel[k]).lerp(cB.set(h), f).getHexString()));
+      g.addColorStop(1, "#" + cA.set(A.ciel[2]).lerp(cB.set(B.ciel[2]), f).getHexString());
+      x.fillStyle = g;
+      x.fillRect(0, 0, c.width, c.height);
+      scene.background.needsUpdate = true;
+      const u = matMer.uniforms;
+      ["uPres", "uLoin", "uHorizon", "uEcume", "uReflet"].forEach((n, k) => u[n].value.set(A.mer[k]).lerp(cB.set(B.mer[k]), f));
+      soleil.material.opacity = m(A.soleil, B.soleil);
+      lune.material.opacity = m(A.lune, B.lune);
+      etoiles.material.opacity = 0.9 * m(A.etoiles, B.etoiles);
+      pluie.material.opacity = 0.55 * m(A.pluie, B.pluie);
+      for (const sp of ilesVF) sp.material.color.set(A.teinte).lerp(cB.set(B.teinte), f);
+      for (const n of nuages) n.material.opacity = 0.32 * (1 - 0.6 * m(A.etoiles, B.etoiles)) + 0.25 * m(A.pluie, B.pluie);
+    }
+    return { enVF, pluie: pluie.material.opacity };
+  }
 
   // ---------- la mer ----------
   const matMer = new THREE.ShaderMaterial({
@@ -431,7 +513,26 @@ export function creerCourse3D(canvas, { CO, photo }) {
     }
     poteaux.instanceMatrix.needsUpdate = true;
     mats.forEach((g, k) => { g.position.x = modulo(k * ESPACE_MAT + 26 - d, ESPACE_MAT * mats.length) - 18; });
-    for (const i of iles) i.position.x = modulo(i.userData.x - d, 360) - 150;
+    const amb = ambiance(d);
+    for (const i of iles) { i.position.x = modulo(i.userData.x - d, 360) - 150; i.visible = !(amb.enVF && ilesVF.length); }
+    for (const sp of ilesVF) {
+      sp.visible = amb.enVF;
+      if (!sp.visible) continue;
+      const h = sp.userData.h;
+      sp.scale.set(h / sp.userData.ratio, h, 1);
+      sp.position.set(modulo(sp.userData.x - d * 0.9, 384) - 160, -1.6 + h / 2, -190);
+    }
+    // la pluie de la tempête : des traits qui tombent en biais
+    if (amb.pluie > 0.01) {
+      for (let k = 0; k < NB_GOUTTES; k++) {
+        const g = gouttes[k];
+        g.y -= dt * 22; g.x -= dt * (6 + (m ? m.v * 0.6 : 4));
+        if (g.y < 0) { g.y += 14; g.x = -12 + Math.random() * 44; }
+        if (g.x < -14) g.x += 46;
+        ptsPluie.set([g.x, g.y, g.z, g.x + 0.25, g.y + 0.9, g.z], k * 6);
+      }
+      geoPluie.attributes.position.needsUpdate = true;
+    }
     for (const n of nuages) n.position.set(modulo(n.userData.x - d * 0.6, 420) - 190, n.userData.y, -260);
 
     // Chopper
