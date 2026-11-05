@@ -16,6 +16,7 @@
 //   POST /api/chopper  { action: "grandline" | "grandline-voter" | "grandline-bouteille", choix }
 //        → GRAND LINE : ce que le membre a ramé, son vote au carrefour (choix : l'île), ouvrir la bouteille à la mer
 //   POST /api/chopper  { action: "flotte" | "flotte-choisir", commu }
+//   POST /api/chopper  { action: "soiree" | "soiree-inscrire" | "soiree-desinscrire", epic }   (la Soirée Fortnite des commus)
 //        → la flotte des commus (V4) : de quels serveurs de la course le membre est membre (le bot répond oui ou non,
 //          serveur par serveur), son équipage, et son choix d'équipage s'il est sur plusieurs (bloqué jusqu'au trésor).
 //          Les actions de GRAND LINE disent aussi quel navire elles visent (commu) : le bot vérifie que c'est son équipage.
@@ -25,7 +26,7 @@ import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "soiree", "soiree-inscrire", "soiree-desinscrire"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course", "traversee"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
@@ -99,6 +100,7 @@ export async function POST(req) {
   // la flotte (V4) : le navire visé (l'identifiant d'une commu de la course) ; le bot vérifie le reste
   if ((action.startsWith("grandline") || action === "flotte-choisir") && /^[a-z0-9]{2,20}$/.test(String(d.commu || ""))) corps.commu = String(d.commu);
   if (action === "faille-lier") corps.riotId = String(d.riotId || "").replace(/[\u0000-\u001f]/g, "").slice(0, 40);
+  if (action === "soiree-inscrire") corps.epic = String(d.epic || "").replace(/[\u0000-\u001f]/g, "").slice(0, 32);
   if (action === "quiz-repondre") corps.choix = d.choix === null ? null : entier(d.choix, 0, 3);
   try {
     const r = await demanderBot("/chopper", { methode: "POST", corps, delai: 25000 });
