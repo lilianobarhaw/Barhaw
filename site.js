@@ -7328,7 +7328,7 @@
     const vs = el("div", { class: "soiree-vs" }, (s.commus || []).flatMap((id, k) => [k ? el("span", { class: "soiree-vs-mot", "aria-hidden": "true", text: "VS" }) : null, drapeau(id)]));
     const bloc = [];
     if (s.phase === "bientot" || s.phase === "inscriptions") {
-      bloc.push(el("p", { class: "soiree-quand" }, "Mardi 19 janvier · 20 h 45 → 1 h · ", el("b", { text: s.phase === "bientot" ? `inscriptions dans ${dureeCourte(s.inscriptions)}` : `dans ${dureeCourte(s.debut)}` })));
+      bloc.push(el("p", { class: "soiree-quand" }, "Vendredi 22 janvier · 20 h 45 → minuit · ", el("b", { text: s.phase === "bientot" ? `inscriptions dans ${dureeCourte(s.inscriptions)}` : `dans ${dureeCourte(s.debut)}` })));
     }
     bloc.push(inscriptionSoiree(s));
     if (soireeMessage) bloc.push(el("p", { class: soireeMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: soireeMessage.texte }));
@@ -7365,7 +7365,7 @@
     soireeOccupee = false;
     if (d.soiree) maSoiree = d.soiree;
     if (d.erreur) soireeMessage = { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
-    else if (action === "soiree-inscrire" && d.ok) soireeMessage = { texte: "C'est noté ! Rendez-vous le 19 janvier à 20 h 45." };
+    else if (action === "soiree-inscrire" && d.ok) soireeMessage = { texte: "C'est noté ! Rendez-vous le 22 janvier à 20 h 45." };
     else if (action === "soiree-desinscrire" && d.ok) soireeMessage = { texte: "Tu n'es plus inscrit." };
     rendreSoiree();
   }
