@@ -1470,6 +1470,23 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 .musique[aria-pressed="true"] .egaliseur i:nth-child(2) { animation-delay: -0.3s; }
 .musique[aria-pressed="true"] .egaliseur i:nth-child(3) { animation-delay: -0.6s; }
 .musique[aria-pressed="true"] .egaliseur i:nth-child(4) { animation-delay: -0.15s; }
+.musique[hidden] { display: none; }
+/* la VF 1.0 : le bouton des sons du site (coupés au départ) */
+.sons { display: none; }
+html.v4 .sons {
+  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 15px 0 12px; border-radius: 14px; cursor: pointer;
+  background: var(--nuit); border: 2px solid var(--ligne); color: var(--brume); box-shadow: 3px 3px 0 var(--ombre);
+  font-family: var(--fort); font-weight: 800; font-size: 14px; white-space: nowrap;
+  transition: border-color 0.2s, color 0.2s, transform 0.15s var(--doux), box-shadow 0.15s var(--doux);
+}
+html.v4 .sons:hover { color: var(--blanc); border-color: var(--rose); transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ombre); }
+html.v4 .sons:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ombre); }
+html.v4 .sons[aria-pressed="true"] { color: var(--blanc); border-color: var(--rose); background: #2a1230; }
+.sons-icone { width: 21px; height: 21px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.sons-hp { fill: currentColor; }
+.sons[aria-pressed="true"] .sons-barre, .sons[aria-pressed="false"] .sons-onde { display: none; }
+.sons[aria-pressed="true"] .sons-onde { stroke: var(--rose); animation: sons-onde 1.6s var(--doux) infinite; }
+@keyframes sons-onde { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 .volume {
   display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 14px; border-radius: 14px;
   background: var(--nuit); border: 2px solid var(--ligne); box-shadow: 3px 3px 0 var(--ombre); animation: monter 0.3s var(--doux);
@@ -2635,6 +2652,19 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 .gl-info-ile { display: block; width: min(190px, 62%); height: auto; margin: -6px auto 4px; filter: drop-shadow(0 8px 10px rgba(42, 22, 12, 0.4)); animation: gl-bercer 6s var(--doux) infinite; }
 .choc-ile-image { position: absolute; left: 50%; top: calc(54% - clamp(150px, 21vw, 260px)); width: clamp(170px, 26vw, 340px); height: auto; translate: -50% 0; filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.6)); animation: choc-ile-arrive 0.7s var(--rebond) 0.2s both; }
 @keyframes choc-ile-arrive { from { opacity: 0; transform: translateY(60px) scale(0.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
+/* la VF 1.0 : l'arrivée en vidéo (un tour de caméra autour de l'île et de son maître), dans une case manga ; l'image reste tant que la vidéo n'a pas démarré */
+.choc-terre.video-prete { --w: clamp(280px, 62vw, 680px); animation-duration: 4.5s; }
+.choc-terre.video-prete .choc-lignes { animation-duration: 4.5s; }
+.choc-ile-video {
+  position: absolute; left: 50%; top: 45%; width: var(--w, clamp(280px, 62vw, 680px)); aspect-ratio: 16 / 10; translate: -50% -50%; rotate: -1.5deg; overflow: hidden; opacity: 0; visibility: hidden;
+  border: 4px solid var(--encre); border-radius: 18px; background: #2a1a4a; box-shadow: 0 0 0 3px #fff3f8, 9px 10px 0 4px var(--encre), 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+}
+.choc-ile-video video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.choc-terre.video-prete .choc-ile-video { visibility: visible; animation: choc-video-arrive 4.5s var(--rebond) both; }
+.choc-terre.video-prete .choc-ile-image { display: none; }
+.choc-terre.video-prete .choc-ile { top: calc(45% + var(--w) * 0.3125 + 18px); animation: monter 0.5s var(--rebond) 0.35s both, choc-video-fin 4.5s linear both; }
+@keyframes choc-video-arrive { 0% { opacity: 0; scale: 0.55; rotate: -9deg; } 9% { opacity: 1; scale: 1.04; rotate: -1deg; } 14% { scale: 1; rotate: -1.5deg; } 88% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 0.92; } }
+@keyframes choc-video-fin { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
 .gl-svg-ile.en-image .gl-svg-halo { fill: rgba(255, 255, 255, 0); }
 .gl-svg-ile.en-image.cible .gl-svg-halo { fill: rgba(255, 211, 107, 0.25); stroke: #ffd36b; stroke-width: 1; animation: gl-halo 1.6s var(--doux) infinite; transform-box: fill-box; transform-origin: center; }
 .gl-svg-ile.en-image.vote .gl-svg-halo { fill: rgba(209, 166, 255, 0.25); stroke: #9b4dff; stroke-width: 1; }
@@ -2900,6 +2930,15 @@ a.carte.revele.vu:hover, .carte.survol.revele.vu:hover { transform: translate(-3
 .bl-intro-bas { bottom: 9%; rotate: -4deg; animation: bl-bande-d 0.5s var(--doux) both; }
 .bl-intro-bas span { animation-direction: reverse; }
 .bl-intro-coeur { position: relative; display: grid; justify-items: center; gap: 6px; padding: 0 16px; text-align: center; }
+/* la VF 1.0 : il jaillit de la mer (vidéo rendue dans Blender, fond rouge sombre fondu dans celui de l'alerte) */
+.bl-intro-visuel { display: grid; place-items: center; }
+.bl-intro-visuel > * { grid-area: 1 / 1; }
+.bl-intro-video {
+  width: min(52vh, 470px); height: auto; aspect-ratio: 1; opacity: 0; pointer-events: none;
+  -webkit-mask: radial-gradient(closest-side, #000 58%, transparent 100%); mask: radial-gradient(closest-side, #000 58%, transparent 100%);
+}
+.bl-intro-visuel.video-prete .bl-intro-video { opacity: 1; transition: opacity 0.2s; }
+.bl-intro-visuel.video-prete .bl-intro-boss { visibility: hidden; }
 .bl-intro-boss { height: min(42vh, 380px); width: auto; filter: drop-shadow(0 0 50px rgba(255, 60, 120, 0.85)) drop-shadow(0 0 120px rgba(160, 60, 255, 0.6)); animation: bl-boss-in 1.1s cubic-bezier(0.2, 1.4, 0.3, 1) 0.15s both, bl-boss-flotte 3s ease-in-out 1.3s infinite; }
 .bl-intro-cri { margin: -10px 0 0; font-family: var(--titre); font-size: clamp(34px, 8vw, 84px); line-height: 1; color: #fff; text-shadow: 0 5px 0 #7a0016, 0 0 30px #ff1f3a, 0 0 70px #ff1f3a; animation: bl-cri 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) 0.7s both, bl-cri-pouls 0.9s ease-in-out 1.4s infinite; }
 .bl-intro-nom { margin: 4px 0 0; font-family: var(--titre); font-size: clamp(28px, 6vw, 60px); letter-spacing: 0.12em; color: #ffd36b; text-shadow: 0 4px 0 var(--encre), 0 0 24px rgba(255, 211, 107, 0.7); animation: bl-nom 0.7s var(--doux) 1.05s both; }
@@ -3226,7 +3265,13 @@ html.v4 .nav.vf .rubrique-panneau a > .pastille-live, html.v4 .nav.vf .rubrique-
   html.v4 .entete-droite .compte { display: flex; }
   html.v4 .entete-droite .compte .nom-compte, html.v4 .entete-droite .compte .sortir { display: none; }
   html.v4 .entete-droite { margin-right: 52px; }
-  html.v4 .musique-zone { right: 12px; }
+  html.v4 .musique-zone { top: 15px; bottom: auto; left: auto; right: 12px; z-index: 41; flex-direction: row; align-items: center; gap: 8px; }
+  html.v4 .musique { height: 44px; width: 44px; padding: 0; justify-content: center; }
+  html.v4 .musique-texte { display: none; }
+  html.v4 .entete-droite { margin-right: 104px; }
+  html.v4 .sons { height: 44px; width: 44px; padding: 0; justify-content: center; }
+  .sons-texte { display: none; }
+  html.v4 .musique-zone .volume { position: absolute; top: 52px; right: 0; }
   html.v4 .nav.vf { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 46; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; height: var(--barre); padding: 0 4px env(safe-area-inset-bottom, 0px); background: rgba(18, 7, 15, 0.96); border-top: 2.5px solid var(--encre); box-shadow: 0 -4px 0 rgba(111, 34, 201, 0.55); }
   html.v4 .nav.vf > .nav-accueil, html.v4 .rubrique-bouton { flex-direction: column; justify-content: center; gap: 2px; width: 100%; height: 64px; padding: 4px 2px; border: 0; border-radius: 0; font-size: 11.5px; background: none; }
   html.v4 .nav.vf > .nav-accueil { font-size: 11.5px; }
