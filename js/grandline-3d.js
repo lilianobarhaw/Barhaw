@@ -747,7 +747,9 @@ function toileGLB(nom, theme = THEME_BARHAW) {
 // ---------- la traînée d'un navire de la flotte (V4) : ce qui tombe du bateau et traîne derrière lui ----------
 // petales : des pétales de cerisier qui tombent des voiles, tourbillonnent et flottent dans le sillage ;
 // pieces : des pièces d'or au V qui tombent du pont, brillent, rebondissent sur l'eau et coulent ;
-// encre : des bulles d'encre qui s'étalent dans le sillage. Peu de particules (moitié moins sur un petit écran).
+// encre : des bulles d'encre qui s'étalent dans le sillage ;
+// pieuvres : des petites pieuvres roses qui sautent du pont, font plouf, nagent un peu dans le sillage puis plongent.
+// Peu de particules (moitié moins sur un petit écran).
 let textures = null;
 function texturesTrainee() {
   if (textures) return textures;
@@ -767,6 +769,122 @@ function texturesTrainee() {
   textures = { petale, piece };
   return textures;
 }
+// ---------- une petite pieuvre-jouet en 3D (dessin original) : tête ronde, deux yeux, six tentacules enroulés ----------
+// un tube qui s'affine (un tentacule), fait comme le TubeGeometry de three.js, avec un bout arrondi
+function tubeEffile(courbe, segs, radial, r0, r1) {
+  const cadres = courbe.computeFrenetFrames(segs, false);
+  const pos = [];
+  const nor = [];
+  const idx = [];
+  const p = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i <= segs; i++) {
+    courbe.getPointAt(i / segs, p);
+    const r = r0 + (r1 - r0) * (i / segs);
+    const N = cadres.normals[i];
+    const B = cadres.binormals[i];
+    for (let j = 0; j <= radial; j++) {
+      const v = (j / radial) * Math.PI * 2;
+      const sn = Math.sin(v);
+      const cs = -Math.cos(v);
+      n.set(cs * N.x + sn * B.x, cs * N.y + sn * B.y, cs * N.z + sn * B.z).normalize();
+      nor.push(n.x, n.y, n.z);
+      pos.push(p.x + r * n.x, p.y + r * n.y, p.z + r * n.z);
+    }
+  }
+  for (let i = 1; i <= segs; i++) {
+    for (let j = 1; j <= radial; j++) {
+      const a = (radial + 1) * (i - 1) + (j - 1);
+      const b = (radial + 1) * i + (j - 1);
+      const c = (radial + 1) * i + j;
+      const d = (radial + 1) * (i - 1) + j;
+      idx.push(a, b, d, b, c, d);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  g.setIndex(idx);
+  return g;
+}
+// des morceaux de couleurs différentes en une seule forme (une seule copie par pieuvre à dessiner)
+function fusionner(morceaux) {
+  const pos = [];
+  const nor = [];
+  const col = [];
+  const idx = [];
+  for (const { g, c } of morceaux) {
+    const base = pos.length / 3;
+    const P = g.attributes.position;
+    const N = g.attributes.normal;
+    for (let k = 0; k < P.count; k++) { pos.push(P.getX(k), P.getY(k), P.getZ(k)); nor.push(N.getX(k), N.getY(k), N.getZ(k)); col.push(c.r, c.g, c.b); }
+    if (g.index) for (let k = 0; k < g.index.count; k++) idx.push(base + g.index.getX(k));
+    else for (let k = 0; k < P.count; k++) idx.push(base + k);
+    g.dispose();
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+// la pieuvre debout sur l'eau, regard vers +z ; environ 1,3 de large et 0,9 de haut
+function geoPieuvre(petit) {
+  const C = (h) => new THREE.Color(h);
+  const ROSE = C(0xff62a6);
+  const TACHE = C(0xc9246f);
+  const NOIR = C(0x0a0206);
+  const BLANC = C(0xffffff);
+  const JOUE = C(0xff2f86);
+  const m = [];
+  const boule = (r, x, y, z, couleur, sx = 1, sy = 1, sz = 1, l = 10, h = 8) => {
+    const g = new THREE.SphereGeometry(r, l, h);
+    g.scale(sx, sy, sz);
+    g.translate(x, y, z);
+    m.push({ g, c: couleur });
+  };
+  // la tête, un peu plus haute que large, penchée vers l'arrière comme une vraie pieuvre
+  const placerTete = (g) => { g.scale(1, 1.12, 1); g.rotateX(-0.22); g.translate(0, 0.5, -0.03); return g; };
+  m.push({ g: placerTete(new THREE.SphereGeometry(0.36, petit ? 12 : 16, petit ? 9 : 12)), c: ROSE });
+  // des taches sur le haut et l'arrière de la tête : de petites boules à peine sorties de la peau
+  for (const [x, y, z, r] of [[0.3, 0.85, -0.1, 0.06], [-0.35, 0.75, -0.4, 0.05], [0.05, 0.55, -0.85, 0.055], [-0.62, 0.45, 0.2, 0.045], [0.55, 0.35, -0.55, 0.05]]) {
+    const d = new THREE.Vector3(x, y, z).normalize().multiplyScalar(0.36 - r * 0.72);
+    m.push({ g: placerTete(new THREE.SphereGeometry(r, 8, 6).translate(d.x, d.y, d.z)), c: TACHE });
+  }
+  // les yeux : deux gros points noirs avec un reflet, et les joues
+  for (const s of [-1, 1]) {
+    boule(0.075, s * 0.13, 0.46, 0.31, NOIR, 1, 1.3, 0.55);
+    boule(0.026, s * 0.13 + 0.025, 0.5, 0.35, BLANC, 1, 1, 0.6, 6, 5);
+    boule(0.05, s * 0.24, 0.36, 0.27, JOUE, 1, 0.6, 0.4, 8, 5);
+  }
+  // six tentacules qui partent sous la tête, s'étalent sur l'eau et s'enroulent vers le haut au bout
+  const profil = [[0.12, 0.3], [0.28, 0.1], [0.46, 0.04], [0.6, 0.1], [0.66, 0.24], [0.58, 0.32], [0.5, 0.27]];
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2 + Math.PI / 6;
+    const tord = k % 2 ? 0.09 : -0.09; // chaque tentacule tourne un peu sur le côté
+    const pts = profil.map(([r, y], i) => {
+      const b = a + tord * (i / (profil.length - 1)) * 2;
+      return new THREE.Vector3(Math.sin(b) * r, y, Math.cos(b) * r);
+    });
+    const courbe = new THREE.CatmullRomCurve3(pts);
+    m.push({ g: tubeEffile(courbe, petit ? 9 : 14, petit ? 5 : 7, 0.1, 0.032), c: ROSE });
+    const bout = courbe.getPointAt(1);
+    boule(0.034, bout.x, bout.y, bout.z, ROSE, 1, 1, 1, 6, 5);
+  }
+  return fusionner(m);
+}
+// le contour à l'encre, pour des formes copiées (InstancedMesh)
+let contourCopies = null;
+function matiereContourCopies() {
+  const c = new THREE.Color(ENCRE);
+  contourCopies ||= new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    vertexShader: "void main() { vec3 p = position + normalize(normal) * 0.035; vec4 m = vec4(p, 1.0);\n#ifdef USE_INSTANCING\n m = instanceMatrix * m;\n#endif\n gl_Position = projectionMatrix * modelViewMatrix * m; }",
+    fragmentShader: `void main() { gl_FragColor = vec4(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)}, 1.0); }`,
+  });
+  return contourCopies;
+}
 function creerTrainee(type, scene, petit) {
   const n = petit ? 14 : 28;
   let geo;
@@ -776,6 +894,9 @@ function creerTrainee(type, scene, petit) {
     geo = new THREE.CylinderGeometry(0.42, 0.42, 0.09, 16);
     const face = new THREE.MeshPhongMaterial({ map: t, emissive: 0x6a4500, emissiveMap: t, shininess: 110, specular: 0xffffff });
     mat = [new THREE.MeshPhongMaterial({ color: 0xe8a92a, emissive: 0x5a3a00, shininess: 110, specular: 0xffffff }), face, face];
+  } else if (type === "pieuvres") {
+    geo = geoPieuvre(petit);
+    mat = retoucher(new THREE.MeshLambertMaterial({ vertexColors: true }), { cuit: true }); // un peu de lumière propre : du rose qui reste doux à l'ombre, des yeux bien noirs
   } else if (type === "petales") {
     geo = new THREE.PlaneGeometry(0.62, 0.62);
     mat = new THREE.MeshBasicMaterial({ map: texturesTrainee().petale, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, depthWrite: false });
@@ -787,9 +908,20 @@ function creerTrainee(type, scene, petit) {
   im.frustumCulled = false;
   im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(im);
+  // les pieuvres : un trait d'encre autour (les mêmes copies, vues de dos et gonflées), et des roses un peu différents
+  let trait = null;
+  if (type === "pieuvres") {
+    trait = new THREE.InstancedMesh(geo, matiereContourCopies(), n);
+    trait.instanceMatrix = im.instanceMatrix;
+    trait.frustumCulled = false;
+    scene.add(trait);
+    const teintes = [0xffffff, 0xffe4f0, 0xf3dcff].map((h) => new THREE.Color(h));
+    for (let k = 0; k < n; k++) im.setColorAt(k, teintes[k % 3]);
+    im.instanceColor.needsUpdate = true;
+  }
   const parts = Array.from({ length: n }, () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99, vie: 1, r: new THREE.Euler(), rv: new THREE.Vector3(), eau: false, k: Math.random() * 10 }));
   const o = new THREE.Object3D();
-  const cadence = type === "pieces" ? 0.42 : type === "petales" ? 0.2 : 0.35;
+  const cadence = type === "pieces" ? 0.42 : type === "petales" ? 0.2 : type === "pieuvres" ? 0.55 : 0.35;
   let t = 0;
   let prochain = 0;
   return {
@@ -817,6 +949,13 @@ function creerTrainee(type, scene, petit) {
             q.p.add(lateral(cote * 1.7)).add(v3(fx * (Math.random() * 2.4 - 1.2), fz * (Math.random() * 2.4 - 1.2), 2.2));
             q.v.set(-fx * 1.2, 3.4 + Math.random(), -fz * 1.2).add(lateral(cote * 1.3));
             q.vie = 4.6;
+          } else if (type === "pieuvres") {
+            // elle saute par-dessus le bastingage et retombe à l'eau bien à côté de la coque (sinon on ne la voit pas)
+            q.cote = a < 0.5 ? -1 : 1;
+            q.p.add(lateral(q.cote * 2)).add(v3(fx * (Math.random() * 3 - 2), fz * (Math.random() * 3 - 2), 2.6));
+            q.v.set(-fx * 0.9, 4.2 + Math.random() * 1.2, -fz * 0.9).add(lateral(q.cote * (2.6 + Math.random() * 0.8)));
+            q.vie = 7 + Math.random() * 2;
+            q.cap = Math.random() * Math.PI * 2;
           } else {
             q.p.add(v3(-fx * 4, -fz * 4, 0.15)).add(lateral((a - 0.5) * 2));
             q.v.set(-fx * 0.7, 0, -fz * 0.7);
@@ -857,6 +996,26 @@ function creerTrainee(type, scene, petit) {
             } else q.p.addScaledVector(q.v, dt); // elle coule
             q.r.x = 0.35; q.r.y += dt * 9; q.r.z = 0;
             s = q.p.y > -0.2 ? 1 : Math.max(0, 1 + (q.p.y + 0.2) * 1.4);
+          } else if (type === "pieuvres") {
+            if (!q.eau) {
+              // le saut : elle fait la roue en l'air, tentacules écartés
+              q.v.y -= 9.8 * dt;
+              q.p.addScaledVector(q.v, dt);
+              q.r.x += q.rv.x * dt; q.r.z += q.rv.z * dt;
+              if (q.p.y <= -0.08 && q.v.y < 0) { q.eau = true; q.p.y = -0.08; q.v.set(-fx * 0.5, 0, -fz * 0.5).add(lateral(q.cote * (0.25 + Math.random() * 0.3))); q.r.set(0, q.cap, 0); }
+              s = Math.min(1, q.age * 5);
+            } else {
+              // dans l'eau : elle se redresse, flotte, nage par petites poussées, puis plonge
+              const pousse = Math.max(0, Math.sin(t * 5 + q.k));
+              q.p.addScaledVector(q.v, dt * (0.4 + pousse * 1.6));
+              const plonge = Math.max(0, 1.4 - (q.vie - q.age));
+              q.p.y = -0.08 + Math.sin(t * 2.4 + q.k) * 0.05 - plonge * 0.7;
+              q.r.x = Math.sin(t * 2 + q.k) * 0.12;
+              q.r.z = Math.cos(t * 1.7 + q.k) * 0.12;
+              q.r.y = q.cap + Math.sin(t * 0.8 + q.k) * 0.5;
+              s = 1;
+            }
+            s *= Math.min(1, (q.vie - q.age) / 0.6) * 1.5;
           } else {
             q.p.addScaledVector(q.v, dt);
             q.v.multiplyScalar(1 - dt * 0.5);
@@ -866,13 +1025,15 @@ function creerTrainee(type, scene, petit) {
         }
         o.position.copy(q.p);
         o.rotation.copy(q.r);
-        if (type === "encre") o.scale.set(s, s * 0.25, s); else o.scale.setScalar(s);
+        if (type === "encre") o.scale.set(s, s * 0.25, s);
+        else if (type === "pieuvres" && q.eau && q.age < q.vie) { const b = Math.sin(t * 5 + q.k); o.scale.set(s * (1 - b * 0.08), s * (1 + b * 0.14), s * (1 - b * 0.08)); }
+        else o.scale.setScalar(s);
         o.updateMatrix();
         im.setMatrixAt(k, o.matrix);
       });
       im.instanceMatrix.needsUpdate = true;
     },
-    detruire() { scene.remove(im); geo.dispose(); },
+    detruire() { scene.remove(im); if (trait) scene.remove(trait); geo.dispose(); },
   };
 }
 // les matières qui changent avec les couleurs du navire
@@ -2265,7 +2426,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     images++;
     requestAnimationFrame(image);
     const ecoule = (maintenant - dernier) / 1000;
-    const dtReel = Math.min(0.3, ecoule); // la caméra suit le vrai temps, même si l'appareil est lent
+    // la caméra suit le vrai temps, même si l'appareil est lent ; jamais en arrière (sur un appareil lent, la première image peut
+    // dater d'avant le démarrage : les traînées attendaient alors autant de secondes avant de commencer)
+    const dtReel = Math.max(0, Math.min(0.3, ecoule));
     if (images > 20 && ecoule < 1) {
       lenteur = lenteur * 0.95 + ecoule * 0.05;
       if (lenteur > 0.045 && renderer.getPixelRatio() > 0.75 && maintenant > prochainReglage) {
