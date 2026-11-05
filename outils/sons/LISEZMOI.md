@@ -21,7 +21,6 @@ Tout est dans `son/` (AAC, `.m4a`), chargé par le site seulement quand le visit
 | potion | Unrealsfx · Magical Game – Magic Potion, Bubbly |
 | soin | Alberto Sueri · RPG Game – Magical Crystals |
 | victoire | Cristian Lucchetta · White Magic – Level Up, Positive, Winning |
-| plouf | plouf (teaser) |
 | mer | West Wolf · Seaside Nature – Sea Waves Gushing, Lapping on Breakwater |
 | jeu-quiz | YesNoMaybe · Bark Technology |
 | jeu-memory | Peter Spacey · Kawaii Kitty Dance |

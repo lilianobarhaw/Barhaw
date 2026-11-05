@@ -26,7 +26,7 @@ EFFETS = {
  "potion": ("potion.wav", 0.05, 2.5, 0.4, -14),
  "soin": ("soin.wav", 0.04, 2.7, 0.5, -15),
  "victoire": ("victoire.wav", 0.06, 1.5, 0.2, -13),
- "plouf": ("plouf.wav", 0.16, 0.9, 0.15, -13),
+
 }
 res = {}
 for nom, (src, a, b, f, cible) in EFFETS.items():
