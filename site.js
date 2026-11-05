@@ -7423,6 +7423,7 @@
     rendreCompte();
     rendreActions();
     rendreClassementJeu();
+    rendreSoiree();
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
     chargerMesJeux();
