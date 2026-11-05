@@ -399,7 +399,12 @@
           panneau.append(a);
         }
         nav.append(el("div", { class: "rubrique", "data-rubrique": r.id }, bouton, panneau));
-        bouton.addEventListener("click", (e) => { e.stopPropagation(); ouvrirRubrique(bouton.getAttribute("aria-expanded") === "true" ? null : r.id); });
+        bouton.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const ouvre = bouton.getAttribute("aria-expanded") !== "true";
+          if (ouvre) jouerSon("souffle");
+          ouvrirRubrique(ouvre ? r.id : null);
+        });
       }
       const accueil = nav.querySelector(".nav-accueil");
       if (accueil && !accueil.querySelector(".lien-icone")) accueil.prepend(el("img", { class: "lien-icone accueil-icone", src: "/img/chopper-visage.jpg", alt: "", width: 28, height: 28, loading: "lazy", decoding: "async" }));
@@ -668,11 +673,191 @@
       afficher(true);
       try { await audio.play(); } catch { afficher(false); }
     });
-    audio.addEventListener("error", () => { afficher(false); zone.hidden = true; });
+    // sans le fichier, seul le bouton de la musique s'en va (le bouton des sons de la VF reste)
+    const cacher = () => { bouton.hidden = true; reglage.hidden = true; };
+    audio.addEventListener("error", () => { afficher(false); cacher(); });
     document.addEventListener("play", (e) => {
-      if (e.target instanceof HTMLVideoElement && !audio.paused) { audio.pause(); audio.currentTime = 0; afficher(false); }
+      if (e.target instanceof HTMLVideoElement && !e.target.muted && !audio.paused) { audio.pause(); audio.currentTime = 0; afficher(false); }
     }, true);
-    fetch(MUSIQUE, { method: "HEAD" }).then((r) => { if (!r.ok) zone.hidden = true; }).catch(() => {});
+    SON.musiqueSite = audio;
+    fetch(MUSIQUE, { method: "HEAD" }).then((r) => { if (!r.ok) cacher(); }).catch(() => {});
+  }
+
+  // ---------- la VF 1.0 : les sons du site (coupés par défaut ; le bouton haut-parleur les allume) ----------
+  // Rien ne se charge tant qu'ils sont coupés. Allumés : un pop quand on change d'onglet, un souffle quand un menu s'ouvre,
+  // un taiko quand un navire arrive sur une île, la mer sur la carte GRAND LINE en 3D, et la musique et les bruitages des jeux.
+  // Les fichiers : son/*.m4a (AAC, de la banque Artlist), chargés un par un, la première fois qu'on en a besoin.
+  // Web Audio : les boucles (la mer, les musiques) ont 0,5 s de marge de chaque côté et se rejouent sans blanc.
+  const SON = { actif: false, ctx: null, maitre: null, tampons: new Map(), chargements: new Map(), boucles: {}, musiqueSite: null };
+  const SON_BOUCLES = { mer: 24, "jeu-quiz": 20, "jeu-memory": 18.2944, "jeu-course": 23.2798, "jeu-rumble": 26.1818, "jeu-docteur": 19.6018 };
+  const SON_NIVEAUX = { pop: 0.5, souffle: 0.45, clic: 0.55, taiko: 0.85, impact: 0.9, carte: 0.75, paire: 0.6, "quiz-bon": 0.65, "quiz-faux": 0.55, saut: 0.4, tonneau: 0.7, cloche: 0.7, potion: 0.5, soin: 0.55, victoire: 0.65 };
+  const SONS_JEUX = { rumble: ["cloche", "potion", "victoire", "quiz-faux"], quiz: ["clic", "quiz-bon", "quiz-faux", "souffle", "victoire"], docteur: ["soin", "quiz-faux", "victoire", "souffle"], memory: ["carte", "paire", "victoire"], course: ["clic", "saut", "tonneau", "impact", "pop", "victoire"] };
+  try { SON.actif = localStorage.getItem("barhaw-sons") === "oui"; } catch {}
+  const sonVF = () => document.documentElement.classList.contains("v4");
+  const sonActif = () => SON.actif && sonVF();
+  function contexteSon() {
+    if (!SON.ctx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      SON.ctx = new Ctx();
+      SON.maitre = SON.ctx.createGain();
+      SON.maitre.gain.value = 0.9;
+      SON.maitre.connect(SON.ctx.destination);
+    }
+    if (SON.ctx.state === "suspended" && !document.hidden) SON.ctx.resume().catch(() => {});
+    return SON.ctx;
+  }
+  // un son : son tampon décodé (gardé), chargé une seule fois même si on le demande plusieurs fois en même temps
+  function tamponSon(nom) {
+    if (SON.tampons.has(nom)) return Promise.resolve(SON.tampons.get(nom));
+    const ctx = contexteSon();
+    if (!ctx) return Promise.resolve(null);
+    if (!SON.chargements.has(nom)) {
+      SON.chargements.set(nom, fetch(`/son/${nom}.m4a`)
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+        .then((a) => new Promise((ok, ko) => ctx.decodeAudioData(a, ok, ko)))
+        .then((b) => { SON.tampons.set(nom, b); return b; })
+        .catch(() => null)
+        .finally(() => SON.chargements.delete(nom)));
+    }
+    return SON.chargements.get(nom);
+  }
+  function prechargerSons(noms) { if (sonActif()) for (const n of noms) tamponSon(n); }
+  // jouer un bruitage ; s'il n'est pas encore là, il part quand il arrive (sauf s'il arrive trop tard pour avoir un sens)
+  function jouerSon(nom, { volume = 1, duree = 0, retard = 0 } = {}) {
+    if (!sonActif() || document.hidden) return;
+    const ctx = contexteSon();
+    if (!ctx) return;
+    const demande = performance.now();
+    const partir = (b) => {
+      if (!b || !sonActif() || performance.now() - demande > 700 + retard * 1000) return;
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      const g = ctx.createGain();
+      const v = volume * (SON_NIVEAUX[nom] ?? 1);
+      g.gain.value = v;
+      src.connect(g).connect(SON.maitre);
+      const t0 = ctx.currentTime + Math.max(0, retard - (performance.now() - demande) / 1000);
+      src.start(t0);
+      if (duree) {
+        g.gain.setValueAtTime(v, t0 + Math.max(0, duree - 0.15));
+        g.gain.linearRampToValueAtTime(0.0001, t0 + duree);
+        src.stop(t0 + duree + 0.02);
+      }
+    };
+    const b = SON.tampons.get(nom);
+    if (b) partir(b); else tamponSon(nom).then(partir);
+  }
+  // les boucles : « mer » (la carte en 3D) et « jeu » (la musique du jeu en cours), avec un fondu à l'entrée et à la sortie
+  async function lancerBoucle(cle, nom, volume) {
+    if (!sonActif()) return;
+    const ctx = contexteSon();
+    if (!ctx) return;
+    const deja = SON.boucles[cle];
+    if (deja?.nom === nom) return;
+    arreterBoucle(cle);
+    const jeton = { nom };
+    SON.boucles[cle] = jeton;
+    const b = await tamponSon(nom);
+    if (!b || SON.boucles[cle] !== jeton || !sonActif()) return;
+    const src = ctx.createBufferSource();
+    src.buffer = b;
+    src.loop = true;
+    src.loopStart = 0.5;
+    src.loopEnd = Math.min(b.duration, 0.5 + (SON_BOUCLES[nom] || b.duration - 1));
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(volume, ctx.currentTime + 1.2);
+    src.connect(g).connect(SON.maitre);
+    src.start(0, 0.5);
+    jeton.src = src;
+    jeton.g = g;
+  }
+  function arreterBoucle(cle, fondu = 0.6) {
+    const l = SON.boucles[cle];
+    if (!l) return;
+    delete SON.boucles[cle];
+    if (!l.src || !SON.ctx) return;
+    const t = SON.ctx.currentTime;
+    try {
+      l.g.gain.cancelScheduledValues(t);
+      l.g.gain.setValueAtTime(l.g.gain.value, t);
+      l.g.gain.linearRampToValueAtTime(0.0001, t + fondu);
+      l.src.stop(t + fondu + 0.05);
+    } catch {}
+  }
+  // la musique d'un jeu : pas si la musique du site ou celle de BOSS LIVE joue déjà (les bruitages, eux, restent)
+  function musiqueJeu(jeu) {
+    if (!sonActif()) return;
+    if ((SON.musiqueSite && !SON.musiqueSite.paused) || (BL.son && !BL.son.paused)) return;
+    lancerBoucle("jeu", `jeu-${jeu}`, 0.3);
+  }
+  const finMusiqueJeu = (fondu = 0.8) => arreterBoucle("jeu", fondu);
+  // la mer : tant que la carte GRAND LINE est ouverte en grand (en 3D)
+  const merSon = (oui) => (oui ? lancerBoucle("mer", "mer", 0.42) : arreterBoucle("mer", 1));
+  // une petite vidéo muette de la VF (rendue dans Blender) : WebM, sinon MP4 ; jamais avec « réduire les animations »,
+  // en économie de données ou sur une connexion très lente (l'image fixe reste)
+  function videoVF(chemin, classe) {
+    const v = el("video", { class: classe, muted: true, playsinline: true, autoplay: true, preload: "auto", "aria-hidden": "true", tabindex: "-1", disablepictureinpicture: true },
+      el("source", { src: `${chemin}.webm`, type: "video/webm" }), el("source", { src: `${chemin}.mp4`, type: "video/mp4" }));
+    v.muted = true;
+    v.defaultMuted = true;
+    return v;
+  }
+  const videosPermises = () => sonVF() && !reduit.matches && !navigator.connection?.saveData && !/2g$/.test(navigator.connection?.effectiveType || "");
+  function boutonSons() {
+    const b = $("sons");
+    if (!b) return;
+    // un navigateur qui ne sait pas lire les sons (AAC) ou sans Web Audio : pas de bouton
+    const lisible = (() => { try { return Boolean(new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"')); } catch { return false; } })();
+    if (!lisible || !(window.AudioContext || window.webkitAudioContext)) { b.remove(); SON.actif = false; return; }
+    const afficher = () => {
+      b.setAttribute("aria-pressed", String(SON.actif));
+      b.title = SON.actif ? "Couper les sons du site" : "Allumer les sons du site";
+      const t = b.querySelector(".sons-texte");
+      if (t) t.textContent = SON.actif ? "Sons" : "Sons coupés";
+    };
+    afficher();
+    b.addEventListener("click", () => {
+      SON.actif = !SON.actif;
+      try { localStorage.setItem("barhaw-sons", SON.actif ? "oui" : "non"); } catch {}
+      afficher();
+      if (SON.actif) {
+        contexteSon();
+        jouerSon("pop");
+        prechargerSons(["pop", "souffle", "taiko"]);
+        if (SALLE.ouverte) merSon(true);
+        const jeu = jeuEnCours();
+        if (jeu) musiqueJeu(jeu);
+      } else {
+        for (const cle of Object.keys(SON.boucles)) arreterBoucle(cle, 0.3);
+        setTimeout(() => { if (!SON.actif) SON.ctx?.suspend().catch(() => {}); }, 400);
+      }
+    });
+    // la musique du site prend le relais de celle d'un jeu (jamais les deux en même temps)
+    SON.musiqueSite?.addEventListener("play", () => finMusiqueJeu(0.4));
+    // déjà allumés à la visite d'avant : le son se débloque au premier geste (les navigateurs l'exigent)
+    const debloquer = () => { if (sonActif()) contexteSon(); };
+    document.addEventListener("pointerdown", debloquer, { capture: true, passive: true });
+    document.addEventListener("keydown", debloquer, { capture: true });
+    // onglet caché : tout se tait ; il revient : ça reprend
+    document.addEventListener("visibilitychange", () => {
+      if (!SON.ctx) return;
+      if (document.hidden) SON.ctx.suspend().catch(() => {});
+      else if (sonActif()) SON.ctx.resume().catch(() => {});
+    });
+    // un pop quand on change d'onglet (lu avant que l'onglet ne se redessine)
+    document.addEventListener("click", (e) => {
+      const t = e.target.closest?.('[role="tab"]');
+      if (t && t.getAttribute("aria-selected") !== "true") jouerSon("pop");
+    }, true);
+    // les bruitages d'un jeu se chargent quand on arrive près de lui (sa musique, quand on lance une partie)
+    if ("IntersectionObserver" in window) {
+      const o = new IntersectionObserver((entrees) => {
+        for (const e of entrees) if (e.isIntersecting && SONS_JEUX[e.target.id]) prechargerSons(SONS_JEUX[e.target.id]);
+      }, { rootMargin: "600px 0px" });
+      for (const id of Object.keys(SONS_JEUX)) { const z = $(id); if (z) o.observe(z); }
+    }
   }
 
   // ---------- les mèmes : des autocollants posés au hasard, différents à chaque visite ----------
@@ -2830,6 +3015,7 @@
   }
   function fermerRumble() {
     if (rb.etat === "jeu" || rb.etat === "pause") { cancelAnimationFrame(rb.boucle); rb.etat = "accueil"; }
+    finMusiqueJeu();
     pleinEcranJeu($("rumble"), false);
     if (rb.etat !== "envoi") rendreRumble();
   }
@@ -2906,6 +3092,8 @@
     rb.etat = "jeu"; rb.manche = 0; rb.score = 0; rb.fin = null; rb.partie = "";
     const z = $("rumble");
     pleinEcranJeu(z, true);
+    jouerSon("cloche");
+    musiqueJeu("rumble");
     vider(z,
       teteRumble(),
       rumbleScene(),
@@ -2936,6 +3124,7 @@
     const scene = $("rumble").querySelector(".rb-scene");
     scene.classList.remove("choc"); void scene.offsetWidth; scene.classList.add("choc");
     scene.style.setProperty("--niveau", String(rb.manche));
+    jouerSon(rb.manche >= 7 ? "victoire" : "potion", { duree: rb.manche >= 7 ? 0 : 0.9 });
     if (rb.manche >= 7) {
       rb.score += 300;
       ch.className = "rb-chopper forme-8";
@@ -2953,6 +3142,9 @@
     cancelAnimationFrame(rb.boucle);
     const transformations = rb.manche;
     const score = rb.score;
+    if (message) jouerSon("quiz-faux");
+    jouerSon("cloche", { retard: message ? 0.5 : 0.9 });
+    finMusiqueJeu(1.2);
     if (message) { const sfx = $("rb-sfx"); sfx.textContent = "ガーン"; sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat"); }
     let fin = { transformations, score, message };
     const attente = new Promise((ok) => setTimeout(ok, delai));
@@ -2989,6 +3181,7 @@
   }
   function fermerQuiz() {
     clearTimeout(qz.minuteur);
+    finMusiqueJeu();
     if (qz.etat === "question" || qz.etat === "palier") qz.etat = "accueil";
     pleinEcranJeu($("quiz"), false);
     rendreQuiz();
@@ -3053,6 +3246,7 @@
     qz.partie = d.partie; qz.bonnes = 0; qz.points = 0; qz.palier = 0; qz.fin = null;
     if (d.niveau) qz.niveau = d.niveau;
     pleinEcranJeu($("quiz"), true);
+    musiqueJeu("quiz");
     poserQuestion(d.question);
   }
   // un nouveau palier : une case manga avant la question
@@ -3061,6 +3255,7 @@
     if (q.palier && q.palier !== qz.palier) {
       qz.palier = q.palier;
       qz.etat = "palier";
+      jouerSon("souffle");
       vider(z, teteQuiz(), el("div", { class: `qz-banniere palier-${q.palier}` },
         el("span", { class: "concentration", "aria-hidden": "true" }),
         el("span", { class: "qz-banniere-num", text: `Palier ${q.palier}` }),
@@ -3104,7 +3299,7 @@
     const z = $("quiz");
     const boutons = [...z.querySelectorAll(".qz-choix")];
     boutons.forEach((b) => { b.disabled = true; });
-    if (k !== null) boutons[k]?.classList.add("choisi");
+    if (k !== null) { boutons[k]?.classList.add("choisi"); jouerSon("clic"); }
     z.querySelector(".qz-temps i")?.classList.add("arret");
     z.querySelector(".qz-ampoules")?.classList.add("arret");
     const { d } = await demanderJeux("quiz-repondre", { partie: qz.partie, choix: k });
@@ -3112,6 +3307,8 @@
     if (!d.ok) { qz.etat = "accueil"; qz.erreur = d.erreur || "Le quiz s'est arrêté, relance-le."; rendreQuiz(); return; }
     boutons[d.bonne]?.classList.add("bonne");
     if (k !== null && !d.juste) boutons[k]?.classList.add("fausse");
+    jouerSon(d.juste ? "quiz-bon" : "quiz-faux");
+    if (d.fin) { finMusiqueJeu(1.2); if (d.bonnes >= 7) jouerSon("victoire", { retard: 0.9 }); }
     qz.bonnes = d.bonnes;
     qz.points = d.points ?? qz.points;
     const pts = z.querySelector(".qz-haut b");
@@ -3159,6 +3356,7 @@
   const teteDocteur = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Docteur Chopper" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🩺" }), fermerJeu(fermerDocteur));
   function fermerDocteur() {
     if (dc.etat === "jeu") { cancelAnimationFrame(dc.boucle); dc.etat = "accueil"; }
+    finMusiqueJeu();
     pleinEcranJeu($("docteur"), false);
     rendreDocteur();
   }
@@ -3209,6 +3407,8 @@
     dc.etat = "jeu"; dc.score = 0; dc.soignes = 0; dc.combo = 0; dc.fin = null; dc.partie = ""; dc.bloque = 0;
     const z = $("docteur");
     pleinEcranJeu(z, true);
+    jouerSon("souffle");
+    musiqueJeu("docteur");
     const barre = el("i", {});
     vider(z, teteDocteur(),
       el("div", { class: "dc-hud" }, el("span", { id: "dc-temps", text: "45 s" }), el("span", { id: "dc-combo", text: "" }), el("b", { id: "dc-score", text: "0 pts" })),
@@ -3246,12 +3446,14 @@
       dc.soignes++;
       dc.combo++;
       sfx.textContent = dc.combo >= 10 ? "神ドクター！" : ["治った！", "ピカーン", "スッキリ"][dc.soignes % 3];
+      jouerSon(dc.combo === 10 ? "victoire" : "soin", { duree: dc.combo === 10 ? 0 : 0.8 });
       scene.classList.remove("rate");
       nouveauPatient();
     } else {
       dc.combo = 0;
       dc.bloque = performance.now() + 1200;
       sfx.textContent = "ガーン";
+      jouerSon("quiz-faux");
       scene.classList.remove("rate"); void scene.offsetWidth; scene.classList.add("rate");
       $("docteur").querySelector(`[data-remede="${id}"]`)?.classList.add("faux");
       setTimeout(() => $("docteur")?.querySelector(`[data-remede="${id}"]`)?.classList.remove("faux"), 1200);
@@ -3263,6 +3465,7 @@
   async function finirDocteur() {
     dc.etat = "envoi";
     cancelAnimationFrame(dc.boucle);
+    finMusiqueJeu(1.2);
     let fin = { soignes: dc.soignes, score: dc.score, message: "" };
     if (dc.partie) {
       const { d } = await demanderJeux("docteur-fin", { partie: dc.partie, soignes: dc.soignes, score: dc.score });
@@ -3286,6 +3489,7 @@
   const teteMemory = () => el("div", { class: "jeu-tete" }, el("h3", { text: "Le Memory des mèmes" }), el("span", { class: "jeu-emoji", "aria-hidden": "true", text: "🧠" }), fermerJeu(fermerMemory));
   function fermerMemory() {
     clearInterval(mm.minuteur);
+    finMusiqueJeu();
     if (mm.etat === "jeu") mm.etat = "accueil";
     pleinEcranJeu($("memory"), false);
     rendreMemory();
@@ -3326,6 +3530,7 @@
     mm.etat = "jeu";
     const z = $("memory");
     pleinEcranJeu(z, true);
+    musiqueJeu("memory");
     const grille = el("div", { class: "mm-grille" }, mm.cartes.map((id, k) => {
         const img = imageCarte(id);
         const b = el("button", { class: "mm-carte", type: "button", "aria-label": `Carte ${k + 1}`, onclick: () => retournerMemory(k, b) },
@@ -3354,6 +3559,7 @@
   function retournerMemory(k, b) {
     if (mm.etat !== "jeu" || mm.verrou || mm.trouvees.has(k) || mm.retournees.includes(k)) return;
     b.classList.add("retournee");
+    jouerSon("carte", { volume: 0.8 + Math.random() * 0.3 });
     mm.retournees.push(k);
     if (mm.retournees.length < 2) return;
     mm.coups++;
@@ -3362,6 +3568,7 @@
     const boutons = $("memory").querySelectorAll(".mm-carte");
     if (mm.cartes[a] === mm.cartes[c]) {
       mm.trouvees.add(a); mm.trouvees.add(c);
+      jouerSon("paire", { retard: 0.15 });
       boutons[a].classList.add("trouvee"); boutons[c].classList.add("trouvee");
       mm.retournees = [];
       $("mm-paires").textContent = `${mm.trouvees.size / 2}/8 paires`;
@@ -3378,6 +3585,8 @@
   async function finirMemory() {
     mm.etat = "envoi";
     clearInterval(mm.minuteur);
+    finMusiqueJeu(1.2);
+    jouerSon("victoire", { retard: 0.5 });
     const temps = performance.now() - mm.t0;
     let fin = { coups: mm.coups, temps, score: scoreMemoryLocal(mm.coups, temps), message: "" };
     const attente = new Promise((ok) => setTimeout(ok, 900));
@@ -3551,6 +3760,7 @@
   const NOMS_PISTES = ["Coucher de soleil", "Nuit étoilée", "Tempête", "Aurore"];
   function fermerCourse() {
     if (co.etat === "jeu" || co.etat === "pret") { cancelAnimationFrame(co.boucle); co.etat = "accueil"; }
+    finMusiqueJeu();
     pleinEcranJeu($("course"), false);
     rendreCourse();
   }
@@ -3820,6 +4030,7 @@
     for (const t of ["3", "2", "1"]) {
       depart.textContent = t;
       depart.classList.remove("pop"); void depart.offsetWidth; depart.classList.add("pop");
+      jouerSon("clic");
       await new Promise((ok) => setTimeout(ok, reduit.matches ? 250 : 520));
       if (co.etat !== "pret") return; // refermé pendant le compte à rebours
     }
@@ -3827,6 +4038,8 @@
     if (ouverture) { const { d } = await ouverture; if (d.partie) co.partie = d.partie; }
     if (co.etat !== "pret") return;
     co.etat = "jeu";
+    co.sauts = 0;
+    musiqueJeu("course");
     co.dernier = performance.now();
     cancelAnimationFrame(co.boucle);
     co.boucle = requestAnimationFrame(imageCourse);
@@ -3852,6 +4065,7 @@
     const m = co.moteur.m;
     const etaitAuSol = m.sol;
     const ev = co.moteur.avancer(dt);
+    if (m.sauts !== co.sauts) { co.sauts = m.sauts; jouerSon("saut"); }
     // la poussière : quand il court, et un petit nuage quand il retombe
     if (m.sol && Math.random() < dt * 9) co.particules.push({ x: CO.X - 14, y: CO.SOL - 3, r: 2 + Math.random() * 2, a: 0.5, vx: -60 - Math.random() * 40, vy: -20 - Math.random() * 20 });
     if (m.sol && !etaitAuSol) for (let k = 0; k < 6; k++) co.particules.push({ x: CO.X + (k - 3) * 5, y: CO.SOL - 2, r: 2 + Math.random() * 3, a: 0.6, vx: (k - 3) * 30, vy: -30 - Math.random() * 30 });
@@ -3865,6 +4079,7 @@
       if (b) { b.textContent = `Piste ${(piste % 4) + 1} · ${NOMS_PISTES[piste % 4]}`; b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
     }
     if (ev === "palier") {
+      jouerSon("pop");
       const sfx = $("co-sfx");
       const metres = m.palier * 100;
       sfx.textContent = metres % 500 === 0 ? "ゴゴゴ" : `${metres} m!`;
@@ -3880,6 +4095,8 @@
     const distance = Math.floor(m.dist / CO.M);
     const sfx = $("co-sfx");
     sfx.textContent = m.choc.type === "boulet" ? "ドカーン！" : m.choc.type === "mouette" ? "グワッ！" : "ゴン！";
+    jouerSon(m.choc.type === "boulet" ? "impact" : "tonneau");
+    finMusiqueJeu(1.2);
     sfx.classList.remove("eclat"); void sfx.offsetWidth; sfx.classList.add("eclat");
     $("co-scene")?.classList.add("choc");
     if (jeuxVF()) navigator.vibrate?.(70); // sur téléphone, le choc se sent aussi
@@ -3896,6 +4113,7 @@
     if (co.etat === "accueil") return; // refermé entre-temps
     co.etat = "fin";
     co.fin = fin;
+    if (fin.record || fin.perso) jouerSon("victoire");
     rendreCourse();
     if (fin.record || fin.perso) setTimeout(charger, 1500);
   }
@@ -3921,6 +4139,14 @@
     if (d) { d.textContent = "Pause"; d.classList.add("pause"); }
   });
 
+  function jeuEnCours() {
+    if (rb.etat === "jeu" || rb.etat === "pause") return "rumble";
+    if (qz.etat === "question" || qz.etat === "palier") return "quiz";
+    if (dc.etat === "jeu") return "docteur";
+    if (mm.etat === "jeu") return "memory";
+    if (co.etat === "jeu" || co.etat === "pret") return "course";
+    return "";
+  }
   function rendreJeux() {
     if (rb.etat !== "jeu" && rb.etat !== "pause" && rb.etat !== "envoi") rendreRumble();
     rendreQuiz();
@@ -5569,21 +5795,35 @@
   }
 
   // « Terre en vue ! » : tout l'écran, comme le début du live, avec l'île atteinte
+  // (en VF, les îles de la V4 ont leur petite vidéo : videos/iles/<id>, un tour de caméra autour de l'île et de son maître)
   function terreEnVue(e) {
     const cle = `barhaw-terre:${e.commu ? `${e.commu}:` : ""}${e.voyage}-${e.etape}`;
-    if (lireSession(cle) === "vu" || reduit.matches) return;
+    if (lireSession(cle) === "vu" && !e.force) return;
     ecrireSession(cle, "vu");
+    if (reduit.matches) { jouerSon("taiko"); return; } // pas d'animation : juste le taiko (si les sons sont allumés)
     if (document.hidden) { document.addEventListener("visibilitychange", () => terreEnVue({ ...e, force: true }), { once: true }); return; }
     if (document.querySelector(".choc-live")) return;
-    const o = el("div", { class: "choc-live choc-terre", "aria-hidden": "true" },
+    jouerSon("taiko");
+    const video = videosPermises() && ILES_V4.includes(e.id) ? videoVF(`/videos/iles/${e.id}`, "choc-video") : null;
+    const o = el("div", { class: `choc-live choc-terre${video ? " avec-video" : ""}`, "aria-hidden": "true" },
       el("span", { class: "choc-lignes" }),
       el("span", { class: "sfx tremble choc-sfx", text: "ドドン" }),
       imageIle(e.id) ? el("img", { class: "choc-ile-image", src: imageIle(e.id), alt: "", width: 360, height: 300, decoding: "async" }) : null,
+      video ? el("div", { class: "choc-ile-video" }, video) : null,
       el("span", { class: "choc-tampon", text: e.tresor ? "TRÉSOR !!" : "TERRE EN VUE !" }),
       el("span", { class: "choc-ile", text: `${e.emoji} ${e.nom}` }),
     );
     document.body.append(o);
-    setTimeout(() => o.remove(), 2600);
+    const debut = performance.now();
+    let fin = setTimeout(() => o.remove(), 2600);
+    // la vidéo prend la place de l'image si elle démarre vite ; sinon, l'image seule, comme avant
+    video?.addEventListener("playing", () => {
+      if (performance.now() - debut > 1400 || !o.isConnected) return;
+      o.classList.add("video-prete");
+      clearTimeout(fin);
+      fin = setTimeout(() => o.remove(), 4500);
+    }, { once: true });
+    video?.addEventListener("error", () => o.classList.remove("avec-video"), true);
   }
 
   // ---------- la carte : 3D si l'appareil peut, sinon 2D ----------
@@ -5691,6 +5931,7 @@
     glVue = true;
     preparerCarteGL().then(() => { tailleCarteGL(); fermer.focus({ preventScroll: true }); });
     document.addEventListener("keydown", toucheSalle);
+    merSon(true);
   }
   function toucheSalle(e) { if (e.key === "Escape" && !$("grandline-info")?.matches(":not([hidden])")) fermerSalleGL(); }
   function fermerSalleGL({ hash = true } = {}) {
@@ -5704,6 +5945,7 @@
     SALLE.el?.remove();
     SALLE.el = null;
     SALLE.ouverte = false;
+    merSon(false);
     document.documentElement.classList.remove("gl-salle-ouverte");
     if (hash && salleVoulue()) history.replaceState(null, "", "#grandline");
     passerCarte2D();
@@ -6744,7 +6986,7 @@
     BL.victoire.play().catch(() => {});
   }
   function blSon(jouer, { debut = false, fondu = false, victoire = false } = {}) {
-    if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; }
+    if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; BL.son.addEventListener("play", () => finMusiqueJeu(0.4)); }
     const b = $("bl-son");
     clearInterval(BL.fondu);
     if (jouer) blVictoire(false);
@@ -6782,6 +7024,8 @@
     BL.intro?.remove();
     try { localStorage.setItem("barhaw-bl-intro", String(c.id)); } catch {}
     const id = BL_NOMS[c.boss] ? c.boss : "morghast";
+    // en VF : il jaillit de la mer (une petite vidéo rendue dans Blender) ; l'impact sonne quand il sort de l'eau
+    const video = videosPermises() ? videoVF(`/videos/boss/${id}`, "bl-intro-video") : null;
     const bande = "⚠ WARNING ⚠ BOSS LIVE ⚠ WARNING ⚠ BOSS LIVE ".repeat(6);
     const fermer = () => { if (!o.isConnected) return; o.classList.add("bl-intro-fin"); setTimeout(() => o.remove(), 500); };
     const go = el("button", { class: "bl-intro-go", type: "button", text: "⚔️ AU COMBAT !", onclick: () => {
@@ -6797,7 +7041,7 @@
       el("div", { class: "bl-intro-bande bl-intro-haut" }, el("span", { text: bande })),
       el("div", { class: "bl-intro-bande bl-intro-bas" }, el("span", { text: bande })),
       el("div", { class: "bl-intro-coeur" },
-        el("img", { class: "bl-intro-boss", src: `/img/boss/${id}.webp`, alt: "" }),
+        el("div", { class: "bl-intro-visuel" }, el("img", { class: "bl-intro-boss", src: `/img/boss/${id}.webp`, alt: "" }), video),
         el("p", { class: "bl-intro-cri", text: "LE BOSS EST LÀ !!!" }),
         el("h2", { class: "bl-intro-nom", text: c.nom }),
         el("p", { class: "bl-intro-titre", text: `${c.titre} · niveau ${c.niveau} · ${blFmt(c.pvMax)} PV` }),
@@ -6807,6 +7051,14 @@
     o.addEventListener("click", (ev) => { if (ev.target === o) fermer(); });
     document.body.append(o);
     BL.intro = o;
+    let impact = setTimeout(() => { impact = 0; video?.remove(); jouerSon("impact"); }, video ? 900 : 150);
+    video?.addEventListener("playing", () => {
+      if (!impact) return;
+      clearTimeout(impact);
+      impact = 0;
+      o.querySelector(".bl-intro-visuel")?.classList.add("video-prete");
+      jouerSon("impact", { retard: 0.55 });
+    }, { once: true });
     if (!reduit.matches) { document.body.classList.add("bl-tremble"); setTimeout(() => document.body.classList.remove("bl-tremble"), 900); }
     setTimeout(() => go.focus({ preventScroll: true }), 900);
     setTimeout(fermer, 12_000);
@@ -7377,6 +7629,7 @@
     apparitionsFixes();
     kanjis();
     musique();
+    boutonSons();
     autocollants();
     if (!$("accueil")) return; // la page des mentions : juste le décor
 
