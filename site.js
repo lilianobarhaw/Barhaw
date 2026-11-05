@@ -4916,18 +4916,18 @@
   const styleCommu = (c) => `--c1:${hexaCommu(c, "principale")};--c2:${hexaCommu(c, "secondaire")};--fl-texte:${clair(hexaCommu(c, "principale")) ? "#12050d" : "#fff"}`;
   // Ce que chaque commu apporte, en plus de ses couleurs (/flotte commu sur Discord) : son drapeau, dessiné par elle,
   // dans img/flotte/<id>.webp (512 × 512), et sa traînée derrière son navire. Ajouter une commu = ces trois choses.
-  // Traînées : petales (cerisier), pieces (pièces d'or au V), encre (bulles d'encre) ; sans rien, un sillage d'écume.
+  // Traînées : petales (cerisier), pieces (pièces d'or au V), encre (bulles d'encre), pieuvres (petites pieuvres roses) ; sans rien, un sillage d'écume.
   const FLOTTE_STYLES = {
     // navire : son propre modèle V4 (modeles/grandline/navire-<id>.glb, avec sa figure de proue) ; sinon le navire V4 commun
     barhaw: { drapeau: true, trainee: "petales", navire: true }, // renne-raton
     veyzo: { drapeau: true, trainee: "pieces", navire: true }, // tigre
-    kikso: { drapeau: true, trainee: "encre", navire: true }, // Squirt.exe : le calmar à bandeau, figure de proue pieuvre
+    kikso: { drapeau: true, trainee: "pieuvres", navire: true }, // Squirt.exe : le calmar à bandeau, figure de proue pieuvre
   };
   const drapeauImage = (c) => (FLOTTE_STYLES[c?.id]?.drapeau ? `/img/flotte/${c.id}.webp` : lienSur(c?.drapeau));
   const ILES_V4 = ["phare", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]; // les îles en V4 (modeles/grandline/ile-<id>-v4.glb)
   // une nouvelle commu n'a besoin que d'un drapeau, de ses couleurs et d'une traînée : elle prend le navire V4 commun
   const modeleNavire = (c) => (window.__navireV3 || !c?.id ? "" : FLOTTE_STYLES[c.id]?.navire ? `navire-${c.id}.glb` : "navire-v4.glb");
-  const traineeCommu = (c) => (["petales", "pieces", "encre"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
+  const traineeCommu = (c) => (["petales", "pieces", "encre", "pieuvres"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
     if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
     const n = c.navire;
