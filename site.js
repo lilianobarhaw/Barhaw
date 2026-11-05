@@ -363,13 +363,13 @@
     { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "tournoi", "evenements"] },
     { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
-    { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["potes", "youtube", "discord"] },
+    { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["soiree", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
     chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], tournoi: ["trophee", "Le TOURNOI BARHAW"],
     evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
-    faille: ["epees", "Les games de LoL entre potes"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
+    faille: ["epees", "Les games de LoL entre potes"], soiree: ["trophee", "Commu contre commu sur Fortnite"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
   };
   const TAILLES_OBJETS = { camera: 84, bouteille: 203, borne: 100, chopes: 106, casque: 177, trophee: 112, lanterne: 99, panneau: 126, gamelle: 244, coffre: 150, epees: 144, clap: 187, cloche: 159 };
   const objetMenu = (nom, classe) => el("img", { class: classe, src: `/img/objets/${nom}.webp`, alt: "", width: Math.round((TAILLES_OBJETS[nom] || 120) / 4), height: 40, loading: "lazy", decoding: "async" });
@@ -7149,6 +7149,7 @@
     rendreEscale();
     rendreEntete();
     rendreFideles();
+    rendreSoiree();
     rendreMaintenant();
     rendreEvenements();
     bulleAccueil();
@@ -7304,6 +7305,69 @@
           fidelesMessage ? el("p", { class: `gl-message${fidelesMessage.erreur ? " erreur" : ""}`, role: "status", text: fidelesMessage.texte }) : null)),
       el("p", { class: "note", text: `${nombre(f.relies || 0)} ${(f.relies || 0) > 1 ? "fidèles reliés" : "fidèle relié"} · seuls ceux qui ont relié leur Twitch apparaissent, avec leur pseudo Discord. Twitch ne compte que les viewers connectés au chat (connectés à leur compte, chat ouvert).` }),
     );
+  }
+  // ---------- la VF 1.0 : la Soirée Fortnite des commus (le bot compte : lib/soiree.js) ----------
+  // Avant : le compte à rebours, les 3 commus, l'inscription (son pseudo Epic, stats publiques). Pendant : le score des
+  // commus en direct. Après : le podium. Jamais le pseudo d'un autre joueur : seulement les commus, et ses propres points.
+  const SOIREE_NOMS = { barhaw: "Barhaw", veyzo: "Veyzo Family", kikso: "Squirt.exe" };
+  let maSoiree = null, soireeOccupee = false, soireeMessage = null, soireeDemandee = false;
+  const infosSoiree = () => (maSoiree ? { ...donnees?.soiree, ...maSoiree } : donnees?.soiree) || null;
+  function rendreSoiree() {
+    const section = $("soiree"), z = $("soiree-carte");
+    const s = infosSoiree();
+    if (!section || !z) return;
+    section.hidden = !s || !document.documentElement.classList.contains("v4");
+    const pastille = $("pastille-soiree");
+    if (pastille) pastille.hidden = s?.phase !== "en-cours";
+    if (!s || section.hidden) return;
+    // connecté : on demande une fois au bot si on est inscrit (et ses points)
+    if (moi?.connecte && !soireeDemandee && s.phase !== "bientot") { soireeDemandee = true; agirSoiree("soiree"); }
+    const drapeau = (id) => el("div", { class: `soiree-commu commu-${id}` },
+      el("img", { src: `/img/flotte/${id}.webp`, alt: "", width: 96, height: 96, loading: "lazy", decoding: "async" }),
+      el("b", { text: SOIREE_NOMS[id] || id }));
+    const vs = el("div", { class: "soiree-vs" }, (s.commus || []).flatMap((id, k) => [k ? el("span", { class: "soiree-vs-mot", "aria-hidden": "true", text: "VS" }) : null, drapeau(id)]));
+    const bloc = [];
+    if (s.phase === "bientot" || s.phase === "inscriptions") {
+      bloc.push(el("p", { class: "soiree-quand" }, "Mardi 19 janvier · 20 h 45 → 1 h · ", el("b", { text: s.phase === "bientot" ? `inscriptions dans ${dureeCourte(s.inscriptions)}` : `dans ${dureeCourte(s.debut)}` })));
+    }
+    bloc.push(inscriptionSoiree(s));
+    if (soireeMessage) bloc.push(el("p", { class: soireeMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: soireeMessage.texte }));
+    vider(z, vs, ...bloc);
+  }
+  // l'inscription : connecté avec Discord, on donne son pseudo Epic (le sien) ; la commu, c'est celle de son Discord
+  function inscriptionSoiree(s) {
+    const ouverte = s.phase === "inscriptions" || s.phase === "en-cours";
+    if (!ouverte) return s.phase === "bientot" ? el("p", { class: "note", text: "Les inscriptions ouvrent le 22 décembre à 21 h 30." }) : null;
+    if (!moi?.connecte) return el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter pour s'inscrire" });
+    if (s.moi) {
+      return el("div", { class: "soiree-moi" },
+        el("p", {}, "✅ Inscrit pour ", el("b", { text: SOIREE_NOMS[s.moi.commu] || s.moi.commu }), ` avec ton pseudo Epic `, el("b", { text: s.moi.epic }), "."),
+        s.phase === "en-cours" ? el("p", { class: "soiree-mes-points", text: `Tes points ce soir : ${nombre(s.moi.points?.total || 0)}` }) : null,
+        s.phase === "inscriptions" ? el("button", { class: "lien-discret", type: "button", disabled: soireeOccupee, onclick: () => agirSoiree("soiree-desinscrire"), text: "Me désinscrire" }) : null);
+    }
+    const champ = el("input", { type: "text", id: "soiree-epic", maxlength: 16, autocomplete: "off", spellcheck: "false", placeholder: "Ton pseudo Epic", "aria-label": "Ton pseudo Epic (Fortnite)" });
+    const envoyer = (e) => { e.preventDefault(); if (champ.value.trim()) agirSoiree("soiree-inscrire", { epic: champ.value }); };
+    return el("form", { class: "soiree-inscription", onsubmit: envoyer },
+      champ, el("button", { class: "btn btn-plein", type: "submit", disabled: soireeOccupee, text: "Je m'inscris" }),
+      el("p", { class: "note", text: "Tes stats Fortnite doivent être publiques (dans Fortnite : Réglages > Compte et confidentialité). Tu joues pour la commu de ton Discord." }));
+  }
+  async function agirSoiree(action, extra = {}) {
+    if (soireeOccupee) return;
+    soireeOccupee = true;
+    soireeMessage = null;
+    rendreSoiree();
+    let d = {};
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      d = await r.json().catch(() => ({}));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+    } catch { d = { erreur: "reseau", texte: "Impossible de joindre le bot. Vérifie ta connexion." }; }
+    soireeOccupee = false;
+    if (d.soiree) maSoiree = d.soiree;
+    if (d.erreur) soireeMessage = { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
+    else if (action === "soiree-inscrire" && d.ok) soireeMessage = { texte: "C'est noté ! Rendez-vous le 19 janvier à 20 h 45." };
+    else if (action === "soiree-desinscrire" && d.ok) soireeMessage = { texte: "Tu n'es plus inscrit." };
+    rendreSoiree();
   }
   async function demanderFideles(action) {
     try {

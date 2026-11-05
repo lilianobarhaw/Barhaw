@@ -3399,3 +3399,18 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 @keyframes caritatif-fondu { from { opacity: 0; } }
 @keyframes caritatif-pop { 0% { opacity: 0; transform: translateY(26px) scale(0.92); } 100% { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .caritatif-coeurs { display: none; } .caritatif-doudou, .caritatif-doudou.grand, .caritatif-carte, .caritatif-intro { animation: none; } .caritatif-intro { transition: none; } }
+
+/* ---------- la VF 1.0 : la Soirée Fortnite des commus ---------- */
+.soiree { display: grid; gap: 18px; justify-items: center; text-align: center; }
+.soiree-vs { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: clamp(8px, 2vw, 22px); }
+.soiree-commu { display: grid; justify-items: center; gap: 6px; }
+.soiree-commu img { width: clamp(64px, 14vw, 104px); height: auto; border: 3px solid var(--encre); border-radius: 16px; box-shadow: 4px 4px 0 var(--ombre); background: var(--nuit); }
+.soiree-commu b { font-family: var(--fort); font-size: 15px; }
+.soiree-vs-mot { font-family: var(--titre); font-size: clamp(22px, 4vw, 36px); color: var(--rose); -webkit-text-stroke: 1.5px var(--encre); paint-order: stroke fill; }
+.soiree-quand { margin: 0; font-family: var(--fort); font-weight: 800; }
+.soiree-inscription { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 520px; }
+.soiree-inscription input { flex: 1 1 200px; min-width: 0; height: 46px; padding: 0 14px; border-radius: 12px; border: 2px solid var(--ligne); background: var(--nuit); color: var(--blanc); font: inherit; }
+.soiree-inscription input:focus { outline: none; border-color: var(--rose); }
+.soiree-inscription .note { flex-basis: 100%; margin: 0; }
+.soiree-moi p { margin: 4px 0; }
+.soiree-mes-points { font-family: var(--titre); font-size: 22px; color: var(--rose); }
