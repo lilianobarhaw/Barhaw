@@ -344,6 +344,7 @@
     "pas-cle": ["Valorant des potes ouvre très bientôt : rien n'a été enregistré, reviens dans un moment.", true],
     "riot-id": ["Le compte Riot de ton Discord n'a pas de Riot ID lisible. Reconnecte-le dans Discord, puis recommence.", true],
     annule: ["Liaison annulée : rien n'a été enregistré.", true],
+    "pas-acces": ["Discord n'a pas donné l'accès à tes comptes connectés. Recommence et clique « Autoriser » sur la page de Discord.", true],
     accord: ["Coche la case d'accord avant de relier ton compte.", true],
     escale: ["Le bot fait une petite pause. Réessaie dans quelques minutes.", true],
   };
