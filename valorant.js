@@ -47,6 +47,13 @@
     const h = Math.floor((reste % 1440) / 60);
     return j ? `Fin dans ${j} j ${h} h` : `Fin dans ${h} h ${String(reste % 60).padStart(2, "0")}`;
   }
+  const SERVICES = {
+    riotgames: "Riot Games", leagueoflegends: "League of Legends", crunchyroll: "Crunchyroll", spotify: "Spotify", twitch: "Twitch", xbox: "Xbox",
+    youtube: "YouTube", steam: "Steam", playstation: "PlayStation", battlenet: "Battle.net", epicgames: "Epic Games", github: "GitHub", reddit: "Reddit",
+    twitter: "X", tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook", roblox: "Roblox", bungie: "Bungie.net", "amazon-music": "Amazon Music",
+    domain: "un nom de domaine", ebay: "eBay", paypal: "PayPal", bluesky: "Bluesky", mastodon: "Mastodon", skype: "Skype", samsung: "Samsung",
+  };
+  const nomService = (t) => SERVICES[t] || t;
   const resultat = (g) => (g.victoire === true ? "Victoire" : g.victoire === false ? "Défaite" : "Match nul");
 
   let donnees = null; // ce que le bot montre à tout le monde (donnees.valorant)
@@ -211,6 +218,12 @@
 
   // ---------- ton compte ----------
   const tete = (titre, ...plus) => el("div", { class: "fp-tete" }, el("h3", { text: titre }), ...plus);
+  // le message du retour de Discord (et, s'il y en a, ce qu'il faut vérifier)
+  const blocMessage = () => (message
+    ? el("div", { class: `fm-message${message.erreur ? " erreur" : ""}`, role: message.erreur ? "alert" : "status" },
+      el("p", { text: message.texte }),
+      message.details?.length ? el("ul", { class: "va-verifier" }, message.details.map((d) => el("li", { text: d }))) : null)
+    : null);
   function relier() {
     const bouton = el("a", { class: "btn btn-plein", href: "/api/auth/login?valorant=1&accord=1", "aria-disabled": "true", tabindex: "-1", text: "Relier avec Discord" });
     const caseAccord = el("input", { type: "checkbox", id: "va-accord", onchange: (e) => {
@@ -227,7 +240,7 @@
       ),
       el("div", { class: "fm-actions" }, bouton),
       el("p", { class: "va-aide" }, "Ton compte Riot doit être connecté à ton Discord : ", el("b", { text: "Paramètres Discord → Connexions → Riot Games" }), ". Aucun mot de passe ne passe par Barhaw."),
-      message ? el("p", { class: `fm-message${message.erreur ? " erreur" : ""}`, role: message.erreur ? "alert" : "status", text: message.texte }) : null,
+      blocMessage(),
     ];
   }
   function detailNote(g) {
@@ -279,7 +292,7 @@
           detailNote(g),
         )))
         : el("p", { class: "note fm-attente", text: "Lance une compétition, une non classée ou une Swiftplay : elle apparaît ici 5 à 15 minutes après la fin, avec sa note. Touche une game pour voir pourquoi elle a cette note." }),
-      message ? el("p", { class: `fm-message${message.erreur ? " erreur" : ""}`, role: message.erreur ? "alert" : "status", text: message.texte }) : null,
+      blocMessage(),
       confirmer
         ? el("div", { class: "fm-confirmer", role: "group", "aria-label": "Retirer ton compte VALORANT" },
           el("p", { text: "Retirer ton compte efface tes games et tes points. Sûr ?" }),
@@ -336,7 +349,7 @@
   // le retour de Discord : ?liaison=…
   const LIAISONS = {
     ok: ["C'est relié ! Tes prochaines games compteront, 5 à 15 minutes après leur fin.", false],
-    "pas-riot": ["Aucun compte Riot vérifié n'est connecté à ton Discord. Dans Discord : Paramètres → Connexions → Riot Games, puis recommence.", true],
+    "pas-riot": ["Discord n'a montré aucun compte Riot Games à Barhaw : rien n'a été relié.", true],
     introuvable: ["Ce compte Riot n'a pas encore de profil VALORANT. Lance une partie, puis recommence.", true],
     pris: ["Ce compte VALORANT est déjà relié à un autre membre du Discord.", true],
     deja: ["Un autre compte VALORANT est déjà relié. Retire-le d'abord pour en mettre un autre.", true],
@@ -352,9 +365,23 @@
     const u = new URL(location.href);
     const l = u.searchParams.get("liaison");
     if (!l) return;
-    const [texte, erreur] = LIAISONS[l] || ["Les données VALORANT ne répondent pas pour l'instant. Réessaie dans un moment.", true];
-    message = { texte, erreur };
-    u.searchParams.delete("liaison");
+    let [texte, erreur] = LIAISONS[l] || ["Les données VALORANT ne répondent pas pour l'instant. Réessaie dans un moment.", true];
+    let details = [];
+    // pas de Riot : le compte Discord utilisé et ce que Discord a montré, pour voir tout de suite ce qui cloche
+    if (l === "pas-riot") {
+      const compte = (u.searchParams.get("compte") || "").slice(0, 40);
+      const vus = (u.searchParams.get("vus") || "").split(",").filter((t) => /^[a-z0-9-]{2,24}$/.test(t) && t !== "aucune");
+      const riotLa = vus.includes("riotgames") || vus.includes("leagueoflegends");
+      if (riotLa) texte = `Discord a montré une connexion Riot${compte ? ` sur ton compte « ${compte} »` : ""}, mais elle est révoquée ou sans Riot ID : rien n'a été relié. Dans Discord → Paramètres → Connexions, retire Riot Games puis reconnecte-le.`;
+      else if (compte) texte = `Discord a montré à Barhaw ton compte « ${compte} » ${vus.length ? `avec ${vus.length > 1 ? "ces connexions" : "cette connexion"} : ${vus.map(nomService).join(", ")}` : "sans aucune connexion"}. Riot Games n'y est pas : rien n'a été relié.`;
+      details = [
+        "Ce n'est pas ton compte ? Sur la page d'autorisation de Discord, change de compte (en haut), puis recommence.",
+        "Dans Discord → Paramètres → Connexions, Riot Games doit apparaître avec ton Riot ID, sur ce même compte. Sinon, ajoute-le là (icône Riot Games).",
+        "Riot Games y est déjà ? Active « Afficher sur le profil » sur cette connexion, puis recommence. Toujours rien : retire-la et reconnecte-la.",
+      ];
+    }
+    message = { texte, erreur, details };
+    for (const p of ["liaison", "compte", "vus"]) u.searchParams.delete(p);
     history.replaceState(null, "", u.pathname + u.search + u.hash);
   }
 

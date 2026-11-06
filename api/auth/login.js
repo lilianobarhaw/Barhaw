@@ -24,7 +24,7 @@ export function GET(req) {
     state,
     prompt: valorant ? "consent" : "none",
   });
-  const h = new Headers({ Location: "https://discord.com/oauth2/authorize?" + params });
+  const h = new Headers({ Location: "https://discord.com/oauth2/authorize?" + params, "Cache-Control": "no-store" });
   h.append("Set-Cookie", cookie("barhaw_state", state, 600));
   h.append("Set-Cookie", cookie("barhaw_flux", valorant ? "valorant" : "", valorant ? 600 : 0));
   return new Response(null, { status: 302, headers: h });

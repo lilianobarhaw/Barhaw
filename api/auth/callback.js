@@ -6,12 +6,19 @@ import { API_DISCORD, env, lireCookies, cookie, creerSession, COOKIE_SESSION } f
 import { demanderBot } from "../../lib/bot.js";
 
 function retour(suffixe = "", ancre = "#chopper") {
-  const h = new Headers({ Location: env("SITE_URL") + "/" + suffixe + ancre });
+  const h = new Headers({ Location: env("SITE_URL") + "/" + suffixe + ancre, "Cache-Control": "no-store" });
   h.append("Set-Cookie", cookie("barhaw_state", "", 0));
   h.append("Set-Cookie", cookie("barhaw_flux", "", 0));
   return h;
 }
-const retourValorant = (code) => retour(`valorant?liaison=${/^[a-z-]{2,20}$/.test(code) ? code : "erreur"}`, "#va-moi");
+// le résultat de la liaison ; pour « pas-riot », le pseudo du compte Discord utilisé et les sortes de connexions que Discord
+// a montrées (jamais leurs noms) : le membre voit tout de suite si c'est le bon compte et ce qui manque
+function retourValorant(code, { compte = "", vus = null } = {}) {
+  const q = new URLSearchParams({ liaison: /^[a-z-]{2,20}$/.test(code) ? code : "erreur" });
+  if (compte) q.set("compte", compte.replace(/[\u0000-\u001f]/g, "").slice(0, 40));
+  if (vus) q.set("vus", vus.filter((t) => /^[a-z0-9-]{2,24}$/.test(t)).slice(0, 30).join(",") || "aucune");
+  return retour(`valorant?${q}`, "#va-moi");
+}
 
 export async function GET(req) {
   const u = new URL(req.url);
@@ -42,7 +49,10 @@ export async function GET(req) {
 
   const s = await creerSession({ id: String(c.id), nom: c.global_name || c.username, avatar: c.avatar || "" });
   let h;
-  if (valorant) h = retourValorant(await lierValorant(String(c.id), acces, String(scope)));
+  if (valorant) {
+    const r = await lierValorant(String(c.id), acces, String(scope), c.username || "");
+    h = retourValorant(r.code, r.code === "pas-riot" ? { compte: c.global_name || c.username || "", vus: r.vus } : {});
+  }
   else h = retour();
   h.append("Set-Cookie", cookie(COOKIE_SESSION, s.valeur, s.maxAge));
   return new Response(null, { status: 302, headers: h });
@@ -57,21 +67,30 @@ function choisirRiot(liste) {
   const lol = liste.filter((x) => ok(x) && x.type === "leagueoflegends" && x.name.includes("#"));
   return [...riot.filter((x) => x.verified === true), ...riot, ...lol][0] || null;
 }
-async function lierValorant(id, acces, scope) {
+// Une ligne de journal Vercel par liaison, pour comprendre un échec. Jamais de jeton : seulement le pseudo Discord du
+// compte qui a autorisé, les droits que Discord a donnés (scope), le code HTTP, et pour chaque connexion sa sorte et son
+// état (visible sur le profil ou non, vérifiée, révoquée, liée dans les deux sens). Jamais le nom ni l'identifiant d'une
+// connexion. Vercel garde ces lignes une heure.
+function journal({ pseudo, scope, http, liste, resultat }) {
+  const etat = (x) => `${String(x?.type || "?")}[${x?.visibility === 1 ? "visible" : x?.visibility === 0 ? "cachée" : "visibilité ?"}${x?.verified === true ? ",vérifiée" : x?.verified === false ? ",non vérifiée" : ""}${x?.revoked ? ",révoquée" : ""}${x?.two_way_link ? ",liée" : ""}]`;
+  const l = http === "–" ? "connexions non demandées" : Array.isArray(liste) ? (liste.length ? `${liste.length} connexion${liste.length > 1 ? "s" : ""} : ${liste.map(etat).join(", ")}` : "aucune connexion") : "liste illisible";
+  console.log(`[valorant] liaison · compte Discord « ${pseudo} » · scope « ${scope} » · HTTP ${http} · ${l} · résultat ${resultat}`);
+}
+async function lierValorant(id, acces, scope, pseudo) {
   let resultat = "erreur";
+  let http = "–";
+  let liste = null;
   try {
     // Discord n'a pas donné l'accès aux comptes connectés (autorisation refusée ou incomplète)
-    if (!scope.split(" ").includes("connections")) { console.warn("[valorant] liaison : accès aux connexions Discord non accordé"); return "pas-acces"; }
-    const r = await fetch(API_DISCORD + "/users/@me/connections", { headers: { Authorization: "Bearer " + acces } }).catch(() => null);
+    if (!scope.split(" ").includes("connections")) return { code: (resultat = "pas-acces") };
+    const r = await fetch(API_DISCORD + "/users/@me/connections", { headers: { Authorization: "Bearer " + acces }, cache: "no-store" }).catch(() => null);
+    http = r ? String(r.status) : "pas de réponse";
     const brut = r?.ok ? await r.json().catch(() => undefined) : undefined;
-    const liste = brut === null ? [] : brut; // Discord répond « null » quand il n'y a aucune connexion
-    if (!Array.isArray(liste)) { console.warn(`[valorant] liaison : connexions Discord illisibles (HTTP ${r?.status ?? "pas de réponse"})`); return "erreur"; }
+    liste = brut === null ? [] : brut; // Discord répond « null » quand il n'y a aucune connexion
+    if (!Array.isArray(liste)) return { code: (resultat = "erreur") };
     const riot = choisirRiot(liste);
-    // pour comprendre un échec, sans rien noter de personnel : seulement les sortes de connexions, et l'état de celle de Riot
-    const types = liste.map((x) => String(x?.type || "?")).join(", ") || "aucune";
-    const r0 = liste.find((x) => x?.type === "riotgames");
-    console.log(`[valorant] liaison : connexions = ${types}${r0 ? ` ; riotgames verified=${r0.verified} revoked=${r0.revoked} riot-id=${String(r0.name || "").includes("#") ? "oui" : "non"}` : ""}`);
-    if (!riot) return "pas-riot";
+    // Discord n'a pas montré de compte Riot : on le dit clairement, avec ce qu'il a montré
+    if (!riot) return { code: (resultat = "pas-riot"), vus: liste.map((x) => String(x?.type || "")) };
     try {
       const b = await demanderBot("/chopper", {
         methode: "POST",
@@ -87,8 +106,9 @@ async function lierValorant(id, acces, scope) {
     } catch {
       resultat = "escale"; // le bot fait une pause
     }
-    return resultat;
+    return { code: resultat };
   } finally {
+    journal({ pseudo, scope, http, liste, resultat });
     // rien n'est gardé côté Discord : l'accès (pseudo + comptes connectés) est rendu tout de suite
     await fetch(API_DISCORD + "/oauth2/token/revoke", {
       method: "POST",
