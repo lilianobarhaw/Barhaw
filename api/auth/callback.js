@@ -34,7 +34,7 @@ export async function GET(req) {
     }),
   }).catch(() => null);
   if (!jeton?.ok) return rate();
-  const { access_token: acces } = await jeton.json();
+  const { access_token: acces, scope = "" } = await jeton.json();
 
   const compte = await fetch(API_DISCORD + "/users/@me", { headers: { Authorization: "Bearer " + acces } }).catch(() => null);
   if (!compte?.ok) return rate();
@@ -42,20 +42,35 @@ export async function GET(req) {
 
   const s = await creerSession({ id: String(c.id), nom: c.global_name || c.username, avatar: c.avatar || "" });
   let h;
-  if (valorant) h = retourValorant(await lierValorant(String(c.id), acces));
+  if (valorant) h = retourValorant(await lierValorant(String(c.id), acces, String(scope)));
   else h = retour();
   h.append("Set-Cookie", cookie(COOKIE_SESSION, s.valeur, s.maxAge));
   return new Response(null, { status: 302, headers: h });
 }
 
 // le compte Riot connecté au Discord du membre → le bot ; l'accès Discord est rendu juste après, quoi qu'il arrive
-async function lierValorant(id, acces) {
+// La connexion « Riot Games » ne s'ajoute dans Discord qu'en se connectant chez Riot : elle prouve le compte, même quand
+// Discord ne la marque pas « verified ». Les anciennes connexions « League of Legends » sont prises si elles ont un Riot ID.
+function choisirRiot(liste) {
+  const ok = (x) => x && typeof x === "object" && x.revoked !== true && typeof x.name === "string" && x.name.trim();
+  const riot = liste.filter((x) => ok(x) && x.type === "riotgames");
+  const lol = liste.filter((x) => ok(x) && x.type === "leagueoflegends" && x.name.includes("#"));
+  return [...riot.filter((x) => x.verified === true), ...riot, ...lol][0] || null;
+}
+async function lierValorant(id, acces, scope) {
   let resultat = "erreur";
   try {
+    // Discord n'a pas donné l'accès aux comptes connectés (autorisation refusée ou incomplète)
+    if (!scope.split(" ").includes("connections")) { console.warn("[valorant] liaison : accès aux connexions Discord non accordé"); return "pas-acces"; }
     const r = await fetch(API_DISCORD + "/users/@me/connections", { headers: { Authorization: "Bearer " + acces } }).catch(() => null);
-    const liste = r?.ok ? await r.json().catch(() => null) : null;
-    if (!Array.isArray(liste)) return "erreur";
-    const riot = liste.find((x) => x?.type === "riotgames" && x.verified === true && x.revoked !== true);
+    const brut = r?.ok ? await r.json().catch(() => undefined) : undefined;
+    const liste = brut === null ? [] : brut; // Discord répond « null » quand il n'y a aucune connexion
+    if (!Array.isArray(liste)) { console.warn(`[valorant] liaison : connexions Discord illisibles (HTTP ${r?.status ?? "pas de réponse"})`); return "erreur"; }
+    const riot = choisirRiot(liste);
+    // pour comprendre un échec, sans rien noter de personnel : seulement les sortes de connexions, et l'état de celle de Riot
+    const types = liste.map((x) => String(x?.type || "?")).join(", ") || "aucune";
+    const r0 = liste.find((x) => x?.type === "riotgames");
+    console.log(`[valorant] liaison : connexions = ${types}${r0 ? ` ; riotgames verified=${r0.verified} revoked=${r0.revoked} riot-id=${String(r0.name || "").includes("#") ? "oui" : "non"}` : ""}`);
     if (!riot) return "pas-riot";
     try {
       const b = await demanderBot("/chopper", {
