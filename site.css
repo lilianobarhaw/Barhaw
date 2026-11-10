@@ -3445,3 +3445,55 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 @keyframes caritatif-fondu { from { opacity: 0; } }
 @keyframes caritatif-pop { 0% { opacity: 0; transform: translateY(26px) scale(0.92); } 100% { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .caritatif-coeurs { display: none; } .caritatif-doudou, .caritatif-doudou.grand, .caritatif-carte, .caritatif-intro { animation: none; } .caritatif-intro { transition: none; } }
+
+/* ---------- la VF 1.0 : la Soirée Fortnite des commus ---------- */
+.soiree { display: grid; gap: 18px; justify-items: center; text-align: center; }
+.soiree-vs { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: clamp(8px, 2vw, 22px); }
+.soiree-commu { display: grid; justify-items: center; gap: 6px; }
+.soiree-commu img { width: clamp(64px, 14vw, 104px); height: auto; border: 3px solid var(--encre); border-radius: 16px; box-shadow: 4px 4px 0 var(--ombre); background: var(--nuit); }
+.soiree-commu b { font-family: var(--fort); font-size: 15px; }
+.soiree-vs-mot { font-family: var(--titre); font-size: clamp(22px, 4vw, 36px); color: var(--rose); -webkit-text-stroke: 1.5px var(--encre); paint-order: stroke fill; }
+.soiree-quand { margin: 0; font-family: var(--fort); font-weight: 800; }
+.soiree-inscription { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 520px; }
+.soiree-inscription input { flex: 1 1 200px; min-width: 0; height: 46px; padding: 0 14px; border-radius: 12px; border: 2px solid var(--ligne); background: var(--nuit); color: var(--blanc); font: inherit; }
+.soiree-inscription input:focus { outline: none; border-color: var(--rose); }
+.soiree-inscription .note { flex-basis: 100%; margin: 0; }
+.soiree-moi p { margin: 4px 0; }
+.soiree-mes-points { font-family: var(--titre); font-size: 22px; color: var(--rose); }
+/* le soir même : le score des commus, leurs lives ; puis le comptage et le podium */
+.soiree-direct { display: inline-flex; align-items: center; gap: 8px; }
+.soiree-point { width: 10px; height: 10px; border-radius: 50%; background: #ff3b5c; box-shadow: 0 0 0 3px rgba(255, 59, 92, 0.25); }
+.soiree-direct .soiree-point, .soiree-live.allume .soiree-point { animation: soiree-pulse 1.4s ease-in-out infinite; }
+@keyframes soiree-pulse { 50% { box-shadow: 0 0 0 7px rgba(255, 59, 92, 0); } }
+.soiree-scores, .soiree-lives { width: min(100%, 620px); display: grid; gap: 10px; text-align: left; }
+.soiree-scores-titre { margin: 0; color: var(--terne); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
+.soiree-liste { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.soiree-score { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "img nom pts" "barre barre barre"; gap: 6px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--verre); }
+.soiree-score.en-tete { border-color: var(--rose); box-shadow: 4px 4px 0 var(--ombre); }
+.soiree-score img { grid-area: img; width: 40px; height: 40px; border-radius: 10px; border: 2px solid var(--encre); background: var(--nuit); }
+.soiree-score-nom { grid-area: nom; display: grid; min-width: 0; }
+.soiree-score-nom b { font-family: var(--fort); font-size: 15px; }
+.soiree-score-nom small { color: var(--terne); font-size: 12px; }
+.soiree-points { grid-area: pts; font-family: var(--titre); font-size: 18px; color: var(--rose); }
+.soiree-barre { grid-area: barre; height: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.soiree-barre i { display: block; height: 100%; min-width: 4px; border-radius: 10px; background: var(--degrade); transition: width 0.8s ease; }
+.soiree-lives ul { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0; padding: 0; list-style: none; }
+.soiree-live { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 2px solid var(--ligne); color: var(--blanc); text-decoration: none; }
+.soiree-live:not(.allume) .soiree-point { background: #6b5a70; box-shadow: none; }
+.soiree-live small { color: var(--terne); }
+.soiree-live:hover, .soiree-live:focus-visible { border-color: var(--rose); }
+.soiree-comptage { display: grid; gap: 4px; padding: 12px 16px; border-radius: 14px; border: 2px dashed var(--ligne); }
+.soiree-comptage p { margin: 0; }
+.soiree-podium-bloc { display: grid; gap: 12px; justify-items: center; }
+.soiree-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 150px)); align-items: end; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.soiree-marche { position: relative; display: grid; justify-items: center; gap: 4px; }
+.soiree-marche img { width: clamp(52px, 14vw, 88px); height: auto; border: 3px solid var(--encre); border-radius: 16px; background: var(--nuit); }
+.soiree-marche.place-1 img { width: clamp(68px, 18vw, 110px); }
+.soiree-marche b { font-family: var(--fort); font-size: 14px; }
+.soiree-marche .fp-couronne { position: static; inset: auto; transform: none; translate: none; font-size: 26px; line-height: 1; }
+.soiree-podium { margin-top: 6px; }
+.soiree-socle { display: grid; place-items: center; width: 100%; border: 3px solid var(--encre); border-radius: 12px 12px 0 0; background: var(--verre); font-family: var(--titre); font-size: 24px; }
+.soiree-marche.place-1 .soiree-socle { height: 90px; background: var(--degrade); }
+.soiree-marche.place-2 .soiree-socle { height: 64px; }
+.soiree-marche.place-3 .soiree-socle { height: 46px; }
+@media (prefers-reduced-motion: reduce) { .soiree-direct .soiree-point, .soiree-live.allume .soiree-point { animation: none; } .soiree-barre i { transition: none; } }
