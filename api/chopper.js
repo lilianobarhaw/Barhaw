@@ -13,6 +13,9 @@
 //        → la chasse : son avis de recherche WANTED (créer, retirer) et l'attaque du jour contre le boss de la semaine
 //   POST /api/chopper  { action: "faille" | "faille-lier" | "faille-verifier" | "faille-retirer", riotId }
 //        → La Faille des potes : relier son compte LoL (Riot ID puis icône de profil), le retirer, voir ses games notées
+//   POST /api/chopper  { action: "valorant" | "valorant-retirer" }
+//        → Valorant des potes : ses games notées, son Riot ID (à lui seul), retirer son compte. La liaison ne passe pas
+//          par ici : elle se fait par la connexion Discord (api/auth/login.js?valorant=1), côté serveur seulement.
 //   POST /api/chopper  { action: "grandline" | "grandline-voter" | "grandline-bouteille", choix }
 //        → GRAND LINE : ce que le membre a ramé, son vote au carrefour (choix : l'île), ouvrir la bouteille à la mer
 //   POST /api/chopper  { action: "flotte" | "flotte-choisir", commu }
@@ -26,7 +29,7 @@ import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "soiree", "soiree-inscrire", "soiree-desinscrire"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "soiree", "soiree-inscrire", "soiree-desinscrire", "valorant", "valorant-retirer"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course", "traversee"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
