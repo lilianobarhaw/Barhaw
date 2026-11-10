@@ -7563,7 +7563,9 @@
   // commus en direct. Après : le podium. Jamais le pseudo d'un autre joueur : seulement les commus, et ses propres points.
   const SOIREE_NOMS = { barhaw: "Barhaw", veyzo: "Veyzo Family", kikso: "Squirt.exe" };
   let maSoiree = null, soireeOccupee = false, soireeMessage = null, soireeDemandee = false;
-  const infosSoiree = () => (maSoiree ? { ...donnees?.soiree, ...maSoiree } : donnees?.soiree) || null;
+  // les données publiques (phase, score) viennent toujours de /api/public ; la réponse du bot pour le membre ne sert que pour
+  // « moi » (sinon une page ouverte avant la soirée resterait bloquée sur l'ancienne phase)
+  const infosSoiree = () => (donnees?.soiree ? { ...donnees.soiree, moi: maSoiree ? maSoiree.moi : donnees.soiree.moi } : null);
   function rendreSoiree() {
     const section = $("soiree"), z = $("soiree-carte");
     const s = infosSoiree();
@@ -7573,7 +7575,8 @@
     if (pastille) pastille.hidden = s?.phase !== "en-cours";
     if (!s || section.hidden) return;
     // connecté : on demande une fois au bot si on est inscrit (et ses points)
-    if (moi?.connecte && !soireeDemandee && s.phase !== "bientot") { soireeDemandee = true; agirSoiree("soiree"); }
+    // (et toutes les 5 minutes pendant la soirée, pour ses points)
+    if (moi?.connecte && s.phase !== "bientot" && (!soireeDemandee || (s.phase === "en-cours" && Date.now() - soireeDemandee > 300_000))) { soireeDemandee = Date.now(); agirSoiree("soiree"); }
     const drapeau = (id) => el("div", { class: `soiree-commu commu-${id}` },
       el("img", { src: `/img/flotte/${id}.webp`, alt: "", width: 96, height: 96, loading: "lazy", decoding: "async" }),
       el("b", { text: SOIREE_NOMS[id] || id }));
@@ -7582,9 +7585,63 @@
     if (s.phase === "bientot" || s.phase === "inscriptions") {
       bloc.push(el("p", { class: "soiree-quand" }, "Vendredi 22 janvier · 20 h 45 → minuit · ", el("b", { text: s.phase === "bientot" ? `inscriptions dans ${dureeCourte(s.inscriptions)}` : `dans ${dureeCourte(s.debut)}` })));
     }
+    // le soir même : le score des commus (photo des stats toutes les 15 min) et leurs lives
+    if (s.phase === "en-cours") {
+      bloc.push(el("p", { class: "soiree-quand soiree-direct" }, el("span", { class: "soiree-point", "aria-hidden": "true" }), "C'est parti ! ", el("b", { text: `Fin dans ${dureeCourte(s.fin)}` })));
+      bloc.push(scoresSoiree(s, "Le score en direct, mis à jour toutes les 15 minutes"));
+      bloc.push(livesSoiree(s));
+    }
+    // minuit → 0 h 30 : les parties en cours finissent, dernier calcul à 0 h 20, résultat à 0 h 30
+    if (s.phase === "comptage") {
+      bloc.push(el("div", { class: "soiree-comptage", role: "status" },
+        el("p", { class: "soiree-quand" }, "Minuit est passé : les parties en cours se terminent."),
+        el("p", {}, "Dernier calcul à 0 h 20, ", el("b", { text: Date.now() < s.resultat ? `résultat ici dans ${dureeCourte(s.resultat)} (à 0 h 30)` : "résultat dans un instant" }), ".")));
+      bloc.push(scoresSoiree(s, "Le score provisoire"));
+    }
+    // après 0 h 30 : le podium des commus
+    if (s.phase === "fini") bloc.push(podiumSoiree(s));
     bloc.push(inscriptionSoiree(s));
     if (soireeMessage) bloc.push(el("p", { class: soireeMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: soireeMessage.texte }));
     vider(z, vs, ...bloc);
+  }
+  // le score des commus : une barre chacune (les commus seulement, jamais les joueurs)
+  function scoresSoiree(s, titre) {
+    const c = s.classement || [];
+    const max = Math.max(1, ...c.map((x) => x.points));
+    return el("div", { class: "soiree-scores" },
+      el("p", { class: "soiree-scores-titre", text: titre }),
+      el("ol", { class: "soiree-liste", "aria-label": titre }, c.map((x, k) => el("li", { class: `soiree-score commu-${x.id}${k === 0 && x.points ? " en-tete" : ""}` },
+        el("img", { src: `/img/flotte/${x.id}.webp`, alt: "", width: 40, height: 40, loading: "lazy", decoding: "async" }),
+        el("span", { class: "soiree-score-nom" }, el("b", { text: SOIREE_NOMS[x.id] || x.id }), el("small", { text: `${pluriel(x.inscrits, "inscrit")}${x.squad ? ` · ${nombre(x.squad)} pts en squad` : ""}` })),
+        el("span", { class: "soiree-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round((x.points / max) * 100)}%` })),
+        el("b", { class: "soiree-points", text: `${nombre(x.points)} pts` })))));
+  }
+  // les lives des commus ce soir-là (les chaînes Twitch de la flotte)
+  function livesSoiree(s) {
+    const commus = donnees?.flotte?.commus || [];
+    const lives = (s.commus || []).map((id) => commus.find((c) => c.id === id)).filter((c) => c?.twitch);
+    if (!lives.length) return null;
+    return el("div", { class: "soiree-lives" },
+      el("p", { class: "soiree-scores-titre", text: "Les lives de la soirée" }),
+      el("ul", {}, lives.map((c) => el("li", {}, el("a", { class: `soiree-live${c.live ? " allume" : ""}`, href: `https://www.twitch.tv/${encodeURIComponent(c.twitch)}`, target: "_blank", rel: "noopener" },
+        el("span", { class: "soiree-point", "aria-hidden": "true" }),
+        el("b", { text: SOIREE_NOMS[c.id] || c.nom }),
+        el("small", { text: c.live ? "en live" : "pas encore en live" }))))));
+  }
+  // le podium : la commu gagnante au milieu, plus haut
+  function podiumSoiree(s) {
+    const p = (s.valide?.podium || s.classement || []).slice(0, 3);
+    if (!p.length) return null;
+    const marche = (x, place) => (x ? el("li", { class: `soiree-marche place-${place}` },
+      place === 1 ? el("span", { class: "fp-couronne", "aria-hidden": "true", text: "👑" }) : null,
+      el("img", { src: `/img/flotte/${x.id}.webp`, alt: "", width: 88, height: 88, loading: "lazy", decoding: "async" }),
+      el("b", { text: SOIREE_NOMS[x.id] || x.id }),
+      el("span", { text: `${nombre(x.points)} pts` }),
+      el("span", { class: "soiree-socle", text: String(place) })) : null);
+    return el("div", { class: "soiree-podium-bloc" },
+      el("p", { class: "soiree-quand" }, "La commu gagnante : ", el("b", { text: SOIREE_NOMS[p[0].id] || p[0].id }), " !"),
+      el("ol", { class: "soiree-podium", "aria-label": "Le podium des commus" }, marche(p[1], 2), marche(p[0], 1), marche(p[2], 3)),
+      el("p", { class: "note", text: "Merci à tous les joueurs ! Le classement compte les commus, pas les joueurs." }));
   }
   // l'inscription : connecté avec Discord, on donne son pseudo Epic (le sien) ; la commu, c'est celle de son Discord
   function inscriptionSoiree(s) {
