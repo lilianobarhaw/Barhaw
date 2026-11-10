@@ -1,5 +1,6 @@
 // Connexion avec Discord : envoie le visiteur sur la page d'autorisation de Discord (seulement son pseudo et son image).
 // ?sortir=1 : se déconnecter (l'adresse /api/auth/logout renvoie ici).
+// ?retour=valorant : revenir sur /valorant après la connexion (la page où l'on demande à relier son compte VALORANT).
 // ?valorant=1&accord=1 : relier son compte VALORANT (page /valorant), après avoir coché l'accord. Discord demande en plus
 //   de voir les « comptes connectés » du membre, une seule fois : le serveur du site y lit le compte Riot vérifié,
 //   l'envoie au bot, et oublie l'accès Discord tout de suite (voir callback.js). Le Riot ID ne passe jamais par la page.
@@ -26,6 +27,8 @@ export function GET(req) {
   });
   const h = new Headers({ Location: "https://discord.com/oauth2/authorize?" + params, "Cache-Control": "no-store" });
   h.append("Set-Cookie", cookie("barhaw_state", state, 600));
+  // ?retour=valorant : après la connexion, revenir sur la page /valorant (et pas sur l'onglet Chopper)
+  h.append("Set-Cookie", cookie("barhaw_retour", u.searchParams.get("retour") === "valorant" ? "valorant" : "", u.searchParams.get("retour") === "valorant" ? 600 : 0));
   h.append("Set-Cookie", cookie("barhaw_flux", valorant ? "valorant" : "", valorant ? 600 : 0));
   return new Response(null, { status: 302, headers: h });
 }
