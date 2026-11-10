@@ -77,6 +77,10 @@ section.va-partie { padding-top: clamp(56px, 7vw, 84px); }
 .va-detail small { color: var(--terne); }
 .va-detail .va-travail { grid-template-columns: 1fr; color: #ffe08a; }
 .fm-message p { margin: 0; }
+.va-riot { display: grid; gap: 6px; margin: 14px 0 6px; font-weight: 700; }
+.va-riot-champ { width: 100%; max-width: 340px; padding: 11px 14px; border-radius: 12px; border: 2px solid var(--ligne); background: rgba(255, 255, 255, 0.06); color: var(--blanc); font: inherit; font-weight: 600; }
+.va-riot-champ:focus-visible { outline: 3px solid var(--violet-clair); outline-offset: 2px; border-color: var(--rose); }
+.va-riot-champ::placeholder { color: var(--terne); }
 .va-verifier { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
 .va-etapes.va-etapes-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 30px; margin-top: 16px; }
 .va-etapes-2 .va-etape { padding: 38px 16px 16px; }
@@ -104,27 +108,27 @@ section.va-partie { padding-top: clamp(56px, 7vw, 84px); }
   <div class="entete-section">
     <p class="surtitre revele">VALORANT</p>
     <h1 class="titre-section revele">Valorant des <span class="degrade">potes.</span></h1>
-    <p class="sous revele">Le même défi que La Faille, pour VALORANT. Tu relies ton compte avec ton Discord. Chacune de tes games reçoit une note de S+ à D selon le rôle de ton agent, les 10 meilleures de la semaine comptent, et le podium tombe le lundi. C'est un défi entre potes, sans MMR et sans rang.</p>
+    <p class="sous revele">Le même défi que La Faille, pour VALORANT. Tu relies ton compte, un admin valide. Chacune de tes games reçoit une note de S+ à D selon le rôle de ton agent, les 10 meilleures de la semaine comptent, et le podium tombe le lundi. C'est un défi entre potes, sans MMR et sans rang.</p>
   </div>
 
   <!-- 1. ton compte : relier (avec l'accord), ta semaine, retirer -->
   <section class="va-partie" aria-labelledby="va-relier">
     <h2 id="va-relier">Ton compte</h2>
-    <p>Personne n'est dans le défi sans l'avoir voulu. Barhaw ne voit jamais ton mot de passe : Discord lui dit seulement quel compte Riot tu as connecté, et ton Riot ID n'est montré qu'à toi.</p>
+    <p>Personne n'est dans le défi sans l'avoir voulu. Barhaw ne voit jamais ton mot de passe, et ton Riot ID n'est montré qu'à toi (et à l'admin qui valide ta demande).</p>
     <div class="va-compte">
       <div class="carte faille-moi revele" id="va-moi" aria-live="polite"><p class="note">Chargement…</p></div>
       <ol class="va-etapes va-etapes-2 revele" aria-label="Comment relier ton compte">
         <li class="carte va-etape">
-          <h3>Ton Riot sur ton Discord</h3>
-          <p>Dans Discord : <b>Paramètres → Connexions → Riot Games</b>. Une fois, c'est fait pour toujours.</p>
+          <h3>Connecte-toi avec Discord</h3>
+          <p>C'est ton pseudo Discord qui apparaîtra dans le défi, jamais ton Riot ID.</p>
         </li>
         <li class="carte va-etape">
-          <h3>Tu coches l'accord</h3>
-          <p>Tes games VALORANT seront lues et affichées avec ton pseudo Discord, sur le site et le Discord Barhaw.</p>
+          <h3>L'accord et ton Riot ID</h3>
+          <p>Tu coches la case, tu tapes ton Riot ID avec le # (<b>Pseudo#EUW</b>), et tu envoies.</p>
         </li>
         <li class="carte va-etape">
-          <h3>« Relier avec Discord »</h3>
-          <p>Discord te demande d'autoriser Barhaw à voir tes comptes connectés. Le site y lit ton compte Riot vérifié, puis rend l'accès tout de suite.</p>
+          <h3>Un admin valide</h3>
+          <p>Il reçoit ta demande sur Discord et l'accepte s'il sait que c'est bien ton compte. Personne ne peut relier le compte d'un autre.</p>
         </li>
         <li class="carte va-etape">
           <h3>C'est relié</h3>
@@ -179,11 +183,11 @@ section.va-partie { padding-top: clamp(56px, 7vw, 84px); }
       <div class="carte revele">
         <h3>Ce que Barhaw garde</h3>
         <ul>
-          <li>Ton pseudo Discord et le lien avec ton compte Riot, seulement si tu l'as relié toi-même.</li>
+          <li>Ton pseudo Discord et le lien avec ton compte Riot, seulement si tu l'as demandé toi-même et qu'un admin l'a validé.</li>
           <li>Pour chacune de tes games des deux dernières semaines : l'agent, la map, le score, ton K/D/A et les quelques stats qui donnent la note.</li>
           <li><strong>« Retirer mon compte »</strong> efface tout, tout de suite.</li>
           <li>Sur le site et le Discord, tu apparais avec ton pseudo Discord. Ton Riot ID n'est montré qu'à toi.</li>
-          <li>L'accès à Discord sert une seule fois, pour lire ton compte Riot, puis il est rendu.</li>
+          <li>Une demande pas encore validée disparaît au bout de 7 jours ; tu peux l'annuler avant.</li>
         </ul>
       </div>
       <div class="carte revele">
