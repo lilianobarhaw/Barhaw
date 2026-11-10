@@ -547,17 +547,53 @@ const TYPES_GLB = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: U
 const MAX_GLB = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
 const COMPOSANTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
 
-async function lireGLB(url) {
+// Chaque .glb a sa version compressée à côté (<nom>.glbz, outils/blender/compresser_glb.py : environ 4 fois plus légère,
+// sans perte). Le navigateur qui sait décompresser (DecompressionStream) la prend ; les autres lisent le .glb.
+const TYPES_FILTRE = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array };
+async function telechargerGLB(url) {
+  if (typeof DecompressionStream === "function" && /\.glb$/.test(url)) {
+    try {
+      const r = await fetch(`${url}z`);
+      if (r.ok && r.body) return await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+    } catch {}
+  }
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} : ${r.status}`);
-  const buf = await r.arrayBuffer();
+  return r.arrayBuffer();
+}
+// le chemin inverse de compresser_glb.py : les octets rangés par plans reviennent à leur place, puis chaque valeur
+// redevient la somme des écarts (même arithmétique que Python : elle « boucle » comme les entiers du fichier)
+function defiltrerGLB(g, bin) {
+  for (const a of g.accessors || []) {
+    const v = g.bufferViews[a.bufferView];
+    const T = TYPES_FILTRE[a.componentType];
+    if (!T) continue;
+    const taille = T.BYTES_PER_ELEMENT;
+    const pas = v.byteStride || taille * COMPOSANTS[a.type];
+    const cols = pas / taille;
+    const n = a.count;
+    const debut = (v.byteOffset || 0) + (a.byteOffset || 0);
+    const plans = new Uint8Array(bin, debut, n * pas).slice();
+    const octets = new Uint8Array(bin, debut, n * pas);
+    for (let o = 0; o < taille; o++) for (let c = 0; c < cols; c++) {
+      const base = (o * cols + c) * n;
+      for (let i = 0; i < n; i++) octets[i * pas + c * taille + o] = plans[base + i];
+    }
+    const x = new T(bin, debut, n * cols);
+    for (let i = cols; i < x.length; i++) x[i] += x[i - cols];
+  }
+}
+async function lireGLB(url) {
+  const buf = await telechargerGLB(url);
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== 0x46546c67) throw new Error(`${url} : pas un .glb`);
   const lj = dv.getUint32(12, true);
   const g = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, lj)));
   const lb = dv.getUint32(20 + lj, true);
+  const bin = buf.slice(28 + lj, 28 + lj + lb);
+  if (g.asset?.extras?.filtre === "delta-octets") defiltrerGLB(g, bin);
   // les modèles V4 (ile-<id>-v4.glb, navire-<commu>.glb, maitre-<île>.glb, fantome.glb) ont leur lumière cuite
-  return { g, bin: buf.slice(28 + lj, 28 + lj + lb), cuit: /(-v4|navire-[a-z0-9]{2,20}|maitre-[a-z]{2,20}|fantome)(-leger)?\.glb$/.test(url) };
+  return { g, bin, cuit: /(-v4|navire-[a-z0-9]{2,20}|maitre-[a-z]{2,20}|fantome)(-leger)?\.glb$/.test(url) };
 }
 function accesseur(g, bin, i, brut = false) {
   const a = g.accessors[i];
