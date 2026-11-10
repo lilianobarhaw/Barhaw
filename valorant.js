@@ -224,24 +224,69 @@
       el("p", { text: message.texte }),
       message.details?.length ? el("ul", { class: "va-verifier" }, message.details.map((d) => el("li", { text: d }))) : null)
     : null);
+  // relier son compte : se connecter avec Discord, cocher l'accord, taper son Riot ID ; un admin valide ensuite sur Discord
+  // (Discord ne donne pas la connexion Riot Games aux sites : la preuve, c'est la validation d'un admin qui connaît ses potes)
+  let riotTape = "";
+  const riotValide = (x) => /^.{3,16}#[\p{L}\p{N}]{2,5}$/u.test(x.trim());
   function relier() {
-    const bouton = el("a", { class: "btn btn-plein", href: "/api/auth/login?valorant=1&accord=1", "aria-disabled": "true", tabindex: "-1", text: "Relier avec Discord" });
-    const caseAccord = el("input", { type: "checkbox", id: "va-accord", onchange: (e) => {
-      const ok = e.currentTarget.checked;
-      bouton.setAttribute("aria-disabled", String(!ok));
-      if (ok) bouton.removeAttribute("tabindex"); else bouton.setAttribute("tabindex", "-1");
-    } });
-    bouton.addEventListener("click", (e) => { if (!caseAccord.checked) e.preventDefault(); });
+    const aide = el("p", { class: "va-aide" }, "Ton Riot ID est en haut de ton profil dans VALORANT, avec le ", el("b", { text: "#" }), " (par exemple ", el("b", { text: "Pseudo#EUW" }), "). Aucun mot de passe ne passe par Barhaw.");
+    if (connecte === false) {
+      return [
+        tete("Relier ton compte VALORANT"),
+        el("p", { text: "Connecte-toi d'abord avec Discord : c'est ton pseudo Discord qui apparaîtra dans le défi." }),
+        el("div", { class: "fm-actions" }, el("a", { class: "btn btn-plein", href: "/api/auth/login?retour=valorant", text: "Se connecter avec Discord" })),
+        blocMessage(),
+      ];
+    }
+    const d = moi?.demande;
+    if (d) {
+      return [
+        tete("Ta demande est partie", el("span", { class: "etiquette fm-riot", title: "Ton Riot ID (toi et l'admin qui valide)", text: d.riot })),
+        el("p", { text: "Un admin du Discord Barhaw doit l'accepter. Dès que c'est fait, tes prochaines compétitions, non classées et Swiftplay compteront." }),
+        el("div", { class: "fm-actions" }, el("button", { class: "btn btn-contour btn-petit", type: "button", disabled: occupe, onclick: annuler, text: "Annuler ma demande" })),
+        blocMessage(),
+      ];
+    }
+    const bouton = el("button", { class: "btn btn-plein", type: "button", disabled: true, text: "Envoyer ma demande" });
+    const champ = el("input", { class: "va-riot-champ", type: "text", id: "va-riot", value: riotTape, maxlength: "40", autocomplete: "off", spellcheck: "false", placeholder: "Pseudo#TAG", "aria-describedby": "va-riot-aide" });
+    const caseAccord = el("input", { type: "checkbox", id: "va-accord" });
+    const majBouton = () => { bouton.disabled = occupe || !caseAccord.checked || !riotValide(champ.value); };
+    champ.addEventListener("input", () => { riotTape = champ.value; majBouton(); });
+    caseAccord.addEventListener("change", majBouton);
+    bouton.addEventListener("click", () => envoyerDemande(champ.value.trim(), caseAccord.checked));
+    champ.addEventListener("keydown", (e) => { if (e.key === "Enter" && !bouton.disabled) bouton.click(); });
+    aide.id = "va-riot-aide";
     return [
       tete("Relier ton compte VALORANT"),
       el("div", { class: "va-accord" },
         el("label", { for: "va-accord" }, caseAccord, el("span", { text: "J'accepte que Barhaw lise mes games VALORANT et les affiche, avec mon pseudo Discord, sur le site et le Discord Barhaw." })),
         el("p", { text: "Relier ton compte rend ces stats visibles pour la commu. Tu peux tout retirer à tout moment : tout est effacé." }),
       ),
+      el("label", { class: "va-riot", for: "va-riot" }, el("span", { text: "Ton Riot ID" }), champ),
+      aide,
       el("div", { class: "fm-actions" }, bouton),
-      el("p", { class: "va-aide" }, "Ton compte Riot doit être connecté à ton Discord : ", el("b", { text: "Paramètres Discord → Connexions → Riot Games" }), ". Aucun mot de passe ne passe par Barhaw."),
       blocMessage(),
     ];
+  }
+  async function envoyerDemande(riotId, accord) {
+    if (occupe) return;
+    occupe = true;
+    message = null;
+    rendreMoi();
+    const d = await demander("valorant-demander", { riotId, accord });
+    occupe = false;
+    message = d.ok ? { texte: "C'est envoyé : un admin va valider ta demande sur Discord." } : { texte: d.texte || "Ça n'a pas marché, réessaie dans un moment.", erreur: true };
+    if (d.ok) riotTape = "";
+    rendreMoi();
+  }
+  async function annuler() {
+    if (occupe) return;
+    occupe = true;
+    rendreMoi();
+    const d = await demander("valorant-annuler");
+    occupe = false;
+    message = d.ok ? { texte: "Ta demande est annulée." } : { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
+    rendreMoi();
   }
   function detailNote(g) {
     const d = g.detail || [];
@@ -309,6 +354,8 @@
     const ouvert = Boolean(infos()?.actif || moi?.actif);
     const cle = JSON.stringify([connecte, pasMembre, moi, message, occupe, confirmer, ouvert, donnees ? 1 : 0]);
     if (deja.moi === cle) return;
+    // le membre est en train de taper son Riot ID : on ne redessine pas sous ses doigts (le rafraîchissement attendra)
+    if (document.activeElement?.id === "va-riot" && !occupe) return;
     deja.moi = cle;
     // une game ouverte (« pourquoi cette note ? ») reste ouverte
     const ouvertes = [...z.querySelectorAll("details[open]")].map((d) => d.querySelector(".fm-game-txt")?.textContent);
@@ -321,9 +368,9 @@
     vider(z, ...contenu);
     for (const d of z.querySelectorAll("details")) if (ouvertes.includes(d.querySelector(".fm-game-txt")?.textContent)) d.open = true;
   }
-  async function demander(action) {
+  async function demander(action, extra = {}) {
     try {
-      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
       const d = await r.json().catch(() => ({ erreur: "Réponse illisible, réessaie." }));
       if (r.status === 401) { connecte = false; moi = null; return d; }
       connecte = true;

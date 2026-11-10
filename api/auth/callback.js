@@ -9,6 +9,7 @@ function retour(suffixe = "", ancre = "#chopper") {
   const h = new Headers({ Location: env("SITE_URL") + "/" + suffixe + ancre, "Cache-Control": "no-store" });
   h.append("Set-Cookie", cookie("barhaw_state", "", 0));
   h.append("Set-Cookie", cookie("barhaw_flux", "", 0));
+  h.append("Set-Cookie", cookie("barhaw_retour", "", 0));
   return h;
 }
 // le résultat de la liaison ; pour « pas-riot », le pseudo du compte Discord utilisé et les sortes de connexions que Discord
@@ -53,7 +54,7 @@ export async function GET(req) {
     const r = await lierValorant(String(c.id), acces, String(scope), c.username || "");
     h = retourValorant(r.code, r.code === "pas-riot" ? { compte: c.global_name || c.username || "", vus: r.vus } : {});
   }
-  else h = retour();
+  else h = cookies.barhaw_retour === "valorant" ? retour("valorant", "#va-moi") : retour();
   h.append("Set-Cookie", cookie(COOKIE_SESSION, s.valeur, s.maxAge));
   return new Response(null, { status: 302, headers: h });
 }
