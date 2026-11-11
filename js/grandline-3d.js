@@ -3219,7 +3219,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       if (!e) continue;
       const inconnue = i.etat === "inconnue" || i.etat === "ecartee";
       const el = etiquette(`ile:${id}`, "");
-      el.className = `gl-etiquette gl-ile-${i.etat}`;
+      el.className = `gl-etiquette gl-ile-${i.etat}${d.recit?.includes(id) ? " gl-recit" : ""}`; // gl-recit : une page du récit attend d'être écoutée
       const voix = d.vote?.choix.find((c) => c.id === id);
       const texte = inconnue ? (i.etat === "ecartee" ? "Pas cette fois" : "?") : `${e.emoji}|${e.nom}${i.etat === "cible" ? " · prochaine île" : ""}${voix ? ` · ${voix.voix} voix` : ""}`;
       if (el.dataset.texte !== texte) {

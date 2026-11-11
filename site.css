@@ -3529,3 +3529,61 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 .soiree-marche.place-2 .soiree-socle { height: 64px; }
 .soiree-marche.place-3 .soiree-socle { height: 46px; }
 @media (prefers-reduced-motion: reduce) { .soiree-direct .soiree-point, .soiree-live.allume .soiree-point { animation: none; } .soiree-barre i { transition: none; } }
+
+/* ---------- le récit de GRAND LINE (VF) : les pages de l'équipage, la voix, la bulle dorée sur la carte ---------- */
+.gl-recit { margin-top: 20px; padding: 22px 22px 20px; }
+.gl-ferme .gl-recit { display: none; }
+.recit-tete { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 18px; }
+.recit-tete .gl-titre { margin: 2px 0 0; }
+.gl-recit .gl-texte { margin: 10px 0 16px; max-width: 78ch; }
+.recit-derniere { max-width: 100%; white-space: normal; text-align: left; }
+.recit-rail { list-style: none; margin: 0; padding: 4px 4px 6px; display: flex; flex-wrap: wrap; gap: 10px; }
+.recit-pastille { position: relative; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1; border: 2px solid #7a4c0c; background: radial-gradient(circle at 35% 30%, #fff3c4, #ffd36b 55%, #c98a1b); color: #3a2206; box-shadow: 0 3px 0 #7a4c0c; }
+button.recit-pastille { cursor: pointer; transition: transform 0.15s var(--doux), box-shadow 0.15s var(--doux); }
+button.recit-pastille:hover, button.recit-pastille:focus-visible { transform: translateY(-2px); box-shadow: 0 5px 0 #7a4c0c, 0 0 0 3px rgba(255, 211, 107, 0.4); outline: none; }
+.recit-pastille.entendue { background: radial-gradient(circle at 35% 30%, #f6e8c8, #d9b877 60%, #9a7434); }
+.recit-pastille.nouvelle::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid #ffd36b; animation: recit-onde 1.8s ease-out infinite; pointer-events: none; }
+.recit-pastille.scellee { background: var(--verre); border: 2px dashed var(--ligne); color: var(--terne); box-shadow: none; font-size: 14px; }
+.recit-num { position: absolute; right: -4px; bottom: -5px; min-width: 19px; padding: 1px 4px; border-radius: 9px; background: var(--vide); color: var(--brume); font: 800 10px/14px var(--fort); text-align: center; border: 1px solid var(--ligne); }
+@keyframes recit-onde { from { transform: scale(0.85); opacity: 0.9; } to { transform: scale(1.3); opacity: 0; } }
+@keyframes recit-flotte { 50% { transform: translateY(-4px); } }
+
+/* sur la carte : la bulle dorée « une page t'attend », et la petite marque sur l'étiquette de l'île (carte en 3D) */
+.recit-bulle { position: absolute; left: 14px; bottom: 14px; z-index: 4; display: flex; align-items: center; gap: 10px; max-width: min(330px, calc(100% - 28px)); padding: 8px 18px 8px 10px; border-radius: 999px; border: 2px solid #7a4c0c; background: radial-gradient(circle at 18% 20%, #fff3c4, #ffd36b 60%, #e0a93a); color: #3a2206; font: 800 14px/1.2 var(--fort); text-align: left; cursor: pointer; box-shadow: 0 4px 0 #7a4c0c, 0 14px 30px -10px rgba(0, 0, 0, 0.7); animation: recit-flotte 3.2s ease-in-out infinite; }
+.recit-bulle:hover, .recit-bulle:focus-visible { box-shadow: 0 4px 0 #7a4c0c, 0 0 0 4px rgba(255, 211, 107, 0.45); outline: none; }
+.recit-bulle small { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.78; }
+.recit-bulle-emoji { font-size: 24px; line-height: 1; }
+.recit-bulle-texte { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-etiquette.gl-recit::after { content: "📖"; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 6px; border-radius: 50%; background: #ffd36b; font-size: 11px; vertical-align: -3px; box-shadow: 0 0 0 2px rgba(255, 211, 107, 0.45); }
+.gl-info-recit { margin-top: 12px; width: 100%; }
+
+/* la page ouverte : un parchemin ; le texte s'écrit au rythme de la voix */
+html.recit-ouvert { overflow: hidden; }
+.recit-voile { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; overflow-y: auto; background: rgba(10, 4, 10, 0.8); backdrop-filter: blur(4px); animation: recit-voile 0.25s ease-out; }
+@keyframes recit-voile { from { opacity: 0; } }
+.recit-feuille { position: relative; width: min(620px, 100%); padding: 26px 28px 22px; background: linear-gradient(170deg, #f6e8c8, #ead2a2); color: #3a2412; border: 3px solid #5a3719; border-radius: 18px; box-shadow: 7px 8px 0 rgba(42, 22, 12, 0.6); animation: apparaitre 0.35s var(--rebond); }
+.recit-feuille .gl-sur { color: #8e1630; }
+.recit-feuille .gl-titre { color: #3a2412; margin: 4px 40px 14px 0; }
+.recit-texte { margin: 0 0 16px; min-height: 6.2em; font-size: 19px; line-height: 1.55; color: #3d2412; }
+.recit-reste { opacity: 0.24; }
+.recit-lu { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.recit-piste { height: 6px; margin-bottom: 16px; border-radius: 3px; overflow: hidden; background: rgba(90, 55, 25, 0.22); }
+.recit-avance { display: block; height: 100%; background: #8e1630; transform-origin: left; transform: scaleX(0); }
+.recit-commandes { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.recit-jouer { flex: 1; }
+.recit-nav, .recit-fermer { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 50%; border: 2px solid #5a3719; background: #f3e2bd; color: #3a2412; font-size: 15px; cursor: pointer; }
+.recit-nav:disabled { opacity: 0.35; cursor: default; }
+.recit-nav:not(:disabled):hover, .recit-nav:focus-visible, .recit-fermer:hover, .recit-fermer:focus-visible { background: #fff3c4; outline: 2px solid #8e1630; outline-offset: 2px; }
+.recit-fermer { position: absolute; right: 10px; top: 10px; width: 36px; height: 36px; }
+.recit-feuille .note { margin: 0 0 14px; color: #6b4a2c !important; }
+@media (max-width: 760px) { .recit-bulle { left: 10px; bottom: 84px; } }
+.gl-salle .recit-bulle { bottom: 14px; }
+@media (max-width: 560px) {
+  .gl-recit { padding: 18px 16px 16px; }
+  .recit-feuille { padding: 22px 18px 18px; }
+  .recit-texte { font-size: 17px; }
+  .recit-rail { gap: 9px; }
+  .recit-bulle { bottom: 116px; }
+  .gl-salle .recit-bulle { bottom: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .recit-pastille.nouvelle::after, .recit-bulle, .recit-voile, .recit-feuille { animation: none; } }

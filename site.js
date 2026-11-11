@@ -5122,7 +5122,7 @@
   const v4Ouverte = () => v4Officielle() || apercuVF.actif;
   const ID_COMMU = /^[a-z0-9]{2,20}$/;
   // les identifiants déjà pris dans GRAND LINE (les liens directs sont #grandline-<commu>)
-  const RESERVES_GL = new Set(["scene", "carte", "etiquettes", "hud", "info", "cap", "mer", "moi", "equipage", "journal", "escales", "ramer", "verrou", "course", "fiche", "3d"]);
+  const RESERVES_GL = new Set(["scene", "carte", "etiquettes", "hud", "info", "cap", "mer", "moi", "equipage", "journal", "escales", "ramer", "verrou", "course", "fiche", "3d", "recit"]);
   let flVue = ""; // "" : la course ; sinon la commu qu'on regarde
   let flDemandee = ""; // arrivée par un lien direct (#grandline-veyzo) : appliquée dès que la flotte est là
   let maFlotte = null; // { equipage, serveurs, bloque } pour le membre connecté
@@ -5517,6 +5517,7 @@
     return {
       ...g,
       defi: defiGL(),
+      recit: ilesRecit(),
       flotte: {
         id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), modele: modeleNavireGL(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
         autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), modele: modeleNavireGL(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
@@ -5598,6 +5599,227 @@
   }
 
   let sousGL = "";
+  // ---------- le récit de GRAND LINE (VF) : la voix raconte ce que TON équipage a vécu ----------
+  // Le serveur (/api/recit) n'envoie que les pages débloquées par le navire pour lequel le membre rame : leur texte et
+  // leur voix. Les autres restent scellées (même leur titre). Rien ne joue sans un clic, et le fichier de la voix n'est
+  // chargé qu'à ce moment-là. Le navigateur retient les pages déjà écoutées et la preuve de celles déjà débloquées
+  // (le navire repart de zéro à chaque voyage : une page gagnée reste gagnée).
+  const CLE_RECIT = "barhaw-recit";
+  const RECIT = { pages: null, equipage: null, nom: "", connecte: false, cle: "", essai: 0, occupe: false, page: null, audio: null, tic: 0, retour: null, baisse: null };
+  const GENRE_RECIT = { port: ["⚓", "Le départ"], ile: ["🏝️", "Île"], mer: ["🌊", "En mer"], evenement: ["⚡", "Événement"] };
+  function memoireRecit() {
+    try {
+      const m = JSON.parse(localStorage.getItem(CLE_RECIT) || "{}");
+      return { preuves: m.preuves && typeof m.preuves === "object" ? m.preuves : {}, entendues: Array.isArray(m.entendues) ? m.entendues.map(String) : [] };
+    } catch { return { preuves: {}, entendues: [] }; }
+  }
+  const garderRecit = (m) => { try { localStorage.setItem(CLE_RECIT, JSON.stringify(m)); } catch {} };
+  const pagesOuvertes = () => (RECIT.pages || []).filter((p) => p.ouverte);
+  const pagesNouvelles = () => { const e = new Set(memoireRecit().entendues); return pagesOuvertes().filter((p) => !e.has(p.id)); };
+  const recitVisible = () => v4Ouverte() && glOuvert() && Array.isArray(RECIT.pages);
+  // sur la carte : les îles dont la page attend d'être écoutée (seulement quand on regarde le navire de son équipage)
+  const ilesRecit = () => (recitVisible() && RECIT.equipage && monNavireGL() ? pagesNouvelles().filter((p) => p.genre === "ile").map((p) => p.ile) : []);
+  function cleRecit() {
+    const n = commu(maFlotte?.equipage)?.navire;
+    return JSON.stringify([Boolean(moi?.connecte), maFlotte?.equipage || "", n?.voyage, n?.etape, n?.milles > 0, n?.evenement?.type || "", n?.route?.flat().filter((i) => i.etat === "atteinte").length]);
+  }
+  async function chargerRecit() {
+    if (RECIT.occupe || !v4Ouverte() || !glOuvert()) return;
+    const cle = cleRecit();
+    // même situation : on ne redemande que toutes les 5 minutes (un BOSS LIVE gagné peut ouvrir une page), 1 minute après un échec
+    if (cle === RECIT.cle && Date.now() - RECIT.essai < (RECIT.pages ? 300_000 : 60_000)) return;
+    RECIT.occupe = true;
+    RECIT.cle = cle;
+    RECIT.essai = Date.now();
+    try {
+      const m = memoireRecit();
+      const p = Object.entries(m.preuves).filter(([k, v]) => /^[a-z]{2,20}$/.test(k) && /^[A-Za-z0-9_-]{22}$/.test(String(v))).map(([k, v]) => `${k}.${v}`).join(",");
+      const r = await fetch("/api/recit" + (p ? `?p=${encodeURIComponent(p)}` : ""), { credentials: "same-origin" });
+      const d = await r.json();
+      if (Array.isArray(d.pages)) {
+        Object.assign(RECIT, { pages: d.pages, equipage: d.equipage || null, nom: String(d.nom || ""), connecte: Boolean(d.connecte) });
+        let change = false;
+        for (const x of d.pages) if (x.ouverte && x.preuve && m.preuves[x.id] !== x.preuve) { m.preuves[x.id] = x.preuve; change = true; }
+        if (change) garderRecit(m);
+      } else if (d.ferme) RECIT.pages = null;
+    } catch {} finally { RECIT.occupe = false; }
+    rendreRecit();
+    if (carteGL && infosGL()) carteGL.rendu.maj(donneesCarteGL(infosGL()));
+  }
+  function rendreRecit() {
+    const z = $("grandline-recit");
+    if (!z) return;
+    const pages = recitVisible() ? RECIT.pages : null;
+    z.hidden = !pages;
+    rendreBulleRecit();
+    if (!pages) { z.dataset.cle = ""; return; }
+    const entendues = new Set(memoireRecit().entendues);
+    const ouvertes = pages.filter((p) => p.ouverte);
+    const cle = JSON.stringify([RECIT.equipage, RECIT.connecte, RECIT.nom, pages.map((p) => (p.ouverte ? (entendues.has(p.id) ? 2 : 1) : 0)).join("")]);
+    if (z.dataset.cle === cle) return;
+    z.dataset.cle = cle;
+    const focus = document.activeElement?.closest?.("#grandline-recit") ? document.activeElement.dataset.page : "";
+    const phrase = !RECIT.connecte ? "Connecte-toi avec Discord et monte à bord d'un navire : chaque équipage ouvre ses propres pages en avançant sur la mer."
+      : !RECIT.equipage ? "Choisis ton équipage dans la flotte : le récit s'ouvre avec le navire pour lequel tu rames."
+      : `${RECIT.nom} a ouvert ${ouvertes.length} ${ouvertes.length > 1 ? "pages" : "page"} sur ${pages.length}. Chaque équipage n'entend que ce que son propre navire a vécu : les îles des autres restent scellées.`;
+    const derniere = pagesNouvelles().at(-1) || ouvertes.at(-1);
+    vider(z,
+      el("div", { class: "recit-tete" },
+        el("div", {},
+          el("p", { class: "gl-sur", text: "Le récit · Arc 1" }),
+          el("h3", { class: "gl-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: "📖" }), "La Carte de Barhaw"),
+        ),
+        derniere ? el("button", { type: "button", class: "btn btn-plein btn-petit recit-derniere", "data-page": `dernier`, onclick: (ev) => ouvrirRecit(derniere.id, ev.currentTarget) }, `${derniere.son ? "▶" : "📜"} ${!derniere.son ? "Lire" : entendues.has(derniere.id) ? "Réécouter" : "Écouter"} : ${derniere.titre}`) : null,
+      ),
+      el("p", { class: "gl-texte", text: phrase }),
+      el("ol", { class: "recit-rail", "aria-label": "Les pages du récit, dans l'ordre de la route" }, pages.map((p) => el("li", {}, p.ouverte
+        ? el("button", { type: "button", class: `recit-pastille ${entendues.has(p.id) ? "entendue" : "nouvelle"}`, title: p.titre, "data-page": p.id, "aria-label": `Page ${p.n} : ${p.titre}${entendues.has(p.id) ? "" : " (pas encore écoutée)"}`, onclick: (ev) => ouvrirRecit(p.id, ev.currentTarget) },
+          el("span", { "aria-hidden": "true", text: GENRE_RECIT[p.genre]?.[0] || "📖" }), el("span", { class: "recit-num", "aria-hidden": "true", text: String(p.n) }))
+        : el("span", { class: "recit-pastille scellee", role: "img", "aria-label": `Page ${p.n}, scellée`, title: "Page scellée" }, el("span", { "aria-hidden": "true", text: "🔒" }), el("span", { class: "recit-num", "aria-hidden": "true", text: String(p.n) }))))),
+    );
+    if (focus) z.querySelector(`[data-page="${focus}"]`)?.focus();
+  }
+  // la bulle dorée posée sur la carte : une page attend d'être écoutée
+  function rendreBulleRecit() {
+    const scene = $("grandline-scene");
+    if (!scene) return;
+    let b = $("grandline-recit-bulle");
+    const page = recitVisible() ? pagesNouvelles().at(-1) : null;
+    if (!page) { b?.remove(); return; }
+    if (!b) {
+      b = el("button", { type: "button", class: "recit-bulle", id: "grandline-recit-bulle" });
+      b.addEventListener("click", () => ouvrirRecit(b.dataset.page, b));
+      scene.append(b);
+    }
+    if (b.dataset.page !== page.id) {
+      b.dataset.page = page.id;
+      vider(b, el("span", { class: "recit-bulle-emoji", "aria-hidden": "true", text: "📖" }), el("span", { class: "recit-bulle-texte" }, el("small", { text: "Nouvelle page du récit" }), page.titre));
+    }
+  }
+  function marquerEntendue(id) {
+    const m = memoireRecit();
+    if (m.entendues.includes(id)) return;
+    m.entendues.push(id);
+    garderRecit(m);
+    rendreRecit();
+    if (carteGL && infosGL()) carteGL.rendu.maj(donneesCarteGL(infosGL()));
+  }
+  // pendant que la voix raconte, la musique du site et l'ambiance baissent (et remontent ensuite)
+  function baisserSonsRecit(baisser) {
+    if (baisser && !RECIT.baisse) {
+      RECIT.baisse = { musique: SON.musiqueSite ? SON.musiqueSite.volume : null, maitre: SON.maitre ? SON.maitre.gain.value : null };
+      if (SON.musiqueSite) SON.musiqueSite.volume = RECIT.baisse.musique * 0.2;
+      if (SON.maitre) SON.maitre.gain.value = RECIT.baisse.maitre * 0.25;
+    } else if (!baisser && RECIT.baisse) {
+      if (SON.musiqueSite && RECIT.baisse.musique !== null) SON.musiqueSite.volume = RECIT.baisse.musique;
+      if (SON.maitre && RECIT.baisse.maitre !== null) SON.maitre.gain.value = RECIT.baisse.maitre;
+      RECIT.baisse = null;
+    }
+  }
+  function ouvrirRecit(id, depuis) {
+    const p = pagesOuvertes().find((x) => x.id === id);
+    if (!p) return;
+    const retour = RECIT.page ? RECIT.retour : depuis || document.activeElement;
+    fermerRecit(true);
+    RECIT.page = p;
+    RECIT.retour = retour;
+    const [emoji, genre] = GENRE_RECIT[p.genre] || ["📖", ""];
+    const ouvertes = pagesOuvertes();
+    const k = ouvertes.indexOf(p);
+    const voile = el("div", { class: "recit-voile", id: "recit-lecteur", role: "dialog", "aria-modal": "true", "aria-labelledby": "recit-titre" },
+      el("div", { class: "recit-feuille" },
+        el("button", { type: "button", class: "recit-fermer", "aria-label": "Fermer le récit", onclick: () => fermerRecit(), text: "✕" }),
+        el("p", { class: "gl-sur", text: `Page ${p.n} sur ${RECIT.pages.length} · ${genre}` }),
+        el("h3", { class: "gl-titre", id: "recit-titre" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: emoji }), p.titre),
+        // pour les lecteurs d'écran : le texte entier, tout de suite ; à l'écran : il s'écrit au rythme de la voix
+        el("p", { class: "recit-lu", text: p.texte }),
+        el("p", { class: "recit-texte", "aria-hidden": "true" }, el("span", { class: "recit-dit" }), el("span", { class: "recit-reste", text: p.texte })),
+        p.son ? el("div", { class: "recit-piste", "aria-hidden": "true" }, el("span", { class: "recit-avance" })) : el("p", { class: "note", text: "La voix de cette page arrive bientôt. Pour l'instant, elle se lit." }),
+        el("div", { class: "recit-commandes" },
+          el("button", { type: "button", class: "recit-nav", disabled: k <= 0, onclick: () => ouvrirRecit(ouvertes[k - 1].id), "aria-label": "Page précédente", text: "◀" }),
+          p.son ? el("button", { type: "button", class: "btn btn-plein recit-jouer", onclick: () => basculerRecit(), text: "▶ Écouter" }) : null,
+          el("button", { type: "button", class: "recit-nav", disabled: k >= ouvertes.length - 1, onclick: () => ouvrirRecit(ouvertes[k + 1].id), "aria-label": "Page suivante", text: "▶" }),
+        ),
+      ),
+    );
+    voile.addEventListener("click", (ev) => { if (ev.target === voile) fermerRecit(); });
+    (document.fullscreenElement || document.body).append(voile);
+    document.documentElement.classList.add("recit-ouvert");
+    document.addEventListener("keydown", toucheRecit);
+    (voile.querySelector(".recit-jouer") || voile.querySelector(".recit-fermer")).focus();
+    if (!p.son) { ecrireRecit(1); marquerEntendue(p.id); return; }
+    // le clic qui ouvre la page est le geste qui autorise la voix : elle part tout de suite
+    const a = new Audio(p.son);
+    a.preload = "auto";
+    RECIT.audio = a;
+    a.addEventListener("play", () => { baisserSonsRecit(true); boutonRecit(); cancelAnimationFrame(RECIT.tic); RECIT.tic = requestAnimationFrame(suivreRecit); });
+    a.addEventListener("pause", () => { baisserSonsRecit(false); boutonRecit(); });
+    a.addEventListener("ended", () => { ecrireRecit(1); marquerEntendue(p.id); boutonRecit(); });
+    a.addEventListener("error", () => { ecrireRecit(1); const b = $("recit-lecteur")?.querySelector(".recit-jouer"); if (b) { b.disabled = true; b.textContent = "La voix n'a pas pu se charger"; } });
+    a.play().catch(() => boutonRecit());
+  }
+  function boutonRecit() {
+    const b = $("recit-lecteur")?.querySelector(".recit-jouer");
+    const a = RECIT.audio;
+    if (!b || !a || b.disabled) return;
+    b.textContent = a.ended ? "↺ Réécouter" : a.paused ? (a.currentTime > 0.2 ? "▶ Reprendre" : "▶ Écouter") : "⏸ Pause";
+  }
+  function basculerRecit() {
+    const a = RECIT.audio;
+    if (!a) return;
+    if (a.paused) a.play().catch(() => {}); else a.pause();
+  }
+  // la part du texte déjà dite : on coupe entre deux mots, le reste attend en clair
+  function ecrireRecit(part) {
+    const z = $("recit-lecteur");
+    const p = RECIT.page;
+    if (!z || !p) return;
+    let n = part >= 1 ? p.texte.length : Math.round(p.texte.length * Math.max(0, part));
+    if (n > 0 && n < p.texte.length) { const s = p.texte.indexOf(" ", n); n = s < 0 ? p.texte.length : s; }
+    if (z.dataset.n === String(n)) return;
+    z.dataset.n = String(n);
+    z.querySelector(".recit-dit").textContent = p.texte.slice(0, n);
+    z.querySelector(".recit-reste").textContent = p.texte.slice(n);
+  }
+  function suivreRecit() {
+    const a = RECIT.audio;
+    const p = RECIT.page;
+    const z = $("recit-lecteur");
+    if (!a || !p || !z) return;
+    // le texte suit la voix : il n'avance que pendant qu'elle parle (ses silences sont connus), avec un rien d'avance
+    const t = a.currentTime + 0.25;
+    let dit = 0, total = 0;
+    for (const [x, y] of p.parole || []) { total += y - x; dit += Math.max(0, Math.min(t, y) - x); }
+    ecrireRecit(reduit.matches || a.ended || !total ? 1 : dit / total);
+    const barre = z.querySelector(".recit-avance");
+    if (barre) barre.style.transform = `scaleX(${Math.min(1, a.currentTime / (a.duration || p.duree || 1)).toFixed(4)})`;
+    if (!a.paused && !a.ended) RECIT.tic = requestAnimationFrame(suivreRecit);
+  }
+  function toucheRecit(e) {
+    const z = $("recit-lecteur");
+    if (!z) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); fermerRecit(); return; }
+    if (e.key !== "Tab") return;
+    // le clavier reste dans la page ouverte
+    const f = [...z.querySelectorAll("button:not([disabled])")];
+    if (!f.length) return;
+    const k = f.indexOf(document.activeElement);
+    if (e.shiftKey && k <= 0) { e.preventDefault(); f.at(-1).focus(); } else if (!e.shiftKey && k === f.length - 1) { e.preventDefault(); f[0].focus(); }
+  }
+  function fermerRecit(pourUneAutre = false) {
+    cancelAnimationFrame(RECIT.tic);
+    if (RECIT.audio) { try { RECIT.audio.pause(); RECIT.audio.removeAttribute("src"); RECIT.audio.load(); } catch {} RECIT.audio = null; }
+    baisserSonsRecit(false);
+    $("recit-lecteur")?.remove();
+    document.removeEventListener("keydown", toucheRecit);
+    RECIT.page = null;
+    if (pourUneAutre) return;
+    document.documentElement.classList.remove("recit-ouvert");
+    const r = RECIT.retour;
+    RECIT.retour = null;
+    if (r?.isConnected) r.focus(); else $("grandline-recit")?.querySelector("button")?.focus();
+  }
+
   function rendreGrandLine() {
     const z = $("grandline-cap");
     if (!z) return;
@@ -5617,6 +5839,7 @@
     if (pastille) pastille.hidden = ouvert || (Boolean(donnees?.horsLigne) && Date.now() >= GL_OUVERTURE);
     if (!ouvert) {
       rendreVerrouGL(Boolean(donnees?.horsLigne));
+      rendreRecit();
       return;
     }
     $("grandline-verrou")?.remove();
@@ -5636,6 +5859,7 @@
     else if (!avant && derniere && Date.now() - derniere.arrivee < 2 * 3600_000) terreEnVue(derniere);
     glAvant = { cle: cleNavire, voyage: g.voyage, etape: g.etape };
     majAmbianceGL();
+    if (v4Ouverte()) { chargerRecit(); rendreRecit(); }
     if (carteGL) carteGL.rendu.maj(donneesCarteGL(g));
     rendreCapGL(g);
     rendreMerGL(g);
@@ -5903,6 +6127,7 @@
     const e = g.route.flat().find((x) => x.id === id);
     if (!e) return;
     const inconnue = e.etat === "inconnue" || e.etat === "ecartee";
+    const pageIle = recitVisible() && monNavireGL() ? pagesOuvertes().find((x) => x.genre === "ile" && x.ile === e.id) || null : null;
     vider(z,
       el("button", { type: "button", class: "gl-info-fermer", "aria-label": "Fermer", onclick: () => { z.hidden = true; }, text: "✕" }),
       !inconnue && imageIle(e.id) ? el("img", { class: "gl-info-ile", src: imageIle(e.id), alt: "", width: 360, height: 300, decoding: "async" }) : null,
@@ -5915,6 +6140,7 @@
         el("p", { class: "gl-maitre-nom" }, el("span", { class: "gl-emoji", "aria-hidden": "true", text: e.maitre.emoji }), e.maitre.nom),
         el("p", { class: "gl-texte", text: e.maitre.texte }),
       ) : null,
+      pageIle ? el("button", { type: "button", class: "btn btn-plein btn-petit gl-info-recit", onclick: (ev) => ouvrirRecit(pageIle.id, ev.currentTarget) }, `📖 ${!pageIle.son ? "Lire" : pagesNouvelles().includes(pageIle) ? "Écouter" : "Réécouter"} le récit de cette île`) : null,
     );
     z.hidden = false;
   }
