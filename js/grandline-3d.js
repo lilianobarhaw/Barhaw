@@ -1193,6 +1193,16 @@ toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
 // ---------- niveau 5 : le grain de près, la lumière commune, les toiles ----------
 // 1 : plein jour ; l'orage assombrit ensemble les modèles cuits et leurs toiles (la nuit, c'est la teinte de la fête qui joue)
 const eclairage5 = { value: 1 };
+// L'ombre des nuages qui passent, la même pour la mer « cinéma » et pour les îles « niveau 5 » : 1 au soleil, plus sombre
+// dessous. p : la position dans le monde (x, z) ; t : l'heure de la scène.
+const NUAGES5 = `
+  float h5n(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float b5n(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h5n(i), h5n(i + vec2(1.0, 0.0)), u.x), mix(h5n(i + vec2(0.0, 1.0)), h5n(i + vec2(1.0, 1.0)), u.x), u.y); }
+  float nuages5(vec2 p, float t) {
+    float n = b5n(p * 0.05 + t * vec2(0.014, 0.007)) * 0.62 + b5n(p * 0.12 - t * vec2(0.009, 0.012)) * 0.38;
+    return mix(0.76, 1.0, smoothstep(0.36, 0.6, n));
+  }`;
 const temps5 = { value: 0 }; // l'heure de la scène, en secondes : le vent, les pas, l'écume, les toiles
 // le grain : une petite image de bruit qui se répète, multipliée à l'atlas. De loin elle s'efface toute seule (ses mipmaps
 // tendent vers le gris moyen) ; de près elle redonne du piqué aux pavés, au bois, aux tuiles
@@ -1225,10 +1235,12 @@ function cine5(m) {
   m.onBeforeCompile = (s) => {
     s.uniforms.uEclairage5 = eclairage5;
     s.uniforms.uDetail5 = { value: textureDetail5() };
-    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5;");
+    s.uniforms.uTemps5 = temps5;
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec2 vNuage5;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvNuage5 = (modelMatrix * vec4(transformed, 1.0)).xz;");
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", `#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;\nuniform float uTemps5;\nvarying vec2 vNuage5;${NUAGES5}`)
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5 * nuages5(vNuage5, uTemps5);");
   };
-  m.customProgramCacheKey = () => `cine5${m.vertexColors ? "c" : ""}`;
+  m.customProgramCacheKey = () => `cine5n${m.vertexColors ? "c" : ""}`;
   return m;
 }
 // Ce qui vit dans un modèle cuit, animé par la carte graphique à partir d'une couleur de sommet posée dans Blender :
@@ -1261,12 +1273,12 @@ function animee5(base, genre, pas = { value: 0 }) {
   m.userData.uPas = pas;
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, { uEclairage5: eclairage5, uDetail5: { value: textureDetail5() }, uTemps5: temps5, uPas: m.userData.uPas });
-    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}`);
-    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5;")
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;\nvarying vec2 vNuage5;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}\nvNuage5 = (modelMatrix * vec4(transformed, 1.0)).xz;`);
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", `#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;\nuniform float uTemps5;\nvarying vec2 vNuage5;${NUAGES5}`)
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5 * nuages5(vNuage5, uTemps5);")
       .replace("#include <color_fragment>", ""); // la couleur de sommet sert à animer, pas à teindre
   };
-  m.customProgramCacheKey = () => `animee5-${genre}`;
+  m.customProgramCacheKey = () => `animee5n-${genre}`;
   if (genre === "vent") vents5.set(base, m);
   return m;
 }
@@ -1905,6 +1917,7 @@ function materiauMer(uniforms) {
       varying vec2 vXZ;
       varying vec3 vMonde;
       float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      ${NUAGES5}
       float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
         return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y); }
       float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { s += a * bruit(p); p *= 2.03; a *= 0.5; } return s; }
@@ -2046,6 +2059,7 @@ function materiauMer(uniforms) {
           mer = mix(mer, vec3(0.97, 0.99, 1.0), ressac * 0.8 * bordCarte * (0.6 + 0.4 * bruit(p * 2.3)));
           vec3 sable = mix(vec3(0.93, 0.86, 0.68), vec3(0.80, 0.71, 0.52), relief);
           sable = mix(sable * vec3(0.66, 0.70, 0.72), sable, smoothstep(0.606, 0.66, tc));
+          mer *= nuages5(p, uT); // l'ombre des nuages qui passent (la même que sur les îles « niveau 5 »)
           c = mix(papier, mer, dansMer);
           c = mix(c, sable, smoothstep(0.602, 0.612, tc) * bordCarte);
         } else {
