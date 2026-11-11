@@ -383,8 +383,8 @@ def tx_porte(c=0x6b4427, graine=14, fer=0x2e2c30):
     return np.clip(coul, 0, 1), lisse(0.0, 0.05, bord)
 
 
-def tx_cadran(graine=15):
-    """Le cadran du beffroi : un disque crème cerclé d'or, douze traits, deux aiguilles."""
+def tx_cadran(graine=15, aiguilles=True):
+    """Le cadran du beffroi : un disque crème cerclé d'or, douze traits, deux aiguilles (peintes, ou de vraies qui tournent)."""
     n = 256
     x, y = grille(n)
     r = np.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2)
@@ -394,7 +394,7 @@ def tx_cadran(graine=15):
     coul[r < 0.41] = hexa(0xf3e7c8) * (0.92 + 0.1 * bruit(n, 8, 8, graine, 3))[r < 0.41][..., None]
     trait = (r > 0.31) & (r < 0.39) & (np.abs(((an / (2 * PI) * 12) % 1) - 0.5) > 0.44)
     coul[trait] = hexa(0x2a160c)
-    for a, long, ep in ((1.9, 0.3, 0.018), (0.5, 0.2, 0.026)):
+    for a, long, ep in ((1.9, 0.3, 0.018), (0.5, 0.2, 0.026)) if aiguilles else ():
         dx, dy = math.cos(a), math.sin(a)
         le_long = (x - 0.5) * dx + (y - 0.5) * dy
         de_cote = np.abs(-(x - 0.5) * dy + (y - 0.5) * dx)
@@ -471,6 +471,7 @@ matiere("fenetre", tx_fenetre, 0, 0.6)
 matiere("fenetre_haute", tx_fenetre, 0, 0.6, carreaux=(2, 4), graine=141)
 matiere("porte", tx_porte, 0, 0.6)
 matiere("cadran", tx_cadran, 0, 0.3)
+matiere("cadran_nu", tx_cadran, 0, 0.5, aiguilles=False)
 
 # Les matières du site (pas cuites) : ce qui s'allume, ce qui bouge, ce qui prend les couleurs de la commu
 SITE = ("vitre", "lumiere", "feu", "rose", "violet", "voile", "voile_b", "drapeau", "flamme", "fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme")
@@ -1052,6 +1053,28 @@ def objet(maille, coll, nom=None, lisse_angle=40, origine=None, extras=None):
     return o
 
 
+def copie(source, coll, nom, origine, extras=None):
+    """Le même objet ailleurs (il partage sa maille, donc sa place dans l'atlas) : dix passants, quatre modèles de passant."""
+    o = bpy.data.objects.new(nom, source.data)
+    o.location = tuple(origine)
+    for k, val in (extras or {}).items():
+        o[k] = val
+    coll.objects.link(o)
+    return o
+
+
+def repere(coll, nom, position=(0, 0, 0), extras=None):
+    """Un repère (un objet vide) : le site y pose un effet (anim = « fumees », « oiseaux », « faisceau »…)."""
+    o = bpy.data.objects.new(nom, None)
+    o.empty_display_size = 0.2
+    o.location = tuple(position)
+    o["role"] = "repere"
+    for k, val in (extras or {}).items():
+        o[k] = val
+    coll.objects.link(o)
+    return o
+
+
 def soleil_et_ciel(soleil=(-0.5, -0.62, 0.62), force=4.2, chaud=(1.0, 0.87, 0.68), ciel=(0.5, 0.66, 1.0), force_ciel=0.75, taille=3.0):
     """La lumière du niveau 5 : un soleil chaud, assez bas, et un ciel bleuté qui débouche les ombres."""
     sc = bpy.context.scene
@@ -1159,11 +1182,13 @@ def cuire_ensemble(objets, fichier, taille=2048, echantillons=48, marge=2, nom="
     b.margin = marge
     b.target = "IMAGE_TEXTURES"
     try:
-        for k, o in enumerate(objets):
-            for x in sc.objects:
-                x.select_set(False)
+        vide = np.zeros(taille * taille * 4, np.float32)
+        vide[3::4] = 1.0
+        img.pixels.foreach_set(vide)
+        for x in sc.objects:
+            x.select_set(False)
+        for o in objets:
             o.select_set(True)
-            bpy.context.view_layer.objects.active = o
             for m in o.data.materials:
                 nt = m.node_tree
                 n = nt.nodes.get("n5_cible") or nt.nodes.new("ShaderNodeTexImage")
@@ -1173,8 +1198,9 @@ def cuire_ensemble(objets, fichier, taille=2048, echantillons=48, marge=2, nom="
                     x.select = False
                 n.select = True
                 nt.nodes.active = n
-            b.use_clear = k == 0
-            bpy.ops.object.bake(type="COMBINED")
+        bpy.context.view_layer.objects.active = objets[0]
+        b.use_clear = False
+        bpy.ops.object.bake(type="COMBINED")
     finally:
         if sol is not None:
             bpy.data.objects.remove(sol, do_unlink=True)

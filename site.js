@@ -5153,12 +5153,14 @@
   const ILES_V4 = ["phare", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]; // les îles en V4 (modeles/grandline/ile-<id>-v4.glb)
   // une nouvelle commu n'a besoin que d'un drapeau, de ses couleurs et d'une traînée : elle prend le navire V4 commun
   const modeleNavire = (c) => (window.__navireV3 || !c?.id ? "" : FLOTTE_STYLES[c.id]?.navire ? `navire-${c.id}.glb` : "navire-v4.glb");
-  // Le « niveau 5 » (démo, à valider) : Port Barhaw refait et le galion de la flotte, matières et lumière cuites dans Blender.
-  // Rien ne change sur le site tant que ce n'est pas demandé : « ?n5=oui » dans l'adresse, ou les boutons de l'aperçu.
+  // Le « niveau 5 » (validé le 11 novembre) : matières et lumière cuites dans Blender. C'est le niveau de la VF 1.0 ;
+  // « ?n5=non » dans l'adresse (ou les boutons de l'aperçu) remet les modèles d'avant, pour comparer.
   const ILES_V5 = ["port"]; // modeles/grandline/ile-<id>-v5.glb + .webp
-  try { if (new URLSearchParams(location.search).get("n5") === "oui") window.__niveau5 = true; } catch {}
-  const niveau5 = () => Boolean(window.__niveau5) && v4Ouverte();
-  const modeleNavireGL = (c) => (niveau5() && window.__niveau5 !== "port" && c?.id ? "navire-v5.glb" : modeleNavire(c));
+  // chaque équipage a son navire, vraiment différent : un type de coque et de voilure, sa figure de proue (tout est inventé)
+  const NAVIRES_V5 = { barhaw: "galion", veyzo: "chebec", kikso: "jonque" }; // modeles/grandline/navire-<type>.glb ; les autres commus : le brick
+  try { if (new URLSearchParams(location.search).get("n5") === "non") window.__niveau5 = false; } catch {}
+  const niveau5 = () => window.__niveau5 !== false && v4Ouverte();
+  const modeleNavireGL = (c) => (niveau5() && window.__niveau5 !== "port" && c?.id ? `navire-${NAVIRES_V5[c.id] || "brick"}.glb` : modeleNavire(c));
   const traineeCommu = (c) => (["petales", "pieces", "encre", "pieuvres"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
     if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
