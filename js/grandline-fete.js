@@ -268,6 +268,7 @@ export function creerFete(ctx) {
   }
 
   // ---------- le rendu : de jour, tel quel ; sinon la scène, le masque des lumières, puis la teinte ----------
+  const calque = new THREE.Scene(); // dessiné en dernier, après la teinte : ce qui doit rester vif la nuit
   let post = null;
   const px = new THREE.Vector2();
   function preparerPost() {
@@ -311,6 +312,11 @@ export function creerFete(ctx) {
       renderer.autoClear = false;
       renderer.clearDepth();
       renderer.render(ciel, camera);
+      renderer.autoClear = true;
+    }
+    if (calque.children.length) { // ce qui luit par-dessus la teinte de la nuit : les lucioles des îles « niveau 5 »
+      renderer.autoClear = false;
+      renderer.render(calque, camera);
       renderer.autoClear = true;
     }
   }
@@ -937,7 +943,7 @@ export function creerFete(ctx) {
   }
 
   return {
-    ambiance, eclairerIle, maj, image, rendre, pose, cadre, feter, gerbe, detruire,
+    ambiance, eclairerIle, maj, image, rendre, pose, cadre, feter, gerbe, detruire, calque,
     saut: () => etatVie.baleine?.sauter() ?? false,
     // pendant un défi : le score de cette commu (pour son étiquette), ou rien
     score: (id) => (arene.actif && arene.participants.includes(id) ? Number(arene.scores[id]) || 0 : null),

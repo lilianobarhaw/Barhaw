@@ -1193,6 +1193,16 @@ toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
 // ---------- niveau 5 : le grain de près, la lumière commune, les toiles ----------
 // 1 : plein jour ; l'orage assombrit ensemble les modèles cuits et leurs toiles (la nuit, c'est la teinte de la fête qui joue)
 const eclairage5 = { value: 1 };
+// L'ombre des nuages qui passent, la même pour la mer « cinéma » et pour les îles « niveau 5 » : 1 au soleil, plus sombre
+// dessous. p : la position dans le monde (x, z) ; t : l'heure de la scène.
+const NUAGES5 = `
+  float h5n(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float b5n(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h5n(i), h5n(i + vec2(1.0, 0.0)), u.x), mix(h5n(i + vec2(0.0, 1.0)), h5n(i + vec2(1.0, 1.0)), u.x), u.y); }
+  float nuages5(vec2 p, float t) {
+    float n = b5n(p * 0.05 + t * vec2(0.014, 0.007)) * 0.62 + b5n(p * 0.12 - t * vec2(0.009, 0.012)) * 0.38;
+    return mix(0.76, 1.0, smoothstep(0.36, 0.6, n));
+  }`;
 const temps5 = { value: 0 }; // l'heure de la scène, en secondes : le vent, les pas, l'écume, les toiles
 // le grain : une petite image de bruit qui se répète, multipliée à l'atlas. De loin elle s'efface toute seule (ses mipmaps
 // tendent vers le gris moyen) ; de près elle redonne du piqué aux pavés, au bois, aux tuiles
@@ -1225,10 +1235,12 @@ function cine5(m) {
   m.onBeforeCompile = (s) => {
     s.uniforms.uEclairage5 = eclairage5;
     s.uniforms.uDetail5 = { value: textureDetail5() };
-    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5;");
+    s.uniforms.uTemps5 = temps5;
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec2 vNuage5;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvNuage5 = (modelMatrix * vec4(transformed, 1.0)).xz;");
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", `#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;\nuniform float uTemps5;\nvarying vec2 vNuage5;${NUAGES5}`)
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5 * nuages5(vNuage5, uTemps5);");
   };
-  m.customProgramCacheKey = () => `cine5${m.vertexColors ? "c" : ""}`;
+  m.customProgramCacheKey = () => `cine5n${m.vertexColors ? "c" : ""}`;
   return m;
 }
 // Ce qui vit dans un modèle cuit, animé par la carte graphique à partir d'une couleur de sommet posée dans Blender :
@@ -1261,12 +1273,12 @@ function animee5(base, genre, pas = { value: 0 }) {
   m.userData.uPas = pas;
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, { uEclairage5: eclairage5, uDetail5: { value: textureDetail5() }, uTemps5: temps5, uPas: m.userData.uPas });
-    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}`);
-    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5;")
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;\nvarying vec2 vNuage5;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}\nvNuage5 = (modelMatrix * vec4(transformed, 1.0)).xz;`);
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", `#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;\nuniform float uTemps5;\nvarying vec2 vNuage5;${NUAGES5}`)
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5 * nuages5(vNuage5, uTemps5);")
       .replace("#include <color_fragment>", ""); // la couleur de sommet sert à animer, pas à teindre
   };
-  m.customProgramCacheKey = () => `animee5-${genre}`;
+  m.customProgramCacheKey = () => `animee5n-${genre}`;
   if (genre === "vent") vents5.set(base, m);
   return m;
 }
@@ -1326,6 +1338,31 @@ function matiereRivage5(nom) {
     transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
   });
   return rivages5[nom];
+}
+// La lave d'une île « niveau 5 » : elle coule (u le long de la coulée, v en travers), sa croûte sombre dérive et se
+// fend, les bords refroidissent. Les UV viennent de Blender (barhaw_braise_v5.py).
+let lave5 = null;
+function matiereLave5() {
+  lave5 ||= new THREE.ShaderMaterial({
+    uniforms: { uTemps5: temps5 },
+    vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: `
+      uniform float uTemps5; varying vec2 vUv;
+      float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y); }
+      void main() {
+        vec2 q = vec2(vUv.x, 1.0 - vUv.y);
+        float coule = uTemps5 * 0.22;
+        float chaud = bruit(vec2(q.x * 1.6 - coule, q.y * 2.6)) * 0.6 + bruit(vec2(q.x * 4.2 - coule * 1.7, q.y * 6.0 + 3.0)) * 0.4;
+        float croute = smoothstep(0.56, 0.78, bruit(vec2(q.x * 2.4 - coule * 0.8, q.y * 3.4 + 7.0)) * 0.7 + bruit(vec2(q.x * 7.0 - coule * 0.8, q.y * 9.0)) * 0.3);
+        float bords = smoothstep(0.0, 0.2, q.y) * smoothstep(1.0, 0.8, q.y); // 0 sur les deux bords : la lave y refroidit
+        vec3 c = mix(vec3(1.0, 0.3, 0.04), vec3(1.0, 0.82, 0.3), smoothstep(0.35, 0.75, chaud) * (0.6 + 0.4 * sin(uTemps5 * 1.7 + q.x * 2.0)));
+        c = mix(c, vec3(0.22, 0.07, 0.03), max(croute * 0.8, (1.0 - bords) * 0.6));
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  return lave5;
 }
 // les toiles d'un navire « niveau 5 » : de la vraie toile (laizes cousues, bandes de ris, ralingue, usure), les couleurs de la
 // commu peintes dessus. En haut de l'image : le bas de la voile ; en bas : sa têtière, contre la vergue
@@ -1486,6 +1523,8 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
         else o.material = base;
       } else if (nom === "vitre") {
         o.material = matiereVitre();
+      } else if (nom === "lave" && racine.userData.atlas) {
+        o.material = matiereLave5(); // niveau 5 : une lave qui coule
       } else if (nom === "ecume" || nom === "ombre_eau") {
         o.material = matiereRivage5(nom);
         o.renderOrder = 2;
@@ -1754,6 +1793,55 @@ function effetRepere(r) {
         f.material.opacity = 0.8 * (1 - p);
       }
     };
+  } else if (genre === "lucioles" && r.userData.nb) {
+    // niveau 5 : chaque luciole scintille à son rythme et se promène ; certaines dessinent des étoiles au-dessus de l'eau
+    // (« etoiles » : x, y, z, rayon, dans le repère de Blender). On les voit surtout la nuit, quand les lampes s'allument.
+    const u = r.userData;
+    const et = Array.isArray(u.etoiles) ? u.etoiles : [];
+    const pos = [], phase = [], fixe = [], lueurs = [];
+    for (let k = 0; k < u.nb; k++) { const a = R() * Math.PI * 2; const d = Math.sqrt(R()) * (u.rayon || 7); pos.push(Math.cos(a) * d, 0.25 + R() * (u.haut || 2.5), Math.sin(a) * d); phase.push(R()); fixe.push(0); }
+    for (let e = 0; e + 3 < et.length; e += 4) {
+      const x = et[e], y = et[e + 1], z = et[e + 2], ray = et[e + 3];
+      const tourne = R() * 6.28;
+      const coins = Array.from({ length: 10 }, (_, k) => { const a = tourne + (k * Math.PI) / 5; const d = k % 2 ? ray * 0.42 : ray; return [x + Math.cos(a) * d, y + Math.sin(a) * d]; });
+      for (let k = 0; k < 10; k++) for (let t = 0; t < 5; t++) { const [ax, ay] = coins[k]; const [bx, by] = coins[(k + 1) % 10]; pos.push(ax + ((bx - ax) * t) / 5, z, -(ay + ((by - ay) * t) / 5)); phase.push(R()); fixe.push(1); }
+      lueurs.push({ x, y: z, z: -y, r: ray * 3.6 });
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("phase", new THREE.Float32BufferAttribute(phase, 1));
+    geo.setAttribute("etoile", new THREE.Float32BufferAttribute(fixe, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTemps5: temps5, uNuit5: { value: 0 }, uTaille: { value: 40 } },
+      vertexShader: `
+        attribute float phase; attribute float etoile; uniform float uTemps5; uniform float uNuit5; uniform float uTaille; varying float vA;
+        void main() {
+          vec3 p = position;
+          float libre = 1.0 - etoile; // les libres se promènent, celles d'une étoile tiennent leur place
+          p.x += sin(uTemps5 * 0.4 + phase * 6.28) * 0.4 * libre;
+          p.z += cos(uTemps5 * 0.33 + phase * 9.1) * 0.4 * libre;
+          p.y += sin(uTemps5 * 0.6 + phase * 4.7) * (0.2 * libre + 0.03);
+          float scint = 0.5 + 0.5 * sin(uTemps5 * (1.6 + phase * 2.2) + phase * 40.0);
+          vA = (0.3 + 0.7 * scint * scint) * mix(0.12, 1.0, uNuit5);
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_PointSize = uTaille * (0.75 + 0.5 * scint + 0.25 * etoile) / -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        varying float vA;
+        void main() {
+          float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
+          gl_FragColor = vec4(vec3(1.0, 0.96, 0.5) * (0.5 + 0.9 * a), a * vA);
+        }`,
+      transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+    });
+    const p = new THREE.Points(geo, mat);
+    p.frustumCulled = false;
+    const taille = new THREE.Vector2();
+    p.onBeforeRender = (renderer, scene, camera) => { mat.uniforms.uTaille.value = (0.17 * camera.projectionMatrix.elements[5] * renderer.getDrawingBufferSize(taille).y) / 2; };
+    g.userData.calque = p; // dessiné après la teinte de la nuit, pour rester vif (voir chargerIle et grandline-fete.js)
+    g.userData.lueurs = lueurs; // là où une étoile de lucioles éclaire la nuit (voir chargerIle)
+    maj = () => { mat.uniforms.uNuit5.value = lampesAllumees; };
   } else if (genre === "neige" || genre === "spores" || genre === "etincelles" || genre === "lucioles") {
     const reglage = {
       neige: [200, 0xffffff, 0.35, 9, 11, -1.1],
@@ -1856,6 +1944,7 @@ function materiauMer(uniforms) {
       varying vec2 vXZ;
       varying vec3 vMonde;
       float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      ${NUAGES5}
       float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
         return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y); }
       float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { s += a * bruit(p); p *= 2.03; a *= 0.5; } return s; }
@@ -1997,6 +2086,7 @@ function materiauMer(uniforms) {
           mer = mix(mer, vec3(0.97, 0.99, 1.0), ressac * 0.8 * bordCarte * (0.6 + 0.4 * bruit(p * 2.3)));
           vec3 sable = mix(vec3(0.93, 0.86, 0.68), vec3(0.80, 0.71, 0.52), relief);
           sable = mix(sable * vec3(0.66, 0.70, 0.72), sable, smoothstep(0.606, 0.66, tc));
+          mer *= nuages5(p, uT); // l'ombre des nuages qui passent (la même que sur les îles « niveau 5 »)
           c = mix(papier, mer, dansMer);
           c = mix(c, sable, smoothstep(0.602, 0.612, tc) * bordCarte);
         } else {
@@ -2174,7 +2264,19 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         if (uniformsMer.uIles.value[i.indexMer].z > 0) uniformsMer.uIles.value[i.indexMer].z = i.rMer;
       }
       const anims = animateurs(bouge);
-      for (const r of reperes) { const e = effetRepere(r); r.parent.add(e.groupe); anims.push(e.maj); }
+      for (const r of reperes) {
+        const e = effetRepere(r);
+        r.parent.add(e.groupe);
+        anims.push(e.maj);
+        // les étoiles de lucioles éclairent la nuit, comme des lanternes (tant que l'île est visible)
+        const luit = e.groupe.userData.calque;
+        if (luit && fete?.calque) {
+          luit.position.set(i.x + r.position.x, r.position.y, i.z + r.position.z);
+          Object.defineProperty(luit, "visible", { get: () => Boolean(i.visible && i.groupe.visible), set() {} }); // elles suivent leur île
+          fete.calque.add(luit);
+        } else if (luit) e.groupe.add(luit);
+        for (const l of e.groupe.userData.lueurs || []) lanternes.push({ g: { get visible() { return Boolean(i.visible && i.groupe.visible); }, position: new THREE.Vector3(i.x + l.x, 0, i.z + l.z) }, y: l.y, r: l.r, clignote: true });
+      }
       for (const c of i.contenu) { i.groupe.remove(c); c.traverse((o) => o.geometry?.dispose?.()); }
       i.groupe.add(modele);
       i.contenu = [modele];
