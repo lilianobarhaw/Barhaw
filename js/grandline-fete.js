@@ -234,8 +234,10 @@ export function creerFete(ctx) {
   }
   function eclairerIle(i, modele) {
     try {
-      const pts = pointsBrillants(modele, 2.6, leger ? 6 : 10);
-      i.lumieres = pts.map((p) => ({ x: p.x, y: p.y, z: p.z, c: TEINTES[p.m] || CHAUD, r: p.m === "lave" ? 4.4 : 3.3, ph: (p.x * 7.1 + p.z * 3.3) % 6.28 }));
+      // un modèle « niveau 5 » (une ville entière) : davantage de lumières, plus petites, pour que chaque rue ait la sienne
+      const fin = Boolean(modele.userData.atlas);
+      const pts = fin ? pointsBrillants(modele, 1.7, leger ? 10 : 22) : pointsBrillants(modele, 2.6, leger ? 6 : 10);
+      i.lumieres = pts.map((p) => ({ x: p.x, y: p.y, z: p.z, c: TEINTES[p.m] || CHAUD, r: p.m === "lave" ? 4.4 : fin ? 2.5 : 3.3, ph: (p.x * 7.1 + p.z * 3.3) % 6.28 }));
       i.lampe = pts.length ? pts.reduce((a, b) => (b.y > a.y ? b : a)) : null;
     } catch (e) { erreurs.push(`lumières ${i.id} : ${e.message}`); }
   }
@@ -281,6 +283,7 @@ export function creerFete(ctx) {
   let eclair = 0;
   let nbLum = 0;
   function rendre(s) {
+    ctx.surLampes?.(lisse(0.12, 0.62, lampes())); // les fenêtres des modèles « niveau 5 » s'allument avec les lampes
     const actif = amb.nuit > 0.008 || amb.or > 0.008;
     if (actif) {
       post ||= preparerPost();

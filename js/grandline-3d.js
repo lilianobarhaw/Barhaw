@@ -539,14 +539,14 @@ const COULEURS = {
   pierre: 0xa39a8c, pierre_fonce: 0x6b6258, roche_noire: 0x3b3236, neige: 0xf4f8ff, glace: 0xbfe6ff, lave: 0xff6a1a, fer: 0x2a2a33,
   corde: 0xc9a66b, lumiere: 0xfff1a8, eau: 0x6fb0c8, turquoise: 0x3fd0c9, luciole: 0xfff27a, gres: 0xd98a4a, paille: 0xe8c66a,
   feu: 0xff9a1f, eau_douce: 0x5fd0d8, corail: 0xff7a8a, noir: 0x1f1a22, sable: 0xe9cf98, gris: 0x8a8796, champi_pied: 0xf6ead2,
-  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6, nuit: 0x2c2f7a, astre: 0xa8f0ff,
+  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6, nuit: 0x2c2f7a, astre: 0xa8f0ff, vitre: 0xffd27a,
   fanion_rose: 0xff4f9a, fanion_or: 0xffc23d, fanion_violet: 0x9b4dff, fanion_turquoise: 0x2fd3c4, fanion_creme: 0xfff1d6,
   cuivre: 0xc8743a, laiton: 0xd9b45a, mousse: 0x5f7a3a, vase: 0x5a5236, spectre: 0x8affc8, os: 0xf0e6cc, cristal: 0xd7b8ff, ocean: 0x4a6aa0, dauphin: 0x8aa2c4, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
 };
-const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu", "spectre", "astre"]);
+const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu", "spectre", "astre", "vitre"]);
 const FANIONS = ["fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme"]; // les drapeaux de la mer en fête : une épaisseur de toile
 const DEUX_FACES = new Set(["feuille", "voile", "voile_b", "drapeau", "flamme", "corde", ...FANIONS]);
-const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "cristal", "spectre", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave", "astre", ...FANIONS]);
+const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "cristal", "spectre", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave", "astre", "vitre", ...FANIONS]);
 const TYPES_GLB = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const MAX_GLB = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
 const COMPOSANTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
@@ -596,8 +596,74 @@ async function lireGLB(url) {
   const lb = dv.getUint32(20 + lj, true);
   const bin = buf.slice(28 + lj, 28 + lj + lb);
   if (g.asset?.extras?.filtre === "delta-octets") defiltrerGLB(g, bin);
+  // niveau 5 : une matière « atlas_… » veut dire que les couleurs et la lumière sont dans l'image du même nom (.webp)
+  const atlas = (g.materials || []).some((m) => /^atlas/.test(m.name || "")) ? await lireAtlas(url.replace(/\.glb$/, ".webp")) : null;
   // les modèles V4 (ile-<id>-v4.glb, navire-<commu>.glb, maitre-<île>.glb, fantome.glb) ont leur lumière cuite
-  return { g, bin, cuit: /(-v4|navire-[a-z0-9]{2,20}|maitre-[a-z]{2,20}|fantome)(-leger)?\.glb$/.test(url) };
+  return { g, bin, atlas, cuit: /(-v4|navire-[a-z0-9]{2,20}|maitre-[a-z]{2,20}|fantome)(-leger)?\.glb$/.test(url) };
+}
+// ---------- le niveau 5 (démo) : matières riches et lumière de Blender, cuites dans UNE image par modèle (l'atlas) ----------
+// Le modèle s'affiche avec cette image telle quelle (pas d'éclairage à calculer : un seul dessin, même sur téléphone).
+// Les fenêtres (« vitre ») sont à part : éteintes le jour, elles s'allument avec les lampes (js/grandline-fete.js).
+const atlasLus = new Map();
+function lireAtlas(url) {
+  if (!atlasLus.has(url)) {
+    const lu = (async () => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${url} : ${r.status}`);
+      const blob = new Blob([await r.arrayBuffer()], { type: "image/webp" });
+      let image;
+      if (typeof createImageBitmap === "function") image = await createImageBitmap(blob, { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+      else {
+        // un vieux navigateur : l'image passe par une adresse « data: » (la page n'accepte pas les adresses « blob: »)
+        const adresse = await new Promise((ok, non) => { const l = new FileReader(); l.onload = () => ok(l.result); l.onerror = () => non(new Error(`${url} : illisible`)); l.readAsDataURL(blob); });
+        image = await new Promise((ok, non) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => non(new Error(`${url} : image refusée`)); i.src = adresse; });
+      }
+      const t = new THREE.Texture(image);
+      t.flipY = false; // les UV d'un .glb partent du haut de l'image
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.anisotropy = 4;
+      t.needsUpdate = true;
+      return new THREE.MeshBasicMaterial({ map: t });
+    })();
+    atlasLus.set(url, lu);
+    lu.catch(() => atlasLus.delete(url));
+  }
+  return atlasLus.get(url);
+}
+// Les faces peintes d'un modèle « niveau 5 » : cuites en blanc dans l'atlas, marquées dans le .glb par une couleur de sommet
+// (rouge : la couleur principale de la commu ; vert : la seconde). Ici, la marque devient la vraie couleur, que l'image vient
+// multiplier : la peinture garde ainsi le grain du bois et les ombres de Blender.
+function teindreZones(geo, theme) {
+  const z = geo.getAttribute("color");
+  if (!z || geo.userData.teinte) return;
+  const c1 = new THREE.Color(theme.c1);
+  const c2 = new THREE.Color(theme.c2);
+  for (let n = 0; n < z.count; n++) {
+    const r = z.getX(n);
+    const v = z.getY(n);
+    const t = r > 0.5 && v < 0.5 ? c1 : v > 0.5 && r < 0.5 ? c2 : null;
+    if (t) z.setXYZ(n, t.r, t.g, t.b);
+    else z.setXYZ(n, 1, 1, 1);
+  }
+  z.needsUpdate = true;
+  geo.userData.teinte = true;
+}
+const atlasTeintes = new WeakMap();
+function atlasTeinte(base) {
+  if (!atlasTeintes.has(base)) { const m = base.clone(); m.vertexColors = true; atlasTeintes.set(base, m); }
+  return atlasTeintes.get(base);
+}
+let matVitre = null;
+function matiereVitre() {
+  matVitre ||= new THREE.MeshBasicMaterial({ color: COULEURS.vitre, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  matVitre.visible = matVitre.opacity > 0.01;
+  return matVitre;
+}
+// les fenêtres s'allument avec les lampes (0 : plein jour ; 1 : nuit)
+function allumerVitres(f) {
+  const m = matiereVitre();
+  m.opacity = Math.max(0, Math.min(1, f));
+  m.visible = m.opacity > 0.01;
 }
 function accesseur(g, bin, i, brut = false) {
   const a = g.accessors[i];
@@ -621,7 +687,7 @@ function accesseur(g, bin, i, brut = false) {
   }
   return { x, k, srgb: Boolean(e.srgb) };
 }
-function geometrieGLB(g, bin, p) {
+function geometrieGLB(g, bin, p, sansLumiere = false) {
   const geo = new THREE.BufferGeometry();
   const at = p.attributes;
   geo.setAttribute("position", new THREE.BufferAttribute(accesseur(g, bin, at.POSITION).x, 3));
@@ -638,7 +704,7 @@ function geometrieGLB(g, bin, p) {
   }
   if (at.TEXCOORD_0 !== undefined) geo.setAttribute("uv", new THREE.BufferAttribute(accesseur(g, bin, at.TEXCOORD_0).x, 2));
   if (p.indices !== undefined) geo.setIndex(new THREE.BufferAttribute(accesseur(g, bin, p.indices, true), 1));
-  if (at.NORMAL === undefined) geo.computeVertexNormals();
+  if (at.NORMAL === undefined && !sansLumiere) geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
 }
@@ -647,8 +713,9 @@ function noeudGLB(g, bin, i) {
   let o;
   if (n.mesh !== undefined) {
     const prims = g.meshes[n.mesh].primitives.map((p) => {
-      const m = new THREE.Mesh(geometrieGLB(g, bin, p));
-      m.userData.matiere = String(g.materials?.[p.material]?.name || "").split(".")[0];
+      const matiere = String(g.materials?.[p.material]?.name || "").split(".")[0];
+      const m = new THREE.Mesh(geometrieGLB(g, bin, p, matiere.startsWith("atlas") || matiere === "vitre"));
+      m.userData.matiere = matiere;
       return m;
     });
     if (prims.length === 1) o = prims[0];
@@ -662,9 +729,10 @@ function noeudGLB(g, bin, i) {
   for (const c of n.children || []) o.add(noeudGLB(g, bin, c));
   return o;
 }
-function sceneGLB({ g, bin }) {
+function sceneGLB({ g, bin, atlas = null }) {
   const racine = new THREE.Group();
   for (const i of g.scenes[g.scene || 0].nodes) racine.add(noeudGLB(g, bin, i));
+  racine.userData.atlas = atlas; // niveau 5 : habiller() s'en sert
   return racine;
 }
 // le contour à l'encre : la même forme, gonflée le long des normales, vue de dos
@@ -1135,6 +1203,14 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
       if (nom === "terrain") {
         o.material = relief();
         reliefs.push(o);
+      } else if (nom.startsWith("atlas")) {
+        // niveau 5 : tout est dans l'image, pas de contour ; les faces « peintes » prennent les couleurs de la commu
+        const base = racine.userData.atlas;
+        if (!base) o.material = matiereGLB("pierre");
+        else if (o.geometry.getAttribute("color")) { teindreZones(o.geometry, theme); o.material = atlasTeinte(base); }
+        else o.material = base;
+      } else if (nom === "vitre") {
+        o.material = matiereVitre();
       } else {
         o.material = matiereGLB(nom, theme, Boolean(o.geometry.getAttribute("color")), cuit);
         if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
@@ -1434,7 +1510,7 @@ function courbe(a, b, sens = 1, force = 0.16) {
   return new THREE.QuadraticBezierCurve3(a, c, b);
 }
 
-export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, surAmbiance = () => {}, ambiance = null, ilesV4 = [], modeles = "/modeles/grandline/" }) {
+export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, surAmbiance = () => {}, ambiance = null, ilesV4 = [], ilesV5 = [], modeles = "/modeles/grandline/" }) {
   const ratio = Math.min(1.5, window.devicePixelRatio || 1);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: ratio < 1.5, alpha: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -1536,7 +1612,10 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     i.modele = null;
     // la version V4 d'une île (ile-<id>-v4.glb) quand elle existe et que la V4 est ouverte ; sinon l'île de base
     const v4 = ilesV4.includes(i.id);
-    (v4 ? lireV4(`ile-${i.id}-v4.glb`).catch(() => lireGLB(`${modeles}ile-${i.id}.glb`)) : lireGLB(`${modeles}ile-${i.id}.glb`)).then((glb) => {
+    const avant = () => (v4 ? lireV4(`ile-${i.id}-v4.glb`).catch(() => lireGLB(`${modeles}ile-${i.id}.glb`)) : lireGLB(`${modeles}ile-${i.id}.glb`));
+    // niveau 5 (démo) : ile-<id>-v5.glb et son image ; si l'un des deux manque, l'île d'avant
+    (ilesV5.includes(i.id) ? lireV4(`ile-${i.id}-v5.glb`).catch(avant) : avant()).then((glb) => {
+      i.niveau = glb.atlas ? 5 : v4 ? 4 : 3;
       if (detruit) return;
       const modele = sceneGLB(glb);
       const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }), cuit: glb.cuit });
@@ -1600,7 +1679,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const anims = animateurs(bouge, () => ventIci);
       const g = new THREE.Group();
       g.add(modele);
-      g.scale.setScalar(1.5);
+      g.scale.setScalar(glb.atlas ? 1.56 : 1.5); // le galion « niveau 5 » : plus fin que le navire d'avant, donc un rien plus grand pour garder sa présence
       g.userData.animer = (s, vent) => { ventIci = vent; for (const a of anims) a(s); };
       g.userData.blender = true;
       return g;
@@ -2487,7 +2566,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   fete = creerFete({
     renderer, scene, camera, iles, flotte, porteur, cam, leger, v4: ilesV4.length > 0, v3, hasard, cap, pointDeMer, lireV4, sceneGLB, habiller, animateurs,
     matiere: (nom, vc) => matiereGLB(nom, THEME_BARHAW, vc, true), BRILLANTS, eclabousse, jetDeau, sillages, eclabs, lanternes, uniformsMer, MER_X, MER_Z, erreurs,
-    evenement: () => evenement, tempete: () => evenement?.type === "tempete", eclair: () => hemi.intensity > 2, detruit: () => detruit, surAmbiance,
+    evenement: () => evenement, tempete: () => evenement?.type === "tempete", eclair: () => hemi.intensity > 2, detruit: () => detruit, surAmbiance, surLampes: allumerVitres,
   });
   if (ambiance) fete.ambiance(ambiance);
 
@@ -2711,6 +2790,6 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // l'ambiance : { phase: "jour" | "aube" | "crepuscule" | "nuit", nuit: 0…1, or: 0…1 } (site.js la donne, à l'heure de Paris)
   const reglerAmbiance = (a) => fete.ambiance(a);
   const feter = (n) => fete.feter(porteur.position.x, porteur.position.z, n || 7, { large: 18 });
-  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, ambiance: reglerAmbiance, feter, saut: () => fete.saut(), mode: () => mode, etat: () => ({ fete: fete.etat(), leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
+  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, ambiance: reglerAmbiance, feter, saut: () => fete.saut(), mode: () => mode, etat: () => ({ fete: fete.etat(), leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), niveau5: [...iles.values()].filter((i) => i.modele && i.niveau === 5).map((i) => i.id), vitres: Math.round((matVitre?.opacity || 0) * 100) / 100, vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller, animateurs, themeNavire, creerTrainee, pastille, toile };
