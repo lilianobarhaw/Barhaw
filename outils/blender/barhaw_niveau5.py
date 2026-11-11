@@ -475,7 +475,7 @@ matiere("cadran", tx_cadran, 0, 0.3)
 matiere("cadran_nu", tx_cadran, 0, 0.5, aiguilles=False)
 
 # Les matières du site (pas cuites) : ce qui s'allume, ce qui bouge, ce qui prend les couleurs de la commu
-SITE = ("ecume", "ombre_eau", "vitre", "lumiere", "luciole", "lave", "astre", "feu", "rose", "violet", "voile", "voile_b", "drapeau", "flamme", "fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme")
+SITE = ("ecume", "ombre_eau", "vitre", "lumiere", "luciole", "lave", "astre", "spectre", "feu", "rose", "violet", "voile", "voile_b", "drapeau", "flamme", "fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme")
 
 
 # =====================================================================================================================
@@ -938,7 +938,7 @@ def oublier(*noms):
                 bpy.data.images.remove(img)
 
 
-COULEURS_SITE = {"luciole": (1.0, 0.95, 0.48), "lave": (1.0, 0.36, 0.08), "astre": (0.66, 0.94, 1.0), "ecume": (0.95, 0.98, 1.0), "ombre_eau": (0.05, 0.2, 0.24), "vitre": (1.0, 0.82, 0.45), "lumiere": (1.0, 0.95, 0.66), "feu": (1.0, 0.6, 0.12), "rose": (1.0, 0.31, 0.6), "violet": (0.61, 0.3, 1.0), "voile": (0.98, 0.95, 0.87), "voile_b": (0.98, 0.95, 0.87),
+COULEURS_SITE = {"luciole": (1.0, 0.95, 0.48), "lave": (1.0, 0.36, 0.08), "astre": (0.66, 0.94, 1.0), "spectre": (0.54, 1.0, 0.78), "ecume": (0.95, 0.98, 1.0), "ombre_eau": (0.05, 0.2, 0.24), "vitre": (1.0, 0.82, 0.45), "lumiere": (1.0, 0.95, 0.66), "feu": (1.0, 0.6, 0.12), "rose": (1.0, 0.31, 0.6), "violet": (0.61, 0.3, 1.0), "voile": (0.98, 0.95, 0.87), "voile_b": (0.98, 0.95, 0.87),
                  "drapeau": (1.0, 0.31, 0.6), "flamme": (1.0, 0.31, 0.6), "fanion_rose": (1.0, 0.31, 0.6), "fanion_or": (1.0, 0.76, 0.24), "fanion_violet": (0.61, 0.3, 1.0), "fanion_turquoise": (0.18, 0.83, 0.77), "fanion_creme": (1.0, 0.95, 0.84)}
 
 
@@ -959,9 +959,9 @@ def materiau(nom):
         c = COULEURS_SITE[nom]
         lin = tuple(pow(x, 2.2) for x in c)
         bsdf.inputs["Base Color"].default_value = (*lin, 1)
-        if nom in ("vitre", "lumiere", "luciole", "lave", "astre", "feu"):
+        if nom in ("vitre", "lumiere", "luciole", "lave", "astre", "spectre", "feu"):
             bsdf.inputs["Emission Color"].default_value = (*lin, 1)
-            bsdf.inputs["Emission Strength"].default_value = {"vitre": 0.0, "lave": 6.0, "astre": 5.0}.get(nom, 2.0)  # la lave éclaire la roche autour d'elle, un cristal la glace
+            bsdf.inputs["Emission Strength"].default_value = {"vitre": 0.0, "lave": 6.0, "astre": 5.0, "spectre": 3.0}.get(nom, 2.0)  # la lave éclaire la roche autour d'elle, un cristal la glace
         if nom.startswith("voile") and "toile_ecrue" in MATIERES:  # pour les rendus : de la vraie toile (le site, lui, dessine la sienne)
             coul, relief = image_de("toile_ecrue")
             uv = nt.nodes.new("ShaderNodeUVMap")
