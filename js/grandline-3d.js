@@ -1193,6 +1193,7 @@ toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
 // ---------- niveau 5 : le grain de près, la lumière commune, les toiles ----------
 // 1 : plein jour ; l'orage assombrit ensemble les modèles cuits et leurs toiles (la nuit, c'est la teinte de la fête qui joue)
 const eclairage5 = { value: 1 };
+const temps5 = { value: 0 }; // l'heure de la scène, en secondes : le vent, les pas, l'écume, les toiles
 // le grain : une petite image de bruit qui se répète, multipliée à l'atlas. De loin elle s'efface toute seule (ses mipmaps
 // tendent vers le gris moyen) ; de près elle redonne du piqué aux pavés, au bois, aux tuiles
 let detail5 = null;
@@ -1229,6 +1230,102 @@ function cine5(m) {
   };
   m.customProgramCacheKey = () => `cine5${m.vertexColors ? "c" : ""}`;
   return m;
+}
+// Ce qui vit dans un modèle cuit, animé par la carte graphique à partir d'une couleur de sommet posée dans Blender :
+//   « vent » : le feuillage (vert < 1 : plus il est bas, plus la feuille bouge) ;
+//   « marche » : les membres d'un marcheur (bleu sous 0,5 : un membre ; rouge : le sens ; vert : 0 une jambe, 1 un bras), qui
+//   balancent autour de la hanche ou de l'épaule au rythme de ses pas (uPas, de -1 à 1, que donne l'animateur « marche »).
+const VENT5 = `
+  float vent5 = 1.0 - color.g;
+  if (vent5 > 0.01) {
+    float ph5 = uTemps5 * 1.25 + position.x * 0.7 + position.z * 0.55;
+    float raf5 = 0.65 + 0.35 * sin(uTemps5 * 0.31 + position.x * 0.13);
+    transformed.x += (sin(ph5) * 0.05 + sin(ph5 * 2.3 + 1.7) * 0.016) * vent5 * raf5;
+    transformed.z += cos(ph5 * 0.8 + 0.6) * 0.034 * vent5 * raf5;
+    transformed.y += sin(ph5 * 1.6) * 0.014 * vent5;
+  }`;
+const MARCHE5 = `
+  if (color.b < 0.5) {
+    float axe5 = color.b - 0.25; // où se tient le marcheur dans son objet (le pousseur d'une charrette est derrière elle)
+    float pivot5 = mix(0.137, 0.207, color.g); // la hanche, l'épaule
+    float ang5 = uPas * (color.r * 2.0 - 1.0) * mix(0.5, 0.4, color.g);
+    vec2 d5 = vec2(transformed.x - axe5, transformed.y - pivot5);
+    transformed.x = axe5 + cos(ang5) * d5.x - sin(ang5) * d5.y;
+    transformed.y = pivot5 + sin(ang5) * d5.x + cos(ang5) * d5.y;
+  }`;
+const vents5 = new Map();
+function animee5(base, genre, pas = { value: 0 }) {
+  if (genre === "vent" && vents5.has(base)) return vents5.get(base);
+  const m = base.clone();
+  m.vertexColors = true;
+  m.userData.uPas = pas;
+  m.onBeforeCompile = (s) => {
+    Object.assign(s.uniforms, { uEclairage5: eclairage5, uDetail5: { value: textureDetail5() }, uTemps5: temps5, uPas: m.userData.uPas });
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}`);
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5;")
+      .replace("#include <color_fragment>", ""); // la couleur de sommet sert à animer, pas à teindre
+  };
+  m.customProgramCacheKey = () => `animee5-${genre}`;
+  if (genre === "vent") vents5.set(base, m);
+  return m;
+}
+// Sur l'eau, au bord d'une île « niveau 5 » : « ecume », le ressac d'une plage (des lames qui arrivent, s'étalent et se
+// retirent) ; « ombre_eau », le reflet sombre d'un quai, d'un ponton, d'une coque, avec un liseré d'écume au pied du mur.
+// Les UV viennent de Blender (bande() et tache() dans barhaw_ile_v5.py) : u le long du bord, v du bord (0) vers le large (1) ;
+// pour une tache, v va de 2 (sous l'objet) à 3.
+const rivages5 = {};
+function matiereRivage5(nom) {
+  if (rivages5[nom]) return rivages5[nom];
+  const ressac = nom === "ecume";
+  rivages5[nom] = new THREE.ShaderMaterial({
+    uniforms: { uTemps5: temps5, uEclairage5: eclairage5 },
+    vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: `
+      uniform float uTemps5; uniform float uEclairage5; varying vec2 vUv;
+      float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      // un bruit qui se répète tous les « per » le long du bord : le ruban qui fait le tour d'une île se referme sans couture
+      float bruit(vec2 p, float per) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+        float x0 = mod(i.x, per), x1 = mod(i.x + 1.0, per);
+        return mix(mix(h21(vec2(x0, i.y)), h21(vec2(x1, i.y)), u.x), mix(h21(vec2(x0, i.y + 1.0)), h21(vec2(x1, i.y + 1.0)), u.x), u.y); }
+      void main() {
+        vec2 q = vec2(vUv.x, 1.0 - vUv.y); // q.x : le long du bord ; q.y : 0 contre le bord, 1 au large
+        float g1 = bruit(vec2(q.x * 6.0, q.y * 5.0 + uTemps5 * 0.22), 96.0);
+        float g2 = bruit(vec2(q.x * 14.0 + 5.0, q.y * 11.0 - uTemps5 * 0.31), 224.0);
+        float grain = g1 * 0.55 + g2 * 0.45;
+        float dentelle = smoothstep(0.5, 0.92, (1.0 - abs(g1 * 2.0 - 1.0)) * 0.72 + g2 * 0.42); // l'écume en dentelle, qui dérive
+        ${ressac ? `
+        // deux lames décalées : chacune vient du large, grossit, déferle contre le sable, puis se retire en laissant sa dentelle
+        float a = 0.0;
+        for (int k = 0; k < 2; k++) {
+          float fk = float(k);
+          float t = fract(uTemps5 * 0.085 + fk * 0.5 + bruit(vec2(q.x * 0.375 + fk * 3.0, fk * 9.0), 6.0) * 0.5);
+          float avance = smoothstep(0.0, 0.58, t);
+          float retrait = smoothstep(0.58, 1.0, t);
+          float ondule = (bruit(vec2(q.x * 1.5 + fk * 11.0, uTemps5 * 0.05), 24.0) - 0.5) * 0.18;
+          float front = mix(0.96, 0.05, avance) + retrait * 0.2 + ondule * (1.0 - avance * 0.6);
+          float dv = q.y - front; // > 0 : derrière la lame, côté large
+          float force = smoothstep(0.0, 0.22, t) * (1.0 - retrait);
+          float crete = smoothstep(-0.035, 0.0, dv) * smoothstep(0.11, 0.01, dv);
+          float nappe = smoothstep(0.0, 0.06, dv) * smoothstep(0.55, 0.08, dv) * dentelle;
+          a = max(a, (crete * (0.5 + 0.5 * smoothstep(0.25, 0.6, grain)) + nappe * 0.8) * force);
+          a = max(a, retrait * (1.0 - retrait) * 4.0 * smoothstep(0.45, 0.0, q.y) * dentelle * 0.6);
+        }
+        a = max(a, smoothstep(0.1, 0.0, q.y) * smoothstep(0.35, 0.65, grain) * 0.7); // le liseré, contre le sable
+        a *= smoothstep(1.0, 0.85, q.y);
+        gl_FragColor = vec4(vec3(0.97, 0.99, 1.0) * uEclairage5, clamp(a, 0.0, 1.0) * 0.9);` : `
+        // l'eau sombre au pied d'un quai (un ruban : q.y de 0 à 1, avec son liseré d'écume qui bat contre le mur) ou sous un
+        // ponton, autour d'une coque (une tache : q.y de 2 à 3, sans liseré)
+        float tache = step(1.5, q.y);
+        float loin = clamp(q.y - 2.0 * tache, 0.0, 1.0);
+        float ombre = pow(1.0 - loin, 1.7) * (0.52 + 0.06 * sin(uTemps5 * 0.9 + q.x * 2.0 + grain * 5.0));
+        float lisere = (1.0 - tache) * smoothstep(0.1, 0.0, loin - 0.025 * sin(uTemps5 * 1.3 + q.x * 3.0)) * smoothstep(0.45, 0.72, grain + 0.08);
+        vec3 c = mix(vec3(0.03, 0.14, 0.18), vec3(0.95, 0.98, 1.0), lisere);
+        gl_FragColor = vec4(c * uEclairage5, max(ombre, lisere * 0.7));`}
+      }`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+  return rivages5[nom];
 }
 // les toiles d'un navire « niveau 5 » : de la vraie toile (laizes cousues, bandes de ris, ralingue, usure), les couleurs de la
 // commu peintes dessus. En haut de l'image : le bas de la voile ; en bas : sa têtière, contre la vergue
@@ -1344,7 +1441,14 @@ function matiereToile5(nom, theme) {
   const m = new THREE.MeshBasicMaterial({ map: toile5(nom, theme), side: THREE.DoubleSide });
   m.onBeforeCompile = (s) => {
     s.uniforms.uEclairage5 = eclairage5;
-    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vN5;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvN5 = normalize(mat3(modelMatrix) * normal);");
+    s.uniforms.uTemps5 = temps5;
+    s.uniforms.uOnde5 = { value: nom === "drapeau" ? 1 : nom === "flamme" ? 0.6 : 0 };
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vN5;\nuniform float uTemps5;\nuniform float uOnde5;").replace("#include <begin_vertex>", `#include <begin_vertex>
+      vN5 = normalize(mat3(modelMatrix) * normal);
+      // un drapeau claque depuis sa hampe (u = 0) ; une voile respire, tenue par ses bords
+      transformed += normal * (uOnde5 > 0.0
+        ? (sin(uTemps5 * 6.5 - uv.x * 8.0) * 0.045 + sin(uTemps5 * 9.1 - uv.x * 13.0 + uv.y * 3.0) * 0.018) * uv.x * uOnde5
+        : sin(uTemps5 * 1.3 + uv.y * 2.4) * 0.022 * sin(3.1416 * uv.x) * sin(3.1416 * uv.y));`);
     s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vN5;\nuniform float uEclairage5;").replace("#include <map_fragment>", `#include <map_fragment>
       vec3 n5 = normalize(vN5) * (gl_FrontFacing ? 1.0 : -1.0);
       float soleil5 = dot(n5, normalize(vec3(-0.5, 0.62, 0.62)));
@@ -1356,12 +1460,14 @@ function matiereToile5(nom, theme) {
   return m;
 }
 // habiller un modèle : les matières du site, les contours ; renvoie ce qui bouge et les reliefs
-function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit = false }) {
+function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit = false, ile = false }) {
   const reliefs = [];
   const bouge = [];
   const reperes = [];
-  const parcourir = (o, sansContour) => {
+  const parcourir = (o, sansContour, marcheur = null) => {
     const anim = o.userData.anim;
+    if (anim === "marche" && !o.userData.roulis) marcheur = o; // ses mailles balancent bras et jambes
+    else if (anim) marcheur = null;
     if (anim && o.userData.role === "repere") reperes.push(o);
     else if (anim) bouge.push(o);
     const calme = sansContour || anim === "mirage" || anim === "clignote";
@@ -1375,10 +1481,14 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
         // niveau 5 : tout est dans l'image, pas de contour ; les faces « peintes » prennent les couleurs de la commu
         const base = racine.userData.atlas;
         if (!base) o.material = matiereGLB("pierre");
+        else if (o.geometry.getAttribute("color") && ile) o.material = marcheur ? animee5(base, "marche", (marcheur.userData.pas5 ??= { value: 0 })) : animee5(base, "vent"); // une île : les pas, le vent
         else if (o.geometry.getAttribute("color")) { teindreZones(o.geometry, theme); o.material = atlasTeinte(base); }
         else o.material = base;
       } else if (nom === "vitre") {
         o.material = matiereVitre();
+      } else if (nom === "ecume" || nom === "ombre_eau") {
+        o.material = matiereRivage5(nom);
+        o.renderOrder = 2;
       } else if (racine.userData.atlas && toileGLB.noms.has(nom)) {
         o.material = matiereToile5(nom, theme); // niveau 5 : de la vraie toile, éclairée comme le reste du modèle
       } else {
@@ -1386,7 +1496,7 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
         if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
       }
     }
-    for (const c of enfants) parcourir(c, calme);
+    for (const c of enfants) parcourir(c, calme, marcheur);
   };
   parcourir(racine, false);
   return { reliefs, bouge, reperes };
@@ -1479,10 +1589,18 @@ function animateurs(bouge, vent = () => 1) {
           if (d > total) { d = total; arret = true; }
           if (sens < 0) d = total - d;
         }
+        const fait = d; // la distance depuis le début du chemin
         let k = 0;
         while (k < longs.length - 1 && d > longs[k]) { d -= longs[k]; k++; }
         o.position.lerpVectors(pts[k], pts[k + 1], longs[k] ? Math.min(1, d / longs[k]) : 0);
-        if (!arret) o.position.y += Math.abs(Math.sin(s * 9 + ph * 7)) * saut;
+        if (u.pas5) {
+          // un marcheur « niveau 5 » : ses jambes et ses bras suivent la distance parcourue (une foulée fait 0,26) ; il se
+          // calme en arrivant au bout du chemin, et son corps monte un peu quand ses jambes se croisent
+          const elan = arret ? 0 : u.boucle ? 1 : Math.min(1, Math.min(fait, total - fait) / 0.1);
+          const foulee = (s * v + depart * tour) * 24;
+          u.pas5.value = Math.sin(foulee) * elan;
+          o.position.y += Math.cos(foulee) ** 2 * 0.005 * elan;
+        } else if (!arret) o.position.y += Math.abs(Math.sin(s * 9 + ph * 7)) * saut;
         o.rotation.set(roulis ? Math.sin(s * 1.3 + ph) * roulis : 0, Math.atan2(-(pts[k + 1].z - pts[k].z) * sens, (pts[k + 1].x - pts[k].x) * sens), 0, "YXZ");
         if (roulis) o.position.y += niveauMer(o, s) + Math.sin(s * 1.6 + ph) * roulis * 0.2;
       };
@@ -2044,7 +2162,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       i.niveau = glb.atlas ? 5 : v4 ? 4 : 3;
       if (detruit) return;
       const modele = sceneGLB(glb);
-      const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }), cuit: glb.cuit });
+      const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }), cuit: glb.cuit, ile: true });
       for (const r of reliefs) modele.add(traitDeCote(r.geometry));
       const boite = new THREE.Box3().setFromObject(modele);
       if (i.niveau === 5 && i.indexMer !== undefined) {
@@ -3038,6 +3156,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     uniformsMer.uT.value = s;
     uniformsMer.uSombre.value += ((evenement?.type === "tempete" ? 1 : 0) - uniformsMer.uSombre.value) * Math.min(1, dt * 1.5);
     eclairage5.value = 1 - 0.36 * uniformsMer.uSombre.value;
+    temps5.value = s;
     for (const i of iles.values()) if (i.visible) for (const a of i.anims) a(s, dt);
     // le navire avance doucement jusqu'à sa place ; la route de l'étape suit
     progres += (progresVoulu - progres) * Math.min(1, dt * 0.8);
@@ -3177,7 +3296,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   cam.tilt = 0.15;
 
   function zoomer(f) {
-    zoom = Math.max(0.28, Math.min(1.6, zoom * f));
+    zoom = Math.max(ilesV5.length ? 0.33 : 0.28, Math.min(1.6, zoom * f)); // niveau 5 : pas plus près que ce que les textures supportent
     return zoom;
   }
   canvas.addEventListener("wheel", (ev) => {

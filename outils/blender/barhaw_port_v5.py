@@ -234,32 +234,52 @@ def arbre(L, rng, x, y, h=1.0, r=0.42, genre="rond", z=None):
     occupe(L, "arbre", f"arbre ({x:.1f}, {y:.1f})", Vf.rond(x, y, r * (0.5 if genre == "cypres" else 0.92)))
     if genre == "cypres":
         L.ajouter(*N.cylindre(0.04, 0.03, h * 0.25, 5, haut=False), "planches_sombres", M @ T(0, 0, -0.1))
-        L.ajouter(*N.sphere(r * 0.45, 7, 6, h / (r * 0.9)), "feuillage_sombre", M @ T(0, 0, h * 0.62))
+        L.ajouter(*N.sphere(r * 0.45, 7, 6, h / (r * 0.9)), "feuillage_sombre", M @ T(0, 0, h * 0.62), zone=(1.0, 0.8, 1.0))
         return
     L.ajouter(*N.tube([(0, 0, -0.2), (0.03, 0, h * 0.4), (-0.02, 0.02, h * 0.75)], [0.07, 0.055, 0.04], 6, bouts=False), "planches_sombres", M)
     mat = rng.choice(["feuillage", "feuillage", "feuillage_dore"])
     for k in range(3):
         a = rng.random() * 6.28
         d = r * 0.45 * (k > 0)
-        L.ajouter(*N.sphere(r * (0.78 if k else 1.0), 8, 5, 0.82), mat, M @ T(math.cos(a) * d, math.sin(a) * d, h * (0.95 + 0.14 * k)) @ Rz(rng.random() * 3))
+        L.ajouter(*N.sphere(r * (0.78 if k else 1.0), 8, 5, 0.82), mat, M @ T(math.cos(a) * d, math.sin(a) * d, h * (0.95 + 0.14 * k)) @ Rz(rng.random() * 3), zone=(1.0, 0.66 - 0.08 * k, 1.0))
 
 
-def passant(L, rng, x, y, angle=None, z=None):
-    """Un passant, tout petit et stylisé : une robe ou un manteau, une tête, un chapeau, deux bras."""
+def passant(L, rng, x, y, angle=None, z=None, marcheur=False):
+    """Un habitant (30 cm à l'échelle de l'île) : deux jambes et leurs souliers, un buste (tunique, ou robe longue), deux bras
+    et leurs mains, le cou, la tête, des cheveux, un chapeau de paille ou un bonnet. Il regarde vers +x.
+    marcheur : ses membres sont marqués par une couleur de sommet (rouge : le sens du balancement ; vert : 0 une jambe, 1 un
+    bras ; bleu sous 0,5 : un membre) ; le site les fait balancer au rythme de ses pas (animee5 dans js/grandline-3d.js)."""
     z = sol(x, y) if z is None else z
     M = T(x, y, z) @ Rz(rng.random() * 6.28 if angle is None else angle)
     habit = rng.choice(["tissu_rouge", "tissu_bleu", "tissu_vert", "tissu_creme", "tissu_sombre", "toile_ecrue"])
-    L.ajouter(*N.cylindre(0.062, 0.04, 0.19, 6, haut=False), habit, M)
-    L.ajouter(*N.cylindre(0.045, 0.05, 0.05, 6), habit, M @ T(0, 0, 0.19))
-    L.ajouter(*N.sphere(0.042, 6, 4), rng.choice(["peau", "peau", "peau_brune"]), M @ T(0, 0, 0.275))
+    bas = rng.choice(["tissu_sombre", "tissu_sombre", "tissu_bleu", "tissu_creme"])
+    peau = rng.choice(["peau", "peau", "peau_brune"])
+    robe = rng.random() < 0.3
+    # bleu : 0,25 + sa place (x) dans l'objet, pour que ses membres tournent autour de lui (un marcheur seul : 0,25)
+    marque = (lambda sens, bras: (float(sens), float(bras), round(0.25 + x, 3))) if marcheur else (lambda sens, bras: 0)
+    for s, sens in ((1, 0), (-1, 1)):  # les jambes ; le pied dépasse vers l'avant
+        L.ajouter(*N.tube([(0, s * 0.024, 0.14), (0, s * 0.026, 0.016)], [0.021, 0.016], 5), habit if robe else bas, M, zone=marque(sens, 0))
+        L.ajouter(*N.boite(0.05, 0.027, 0.018), "planches_sombres", M @ T(0.012, s * 0.026, 0), zone=marque(sens, 0))
+    if robe:
+        L.ajouter(*N.cylindre(0.062, 0.042, 0.1, 7, haut=False), habit, M @ T(0, 0, 0.045))
+    L.ajouter(*N.cylindre(0.037, 0.047, 0.085, 7, haut=False), habit, M @ T(0, 0, 0.127))
+    L.ajouter(*N.cylindre(0.047, 0.026, 0.022, 7), habit, M @ T(0, 0, 0.212))
+    L.ajouter(*N.cylindre(0.04, 0.04, 0.012, 7, haut=False), "planches_sombres", M @ T(0, 0, 0.127))  # la ceinture
+    for s, sens in ((1, 1), (-1, 0)):  # les bras : chacun va avec la jambe d'en face
+        L.ajouter(*N.tube([(0, s * 0.053, 0.21), (0.004, s * 0.059, 0.158), (0.013, s * 0.057, 0.115)], [0.0145, 0.0125, 0.011], 5), habit, M, zone=marque(sens, 1))
+        L.ajouter(*N.sphere(0.0135, 5, 3), peau, M @ T(0.015, s * 0.057, 0.106), zone=marque(sens, 1))
+    L.ajouter(*N.cylindre(0.015, 0.014, 0.022, 5, haut=False), peau, M @ T(0, 0, 0.226))
+    L.ajouter(*N.sphere(0.036, 7, 5), peau, M @ T(0.003, 0, 0.27))
     genre = rng.random()
-    if genre < 0.4:
-        L.ajouter(*N.cylindre(0.075, 0.07, 0.012, 7), "sable", M @ T(0, 0, 0.3))
-        L.ajouter(*N.cylindre(0.04, 0.03, 0.035, 6), "sable", M @ T(0, 0, 0.312))
-    elif genre < 0.7:
-        L.ajouter(*N.sphere(0.046, 6, 3, 0.7), rng.choice(["tissu_sombre", "tissu_rouge", "tissu_bleu"]), M @ T(0, 0, 0.297))
-    for s in (-1, 1):
-        L.ajouter(*N.tube([(0, s * 0.05, 0.22), (0.02 + rng.random() * 0.05, s * 0.075, 0.13)], 0.014, 4, bouts=False), habit, M)
+    cheveux = rng.choice(["planches_sombres", "tissu_sombre", "planches", "paves_clairs"])
+    if genre < 0.35:  # un chapeau de paille
+        L.ajouter(*N.cylindre(0.078, 0.072, 0.01, 8), "sable", M @ T(0, 0, 0.292))
+        L.ajouter(*N.cylindre(0.04, 0.032, 0.034, 7), "sable", M @ T(0, 0, 0.3))
+    elif genre < 0.6:  # un bonnet, un foulard
+        L.ajouter(*N.sphere(0.039, 7, 4, 0.72), rng.choice(["tissu_sombre", "tissu_rouge", "tissu_bleu"]), M @ T(-0.002, 0, 0.286))
+    else:  # tête nue : les cheveux, plus longs sur la nuque
+        L.ajouter(*N.sphere(0.039, 7, 4, 0.7), cheveux, M @ T(-0.004, 0, 0.283))
+        L.ajouter(*N.sphere(0.03, 6, 4, 0.9), cheveux, M @ T(-0.018, 0, 0.262))
 
 
 def coque(L, M, lg, larg, creux, mat="planches", n=7, pont=None, franc=0.08, dedans=None):
@@ -386,7 +406,7 @@ def _mailles(graine, leger):
     U = N.Maille("ile_lumieres")  # les lanternes (matière « lumiere »)
     # animes : (Maille dessinée autour de son origine, origine, extras) ; copies : (numéro dans animes, origine, extras), le même
     # objet posé ailleurs ; reperes : (position, extras), là où le site pose un effet (fumée, mouettes, faisceau du phare)
-    lots = {"corps": L, "vitres": V, "lumieres": U, "bannieres": [], "animes": [], "copies": [], "reperes": []}
+    lots = {"corps": L, "vitres": V, "lumieres": U, "bannieres": [], "animes": [], "copies": [], "libres": [], "reperes": []}
 
     # --- le terrain : une grille, la matière selon la hauteur, la pente et le quartier ---
     n, R = (54 if leger else 76), 11.6
@@ -558,6 +578,18 @@ def _mailles(graine, leger):
         Bq.ajouter(*N.poutre((0.02, s_ * 0.12, 0.13), (0.1, s_ * 0.5, 0.0), 0.022), "planches_claires")
     lots["animes"].append((Bq, (*tour_bassin[0], HB), {"anim": "marche", "chemin": [c for x, y in tour_bassin for c in (x, y, HB)], "boucle": 1, "vitesse": 0.34, "saut": 0.0, "roulis": 0.06, "phase": 0.2}))
     lots["plan"] = {"emprises": emprises, "rameur": tour_bassin, "sol": SOL}
+    # --- sur l'eau (dessiné par le site) : le reflet sombre du quai, des pontons et des coques ; un liseré d'écume au pied du mur ---
+    import barhaw_ile_v5 as K
+    Rv = N.Maille("rivage")
+    K.bande(Rv, [vers(a, RB - 0.01) for a in range(172, 7, -4)], [vers(a, RB - 0.75) for a in range(172, 7, -4)], mat="ombre_eau")
+    for nom, poly in emprises:  # l'ombre de chaque ponton, de chaque coque
+        if leger and nom in ("barque 2", "barque 3"):  # les deux barques que le téléphone n'a pas
+            continue
+        (x0, y0), (x1, y1), (x2, y2) = poly[0], poly[1], poly[2]
+        lx, ly = math.hypot(x1 - x0, y1 - y0), math.hypot(x2 - x1, y2 - y1)
+        coque_ = not nom.startswith("ponton")
+        K.tache(Rv, (x0 + x2) / 2, (y0 + y2) / 2, lx * (0.96 if coque_ else 1.0), ly * (0.9 if coque_ else 1.0), math.atan2(y1 - y0, x1 - x0), rond=coque_, marge=0.3 if coque_ else 0.36)
+    lots["libres"].append((Rv, (0.0, 0.0, 0.0), {"role": "decor"}))
 
     # --- les entrepôts et les maisons du quai (premier rang, face au bassin) ---
     def rang(angles, rayon, jeu=2.0, **k):
@@ -819,11 +851,11 @@ def _mailles(graine, leger):
     types = []
     for k in range(4):
         Pm = N.Maille(f"habitant{k}")
-        passant(Pm, rng, 0, 0, angle=0.0, z=0.0)
+        passant(Pm, rng, 0, 0, angle=0.0, z=0.0, marcheur=True)
         types.append(Pm)
 
     Ch = N.Maille("charrette")  # un marchand pousse sa charrette à bras le long du quai (elle avance vers +x)
-    passant(Ch, rng, -0.15, 0, angle=0.0, z=0.0)
+    passant(Ch, rng, -0.15, 0, angle=0.0, z=0.0, marcheur=True)
     Ch.ajouter(*N.boite(0.3, 0.17, 0.02, bas=True), "planches_claires", T(0.13, 0, 0.1))
     for s_ in (-1, 1):
         Ch.ajouter(*N.boite(0.3, 0.015, 0.05, bas=True), "planches", T(0.13, s_ * 0.085, 0.11))
@@ -911,60 +943,10 @@ def verifier(lots=None, leger=False):
     return erreurs
 
 
-def construire(rendu=True, cuire=True, exporter=True, taille=2048, echantillons=48, leger=False, alleger=True):
-    """Dans Blender : la ville, sa lumière cuite dans l'atlas, l'export, deux rendus.
-    leger : la version téléphone (ile-port-v5-leger) ; alleger : une cuisson d'essai d'abord, pour retirer les faces que
-    personne ne voit (sous les maisons, dans les murs) : moins de triangles, et plus de place dans l'atlas pour le reste."""
-    import bpy
-    nom = "ile-port-v5" + ("-leger" if leger else "")
-    coll_nom = "ile_port_v5" + ("_leger" if leger else "")
+def construire(rendu=True, cuire=True, exporter=True, taille=None, echantillons=48, leger=False, alleger=True):
+    """Dans Blender : la ville, sa lumière cuite dans l'atlas, l'export, deux rendus (voir barhaw_ile_v5.construire).
+    leger : la version téléphone (ile-port-v5-leger)."""
+    import barhaw_ile_v5 as K
     lots = mailles(leger=leger)
-    erreurs = verifier(lots)
-    if erreurs:
-        raise RuntimeError("Plan à corriger avant de cuire : " + " | ".join(erreurs[:8]))
-    cuites = [lots["corps"]] + [A for A, _, _ in lots["animes"]]
-    infos = {"triangles_avant": sum(M.triangles() for M in cuites)}
-
-    def poser():
-        coll = N.collection(coll_nom)
-        infos["finesse"] = [round(x, 2) for x in N.emballer(cuites, taille)]
-        cuits = [N.objet(lots["corps"], coll, "ile_corps", extras={"role": "decor"})]
-        for k, (A, origine, extras) in enumerate(lots["animes"]):
-            o = N.objet(A, coll, f"ile_anime{k}", origine=origine, extras=extras)
-            o.visible_shadow = False  # ce qui tourne ne laisse pas son ombre figée sur les murs
-            cuits.append(o)
-        for k, (source, origine, extras) in enumerate(lots["copies"]):
-            N.copie(cuits[1 + source], coll, f"ile_copie{k}", origine, extras).visible_shadow = False
-        for k, (position, extras) in enumerate(lots["reperes"]):
-            N.repere(coll, f"ile_repere{k}", position, extras)
-        vitres = N.objet(lots["vitres"], coll, "ile_vitres", extras={"role": "decor"})
-        N.objet(lots["lumieres"], coll, "ile_lumieres", extras={"role": "decor"})
-        for k, (Bm, origine, extras) in enumerate(lots["bannieres"]):
-            N.objet(Bm, coll, f"ile_banniere{k}", origine=origine, extras=extras)
-        vitres.hide_render = True  # de jour, les vitres allumées ne se voient pas
-        return coll, cuits, vitres
-
-    def au_soleil(cuits, sens):
-        # ce qui se promène est cuit en plein soleil, au-dessus de la ville : sinon il garderait l'ombre de sa rue de départ
-        for o, (A, origine, extras) in zip(cuits[1:], lots["animes"]):
-            if extras.get("anim") == "marche":
-                o.location.z += 40 * sens
-
-    N.soleil_et_ciel()
-    if cuire and alleger:
-        coll, cuits, vitres = poser()
-        # l'essai ne cuit que la ville (chaque objet cuit coûte quelques secondes ; les petits objets animés n'ont rien de caché)
-        N.cuire_ensemble(cuits[:1], None, 1024, 16, nom="essai", remplacer=False)
-        infos["faces_retirees"] = cuites[0].garder([not c for c in N.cachees(cuites[0], N.pixels_atlas("essai"))])
-    coll, cuits, vitres = poser()
-    infos["triangles"] = sum(M.triangles() for M in cuites)
-    if rendu:
-        infos["rendus"] = [N.rendre("port-v5", (13, -30, 17), (0.5, -1, 1.2), 55, collections=[coll.name]), N.rendre("port-v5-quai", (5.5, -19, 5.2), (0.6, -4.2, 0.9), 60, collections=[coll.name])]
-    if cuire:
-        au_soleil(cuits, 1)
-        infos["atlas"] = N.cuire_ensemble(cuits, os.path.join(N.dossier(), "glb", nom + ".png"), taille, echantillons, nom="port")
-        au_soleil(cuits, -1)
-    vitres.hide_render = False
-    if exporter:
-        infos["glb"] = N.exporter(coll.name, nom + ".glb")
-    return infos
+    rendus = [("port-v5", (13, -30, 17), (0.5, -1, 1.2), 55), ("port-v5-quai", (5.5, -19, 5.2), (0.6, -4.2, 0.9), 60)] if rendu else []
+    return K.construire("ile-port-v5", lots, verifier(lots), rendus, cuire, exporter, taille or (2048 if leger else 3072), echantillons, leger, alleger, atlas="port")  # 3072 : net au plus près ; la ville est grande, le téléphone a 2048
