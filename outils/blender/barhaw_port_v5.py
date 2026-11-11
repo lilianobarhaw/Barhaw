@@ -94,7 +94,11 @@ def panneaux(lg):
     return [-lg / 2 + (j + 0.5) * PANNEAU for j in range(int(lg / PANNEAU)) if j % 2 == 1 and -lg / 2 + (j + 1) * PANNEAU < lg / 2 - 0.05]
 
 
+CHEMINEES = []  # le haut de chaque cheminée (x, y, z) : le site y fait monter de la fumée
+
+
 def cheminee(L, M, x, y, z, h=0.5, l=0.17):
+    CHEMINEES.append(tuple((M @ np.array([x, y, z + h + 0.16, 1.0]))[:3]))
     L.ajouter(*N.boite(l, l, h, haut=True), "briques", M @ T(x, y, z))
     L.ajouter(*N.boite(l + 0.06, l + 0.06, 0.05, bas=True), "pierres_sombres", M @ T(x, y, z + h))
     L.ajouter(*N.cylindre(0.045, 0.035, 0.1, 6), "tuiles_rouges", M @ T(x, y, z + h + 0.05))
@@ -362,10 +366,13 @@ def mailles(graine=22, leger=False):
 
 def _mailles(graine, leger):
     rng = random.Random(graine)
+    CHEMINEES.clear()
     L = N.Maille("ile_corps")  # tout ce qui est cuit
     V = N.Maille("ile_vitres")  # les vitres qui s'allument la nuit (matière « vitre » du site)
     U = N.Maille("ile_lumieres")  # les lanternes (matière « lumiere »)
-    lots = {"corps": L, "vitres": V, "lumieres": U, "bannieres": [], "animes": []}
+    # animes : (Maille dessinée autour de son origine, origine, extras) ; copies : (numéro dans animes, origine, extras), le même
+    # objet posé ailleurs ; reperes : (position, extras), là où le site pose un effet (fumée, mouettes, faisceau du phare)
+    lots = {"corps": L, "vitres": V, "lumieres": U, "bannieres": [], "animes": [], "copies": [], "reperes": []}
 
     # --- le terrain : une grille, la matière selon la hauteur, la pente et le quartier ---
     n, R = (54 if leger else 76), 11.6
@@ -434,8 +441,24 @@ def _mailles(graine, leger):
         return bx - si * de_cote, by + c * de_cote
     caboteur(L, V, rng, *au_ponton(90, 1.55, 0.72), math.radians(90) + PI, 2.7, bande="peint_rouge")
     caboteur(L, V, rng, *au_ponton(132, 1.35, -0.68), math.radians(132), 2.4, bande="peint_bleu")
-    for a, r, an in ((28, 3.5, 2.0), (150, 3.5, 0.4), (70, 1.0, 1.2), (18, 2.4, 2.6), (166, 2.6, -0.3), (62, 2.9, 0.2)):
-        barque(L, rng, *vers(a, r), an)
+    # les barques : chacune est un objet à part, qui monte et descend avec la houle du site (« mer ») ; sinon la mer, qui
+    # bouge, les noie une vague sur deux. Elles flottent un peu haut (HB) : leur plancher reste au-dessus de l'eau, que le
+    # site dessine à plat (sans cela on verrait la mer dans la barque)
+    HB = 0.075
+    for k, (a, r, an) in enumerate(((28, 3.5, 2.0), (150, 3.5, 0.4), (166, 2.6, -0.3), (18, 2.4, 2.6), (62, 2.9, 0.2))):
+        Bq = N.Maille("barque_flotte")
+        barque(Bq, rng, 0, 0, an)
+        if leger and k in (1, 2):  # le téléphone en garde trois
+            continue
+        lots["animes"].append((Bq, (*vers(a, r), HB), {"anim": "flotte", "mer": 1, "ampl": 0.02, "phase": 1.7 * k + 0.4}))
+    Bq = N.Maille("barque_rame")  # et celle-là traverse le bassin, un rameur à bord
+    barque(Bq, rng, 0, 0, 0.0, 0.9)
+    passant(Bq, rng, -0.08, 0, angle=0.0, z=0.0)
+    for s_ in (-1, 1):
+        Bq.ajouter(*N.poutre((0.02, s_ * 0.12, 0.13), (0.1, s_ * 0.5, 0.0), 0.022), "planches_claires")
+    bxm, bym = BASSIN
+    tour_bassin = [(bxm - 3.3, bym - 1.3), (bxm - 1.2, bym + 0.55), (bxm + 0.9, bym + 0.5), (bxm + 3.4, bym - 1.1), (bxm + 0.2, bym - 2.7)]
+    lots["animes"].append((Bq, (*tour_bassin[0], HB), {"anim": "marche", "chemin": [c for x, y in tour_bassin for c in (x, y, HB)], "boucle": 1, "vitesse": 0.34, "saut": 0.0, "roulis": 0.06, "phase": 0.2}))
 
     # --- les entrepôts et les maisons du quai (premier rang, face au bassin) ---
     def rang(angles, rayon, **k):
@@ -492,7 +515,7 @@ def _mailles(graine, leger):
         L.ajouter(*N.boite(1.27, 1.27, 0.09, bas=True), "pierres_sombres", Mb @ T(0, 0, zc))
     for k in range(4):
         Mw = Mb @ Rz(k * PI / 2) @ T(0, -0.576, 0)
-        L.ajouter(*N.quad((-0.36, -0.01, 2.5), (0.36, -0.01, 2.5), (0.36, -0.01, 3.22), (-0.36, -0.01, 3.22)), "cadran", Mw)
+        L.ajouter(*N.quad((-0.36, -0.01, 2.5), (0.36, -0.01, 2.5), (0.36, -0.01, 3.22), (-0.36, -0.01, 3.22)), "cadran_nu" if k == 0 else "cadran", Mw)
         fenetre(L, V, rng, Mw, 0, 1.45, 0.24, 0.5, mat="fenetre_haute", allumee=True)
         if k == 0:
             L.ajouter(*N.quad((-0.24, -0.012, 0.0), (0.24, -0.012, 0.0), (0.24, -0.012, 0.62), (-0.24, -0.012, 0.62)), "porte", Mw)
@@ -503,7 +526,15 @@ def _mailles(graine, leger):
             L.ajouter(*N.boite(0.2, 0.2, 0.7), "pierres_claires", Mb @ T(sx * 0.47, sy * 0.47, zc))
             v, f = N.toit_pointe(0.11, 0.36, 4, 0.03)
             L.ajouter(v, f, "ardoises", Mb @ T(sx * 0.5, sy * 0.5, zc + 0.82))
-    L.ajouter(*N.cylindre(0.2, 0.09, 0.26, 8), "cuivre", Mb @ T(0, 0, zc + 0.2))
+    Cl = N.Maille("cloche")  # la cloche se balance
+    Cl.ajouter(*N.cylindre(0.2, 0.09, 0.26, 8, bas=True), "cuivre", T(0, 0, -0.3))
+    Cl.ajouter(*N.sphere(0.045, 6, 4), "fer", T(0, 0, -0.33))
+    Cl.ajouter(*N.poutre((-0.3, 0, 0), (0.3, 0, 0), 0.05), "planches_sombres")
+    lots["animes"].append((Cl, (hx, hy - 0.15, hz + zc + 0.5), {"anim": "balance", "axe": [1.0, 0.0, 0.0], "ampl": 0.32, "vitesse": 2.1}))
+    for nom_, lg_, ep_, tour_, dy_ in (("aiguille_minutes", 0.3, 0.034, 3600, 0.022), ("aiguille_heures", 0.2, 0.05, 43200, 0.034)):
+        Ai = N.Maille(nom_)  # les aiguilles du cadran sud : le site les met à l'heure de Paris
+        Ai.ajouter(*N.boite(ep_, 0.01, lg_ + 0.04, bas=True), "fer", T(0, 0, -0.04))
+        lots["animes"].append((Ai, (hx, hy - 0.15 - 0.586 - dy_, hz + 2.86), {"anim": "aiguille", "axe": [0.0, -1.0, 0.0], "tour": tour_}))
     L.ajouter(*N.boite(1.27, 1.27, 0.1, bas=True), "pierres_sombres", Mb @ T(0, 0, zc + 0.7))
     v, f = N.toit_pointe(0.62, 1.7, 4, 0.1)
     L.ajouter(v, f, "ardoises", Mb @ T(0, 0, zc + 0.8))
@@ -592,11 +623,14 @@ def _mailles(graine, leger):
     Mg = T(gx, gy, 0.47) @ Rz(math.radians(80) + PI)
     L.ajouter(*N.boite(0.5, 0.5, 0.08), "planches_sombres", Mg)
     L.ajouter(*N.poutre((0, 0, 0.08), (0, 0, 1.1), 0.08), "planches", Mg)
-    L.ajouter(*N.poutre((-0.25, 0, 0.95), (0.95, 0, 1.45), 0.06), "planches", Mg)
-    L.ajouter(*N.poutre((0, 0, 0.5), (0.5, 0, 1.25), 0.04), "planches_sombres", Mg)
+    Gr = N.Maille("grue_bras")  # le bras tourne lentement, sa caisse au bout du câble
+    Mgl = Rz(math.radians(80) + PI)
+    Gr.ajouter(*N.poutre((-0.25, 0, 0.48), (0.95, 0, 0.98), 0.06), "planches", Mgl)
+    Gr.ajouter(*N.poutre((0, 0, 0.03), (0.5, 0, 0.78), 0.04), "planches_sombres", Mgl)
+    Gr.ajouter(*N.tube([(0.92, 0, 0.96), (0.92, 0, 0.28)], 0.008, 3, bouts=False), "corde", Mgl)
+    caisse(Gr, Mgl @ T(0.92, 0, 0.08), 0.2)
+    lots["animes"].append((Gr, (gx, gy, 0.94), {"anim": "balance", "axe": [0.0, 0.0, 1.0], "ampl": 0.5, "vitesse": 0.28}))
     L.ajouter(*N.cylindre(0.2, 0.2, 0.09, 10, bas=True), "planches_claires", Mg @ T(-0.14, 0.05, 0.42) @ Rx(PI / 2))
-    L.ajouter(*N.tube([(0.92, 0, 1.43), (0.92, 0, 0.75)], 0.008, 3, bouts=False), "corde", Mg)
-    caisse(L, Mg @ T(0.92, 0, 0.55), 0.2)
     for a in (16, 34, 58, 100, 122, 146, 164):
         x, y = vers(a, RB + 0.5 + rng.random() * 0.35)
         M = T(x, y, 0.47) @ Rz(rng.random() * 3)
@@ -647,6 +681,71 @@ def _mailles(graine, leger):
     for a, d in ((48, 1.2), (90, 1.6), (132, 0.9)):
         base = np.array(vers(a, RB - d))
         passant(ou(), rng, base[0], base[1], z=0.43)
+
+    # --- la vie : des habitants qui marchent (quatre modèles, posés à dix endroits), la fumée, les mouettes, le phare ---
+    types = []
+    for k in range(4):
+        Pm = N.Maille(f"habitant{k}")
+        passant(Pm, rng, 0, 0, angle=0.0, z=0.0)
+        types.append(Pm)
+
+    Ch = N.Maille("charrette")  # un marchand pousse sa charrette à bras le long du quai (elle avance vers +x)
+    passant(Ch, rng, -0.15, 0, angle=0.0, z=0.0)
+    Ch.ajouter(*N.boite(0.3, 0.17, 0.02, bas=True), "planches_claires", T(0.13, 0, 0.1))
+    for s_ in (-1, 1):
+        Ch.ajouter(*N.boite(0.3, 0.015, 0.05, bas=True), "planches", T(0.13, s_ * 0.085, 0.11))
+        Ch.ajouter(*N.cylindre(0.075, 0.075, 0.022, 8, bas=True), "planches_sombres", T(0.15, s_ * 0.11, 0.075) @ Rx(PI / 2) @ T(0, 0, -0.011))
+        Ch.ajouter(*N.poutre((-0.02, s_ * 0.075, 0.115), (-0.13, s_ * 0.075, 0.15), 0.014), "planches_sombres")
+    tonneau(Ch, T(0.07, 0.0, 0.12), 0.055, 0.12)
+    caisse(Ch, T(0.2, 0.01, 0.12) @ Rz(0.3), 0.1)
+
+    def arc(r, a0_, a1_, pas_=12, z=None):
+        pts = []
+        for a_ in range(a0_, a1_ + 1, pas_):
+            x, y = vers(a_, r)
+            pts.append((x, y, (sol(x, y) + 0.02) if z is None else z))
+        return pts
+
+    def montee(a_, r0, r1):
+        pts = []
+        for k_ in range(9):
+            x, y = vers(a_, r0 + (r1 - r0) * k_ / 8)
+            pts.append((x, y, max(sol(x, y) + 0.03, 0.47)))
+        return pts
+
+    px0, py0 = px, py
+    place = [(px0 - 2.25, py0 - 1.02, fz), (px0 + 2.25, py0 - 1.02, fz), (px0 + 2.25, py0 + 0.62, fz), (px0 - 2.25, py0 + 0.62, fz)]
+    ponton = [(*vers(48, RB + 0.5), 0.47), (*vers(48, RB - 0.1), 0.44), (*vers(48, RB - 1.9), 0.43)]
+    chemins = [  # (points, en rond, vitesse, départ) ; les cinq premiers suffisent à la version légère
+        (arc(RB + 0.78, 22, 158, 8, 0.47), False, 0.26, 0.0),
+        (place, True, 0.22, 0.1),
+        (montee(90, 6.5, 11.1), False, 0.2, 0.3),
+        (arc(11.45, 58, 122, 8), False, 0.21, 0.55),
+        (ponton, False, 0.16, 0.2),
+        (arc(RB + 0.6, 22, 158, 8, 0.47), False, 0.23, 0.5),
+        (place, True, 0.2, 0.62),
+        (montee(52, 6.5, 10.9), False, 0.19, 0.7),
+        (montee(128, 6.5, 10.9), False, 0.2, 0.15),
+        (arc(14.55, 72, 108, 6), False, 0.18, 0.4),
+    ]
+    faits = {}
+    for k, (pts, rond, vit, depart) in enumerate(chemins[:5] if leger else chemins):
+        extras = {"anim": "marche", "chemin": [float(c) for p in pts for c in p], "vitesse": vit, "phase": depart, "saut": 0.022}
+        if rond:
+            extras["boucle"] = 1
+        t_ = k % len(types)
+        if t_ not in faits:
+            faits[t_] = len(lots["animes"])
+            lots["animes"].append((types[t_], pts[0], extras))
+        else:
+            lots["copies"].append((faits[t_], pts[0], extras))
+    lots["animes"].append((Ch, arc(RB + 0.95, 100, 156, 8, 0.47)[0], {"anim": "marche", "chemin": [float(c) for p_ in arc(RB + 0.95, 100, 156, 8, 0.47) for c in p_], "vitesse": 0.13, "phase": 0.35, "saut": 0.0, "pause": 4.0}))
+    choisies = sorted(CHEMINEES, key=lambda c: math.atan2(c[1] - BASSIN[1], c[0] - BASSIN[0]))
+    choisies = choisies[::max(1, len(choisies) // (3 if leger else 8))][:3 if leger else 8]
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in choisies for c in p], "grosseur": 0.6}))
+    lots["reperes"].append(((BASSIN[0], BASSIN[1] + 1.6, 3.7), {"anim": "oiseaux", "nb": 4 if leger else 7, "rayon": 3.8, "envergure": 0.13}))
+    lots["reperes"].append(((fx, fy, 4.5), {"anim": "oiseaux", "nb": 2 if leger else 3, "rayon": 1.5, "envergure": 0.12}))
+    lots["reperes"].append(((fx, fy, 3.5), {"anim": "faisceau", "taille": 0.4, "nuit": 1}))  # « nuit » : éteint le jour
     return lots
 
 
@@ -669,6 +768,10 @@ def construire(rendu=True, cuire=True, exporter=True, taille=2048, echantillons=
             o = N.objet(A, coll, f"ile_anime{k}", origine=origine, extras=extras)
             o.visible_shadow = False  # ce qui tourne ne laisse pas son ombre figée sur les murs
             cuits.append(o)
+        for k, (source, origine, extras) in enumerate(lots["copies"]):
+            N.copie(cuits[1 + source], coll, f"ile_copie{k}", origine, extras).visible_shadow = False
+        for k, (position, extras) in enumerate(lots["reperes"]):
+            N.repere(coll, f"ile_repere{k}", position, extras)
         vitres = N.objet(lots["vitres"], coll, "ile_vitres", extras={"role": "decor"})
         N.objet(lots["lumieres"], coll, "ile_lumieres", extras={"role": "decor"})
         for k, (Bm, origine, extras) in enumerate(lots["bannieres"]):
@@ -676,18 +779,26 @@ def construire(rendu=True, cuire=True, exporter=True, taille=2048, echantillons=
         vitres.hide_render = True  # de jour, les vitres allumées ne se voient pas
         return coll, cuits, vitres
 
+    def au_soleil(cuits, sens):
+        # ce qui se promène est cuit en plein soleil, au-dessus de la ville : sinon il garderait l'ombre de sa rue de départ
+        for o, (A, origine, extras) in zip(cuits[1:], lots["animes"]):
+            if extras.get("anim") == "marche":
+                o.location.z += 40 * sens
+
     N.soleil_et_ciel()
     if cuire and alleger:
         coll, cuits, vitres = poser()
-        N.cuire_ensemble(cuits, None, 1024, 16, nom="essai", remplacer=False)
-        px = N.pixels_atlas("essai")
-        infos["faces_retirees"] = sum(M.garder([not c for c in N.cachees(M, px)]) for M in cuites)
+        # l'essai ne cuit que la ville (chaque objet cuit coûte quelques secondes ; les petits objets animés n'ont rien de caché)
+        N.cuire_ensemble(cuits[:1], None, 1024, 16, nom="essai", remplacer=False)
+        infos["faces_retirees"] = cuites[0].garder([not c for c in N.cachees(cuites[0], N.pixels_atlas("essai"))])
     coll, cuits, vitres = poser()
     infos["triangles"] = sum(M.triangles() for M in cuites)
     if rendu:
         infos["rendus"] = [N.rendre("port-v5", (13, -30, 17), (0.5, -1, 1.2), 55, collections=[coll.name]), N.rendre("port-v5-quai", (5.5, -19, 5.2), (0.6, -4.2, 0.9), 60, collections=[coll.name])]
     if cuire:
+        au_soleil(cuits, 1)
         infos["atlas"] = N.cuire_ensemble(cuits, os.path.join(N.dossier(), "glb", nom + ".png"), taille, echantillons, nom="port")
+        au_soleil(cuits, -1)
     vitres.hide_render = False
     if exporter:
         infos["glb"] = N.exporter(coll.name, nom + ".glb")

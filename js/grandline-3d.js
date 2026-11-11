@@ -660,9 +660,11 @@ function matiereVitre() {
   return matVitre;
 }
 // les fenêtres s'allument avec les lampes (0 : plein jour ; 1 : nuit)
+let lampesAllumees = 0;
 function allumerVitres(f) {
   const m = matiereVitre();
-  m.opacity = Math.max(0, Math.min(1, f));
+  lampesAllumees = Math.max(0, Math.min(1, f));
+  m.opacity = lampesAllumees;
   m.visible = m.opacity > 0.01;
 }
 function accesseur(g, bin, i, brut = false) {
@@ -1240,6 +1242,29 @@ function traitDeCote(geo, niveau = 0.08) {
   const g = new THREE.BufferGeometry().setFromPoints(pts);
   return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: ENCRE, transparent: true, opacity: 0.55 }));
 }
+// l'heure de Paris, en secondes depuis minuit (relue une fois par seconde, pas à chaque image)
+let heureLue = 0;
+let heureVue = -1;
+const formatParis = (() => { try { return new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" }); } catch { return null; } })();
+function secondesParis() {
+  const t = Date.now();
+  if (t - heureVue > 1000) {
+    heureVue = t;
+    const d = new Date(t);
+    let h = d.getHours(), m = d.getMinutes(), sec = d.getSeconds();
+    try { for (const x of formatParis.formatToParts(d)) { if (x.type === "hour") h = Number(x.value); else if (x.type === "minute") m = Number(x.value); else if (x.type === "second") sec = Number(x.value); } } catch {}
+    heureLue = h * 3600 + m * 60 + sec;
+  }
+  return heureLue;
+}
+// la houle de la mer, la même que dans son shader : ce qui flotte près d'une île (barques, canots) monte et descend avec elle
+const houleMer = (x, z, s) => Math.sin(x * 0.33 + s * 0.9) * 0.09 + Math.sin(z * 0.41 - s * 1.1) * 0.07;
+function niveauMer(o, s) {
+  const m = o.parent?.matrixWorld.elements;
+  if (!m) return 0;
+  const p = o.position;
+  return houleMer(m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12], m[2] * p.x + m[6] * p.y + m[10] * p.z + m[14], s) / (Math.hypot(m[4], m[5], m[6]) || 1);
+}
 // Blender a le haut en Z ; le site en Y
 const axeBlender = (a = [0, 0, 1]) => new THREE.Vector3(a[0], a[2], -a[1]).normalize();
 // ce qui bouge sur un modèle : une fonction par objet animé
@@ -1254,9 +1279,48 @@ function animateurs(bouge, vent = () => 1) {
     const ampl = u.ampl ?? 0.3;
     const v = u.vitesse ?? 1;
     if (u.anim === "tourne") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, s * v)); };
+    // la vie des îles (niveau 5) : un passant, une charrette, une barque qui suit son chemin (points x, y, z de Blender, à plat
+    // dans « chemin ») ; aller-retour, ou en rond avec « boucle » ; « saut » : le petit pas sautillant ; « roulis » : sur l'eau
+    if (u.anim === "marche") {
+      const c = Array.isArray(u.chemin) ? u.chemin : [];
+      const pts = [];
+      for (let k = 0; k + 2 < c.length; k += 3) pts.push(new THREE.Vector3(c[k], c[k + 2], -c[k + 1]));
+      if (pts.length < 2) return () => {};
+      if (u.boucle) pts.push(pts[0].clone());
+      const longs = [];
+      let total = 0;
+      for (let k = 0; k < pts.length - 1; k++) { const d = pts[k].distanceTo(pts[k + 1]); longs.push(d); total += d; }
+      const saut = u.saut ?? 0.02;
+      const roulis = u.roulis || 0;
+      const pause = u.pause ?? 1.5; // il s'arrête un instant au bout du chemin
+      const tour = (u.boucle ? total : total * 2) + (u.boucle ? 0 : pause * v * 2);
+      const depart = ((ph % 1) + 1) % 1;
+      return (s) => {
+        let d = (s * v + depart * tour) % tour;
+        let sens = 1;
+        let arret = false;
+        if (!u.boucle) {
+          const aller = total + pause * v;
+          if (d > aller) { d -= aller; sens = -1; }
+          if (d > total) { d = total; arret = true; }
+          if (sens < 0) d = total - d;
+        }
+        let k = 0;
+        while (k < longs.length - 1 && d > longs[k]) { d -= longs[k]; k++; }
+        o.position.lerpVectors(pts[k], pts[k + 1], longs[k] ? Math.min(1, d / longs[k]) : 0);
+        if (!arret) o.position.y += Math.abs(Math.sin(s * 9 + ph * 7)) * saut;
+        o.rotation.set(roulis ? Math.sin(s * 1.3 + ph) * roulis : 0, Math.atan2(-(pts[k + 1].z - pts[k].z) * sens, (pts[k + 1].x - pts[k].x) * sens), 0, "YXZ");
+        if (roulis) o.position.y += niveauMer(o, s) + Math.sin(s * 1.6 + ph) * roulis * 0.2;
+      };
+    }
+    // l'horloge du beffroi donne la vraie heure de Paris : « tour » = la durée d'un tour d'aiguille, en secondes
+    if (u.anim === "aiguille") {
+      const tour = u.tour || 3600;
+      return () => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, -(secondesParis() % tour) / tour * Math.PI * 2)); };
+    }
     if (u.anim === "balance") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, Math.sin(s * v + ph) * ampl)); };
     if (u.anim === "flotte") return (s) => {
-      o.position.y = p0.y + Math.sin(s * 1.3 + ph) * ampl;
+      o.position.y = p0.y + (u.mer ? niveauMer(o, s) : 0) + Math.sin(s * 1.3 + ph) * ampl;
       o.quaternion.copy(q0).multiply(q.setFromAxisAngle(X, Math.sin(s * 1.1 + ph) * 0.05));
     };
     if (u.anim === "drapeau" || u.anim === "flamme") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(Y, Math.sin(s * (u.anim === "flamme" ? 5 : 3) + ph) * 0.3)); };
@@ -1302,7 +1366,93 @@ function effetRepere(r) {
   const R = hasard(777);
   let maj = () => {};
   const genre = r.userData.anim;
-  if (genre === "fumee") {
+  if (r.userData.taille) g.scale.setScalar(r.userData.taille);
+  if (genre === "fumees") {
+    // la fumée de toutes les cheminées d'une île : des bouffées qui montent, grossissent et s'effacent (un seul dessin)
+    const c = Array.isArray(r.userData.points) ? r.userData.points : [];
+    const nbC = Math.floor(c.length / 3);
+    const par = 5;
+    const N = nbC * par;
+    const pos = new Float32Array(N * 3);
+    const vie = new Float32Array(N);
+    const geo = new THREE.BufferGeometry();
+    const aPos = new THREE.BufferAttribute(pos, 3);
+    const aVie = new THREE.BufferAttribute(vie, 1);
+    aPos.setUsage(THREE.DynamicDrawUsage);
+    aVie.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("position", aPos);
+    geo.setAttribute("aVie", aVie);
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 3, 0), 40);
+    // uTaille : le diamètre d'une bouffée, en unités de la scène ; uPx : la demi-hauteur du dessin, en pixels (lue à chaque image)
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTaille: { value: r.userData.grosseur || 0.5 }, uPx: { value: 450 } },
+      vertexShader: "attribute float aVie; uniform float uTaille; uniform float uPx; varying float vVie; void main() { vVie = aVie; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = uTaille * (0.55 + aVie * 1.25) * projectionMatrix[1][1] * uPx / -mv.z; gl_Position = projectionMatrix * mv; }",
+      fragmentShader: "varying float vVie; void main() { float d = length(gl_PointCoord - 0.5) * 2.0; float f = smoothstep(1.0, 0.35, d) * min(1.0, vVie * 6.0) * (1.0 - vVie) * 0.85; gl_FragColor = vec4(vec3(0.9, 0.88, 0.86), f); }",
+      transparent: true, depthWrite: false,
+    });
+    const bouffees = new THREE.Points(geo, mat);
+    const dessin = new THREE.Vector2();
+    bouffees.onBeforeRender = (renderer) => { mat.uniforms.uPx.value = renderer.getDrawingBufferSize(dessin).y / 2; };
+    g.add(bouffees);
+    maj = (s) => {
+      for (let k = 0; k < N; k++) {
+        const ch = Math.floor(k / par);
+        const p = (s * 0.16 + (k % par) / par + ch * 0.37) % 1;
+        pos[k * 3] = c[ch * 3] + Math.sin(p * 4 + ch) * 0.1 * p + p * 0.5;
+        pos[k * 3 + 1] = c[ch * 3 + 2] + p * 1.5;
+        pos[k * 3 + 2] = -c[ch * 3 + 1] + p * 0.16;
+        vie[k] = p;
+      }
+      aPos.needsUpdate = true;
+      aVie.needsUpdate = true;
+    };
+  } else if (genre === "oiseaux") {
+    // des mouettes qui tournent au-dessus du port : un corps, deux ailes coudées au bout gris ; elles battent, puis planent
+    // (un seul dessin pour toutes : 8 triangles par oiseau)
+    const nb = Math.max(1, Math.min(12, r.userData.nb || 5));
+    const rayon = r.userData.rayon || 4;
+    const pos = new Float32Array(nb * 72);
+    const coul = new Float32Array(nb * 72);
+    const BLANC = [0.97, 0.96, 0.93], GRIS = [0.8, 0.83, 0.87], BOUT = [0.3, 0.32, 0.36];
+    // l'ordre des sommets : le corps (2 triangles), puis pour chaque aile le bras (2 triangles) et la main (1 triangle)
+    const TEINTES = [BLANC, BLANC, BLANC, BLANC, BLANC, BLANC, BLANC, BLANC, GRIS, BLANC, GRIS, GRIS, GRIS, GRIS, BOUT, BLANC, BLANC, GRIS, BLANC, GRIS, GRIS, GRIS, GRIS, BOUT];
+    for (let k = 0; k < nb; k++) TEINTES.forEach((t, j) => coul.set(t, k * 72 + j * 3));
+    const geo = new THREE.BufferGeometry();
+    const aPos = new THREE.BufferAttribute(pos, 3);
+    aPos.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("position", aPos);
+    geo.setAttribute("color", new THREE.BufferAttribute(coul, 3));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), rayon * 2 + 4);
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+    const env = r.userData.envergure || 0.3;
+    const sommets = new Float32Array(72);
+    maj = (s) => {
+      for (let k = 0; k < nb; k++) {
+        const sens = k % 2 ? -1 : 1;
+        const a = s * (0.32 + (k % 3) * 0.07) * sens + k * 2.4;
+        const rr = rayon * (0.55 + ((k * 37) % 10) / 20);
+        const cx = Math.cos(a) * rr, cz = Math.sin(a) * rr * 0.8;
+        const cy = Math.sin(s * 0.5 + k * 1.7) * 0.6 + (k % 4) * 0.35;
+        const dx = -Math.sin(a) * sens, dz = Math.cos(a) * sens * 0.8; // le sens du vol
+        const l = Math.hypot(dx, dz) || 1;
+        const ux = dx / l, uz = dz / l;
+        // quelques battements, puis un long plané
+        const bat = Math.sin(s * 6.5 + k * 1.3) * env * (0.1 + 0.34 * Math.max(0, Math.sin(s * 0.45 + k * 2.1)));
+        let n = 0;
+        // un point : « le long » du corps (vers l'avant), « de côté » (vers l'aile gauche), et sa hauteur
+        const P = (long, cote, haut) => { sommets[n++] = cx + (ux * long - uz * cote) * env; sommets[n++] = cy + haut; sommets[n++] = cz + (uz * long + ux * cote) * env; };
+        P(0.5, 0, 0); P(0, 0.09, 0); P(-0.42, 0, 0); P(0.5, 0, 0); P(-0.42, 0, 0); P(0, -0.09, 0);
+        for (const c of [1, -1]) {
+          const coude = env * 0.1 + bat * 0.6, bout = bat * 1.5;
+          P(0.2, c * 0.06, 0); P(-0.1, c * 0.06, 0); P(-0.02, c * 0.52, coude);
+          P(0.2, c * 0.06, 0); P(-0.02, c * 0.52, coude); P(0.22, c * 0.5, coude);
+          P(0.22, c * 0.5, coude); P(-0.02, c * 0.52, coude); P(-0.16, c * 1.0, bout);
+        }
+        pos.set(sommets, k * 72);
+      }
+      aPos.needsUpdate = true;
+    };
+  } else if (genre === "fumee") {
     const bouffees = Array.from({ length: 7 }, (_, k) => { const f = nuageBoule(0x8c8077, 0.8); f.userData.k = k; g.add(f); return f; });
     maj = (s) => {
       for (const f of bouffees) {
@@ -1362,7 +1512,12 @@ function effetRepere(r) {
     const pivot = new THREE.Group();
     pivot.add(faisceau);
     g.add(pivot);
-    maj = (s) => { pivot.rotation.y = s * 0.9; };
+    // « nuit » : le phare ne s'allume qu'avec les lampes (rien en plein jour)
+    const plein = faisceau.material.opacity * 1.5;
+    maj = (s) => {
+      pivot.rotation.y = s * 0.9;
+      if (r.userData.nuit) { faisceau.material.opacity = plein * lampesAllumees; faisceau.visible = lampesAllumees > 0.02; }
+    };
   } else if (genre === "orage") {
     const nuage = new THREE.Group();
     for (let k = 0; k < 9; k++) {
