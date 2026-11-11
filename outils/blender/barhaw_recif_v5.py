@@ -1,4 +1,5 @@
-# Le Récif Corail, « niveau 5 » : un atoll de sable blanc autour de son lagon. Tout est inventé.
+# Le Récif des Murmures, « niveau 5 » : un atoll de sable blanc autour de son lagon. Tout est inventé.
+# (Son histoire, dans le bot : « des rochers qui chuchotent quand le vent passe ». Ce sont les pierres percées de la tête.)
 # Un anneau de sable ouvert au sud-est (la passe), une tête de roche sombre et sa balise au nord-ouest, la cabane des
 # perliers sur pilotis dans le lagon et sa passerelle, le parc à huîtres, les filets qui sèchent, des cocotiers, et partout
 # les coraux qui dépassent de l'eau à marée basse. La vie : des perliers qui marchent, des crabes, des tortues qui nagent,
@@ -346,6 +347,12 @@ def _mailles(graine, leger):
     U.ajouter(*N.sphere(0.075, 7, 5), "lumiere", T(TETE[0], TETE[1], zt + 1.05))
     L.ajouter(*N.poutre((TETE[0], TETE[1], zt + 1.12), (TETE[0], TETE[1], zt + 1.3), 0.012), "fer")
     SOL.append(("decor", "la balise", Vf.rond(TETE[0], TETE[1], 0.45)))
+    # les pierres percées : des arches de roche où le vent s'engouffre (ce sont elles qui « murmurent »)
+    for k, (x, y, cap, s_) in enumerate(((TETE[0] + 0.95, TETE[1] - 0.25, 0.5, 1.15), (TETE[0] - 0.2, TETE[1] - 1.05, 2.0, 1.0), (*vers(112, 0.8), 0.2, 0.9), (*vers(156, 0.82), 1.3, 1.05))[:3 if leger else 4]):
+        if not libre(x, y, 0.3 * s_):
+            continue
+        L.ajouter(*N.tube([(-0.24 * s_, 0, -0.12), (-0.21 * s_, 0, 0.46 * s_), (0, 0, 0.7 * s_), (0.21 * s_, 0, 0.46 * s_), (0.24 * s_, 0, -0.12)], [0.14 * s_, 0.115 * s_, 0.1 * s_, 0.115 * s_, 0.14 * s_], 6), "roche_recif", T(x, y, sol(x, y)) @ Rz(cap), tourne=True)
+        SOL.append(("rocher", "une pierre percée", Vf.rond(x, y, 0.3 * s_)))
     for k in range(6 if leger else 10):  # le chaos de blocs sur ses flancs
         a, dd = k * 2.4 + rng.random(), 0.55 + rng.random() * 0.75
         x, y, r = TETE[0] + math.cos(a) * dd, TETE[1] + math.sin(a) * dd, 0.2 + rng.random() * 0.24
