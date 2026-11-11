@@ -5451,11 +5451,64 @@
     if (moi?.connecte && flotteActive()) { maFlotteDemandee = true; agirFlotte("flotte"); }
   }
   // ce que la carte (3D ou 2D) reçoit : le navire regardé, à ses couleurs, et les autres navires de la flotte
+  // ---------- le jour et la nuit sur GRAND LINE (V4) : à l'heure de Paris, pour tout le monde ----------
+  // le lever et le coucher du soleil à Paris, ce jour-là (l'équation du lever du soleil ; en temps universel : pas d'heure d'été à gérer)
+  function soleilParis(t = Date.now()) {
+    const rad = Math.PI / 180, lat = 48.8566 * rad, lon = 2.3522;
+    const n = Math.round(t / 86_400_000 + 2440587.5 - 2451545 + lon / 360);
+    const j = n - lon / 360;
+    const M = ((357.5291 + 0.98560028 * j) % 360) * rad;
+    const C = 1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M);
+    const l = ((M / rad + C + 180 + 102.9372) % 360) * rad;
+    const midi = 2451545 + j + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * l);
+    const d = Math.asin(Math.sin(l) * Math.sin(23.4397 * rad));
+    const w = Math.acos(Math.max(-1, Math.min(1, (Math.sin(-0.833 * rad) - Math.sin(lat) * Math.sin(d)) / (Math.cos(lat) * Math.cos(d))))) / rad;
+    const ms = (jj) => (jj - 2440587.5) * 86_400_000;
+    return { lever: ms(midi - w / 360), coucher: ms(midi + w / 360) };
+  }
+  const AMBIANCES = { jour: { phase: "jour", nuit: 0, or: 0 }, aube: { phase: "aube", nuit: 0.2, or: 0.9 }, crepuscule: { phase: "crepuscule", nuit: 0.16, or: 1 }, nuit: { phase: "nuit", nuit: 1, or: 0 } };
+  const AMBIANCE_TEXTE = { jour: "☀️ Jour", aube: "🌅 Aube", crepuscule: "🌇 Crépuscule", nuit: "🌙 Nuit" };
+  let ambianceForcee = ""; // les essais et l'aperçu : « ?heure=nuit » (ou aube, crepuscule, jour)
+  try { const h = new URLSearchParams(location.search).get("heure"); if (AMBIANCES[h]) ambianceForcee = h; } catch {}
+  function ambianceGL(t = Date.now()) {
+    if (!v4Ouverte()) return AMBIANCES.jour;
+    if (AMBIANCES[ambianceForcee]) return AMBIANCES[ambianceForcee];
+    const { lever, coucher } = soleilParis(t);
+    const m = (t - lever) / 60_000, c = (t - coucher) / 60_000; // en minutes : depuis le lever, depuis le coucher
+    const lisse = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+    if (m > -50 && m < 40) return { phase: "aube", nuit: 1 - lisse(-50, -5, m), or: lisse(-50, -10, m) * (1 - lisse(0, 40, m)) };
+    if (c > -45 && c < 50) return { phase: "crepuscule", nuit: lisse(5, 50, c), or: lisse(-45, 5, c) * (1 - lisse(10, 50, c)) };
+    return m <= -50 || c >= 50 ? AMBIANCES.nuit : AMBIANCES.jour;
+  }
+  let ambianceVue = "";
+  function majAmbianceGL(allure = "") { // « rapide » : en quelques secondes (l'aperçu) ; « vite » : tout de suite (les essais)
+    const a = ambianceGL();
+    if (carteGL?.type === "3d") carteGL.rendu.ambiance?.({ ...a, rapide: allure === "rapide", vite: allure === "vite" });
+    const scene = $("grandline-scene");
+    if (!scene || ambianceVue === a.phase) return a;
+    ambianceVue = a.phase;
+    for (const k of Object.keys(AMBIANCES)) scene.classList.toggle(`gl-${k}`, k === a.phase && k !== "jour");
+    return a;
+  }
+  if (new URLSearchParams(location.search).has("3d")) window.__glAmbiance = (phase, allure = "vite") => { ambianceForcee = AMBIANCES[phase] ? phase : ""; const a = majAmbianceGL(allure); if (infosGL()) rendreHudGL(infosGL()); return a; }; // pour les essais
+
+  // Un défi entre commus, vu sur la carte (V4). Aujourd'hui : la Soirée Fortnite. Pendant la soirée, les navires des commus
+  // inscrites quittent leur route et se font face dans une arène ; une fois le résultat validé, le vainqueur porte la couronne (36 h).
+  function defiGL() {
+    const s = donnees?.soiree;
+    if (!s || !Array.isArray(s.commus) || !v4Ouverte()) return null;
+    const base = { id: String(s.id || "soiree"), nom: String(s.nom || "Le défi des commus"), commus: s.commus, scores: Object.fromEntries((s.classement || []).map((x) => [x.id, Number(x.points) || 0])) };
+    if (s.phase === "en-cours" || s.phase === "comptage") return { ...base, phase: "combat" };
+    const premier = s.valide?.podium?.[0];
+    if (s.phase === "fini" && premier?.points > 0 && Date.now() - (Number(s.valide.t) || 0) < 36 * 3600_000) return { ...base, phase: "victoire", gagnant: premier.id };
+    return null;
+  }
   function donneesCarteGL(g) {
     if (!g || !flotteActive()) return g;
     const c = commuRegardee();
     return {
       ...g,
+      defi: defiGL(),
       flotte: {
         id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), modele: modeleNavire(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
         autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), modele: modeleNavire(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
@@ -5574,6 +5627,7 @@
     if (avant && (g.voyage > avant.voyage || (g.voyage === avant.voyage && g.etape > avant.etape)) && derniere) terreEnVue(derniere);
     else if (!avant && derniere && Date.now() - derniere.arrivee < 2 * 3600_000) terreEnVue(derniere);
     glAvant = { cle: cleNavire, voyage: g.voyage, etape: g.etape };
+    majAmbianceGL();
     if (carteGL) carteGL.rendu.maj(donneesCarteGL(g));
     rendreCapGL(g);
     rendreMerGL(g);
@@ -5588,17 +5642,24 @@
     const h = $("grandline-hud");
     if (!h) return;
     const ev = g.evenement;
+    const heure = v4Ouverte() ? ambianceGL().phase : "";
+    const defi = flotteActive() ? defiGL() : null;
     vider(h,
       flotteActive()
         ? el("p", { class: "gl-badge fl-badge" }, vueCourse() ? el("b", { text: "🏁 La course" }) : el("b", { text: commuRegardee().nom }), vueCourse() ? ` · ${pluriel(commusFlotte().length, "navire")}` : ` · île ${Math.min(g.etape + 1, g.etapes)}/${g.etapes}`)
         : el("p", { class: "gl-badge" }, el("b", { text: `Voyage ${g.voyage}` }), ` · étape ${Math.min(g.etape + 1, g.etapes)}/${g.etapes}`),
-      ev ? el("p", { class: `gl-alerte gl-alerte-${ev.type}`, text: `${ev.emoji} ${ev.titre}` }) : g.vote ? el("p", { class: "gl-alerte gl-alerte-vote", text: "🗳️ Carrefour : la commu vote !" }) : null,
+      ev ? el("p", { class: `gl-alerte gl-alerte-${ev.type}`, text: `${ev.emoji} ${ev.titre}` })
+        : defi?.phase === "combat" ? el("p", { class: "gl-alerte gl-alerte-defi", text: `⚔️ ${defi.nom} : à l'abordage !` })
+        : g.vote ? el("p", { class: "gl-alerte gl-alerte-vote", text: "🗳️ Carrefour : la commu vote !" })
+        : defi?.phase === "victoire" ? el("p", { class: "gl-alerte gl-alerte-victoire", text: `👑 ${commusFlotte().find((c) => c.id === defi.gagnant)?.nom || "Une commu"} a gagné le défi !` }) : null,
+      el("div", { class: "gl-cote" }, // à droite : l'heure qu'il est sur la carte, les vues
+      heure ? el("p", { class: `gl-heure gl-heure-${heure}`, title: "Sur GRAND LINE, il fait jour et nuit à l'heure de Paris", text: AMBIANCE_TEXTE[heure] }) : null,
       carteGL?.type === "3d" ? el("div", { class: "gl-vues" },
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() !== "ensemble"), onclick: () => { carteGL.rendu.vue("navire"); rendreHudGL(g); }, text: "⛵ Le navire" }),
         el("button", { type: "button", class: "gl-vue", "aria-pressed": String(carteGL.rendu.mode() === "ensemble"), onclick: () => { carteGL.rendu.vue("ensemble"); rendreHudGL(g); }, text: "🗺️ Toute la carte" }),
         el("button", { type: "button", class: "gl-vue gl-zoom", "aria-label": "Zoomer", title: "Zoomer", onclick: () => carteGL.rendu.zoomer?.(0.7), text: "＋" }),
         el("button", { type: "button", class: "gl-vue gl-zoom", "aria-label": "Dézoomer", title: "Dézoomer", onclick: () => carteGL.rendu.zoomer?.(1 / 0.7), text: "－" }),
-      ) : null,
+      ) : null),
     );
   }
 
@@ -5874,7 +5935,7 @@
           vider(zone, toile);
           // les îles V4 (la démo : le Phare), seulement une fois la V4 ouverte
           const ilesV4 = v4Ouverte() && !window.__ileV3 ? ILES_V4 : [];
-          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), ilesV4, surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
+          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), ilesV4, ambiance: ambianceGL(), surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
           if (choix3d !== "oui" && !salle && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
           // la carte passe en 2D seulement si c'est elle qui perd la 3D (pas une ancienne carte qu'on vient de refaire)
           toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); if (carteGL?.rendu === rendu) passerCarte2D(); });
@@ -6809,6 +6870,7 @@
       const defs = s("defs", {},
         s("pattern", { id: "gl2-vagues", width: 12, height: 7, patternUnits: "userSpaceOnUse" }, s("path", { d: "M0 4 q1.5 -2 3 0 t3 0", class: "gl2-vague" }), s("path", { d: "M6 1.2 q1.5 -2 3 0 t3 0", class: "gl2-vague" })),
         s("radialGradient", { id: "gl2-fond", cx: "50%", cy: "50%", r: "62%" }, s("stop", { offset: "0%", "stop-color": "#8ec3dd" }), s("stop", { offset: "100%", "stop-color": "#b9dceb" })),
+        s("radialGradient", { id: "gl2-lueur" }, s("stop", { offset: "0%", "stop-color": "#ffe9a8", "stop-opacity": 0.95 }), s("stop", { offset: "55%", "stop-color": "#ffb85c", "stop-opacity": 0.35 }), s("stop", { offset: "100%", "stop-color": "#ffb85c", "stop-opacity": 0 })),
         s("clipPath", { id: "gl2-mer" }, s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10 })));
       svg.append(defs);
       const mer = s("g", { "clip-path": "url(#gl2-mer)", class: "gl2-vie", "aria-hidden": "true" });
@@ -6899,10 +6961,12 @@
     return {
       maj(g) {
         // la carte n'est redessinée que si quelque chose a changé (les images et les animations ne repartent pas à zéro)
-        const sig = JSON.stringify([g.route?.map((e) => e.map((x) => [x.id, x.etat])), Math.round(g.milles || 0), g.longueur, Boolean(g.vote), g.flotte?.id, g.flotte?.autres?.map((o) => [o.id, o.etape, Math.round(o.milles || 0)]), v4Ouverte()]);
+        const sig = JSON.stringify([g.route?.map((e) => e.map((x) => [x.id, x.etat])), Math.round(g.milles || 0), g.longueur, Boolean(g.vote), g.flotte?.id, g.flotte?.autres?.map((o) => [o.id, o.etape, Math.round(o.milles || 0)]), v4Ouverte(), g.defi?.phase, g.defi?.gagnant]);
         if (sig === signature && zone.querySelector("svg")) return;
         signature = sig;
         const pos = (id) => GL_PLACES[id] || [0, 0];
+        // pendant un défi : deux sabres au-dessus des navires qui s'affrontent ; après : la couronne du vainqueur
+        const marque = (id, y) => (!id || !g.defi ? null : g.defi.phase === "combat" && g.defi.commus?.includes(id) ? s("text", { y, class: "gl-svg-marque" }, "⚔️") : g.defi.gagnant === id ? s("text", { y, class: "gl-svg-marque" }, "👑") : null);
         const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de GRAND LINE : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
         svg.append(s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl-svg-mer" }));
         if (v4Ouverte()) vie2D(svg, g);
@@ -6923,11 +6987,14 @@
           }
         });
         svg.append(traits);
+        // la V4 : le voile de l'heure (l'aube, le crépuscule, la nuit : la classe est sur la scène), sous les îles, qui gardent leur lueur
+        if (v4Ouverte()) svg.append(s("rect", { x: 0, y: 0, width: 236, height: 146, class: "gl2-heure", "aria-hidden": "true" }));
         for (const e of g.route.flat()) {
           const [x, z] = pos(e.id);
           const inconnue = e.etat === "inconnue" || e.etat === "ecartee";
           const vue = !inconnue && imageIle(e.id);
           svg.append(s("g", { class: `gl-svg-ile ${e.etat}${vue ? " en-image" : ""}`, transform: `translate(${X(x)} ${Y(z)})` },
+            !inconnue && v4Ouverte() ? s("circle", { r: 15, class: "gl2-lueur" }) : null,
             vue ? s("ellipse", { rx: 10.5, ry: 6.2, cy: 1.4, class: "gl-svg-halo" }) : s("circle", { r: 6.5 }),
             vue ? s("image", { href: imageIle(e.id), x: -10, y: -9, width: 20, height: 16.7 }) : s("text", { y: 2.2, class: "gl-svg-emoji" }, inconnue ? "☁️" : e.emoji),
             inconnue ? null : s("text", { y: 11.5, class: "gl-svg-nom" }, e.nom.replace(/^(L'|Le |La |Les )/, "")),
@@ -6950,13 +7017,15 @@
           const p = chemin.getPointAtLength(L * Math.min(1, (o.milles || 0) / Math.max(1, o.longueur || 1)));
           chemin.remove();
           const c1 = /^#[0-9a-f]{6}$/i.test(String(o.couleurs?.principale || "")) ? o.couleurs.principale : "#9b4dff";
-          svg.append(s("g", { class: "gl-svg-flotte", transform: `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})` }, s("circle", { r: 4.2, fill: c1 }), s("text", { y: 1.6 }, "⛵"), s("title", {}, o.nom || "")));
+          svg.append(s("g", { class: "gl-svg-flotte", transform: `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})` }, s("circle", { r: 4.2, fill: c1 }), s("text", { y: 1.6 }, "⛵"), marque(o.id, -5.2), s("title", {}, o.nom || "")));
         }
         if (navire) {
           const L = navire.chemin.getTotalLength();
           const p = navire.chemin.getPointAtLength(L * Math.min(1, navire.p));
-          svg.append(s("g", { class: "gl-svg-navire", transform: `translate(${p.x} ${p.y})` }, s("text", { y: 2, text: "" }, "⛵")));
+          svg.append(s("g", { class: "gl-svg-navire", transform: `translate(${p.x} ${p.y})` }, s("text", { y: 2, text: "" }, "⛵"), marque(g.flotte?.id, -6.5)));
         }
+        // un défi entre commus : l'annonce en haut de la carte (en 3D, les navires se font face dans l'arène)
+        if (g.defi?.phase === "combat") svg.append(s("g", { class: "gl-svg-defi", transform: "translate(118 24.5)" }, s("rect", { x: -31, y: -5, width: 62, height: 8.6, rx: 4.3 }), s("text", { y: 1.4 }, "⚔️ Défi en cours")));
         // les animations de la carte vivante s'arrêtent avec les mouvements réduits, et quand la carte n'est pas à l'écran
         if (reduit.matches || !visible2D) try { svg.pauseAnimations(); } catch {}
         zone.classList.toggle("gl2-pause", reduit.matches || !visible2D);

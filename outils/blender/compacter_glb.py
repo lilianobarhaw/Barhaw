@@ -3,6 +3,7 @@
 #   normales → entiers 8 bits, couleurs → 8 bits (déjà en sRGB), UV → 16 bits (min et écart dans les extras)
 # Seul js/grandline-3d.js sait relire ces fichiers (c'est voulu : pas de chargeur externe).
 # Usage : python3 compacter_glb.py dossier_entree dossier_sortie
+# Ensuite : python3 compresser_glb.py <dossier_sortie> (fait les .glbz, 4 fois plus légers, que le site prend en premier).
 import json, struct, sys, os
 import numpy as np
 

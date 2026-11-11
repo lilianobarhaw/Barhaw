@@ -3024,6 +3024,38 @@ html.gl-salle-ouverte, html.gl-salle-ouverte body { overflow: hidden; }
 @media (max-width: 600px) { .gl-salle-haut { flex-wrap: wrap; gap: 6px; padding: 6px 8px; } .gl-salle-haut .fl-barre { order: 3; flex-basis: 100%; padding-left: 0; } .gl-salle-fermer-texte, .gl-salle-kanji { display: none; } .gl-ouvrir-3d { bottom: 12px; padding: 10px 16px; } }
 @media (prefers-reduced-motion: reduce) { .gl-ouvrir-3d, .gl-salle { animation: none; } }
 .gl-salle .gl-toile { touch-action: none; }
+/* le jour et la nuit sur GRAND LINE (V4) : la pastille de l'heure, le ciel derrière la carte, la carte 2D qui s'assombrit */
+.gl-heure { margin: 0; padding: 6px 12px; border-radius: 99px; border: 2px solid #5a3719; background: rgba(243, 226, 189, 0.94); color: var(--encre-carte); font-family: var(--fort); font-weight: 800; font-size: 12.5px; box-shadow: 2px 2px 0 rgba(42, 22, 12, 0.5); cursor: help; white-space: nowrap; }
+.gl-cote { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; pointer-events: none; }
+.gl-hud .gl-cote > * { pointer-events: auto; }
+.gl-heure-aube { background: #ffd9cf; } .gl-heure-crepuscule { background: #ffc98f; }
+.gl-heure-nuit { background: #1c2a63; color: #eaf0ff; border-color: #0b1030; box-shadow: 2px 2px 0 rgba(4, 6, 24, 0.7), 0 0 14px rgba(120, 160, 255, 0.35); }
+.gl-alerte-defi { background: #e0533c; } .gl-alerte-victoire { background: #e0a21a; }
+.gl-scene.gl-nuit {
+  background:
+    radial-gradient(1.6px 1.6px at 8% 14%, #fff 55%, transparent 60%), radial-gradient(1.2px 1.2px at 19% 71%, #cfe0ff 55%, transparent 60%),
+    radial-gradient(1.8px 1.8px at 33% 9%, #fff 55%, transparent 60%), radial-gradient(1.2px 1.2px at 47% 88%, #fff 55%, transparent 60%),
+    radial-gradient(1.5px 1.5px at 63% 6%, #ffe9c2 55%, transparent 60%), radial-gradient(1.2px 1.2px at 78% 92%, #cfe0ff 55%, transparent 60%),
+    radial-gradient(1.8px 1.8px at 91% 22%, #fff 55%, transparent 60%), radial-gradient(1.2px 1.2px at 96% 67%, #fff 55%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 3% 48%, #fff 55%, transparent 60%), radial-gradient(1.2px 1.2px at 55% 96%, #cfe0ff 55%, transparent 60%),
+    radial-gradient(120% 95% at 50% 38%, #1a2356 0%, #0b1030 60%, #050716 100%);
+}
+.gl-scene.gl-crepuscule { background: radial-gradient(120% 95% at 50% 30%, #6b2a3f 0%, #2a1030 60%, #12070f 100%); }
+.gl-scene.gl-aube { background: radial-gradient(120% 95% at 50% 30%, #5a2c52 0%, #24103a 60%, #12070f 100%); }
+.gl2-heure { fill: #0d1640; opacity: 0; pointer-events: none; mix-blend-mode: multiply; transition: opacity 1.4s; }
+.gl-nuit .gl2-heure { opacity: 0.74; } .gl-crepuscule .gl2-heure { fill: #c0562f; opacity: 0.3; } .gl-aube .gl2-heure { fill: #cf6a94; opacity: 0.24; }
+.gl-svg-ile circle.gl2-lueur { fill: url(#gl2-lueur); stroke: none; opacity: 0; pointer-events: none; transition: opacity 1.4s; }
+.gl-nuit .gl-svg-ile circle.gl2-lueur { opacity: 1; animation: gl2-lueur 3.4s ease-in-out infinite alternate; } .gl-crepuscule .gl-svg-ile circle.gl2-lueur { opacity: 0.45; }
+@keyframes gl2-lueur { from { opacity: 0.78; } to { opacity: 1; } }
+.gl-nuit .gl-svg-nom { fill: #fff3d2; stroke: #0b1030; stroke-width: 0.7; paint-order: stroke; }
+.gl-nuit .gl-svg-flotte circle { stroke: #ffe9a8; } .gl-nuit .gl-svg-route path.loin { stroke: #9fb4ff; }
+.gl-svg-marque { font-size: 4.6px; text-anchor: middle; }
+.gl-svg-defi rect { fill: #e0533c; stroke: #12050d; stroke-width: 0.7; } .gl-svg-defi text { font-family: var(--titre); font-size: 4.4px; text-anchor: middle; fill: #fff; }
+.gl-svg-defi { animation: gl2-defi 1.3s var(--doux) infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes gl2-defi { from { scale: 1; } to { scale: 1.06; } }
+.gl2-pause .gl-svg-ile circle.gl2-lueur, .gl2-pause .gl-svg-defi { animation: none; }
+@media (prefers-reduced-motion: reduce) { .gl-scene .gl-svg-ile circle.gl2-lueur, .gl-svg-defi { animation: none; transition: none; } .gl2-heure { transition: none; } }
+@media (max-width: 600px) { .gl-heure { padding: 5px 9px; font-size: 11.5px; } }
 /* la carte 2D vivante (V4) */
 .gl2-vague { fill: none; stroke: #ffffff; stroke-width: 0.35; stroke-linecap: round; opacity: 0.55; }
 .gl2-houle { animation: gl2-houle 9s linear infinite; }
