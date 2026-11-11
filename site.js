@@ -5153,6 +5153,12 @@
   const ILES_V4 = ["phare", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]; // les îles en V4 (modeles/grandline/ile-<id>-v4.glb)
   // une nouvelle commu n'a besoin que d'un drapeau, de ses couleurs et d'une traînée : elle prend le navire V4 commun
   const modeleNavire = (c) => (window.__navireV3 || !c?.id ? "" : FLOTTE_STYLES[c.id]?.navire ? `navire-${c.id}.glb` : "navire-v4.glb");
+  // Le « niveau 5 » (démo, à valider) : Port Barhaw refait et le galion de la flotte, matières et lumière cuites dans Blender.
+  // Rien ne change sur le site tant que ce n'est pas demandé : « ?n5=oui » dans l'adresse, ou les boutons de l'aperçu.
+  const ILES_V5 = ["port"]; // modeles/grandline/ile-<id>-v5.glb + .webp
+  try { if (new URLSearchParams(location.search).get("n5") === "oui") window.__niveau5 = true; } catch {}
+  const niveau5 = () => Boolean(window.__niveau5) && v4Ouverte();
+  const modeleNavireGL = (c) => (niveau5() && window.__niveau5 !== "port" && c?.id ? "navire-v5.glb" : modeleNavire(c));
   const traineeCommu = (c) => (["petales", "pieces", "encre", "pieuvres"].includes(c?.trainee) ? c.trainee : FLOTTE_STYLES[c?.id]?.trainee || "");
   const avanceCommu = (c) => {
     if (typeof c.avance === "number") return Math.max(0, Math.min(1, c.avance));
@@ -5510,8 +5516,8 @@
       ...g,
       defi: defiGL(),
       flotte: {
-        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), modele: modeleNavire(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
-        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), modele: modeleNavire(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
+        id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), modele: modeleNavireGL(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
+        autres: commusFlotte().filter((x) => x.id !== c.id).map((x) => ({ id: x.id, nom: x.nom, couleurs: x.couleurs, embleme: x.embleme, drapeau: drapeauImage(x), trainee: traineeCommu(x), modele: modeleNavireGL(x), live: Boolean(x.live), rang: ordinal(rangCommu(x)), route: x.navire.route, etape: x.navire.etape, milles: x.navire.milles, longueur: x.navire.longueur, vote: Boolean(x.navire.vote), voyage: x.navire.voyage })),
       },
     };
   }
@@ -5935,7 +5941,7 @@
           vider(zone, toile);
           // les îles V4 (la démo : le Phare), seulement une fois la V4 ouverte
           const ilesV4 = v4Ouverte() && !window.__ileV3 ? ILES_V4 : [];
-          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), ilesV4, ambiance: ambianceGL(), surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
+          const rendu = creerGrandLine3D(toile, { positions: GL_PLACES, couche: $("grandline-etiquettes"), ilesV4, ilesV5: niveau5() && window.__niveau5 !== "navire" ? ILES_V5 : [], ambiance: ambianceGL(), surIle: infoIleGL, surNavire: (id) => choisirVueFlotte(id), surBouteille: () => (moi?.connecte && monNavireGL() ? agirGL("grandline-bouteille") : (glMessage = { texte: moi?.connecte ? `Seul l'équipage de ${commuRegardee()?.nom} peut l'ouvrir.` : "Connecte-toi avec Discord pour ouvrir la bouteille !", erreur: true }, rendreMerGL(infosGL()))) });
           if (choix3d !== "oui" && !salle && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
           // la carte passe en 2D seulement si c'est elle qui perd la 3D (pas une ancienne carte qu'on vient de refaire)
           toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); if (carteGL?.rendu === rendu) passerCarte2D(); });
