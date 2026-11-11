@@ -244,11 +244,12 @@ def arbre(L, rng, x, y, h=1.0, r=0.42, genre="rond", z=None):
         L.ajouter(*N.sphere(r * (0.78 if k else 1.0), 8, 5, 0.82), mat, M @ T(math.cos(a) * d, math.sin(a) * d, h * (0.95 + 0.14 * k)) @ Rz(rng.random() * 3), zone=(1.0, 0.66 - 0.08 * k, 1.0))
 
 
-def passant(L, rng, x, y, angle=None, z=None, marcheur=False):
+def passant(L, rng, x, y, angle=None, z=None, marcheur=False, leve=0, tient=None):
     """Un habitant (30 cm à l'échelle de l'île) : deux jambes et leurs souliers, un buste (tunique, ou robe longue), deux bras
     et leurs mains, le cou, la tête, des cheveux, un chapeau de paille ou un bonnet. Il regarde vers +x.
     marcheur : ses membres sont marqués par une couleur de sommet (rouge : le sens du balancement ; vert : 0 une jambe, 1 un
-    bras ; bleu sous 0,5 : un membre) ; le site les fait balancer au rythme de ses pas (animee5 dans js/grandline-3d.js)."""
+    bras ; bleu sous 0,5 : un membre) ; le site les fait balancer au rythme de ses pas (animee5 dans js/grandline-3d.js).
+    leve : 1 ou -1, ce bras-là est levé, prêt à lancer ; tient : la matière de ce qu'il a dans la main (une boule de neige)."""
     z = sol(x, y) if z is None else z
     M = T(x, y, z) @ Rz(rng.random() * 6.28 if angle is None else angle)
     habit = rng.choice(["tissu_rouge", "tissu_bleu", "tissu_vert", "tissu_creme", "tissu_sombre", "toile_ecrue"])
@@ -266,6 +267,12 @@ def passant(L, rng, x, y, angle=None, z=None, marcheur=False):
     L.ajouter(*N.cylindre(0.047, 0.026, 0.022, 7), habit, M @ T(0, 0, 0.212))
     L.ajouter(*N.cylindre(0.04, 0.04, 0.012, 7, haut=False), "planches_sombres", M @ T(0, 0, 0.127))  # la ceinture
     for s, sens in ((1, 1), (-1, 0)):  # les bras : chacun va avec la jambe d'en face
+        if s == leve:
+            L.ajouter(*N.tube([(0, s * 0.053, 0.21), (-0.012, s * 0.068, 0.262), (0.006, s * 0.066, 0.312)], [0.0145, 0.0125, 0.011], 5), habit, M)
+            L.ajouter(*N.sphere(0.0135, 5, 3), peau, M @ T(0.008, s * 0.066, 0.32))
+            if tient:
+                L.ajouter(*N.sphere(0.022, 6, 4), tient, M @ T(0.012, s * 0.066, 0.346))
+            continue
         L.ajouter(*N.tube([(0, s * 0.053, 0.21), (0.004, s * 0.059, 0.158), (0.013, s * 0.057, 0.115)], [0.0145, 0.0125, 0.011], 5), habit, M, zone=marque(sens, 1))
         L.ajouter(*N.sphere(0.0135, 5, 3), peau, M @ T(0.015, s * 0.057, 0.106), zone=marque(sens, 1))
     L.ajouter(*N.cylindre(0.015, 0.014, 0.022, 5, haut=False), peau, M @ T(0, 0, 0.226))
