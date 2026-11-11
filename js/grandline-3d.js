@@ -1339,6 +1339,31 @@ function matiereRivage5(nom) {
   });
   return rivages5[nom];
 }
+// La lave d'une île « niveau 5 » : elle coule (u le long de la coulée, v en travers), sa croûte sombre dérive et se
+// fend, les bords refroidissent. Les UV viennent de Blender (barhaw_braise_v5.py).
+let lave5 = null;
+function matiereLave5() {
+  lave5 ||= new THREE.ShaderMaterial({
+    uniforms: { uTemps5: temps5 },
+    vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: `
+      uniform float uTemps5; varying vec2 vUv;
+      float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y); }
+      void main() {
+        vec2 q = vec2(vUv.x, 1.0 - vUv.y);
+        float coule = uTemps5 * 0.22;
+        float chaud = bruit(vec2(q.x * 1.6 - coule, q.y * 2.6)) * 0.6 + bruit(vec2(q.x * 4.2 - coule * 1.7, q.y * 6.0 + 3.0)) * 0.4;
+        float croute = smoothstep(0.56, 0.78, bruit(vec2(q.x * 2.4 - coule * 0.8, q.y * 3.4 + 7.0)) * 0.7 + bruit(vec2(q.x * 7.0 - coule * 0.8, q.y * 9.0)) * 0.3);
+        float bords = smoothstep(0.0, 0.2, q.y) * smoothstep(1.0, 0.8, q.y); // 0 sur les deux bords : la lave y refroidit
+        vec3 c = mix(vec3(1.0, 0.3, 0.04), vec3(1.0, 0.82, 0.3), smoothstep(0.35, 0.75, chaud) * (0.6 + 0.4 * sin(uTemps5 * 1.7 + q.x * 2.0)));
+        c = mix(c, vec3(0.22, 0.07, 0.03), max(croute * 0.8, (1.0 - bords) * 0.6));
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  return lave5;
+}
 // les toiles d'un navire « niveau 5 » : de la vraie toile (laizes cousues, bandes de ris, ralingue, usure), les couleurs de la
 // commu peintes dessus. En haut de l'image : le bas de la voile ; en bas : sa têtière, contre la vergue
 const toiles5 = {};
@@ -1498,6 +1523,8 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
         else o.material = base;
       } else if (nom === "vitre") {
         o.material = matiereVitre();
+      } else if (nom === "lave" && racine.userData.atlas) {
+        o.material = matiereLave5(); // niveau 5 : une lave qui coule
       } else if (nom === "ecume" || nom === "ombre_eau") {
         o.material = matiereRivage5(nom);
         o.renderOrder = 2;
