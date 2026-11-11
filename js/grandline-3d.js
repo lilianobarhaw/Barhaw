@@ -3296,7 +3296,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   cam.tilt = 0.15;
 
   function zoomer(f) {
-    zoom = Math.max(ilesV5.length ? 0.33 : 0.28, Math.min(1.6, zoom * f)); // niveau 5 : pas plus près que ce que les textures supportent
+    zoom = Math.max(ilesV5.length && leger ? 0.33 : 0.28, Math.min(1.6, zoom * f)); // sur téléphone, le niveau 5 s'arrête un peu avant : ses images sont plus petites
     return zoom;
   }
   canvas.addEventListener("wheel", (ev) => {
