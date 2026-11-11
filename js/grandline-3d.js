@@ -1603,7 +1603,8 @@ function animateurs(bouge, vent = () => 1) {
     const v = u.vitesse ?? 1;
     if (u.anim === "tourne") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, s * v)); };
     // la vie des îles (niveau 5) : un passant, une charrette, une barque qui suit son chemin (points x, y, z de Blender, à plat
-    // dans « chemin ») ; aller-retour, ou en rond avec « boucle » ; « saut » : le petit pas sautillant ; « roulis » : sur l'eau
+    // dans « chemin ») ; aller-retour, ou en rond avec « boucle » ; « saut » : le petit pas sautillant ; « roulis » : sur l'eau ;
+    // « dandine » : il se balance d'une patte sur l'autre en avançant (un manchot)
     if (u.anim === "marche") {
       const c = Array.isArray(u.chemin) ? u.chemin : [];
       const pts = [];
@@ -1615,6 +1616,7 @@ function animateurs(bouge, vent = () => 1) {
       for (let k = 0; k < pts.length - 1; k++) { const d = pts[k].distanceTo(pts[k + 1]); longs.push(d); total += d; }
       const saut = u.saut ?? 0.02;
       const roulis = u.roulis || 0;
+      const dandine = u.dandine || 0;
       const pause = u.pause ?? 1.5; // il s'arrête un instant au bout du chemin
       const tour = (u.boucle ? total : total * 2) + (u.boucle ? 0 : pause * v * 2);
       const depart = ((ph % 1) + 1) % 1;
@@ -1640,7 +1642,8 @@ function animateurs(bouge, vent = () => 1) {
           u.pas5.value = Math.sin(foulee) * elan;
           o.position.y += Math.cos(foulee) ** 2 * 0.005 * elan;
         } else if (!arret) o.position.y += Math.abs(Math.sin(s * 9 + ph * 7)) * saut;
-        o.rotation.set(roulis ? Math.sin(s * 1.3 + ph) * roulis : 0, Math.atan2(-(pts[k + 1].z - pts[k].z) * sens, (pts[k + 1].x - pts[k].x) * sens), 0, "YXZ");
+        const penche = roulis ? Math.sin(s * 1.3 + ph) * roulis : dandine && !arret ? Math.sin(s * 7.5 + ph * 5) * dandine : 0;
+        o.rotation.set(penche, Math.atan2(-(pts[k + 1].z - pts[k].z) * sens, (pts[k + 1].x - pts[k].x) * sens), 0, "YXZ");
         if (roulis) o.position.y += niveauMer(o, s) + Math.sin(s * 1.6 + ph) * roulis * 0.2;
       };
     }
@@ -1842,6 +1845,86 @@ function effetRepere(r) {
     g.userData.calque = p; // dessiné après la teinte de la nuit, pour rester vif (voir chargerIle et grandline-fete.js)
     g.userData.lueurs = lueurs; // là où une étoile de lucioles éclaire la nuit (voir chargerIle)
     maj = () => { mat.uniforms.uNuit5.value = lampesAllumees; };
+  } else if (genre === "boules") {
+    // la bataille de boules de neige (l'Île Givre) : « tirs » = le lanceur puis sa cible (x, y, z de Blender), six nombres par
+    // tir. Chaque boule part, monte, retombe, s'écrase (elle s'aplatit et s'élargit un instant), puis attend son tour ; un seul
+    // dessin pour toutes.
+    const t = Array.isArray(r.userData.tirs) ? r.userData.tirs : [];
+    const nb = Math.floor(t.length / 6);
+    const boules = new THREE.InstancedMesh(new THREE.SphereGeometry(0.04, 7, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }), Math.max(1, nb));
+    boules.count = nb;
+    boules.frustumCulled = false;
+    const M = new THREE.Matrix4();
+    g.add(boules);
+    maj = (s) => {
+      for (let k = 0; k < nb; k++) {
+        const tour = 1.7 + (k % 3) * 0.35; // chacun son rythme, et son moment (pour qu'il y ait toujours des boules en l'air)
+        const p = ((s + ((k * 0.618) % 1) * tour) % tour) / 0.75; // le vol dure 0,75 s
+        const e = Math.min(1, p);
+        const a = k * 6;
+        const choc = p < 1 ? 0 : (p - 1) / 0.3; // 0 en vol ; de 0 à 1 : l'éclat de neige ; au-delà : plus rien
+        if (choc >= 1) M.makeScale(0, 0, 0);
+        else M.makeScale(1 + choc * 2.2, 1 - choc * 0.75, 1 + choc * 2.2);
+        M.setPosition(t[a] + (t[a + 3] - t[a]) * e, t[a + 2] + (t[a + 5] - t[a + 2]) * e + Math.sin(e * Math.PI) * 0.3, -(t[a + 1] + (t[a + 4] - t[a + 1]) * e));
+        boules.setMatrixAt(k, M);
+      }
+      boules.instanceMatrix.needsUpdate = true;
+    };
+  } else if (genre === "aurore") {
+    // une aurore boréale (l'Île Givre) : deux rideaux de lumière derrière le glacier, la nuit seulement. Dessinée après la teinte de
+    // la nuit (le calque de grandline-fete.js) pour rester vive ; elle éclaire un peu la glace, en vert (lueurs).
+    const R0 = r.userData.rayon || 3.6; // le rayon du premier rideau, autour du repère (le sommet du glacier)
+    const H0 = r.userData.haut || 3; // le bas des rideaux
+    const SEG = 40;
+    const pos = [], uv = [], rideau = [], idx = [];
+    for (let c = 0; c < 2; c++) {
+      const base = pos.length / 3;
+      for (let k = 0; k <= SEG; k++) {
+        const u = k / SEG;
+        const a = (0.07 + 0.86 * u) * Math.PI + c * 0.16; // du côté du nord, derrière le glacier
+        const ray = R0 + c * 1.5 + Math.sin(u * 7 + c * 2) * 0.4;
+        const x = Math.cos(a) * ray, z = -Math.sin(a) * ray;
+        pos.push(x, H0 + c * 0.7, z, x, H0 + c * 0.7 + 4.0 - c * 0.6, z);
+        uv.push(u, 0, u, 1);
+        rideau.push(c, c);
+        if (k < SEG) { const i = base + k * 2; idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setAttribute("rideau", new THREE.Float32BufferAttribute(rideau, 1));
+    geo.setIndex(idx);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTemps5: temps5, uNuit5: { value: 0 } },
+      vertexShader: `
+        attribute float rideau; uniform float uTemps5; uniform float uNuit5; varying vec2 vUv; varying float vR;
+        void main() {
+          vUv = uv; vR = rideau;
+          vec3 p = position;
+          p.x += sin(uv.x * 11.0 + uTemps5 * 0.35 + rideau * 2.0) * 0.45 * (0.4 + uv.y);
+          p.z += cos(uv.x * 8.0 - uTemps5 * 0.27 + rideau * 4.0) * 0.45 * (0.4 + uv.y);
+          gl_Position = uNuit5 < 0.02 ? vec4(2.0, 2.0, 2.0, 1.0) : projectionMatrix * modelViewMatrix * vec4(p, 1.0); // de jour : rien
+        }`,
+      fragmentShader: `
+        uniform float uTemps5; uniform float uNuit5; varying vec2 vUv; varying float vR;
+        ${NUAGES5}
+        void main() {
+          float rayons = b5n(vec2(vUv.x * 34.0 + vR * 17.0 + sin(vUv.x * 5.0 + uTemps5 * 0.2) * 1.5, uTemps5 * 0.25 + vR * 3.0));
+          rayons = 0.25 + 0.75 * smoothstep(0.25, 0.8, rayons);
+          float pans = b5n(vec2(vUv.x * 5.0 - uTemps5 * 0.06, vR * 9.0 + uTemps5 * 0.05)); // des pans plus vifs que d'autres
+          float haut = smoothstep(0.0, 0.14, vUv.y) * pow(1.0 - vUv.y, 1.5);
+          float bouts = smoothstep(0.0, 0.14, vUv.x) * smoothstep(1.0, 0.86, vUv.x);
+          vec3 c = mix(vec3(0.2, 1.0, 0.55), vec3(0.55, 0.3, 1.0), smoothstep(0.15, 0.95, vUv.y));
+          gl_FragColor = vec4(c, rayons * (0.4 + 0.6 * pans) * haut * bouts * uNuit5 * 0.95);
+        }`,
+      transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    const rideaux = new THREE.Mesh(geo, mat);
+    rideaux.frustumCulled = false;
+    g.userData.calque = rideaux; // dessiné après la teinte de la nuit (voir chargerIle et grandline-fete.js)
+    g.userData.lueurs = [{ x: r.position.x, y: 3.4, z: r.position.z + 1.2, r: 7.5, c: [0.35, 1, 0.72] }];
+    maj = () => { mat.uniforms.uNuit5.value = lampesAllumees; };
   } else if (genre === "neige" || genre === "spores" || genre === "etincelles" || genre === "lucioles") {
     const reglage = {
       neige: [200, 0xffffff, 0.35, 9, 11, -1.1],
@@ -1849,7 +1932,9 @@ function effetRepere(r) {
       etincelles: [40, 0xffd36b, 0.4, 1.4, 2.4, 0.6],
       lucioles: [80, 0xfff27a, 0.55, r.userData.rayon || 10, 5, 0],
     }[genre];
-    const [nb, couleur, taille, rayon, haut, vitesse] = reglage;
+    const [nb0, couleur, taille0, rayon, haut, vitesse] = reglage;
+    const nb = r.userData.nb || nb0; // une île « niveau 5 », vue de près : plus de flocons, plus petits
+    const taille = r.userData.grosseur || taille0;
     const p = points(nb, couleur, taille, () => { const a = R() * Math.PI * 2; const d = Math.sqrt(R()) * rayon; return [Math.cos(a) * d, R() * haut - (genre === "neige" ? 9 : 0), Math.sin(a) * d]; });
     const bas = genre === "neige" ? -9 : 0;
     g.add(p);
@@ -2275,7 +2360,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
           Object.defineProperty(luit, "visible", { get: () => Boolean(i.visible && i.groupe.visible), set() {} }); // elles suivent leur île
           fete.calque.add(luit);
         } else if (luit) e.groupe.add(luit);
-        for (const l of e.groupe.userData.lueurs || []) lanternes.push({ g: { get visible() { return Boolean(i.visible && i.groupe.visible); }, position: new THREE.Vector3(i.x + l.x, 0, i.z + l.z) }, y: l.y, r: l.r, clignote: true });
+        for (const l of e.groupe.userData.lueurs || []) lanternes.push({ g: { get visible() { return Boolean(i.visible && i.groupe.visible); }, position: new THREE.Vector3(i.x + l.x, 0, i.z + l.z) }, y: l.y, r: l.r, c: l.c, clignote: true });
       }
       for (const c of i.contenu) { i.groupe.remove(c); c.traverse((o) => o.geometry?.dispose?.()); }
       i.groupe.add(modele);
@@ -2593,7 +2678,18 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         let x = p.x + s * v;
         const larg = (MER_X - 12) * 2;
         x = ((((x + MER_X - 12) % larg) + larg) % larg) - (MER_X - 12);
-        g.position.set(x, Math.sin(s * 1.4 + ph) * 0.08, p.z + Math.sin(s * 0.1 + ph) * 3);
+        let z = p.z + Math.sin(s * 0.1 + ph) * 3;
+        // le courant contourne les îles : l'épave glisse le long du rivage (du côté de sa route), jamais à travers l'île
+        for (const i of iles.values()) {
+          const R = Math.max(i.r, i.rMer || 0) + 1.6;
+          const dx = Math.abs(x - i.x);
+          if (dx >= R + 5) continue;
+          const cote = p.z >= i.z ? 1 : -1;
+          const contourne = i.z + cote * Math.max(cote * (z - i.z), Math.sqrt(Math.max(0, R * R - dx * dx)));
+          const t = Math.min(1, (R + 5 - dx) / 5);
+          z += (contourne - z) * t * t * (3 - 2 * t);
+        }
+        g.position.set(x, Math.sin(s * 1.4 + ph) * 0.08, z);
         g.rotation.y = s * 0.08 + ph;
       });
     }

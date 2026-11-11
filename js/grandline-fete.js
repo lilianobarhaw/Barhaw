@@ -254,7 +254,7 @@ export function creerFete(ctx) {
     lampe(porteur.position.x, 3.6, porteur.position.z, 7, CHAUD, 1.15);
     for (const f of flotte.values()) lampe(f.porteur.position.x, 3.4, f.porteur.position.z, 6.4, CHAUD, 1.05);
     // les barques, les marchands, les bouées de la mer qui vit
-    for (const l of lanternes) if (l.g.visible) lampe(l.g.position.x, l.y, l.g.position.z, l.r, CHAUD, l.clignote ? 0.6 + Math.sin(s * 2.4 + l.g.position.x) * 0.35 : 0.9);
+    for (const l of lanternes) if (l.g.visible) lampe(l.g.position.x, l.y, l.g.position.z, l.r, l.c || CHAUD, l.clignote ? 0.6 + Math.sin(s * 2.4 + l.g.position.x) * 0.35 : 0.9);
     // la mer luit là où on la remue : le sillage, les éclaboussures
     for (const w of sillages) if (w.material.opacity > 0.04) lum.pousser(w.position.x, 0.2, w.position.z, 1.5 * w.scale.x, CYAN, w.material.opacity * 1.5 * amb.nuit, 1);
     for (const r of eclabs) if (r.material.opacity > 0.04) lum.pousser(r.position.x, 0.2, r.position.z, 1.3 * r.scale.x, CYAN, r.material.opacity * 1.3 * amb.nuit, 1);
