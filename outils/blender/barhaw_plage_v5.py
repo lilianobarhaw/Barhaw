@@ -104,10 +104,10 @@ def vers(angle, dedans):
 
 
 # ---------- les pièces ----------
-def palmier(L, rng, x, y, h=2.6, penche=0.6, cap=0.0, leger=False):
+def palmier(L, rng, x, y, h=2.6, penche=0.6, cap=0.0, leger=False, z=None):
     """Un cocotier : un tronc courbe et fibreux, une couronne de palmes (une nervure, des folioles pointues de chaque côté, qui
     retombent), des noix. leger : moins de palmes, moins de folioles."""
-    z0 = sol(x, y) - 0.1
+    z0 = (sol(x, y) if z is None else z) - 0.1  # z : la hauteur du sol, pour une autre île que la plage
     pts = [(x + math.cos(cap) * penche * (k / 7) ** 2, y + math.sin(cap) * penche * (k / 7) ** 2, z0 + h * (k / 7) * (1.08 - 0.08 * k / 7)) for k in range(8)]
     L.ajouter(*N.tube(pts, [0.12 - 0.05 * k / 7 for k in range(8)], 7), "ecorce_palmier", tourne=True)
     cx, cy, cz = pts[-1]
@@ -468,4 +468,4 @@ def verifier(lots=None, leger=False):
 def construire(rendu=True, cuire=True, exporter=True, taille=None, echantillons=48, leger=False, alleger=True):
     lots = mailles(leger=leger)
     rendus = [("plage-v5", (11, -22, 12), (0, -0.6, 0.8), 55), ("plage-v5-camp", (-1.5, -13.5, 3.6), (-0.6, -2.6, 0.7), 60)] if rendu else []
-    return K.construire("ile-moussaillons-v5", lots, verifier(lots), rendus, cuire, exporter, taille or (1024 if leger else 3072), echantillons, leger, alleger, atlas="plage")  # 3072 : net au plus près
+    return K.construire("ile-moussaillons-v5", lots, verifier(lots), rendus, cuire, exporter, taille or (2048 if leger else 3072), echantillons, leger, alleger, atlas="plage")  # 3072 : net au plus près ; 2048 sur téléphone

@@ -582,6 +582,22 @@ def _mailles(graine, leger):
     import barhaw_ile_v5 as K
     Rv = N.Maille("rivage")
     K.bande(Rv, [vers(a, RB - 0.01) for a in range(172, 7, -4)], [vers(a, RB - 0.75) for a in range(172, 7, -4)], mat="ombre_eau")
+    # le ressac sur la côte extérieure (tout le tour de l'île, sauf l'entrée du bassin) : le bord de l'eau est là où le sol
+    # passe sous zéro, cherché sur chaque rayon ; le ruban s'affine à ses deux bouts
+    cote = []
+    for ang in range(-55, 245, 2):
+        ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+        r0, r1 = RI - 3.5, RI + 2.0  # à terre, en mer
+        for _ in range(22):
+            rm = (r0 + r1) / 2
+            if sol(CENTRE[0] + ca * rm, CENTRE[1] + sa * rm) > 0:
+                r0 = rm
+            else:
+                r1 = rm
+        cote.append((ca, sa, r1))
+    fin = lambda k: min(1.0, k / 5, (len(cote) - 1 - k) / 5)
+    K.bande(Rv, [(CENTRE[0] + ca * (r - 0.04), CENTRE[1] + sa * (r - 0.04)) for ca, sa, r in cote],
+            [(CENTRE[0] + ca * (r + 0.05 + 0.95 * fin(k)), CENTRE[1] + sa * (r + 0.05 + 0.95 * fin(k))) for k, (ca, sa, r) in enumerate(cote)], mat="ecume")
     for nom, poly in emprises:  # l'ombre de chaque ponton, de chaque coque
         if leger and nom in ("barque 2", "barque 3"):  # les deux barques que le téléphone n'a pas
             continue
