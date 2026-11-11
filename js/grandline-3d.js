@@ -5,6 +5,8 @@
 // (les données du bot) et dit quand on clique sur une île ou sur la bouteille.
 // three.js r170 (licence MIT, © three.js authors) est rangé à côté : la page n'accepte que ses propres scripts.
 import * as THREE from "./three-r170.module.min.js";
+// le jour et la nuit, les lanternes, les feux d'artifice, l'arène des défis, la Baleine étoilée… (V4)
+import { creerFete } from "./grandline-fete.js";
 
 THREE.ColorManagement.enabled = false;
 
@@ -537,12 +539,14 @@ const COULEURS = {
   pierre: 0xa39a8c, pierre_fonce: 0x6b6258, roche_noire: 0x3b3236, neige: 0xf4f8ff, glace: 0xbfe6ff, lave: 0xff6a1a, fer: 0x2a2a33,
   corde: 0xc9a66b, lumiere: 0xfff1a8, eau: 0x6fb0c8, turquoise: 0x3fd0c9, luciole: 0xfff27a, gres: 0xd98a4a, paille: 0xe8c66a,
   feu: 0xff9a1f, eau_douce: 0x5fd0d8, corail: 0xff7a8a, noir: 0x1f1a22, sable: 0xe9cf98, gris: 0x8a8796, champi_pied: 0xf6ead2,
-  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6,
+  mirage: 0xffe3f0, pois: 0xffffff, ecaille: 0x7a3fd6, nuit: 0x2c2f7a, astre: 0xa8f0ff,
+  fanion_rose: 0xff4f9a, fanion_or: 0xffc23d, fanion_violet: 0x9b4dff, fanion_turquoise: 0x2fd3c4, fanion_creme: 0xfff1d6,
   cuivre: 0xc8743a, laiton: 0xd9b45a, mousse: 0x5f7a3a, vase: 0x5a5236, spectre: 0x8affc8, os: 0xf0e6cc, cristal: 0xd7b8ff, ocean: 0x4a6aa0, dauphin: 0x8aa2c4, ventre: 0xffb3d1, ventouse: 0xffc6dc, tache: 0x5a2aa8, verre: 0x5fd39a, voile: 0xfbf1df, voile_b: 0xfbf1df, drapeau: 0xff4f9a, flamme: 0xff4f9a,
 };
-const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu", "spectre"]);
-const DEUX_FACES = new Set(["feuille", "voile", "voile_b", "drapeau", "flamme", "corde"]);
-const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "cristal", "spectre", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave"]);
+const BRILLANTS = new Set(["lumiere", "luciole", "lave", "feu", "spectre", "astre"]);
+const FANIONS = ["fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme"]; // les drapeaux de la mer en fête : une épaisseur de toile
+const DEUX_FACES = new Set(["feuille", "voile", "voile_b", "drapeau", "flamme", "corde", ...FANIONS]);
+const SANS_CONTOUR = new Set(["pois", "ventouse", "tache", "verre", "corde", "feuille", "glace", "cristal", "spectre", "eau", "eau_douce", "voile", "voile_b", "drapeau", "flamme", "lumiere", "luciole", "feu", "lave", "astre", ...FANIONS]);
 const TYPES_GLB = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const MAX_GLB = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
 const COMPOSANTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
@@ -1319,6 +1323,7 @@ function materiauMer(uniforms) {
       }`,
     fragmentShader: `
       uniform float uT; uniform float uSombre; uniform float uVie; uniform vec3 uIles[24];
+      uniform float uNuit; uniform float uOr; uniform float uReflet;
       varying vec2 vXZ;
       float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -1364,6 +1369,15 @@ function materiauMer(uniforms) {
           mer = mix(mer, vec3(0.93, 0.97, 1.0), courant * 0.32);
         }
         mer -= h21(floor(p * 9.0)) * 0.035;
+        // la nuit : le chemin de lune, des paillettes qui dansent jusqu'à nous ; le soir : le même, en or
+        float soir = max(uNuit, uOr);
+        if (soir > 0.01) {
+          vec2 cl = floor(p * 1.5), fl = fract(p * 1.5) - 0.5;
+          float paillette = step(0.9, h21(cl + floor(uT * 1.1 + h21(cl) * 6.0) * 3.0)) * (1.0 - smoothstep(0.05, 0.16, length(fl * vec2(1.0, 2.3))));
+          float chemin = exp(-pow((p.x - uReflet + sin(p.y * 0.21 + uT * 0.4) * 1.4) / 7.5, 2.0));
+          mer = mix(mer, vec3(1.0), paillette * chemin * soir * 0.95 * (1.0 - cote));
+          mer = mix(mer, vec3(1.0), chemin * soir * 0.1 * (1.0 - cote));
+        }
         mer = mix(mer, vec3(0.19, 0.22, 0.32), uSombre * 0.6);
         // les terres du bord de la carte, en sépia hachuré (comme une vieille carte)
         float terre = smoothstep(0.6, 0.64, fbm(p * 0.035 + 21.0) + (1.0 - smoothstep(0.0, 20.0, bordMer)) * 0.45);
@@ -1420,7 +1434,7 @@ function courbe(a, b, sens = 1, force = 0.16) {
   return new THREE.QuadraticBezierCurve3(a, c, b);
 }
 
-export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, ilesV4 = [], modeles = "/modeles/grandline/" }) {
+export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {}, surBouteille = () => {}, surNavire = () => {}, surAmbiance = () => {}, ambiance = null, ilesV4 = [], modeles = "/modeles/grandline/" }) {
   const ratio = Math.min(1.5, window.devicePixelRatio || 1);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: ratio < 1.5, alpha: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -1435,7 +1449,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   scene.add(hemi, soleil);
 
   // la feuille et la mer
-  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uVie: { value: ilesV4.length ? 1 : 0 }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
+  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uNuit: { value: 0 }, uOr: { value: 0 }, uReflet: { value: 0 }, uVie: { value: ilesV4.length ? 1 : 0 }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
   const merGeo = new THREE.PlaneGeometry(W, H, 180, 110);
   merGeo.rotateX(-Math.PI / 2);
   const mer = new THREE.Mesh(merGeo, materiauMer(uniformsMer));
@@ -1512,6 +1526,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
 
   // ---------- les modèles de Blender : chaque île se charge quand on la voit (en attendant : la version dessinée ici) ----------
   let detruit = false;
+  let fete = null; // le jour et la nuit, les lumières, les feux d'artifice, l'arène… (js/grandline-fete.js), créée plus bas
   const erreurs = []; // pour les essais (etat())
   // sur téléphone (ou petit appareil), les modèles V4 existent en version légère (<nom>-leger.glb) : on la prend d'abord
   const leger = (() => { try { return matchMedia("(max-width: 760px), (pointer: coarse)").matches || (navigator.deviceMemory || 8) <= 4; } catch { return false; } })();
@@ -1536,6 +1551,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       i.anims = anims;
       i.haut = Math.max(6.5, boite.max.y + 1.2);
       i.modele = modele;
+      fete?.eclairerIle(i, modele); // ses lanternes, ses fenêtres, sa lave : autant de lumières pour la nuit
       modele.visible = i.visible;
       for (const r of reliefs) r.material.uniforms.uGris.value = i.visible ? 0 : 0.6;
     }).catch((e) => { i.modele = false; erreurs.push(`${i.id} : ${e.message}`); });
@@ -1623,6 +1639,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // ---------- la mer qui vit (V4) : baleines, dauphins, tortues, raies, poissons volants, navires marchands,
   // pêcheurs, bouées, épaves qui dérivent, nuages de pluie (modèles : vie-mer.glb ; les mouvements sont calculés ici) ----------
   const vie = [];
+  const lanternes = []; // ce qui porte une lanterne (marchands, barques, bouées) : { g, y, r, clignote }, pour la nuit
   const pointDeMer = (R, marge = 6) => {
     for (let k = 0; k < 80; k++) {
       const x = (R() * 2 - 1) * (MER_X - 16);
@@ -1789,6 +1806,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     // les navires marchands : une boucle entre les îles
     for (let k = 0; k < n(3, 2); k++) {
       const { g } = faire("marchand", 0.85);
+      lanternes.push({ g, y: 2.2, r: 3.6 });
       const pts = Array.from({ length: 5 }, () => pointDeMer(R, 7)).sort((a, b) => Math.atan2(a.z, a.x) - Math.atan2(b.z, b.x));
       const courbe = new THREE.CatmullRomCurve3(pts, true, "centripetal");
       const L = courbe.getLength();
@@ -1805,6 +1823,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     // les barques de pêche, au mouillage près des îles
     for (let k = 0; k < n(4, 2); k++) {
       const { g, anims } = faire("peche", 0.95);
+      lanternes.push({ g, y: 1.9, r: 3 });
       const i = ilesListe[Math.floor(R() * ilesListe.length)];
       const an = R() * 6.28;
       g.position.set(i.x + Math.cos(an) * (i.r + 3.5), 0, i.z + Math.sin(an) * (i.r + 3.5));
@@ -1821,6 +1840,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     // les bouées
     for (let k = 0; k < n(6, 3); k++) {
       const { g, anims } = faire("bouee", 1.0);
+      lanternes.push({ g, y: 1.8, r: 2.4, clignote: true });
       const p = pointDeMer(R, 6);
       const ph = R() * 6.28;
       g.position.copy(p);
@@ -2286,7 +2306,15 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const v = cam.voulu;
     if (mode === "ensemble") { v.cible.set(0, 0, 6).add(decalage); v.dist = distanceEnsemble() * Math.min(1, zoom * 1.6); v.tilt = 0.5; }
     else if (mode === "ile" && vise) { v.cible.copy(vise).add(decalage); v.dist = 46 * zoom; v.tilt = 0.95 - (1 - Math.min(1, zoom)) * 0.25; }
-    else { v.cible.copy(porteur.position).add(decalage); v.dist = (camera.aspect < 1 ? 64 : 48) * zoom; v.tilt = 0.9 - (1 - Math.min(1, zoom)) * 0.2; }
+    else {
+      v.cible.copy(porteur.position);
+      v.dist = (camera.aspect < 1 ? 64 : 48) * zoom;
+      // pendant le défi du navire qu'on regarde : toute l'arène dans l'image
+      const a = fete?.cadre();
+      if (a) { v.cible.x += (a.x - v.cible.x) * a.e; v.cible.z += (a.z - v.cible.z) * a.e; v.dist *= 1 + (camera.aspect < 1 ? 0.8 : 0.42) * a.e; }
+      v.cible.add(decalage);
+      v.tilt = 0.9 - (1 - Math.min(1, zoom)) * 0.2;
+    }
   }
   let vise = null;
 
@@ -2321,7 +2349,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       if (arrivee) {
         const ile = d.route[d.etape]?.find((x) => x.etat === "atteinte");
         const i = ile && iles.get(ile.id);
-        if (i) { i.disparition = 1; vise = v3(i.x, i.z); mode = "ile"; setTimeout(() => { if (mode === "ile") mode = "navire"; }, 4200); }
+        if (i) { i.disparition = 1; vise = v3(i.x, i.z); mode = "ile"; setTimeout(() => { if (mode === "ile") mode = "navire"; }, 4200); fete.feter(i.x, i.z, leger ? 5 : 8); } // terre ! un feu d'artifice
         progres = 0;
       }
     }
@@ -2351,6 +2379,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       if (evenement) { evenement.cle = cleEv; mer3d.add(evenement.groupe); }
     }
     etincelles.visible = Boolean(d.live);
+    fete.maj(d);
     majEtiquettes();
   }
   function majEtiquettes() {
@@ -2373,18 +2402,24 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       vues.add(`ile:${id}`);
     }
     const n = etiquette("navire", "gl-etiquette-navire");
+    // pendant un défi : les points de la commu ; après : la couronne du vainqueur
+    const duel = (id, nom) => {
+      const pts = fete?.score(id);
+      if (pts !== null && pts !== undefined) return `⚔️ ${nom} · ${pts.toLocaleString("fr-FR")} pts`;
+      return fete?.gagnant() === id ? `👑 ${nom} · vainqueur du défi` : "";
+    };
     // dans la flotte : le nom et le rang dans la course ; sinon, l'avance de l'étape
-    const t = d.flotte?.nom ? `⛵ ${d.flotte.nom}${d.flotte.rang ? ` · ${d.flotte.rang}` : ""}${d.live ? " · 🔴" : ""}` : `⛵ ${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
+    const t = d.flotte?.nom ? duel(d.flotte.id, d.flotte.nom) || `⛵ ${d.flotte.nom}${d.flotte.rang ? ` · ${d.flotte.rang}` : ""}${d.live ? " · 🔴" : ""}` : `⛵ ${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
     if (n.textContent !== t) n.textContent = t;
     if (d.flotte) n.style.setProperty("--c1", themeNavire(d.flotte.couleurs).c1); else n.style.removeProperty("--c1");
     vues.add("navire");
     // les autres navires de la flotte : leur nom et leur avance ; un clic les regarde
     for (const [id, f] of flotte) {
       const e = etiquette(`flotte:${id}`, "gl-etiquette-flotte");
-      const tf = `${f.d.nom || id}${f.d.rang ? ` · ${f.d.rang}` : ""}${f.d.live ? " · 🔴" : ""}`;
+      const tf = duel(id, f.d.nom || id) || `⛵ ${f.d.nom || id}${f.d.rang ? ` · ${f.d.rang}` : ""}${f.d.live ? " · 🔴" : ""}`;
       if (e.dataset.texte !== tf) {
         e.dataset.texte = tf;
-        e.textContent = `⛵ ${tf}`;
+        e.textContent = tf;
         e.style.setProperty("--c1", f.theme.c1);
         e.setAttribute("role", "button");
         e.setAttribute("tabindex", "0");
@@ -2448,6 +2483,14 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   canvas.addEventListener("pointercancel", () => { appui = null; });
   canvas.addEventListener("pointerleave", () => { parallaxe = 0; });
 
+  // ---------- la fête (V4) : le jour et la nuit, les lumières, le ciel, l'arène des défis (js/grandline-fete.js) ----------
+  fete = creerFete({
+    renderer, scene, camera, iles, flotte, porteur, cam, leger, v4: ilesV4.length > 0, v3, hasard, cap, pointDeMer, lireV4, sceneGLB, habiller, animateurs,
+    matiere: (nom, vc) => matiereGLB(nom, THEME_BARHAW, vc, true), BRILLANTS, eclabousse, jetDeau, sillages, eclabs, lanternes, uniformsMer, MER_X, MER_Z, erreurs,
+    evenement: () => evenement, tempete: () => evenement?.type === "tempete", eclair: () => hemi.intensity > 2, detruit: () => detruit, surAmbiance,
+  });
+  if (ambiance) fete.ambiance(ambiance);
+
   // ---------- l'animation ----------
   let marche = false;
   let dernier = performance.now();
@@ -2457,6 +2500,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   let images = 0;
   let lenteur = 0.016;
   let prochainReglage = 0;
+  const pRoute = new THREE.Vector3();
   function image(maintenant) {
     if (!marche) return;
     images++;
@@ -2484,28 +2528,33 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     // le navire avance doucement jusqu'à sa place ; la route de l'étape suit
     progres += (progresVoulu - progres) * Math.min(1, dt * 0.8);
     if (donnees && Math.abs(progres - progresTrace) > 0.008) construireEtape(progres);
+    let coupCanon = 0; // le coup de roulis quand il tire au canon (pendant un défi)
     if (donnees) {
       const { pos: p, dir } = surRoute(progres);
-      porteur.position.set(p.x, 0, p.z);
-      porteur.rotation.y = -Math.atan2(dir.z, dir.x);
+      // pendant un défi, le navire quitte sa route pour l'arène : la fête dit où il est vraiment
+      const q = fete.pose(donnees.flotte?.id || "moi", p, dir, dt);
+      porteur.position.set(q.x, 0, q.z);
+      porteur.rotation.y = q.cap;
+      coupCanon = q.roulis;
     }
     const houle = evenement?.type === "tempete" ? 2.4 : 1;
     navire.position.y = 0.05 + Math.sin(s * 1.7) * 0.14 * houle;
-    navire.rotation.x = Math.sin(s * 1.3) * 0.05 * houle;
+    navire.rotation.x = Math.sin(s * 1.3) * 0.05 * houle + coupCanon;
     navire.rotation.z = Math.sin(s * 1.1 + 1) * 0.035 * houle;
     const vent = evenement?.type === "vent" || donnees?.live ? 1.35 : 1;
     navire.userData.animer(s, vent);
     // les autres navires de la flotte : chacun glisse jusqu'à sa place sur sa route, et se balance
-    for (const f of flotte.values()) {
+    for (const [id, f] of flotte) {
       f.progres += (f.voulu - f.progres) * Math.min(1, dt * 0.8);
       const { pos: p, dir } = surChemins(f.etape, f.progres);
       // deux navires au même endroit (au port, au départ) : on les décale un peu
       const ecart = p.distanceTo(porteur.position) < 6 ? f.decal * 5.5 : 0;
-      f.porteur.position.set(p.x - dir.z * ecart, 0, p.z + dir.x * ecart);
-      f.porteur.rotation.y = -Math.atan2(dir.z, dir.x);
+      const q = fete.pose(id, pRoute.set(p.x - dir.z * ecart, 0, p.z + dir.x * ecart), dir, dt);
+      f.porteur.position.set(q.x, 0, q.z);
+      f.porteur.rotation.y = q.cap;
       if (f.navire) {
         f.navire.position.y = 0.05 + Math.sin(s * 1.6 + f.decal) * 0.14;
-        f.navire.rotation.x = Math.sin(s * 1.2 + f.decal) * 0.05;
+        f.navire.rotation.x = Math.sin(s * 1.2 + f.decal) * 0.05 + q.roulis;
         f.navire.rotation.z = Math.sin(s * 1.05 + 1 + f.decal) * 0.035;
         f.navire.userData.animer(s + f.decal, f.d?.live ? 1.35 : 1);
       }
@@ -2554,6 +2603,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     // la mer qui vit (V4)
     for (const f of vie) f(s, dt);
     for (const f of pluies) f(s, dt);
+    fete.image(s, dt);
     for (const r of eclabs) {
       const u = r.userData;
       if (u.age > 1.4) { r.material.opacity = 0; continue; }
@@ -2587,7 +2637,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const recul = Math.sin(cam.tilt) * cam.dist;
     camera.position.set(cam.cible.x + Math.sin(cam.yaw) * recul, hauteur, cam.cible.z + Math.cos(cam.yaw) * recul);
     camera.lookAt(cam.cible);
-    renderer.render(scene, camera);
+    fete.rendre(s); // de jour : la scène telle quelle ; le soir et la nuit : teintée, avec ses lumières
     // les étiquettes (sur un petit écran, en vue d'ensemble : seulement les emojis)
     couche.classList.toggle("compact", mode === "ensemble" && L < 760);
     for (const [cle, e] of etiquettes) {
@@ -2645,6 +2695,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     canvas.removeEventListener("pointermove", surBouge);
     canvas.removeEventListener("pointerup", surLache);
     scene.traverse((o) => { o.geometry?.dispose?.(); });
+    fete.detruire();
     renderer.dispose();
     renderer.forceContextLoss();
   }
@@ -2657,6 +2708,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     zoom = 0.8;
     mode = "ile";
   }
-  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, mode: () => mode, etat: () => ({ leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
+  // l'ambiance : { phase: "jour" | "aube" | "crepuscule" | "nuit", nuit: 0…1, or: 0…1 } (site.js la donne, à l'heure de Paris)
+  const reglerAmbiance = (a) => fete.ambiance(a);
+  const feter = (n) => fete.feter(porteur.position.x, porteur.position.z, n || 7, { large: 18 });
+  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, ambiance: reglerAmbiance, feter, saut: () => fete.saut(), mode: () => mode, etat: () => ({ fete: fete.etat(), leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller, animateurs, themeNavire, creerTrainee, pastille, toile };
