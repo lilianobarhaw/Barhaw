@@ -987,7 +987,11 @@ def construire(style="galion", rendu=True, cuire=True, exporter=True, taille=204
         N.teinter("peinture1")
         N.teinter("peinture2")
     if cuire:
+        # un navire tourne sur la carte : sa lumière cuite ne doit pas avoir de côté à l'ombre. Un soleil presque au zénith,
+        # un ciel fort : les deux bords sont éclairés pareil, les creux restent sombres (c'est ce relief qu'on garde)
+        N.soleil_et_ciel(soleil=(-0.16, -0.28, 0.95), force=3.3, force_ciel=1.2, taille=8.0)
         infos["atlas"] = N.cuire_ensemble([corps], os.path.join(N.dossier(), "glb", nom + ".png"), taille, echantillons, nom="navire_" + style)
+        N.soleil_et_ciel()
     vitres.hide_render = False
     if exporter:
         infos["glb"] = N.exporter(coll.name, nom + ".glb", couleurs=True)

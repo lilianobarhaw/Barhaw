@@ -623,7 +623,7 @@ function lireAtlas(url) {
       t.minFilter = THREE.LinearMipmapLinearFilter;
       t.anisotropy = 4;
       t.needsUpdate = true;
-      return new THREE.MeshBasicMaterial({ map: t });
+      return cine5(new THREE.MeshBasicMaterial({ map: t }));
     })();
     atlasLus.set(url, lu);
     lu.catch(() => atlasLus.delete(url));
@@ -650,7 +650,7 @@ function teindreZones(geo, theme) {
 }
 const atlasTeintes = new WeakMap();
 function atlasTeinte(base) {
-  if (!atlasTeintes.has(base)) { const m = base.clone(); m.vertexColors = true; atlasTeintes.set(base, m); }
+  if (!atlasTeintes.has(base)) { const m = base.clone(); m.vertexColors = true; cine5(m); atlasTeintes.set(base, m); }
   return atlasTeintes.get(base);
 }
 let matVitre = null;
@@ -1189,6 +1189,172 @@ function matiereGLB(nom, theme = THEME_BARHAW, couleursSommets = false, cuit = f
   return m;
 }
 toileGLB.noms = new Set(["voile", "voile_b", "drapeau", "flamme"]);
+
+// ---------- niveau 5 : le grain de près, la lumière commune, les toiles ----------
+// 1 : plein jour ; l'orage assombrit ensemble les modèles cuits et leurs toiles (la nuit, c'est la teinte de la fête qui joue)
+const eclairage5 = { value: 1 };
+// le grain : une petite image de bruit qui se répète, multipliée à l'atlas. De loin elle s'efface toute seule (ses mipmaps
+// tendent vers le gris moyen) ; de près elle redonne du piqué aux pavés, au bois, aux tuiles
+let detail5 = null;
+function textureDetail5() {
+  if (detail5) return detail5;
+  const T = 256, d = new Uint8Array(T * T * 4), R = hasard(9173);
+  const grilles = [[8, 0.26], [32, 0.36], [128, 0.38]].map(([n, poids]) => { const g = new Float32Array(n * n); for (let k = 0; k < g.length; k++) g[k] = R(); return [n, poids, g]; });
+  for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+    let v = 0;
+    for (const [n, poids, g] of grilles) {
+      const fx = (x / T) * n, fy = (y / T) * n, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
+      const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      const a = g[(iy % n) * n + (ix % n)], b = g[(iy % n) * n + ((ix + 1) % n)], c = g[((iy + 1) % n) * n + (ix % n)], e = g[((iy + 1) % n) * n + ((ix + 1) % n)];
+      v += poids * (a + (b - a) * sx + (c - a) * sy + (a - b - c + e) * sx * sy);
+    }
+    const o = Math.round(255 * Math.min(1, Math.max(0, 0.5 + (v - 0.5) * 1.7)));
+    d.set([o, o, o, 255], (y * T + x) * 4);
+  }
+  detail5 = new THREE.DataTexture(d, T, T, THREE.RGBAFormat);
+  detail5.wrapS = detail5.wrapT = THREE.RepeatWrapping;
+  detail5.generateMipmaps = true;
+  detail5.minFilter = THREE.LinearMipmapLinearFilter;
+  detail5.magFilter = THREE.LinearFilter;
+  detail5.needsUpdate = true;
+  return detail5;
+}
+// la matière d'un modèle cuit : son image, le grain de près, la lumière commune
+function cine5(m) {
+  m.onBeforeCompile = (s) => {
+    s.uniforms.uEclairage5 = eclairage5;
+    s.uniforms.uDetail5 = { value: textureDetail5() };
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5;");
+  };
+  m.customProgramCacheKey = () => `cine5${m.vertexColors ? "c" : ""}`;
+  return m;
+}
+// les toiles d'un navire « niveau 5 » : de la vraie toile (laizes cousues, bandes de ris, ralingue, usure), les couleurs de la
+// commu peintes dessus. En haut de l'image : le bas de la voile ; en bas : sa têtière, contre la vergue
+const toiles5 = {};
+function toile5(nom, theme) {
+  const cle = `${nom}|${theme.cle}`;
+  if (toiles5[cle]) return toiles5[cle];
+  const { c1, c2, fonce, embleme } = theme;
+  const R = hasard(nom.length * 131 + theme.cle.length * 17 + 5);
+  const tissu = (x, l, h, base = [236, 226, 204]) => {
+    // le fond : la couleur de la toile, pixel par pixel (la trame), plus claire au milieu de chaque laize
+    const im = x.createImageData(l, h);
+    const laize = l / 8;
+    for (let j = 0; j < h; j++) for (let i = 0; i < l; i++) {
+      const dansLaize = (i % laize) / laize;
+      const bombe = 0.96 + 0.05 * Math.sin(dansLaize * Math.PI);
+      const trame = 0.975 + 0.025 * ((i + j) % 2) + (R() - 0.5) * 0.05;
+      const sale = 1 - 0.1 * Math.pow(1 - j / h, 2.2); // le bas de la voile (le haut de l'image), sali par les embruns
+      const k = (j * l + i) * 4, f = bombe * trame * sale;
+      im.data[k] = base[0] * f; im.data[k + 1] = base[1] * f; im.data[k + 2] = base[2] * f; im.data[k + 3] = 255;
+    }
+    x.putImageData(im, 0, 0);
+    // l'usure : des auréoles d'eau salée, des coulures
+    for (let k = 0; k < 26; k++) {
+      const g = x.createRadialGradient(0, 0, 0, 0, 0, 1);
+      const sombre = R() < 0.7;
+      g.addColorStop(0, sombre ? "rgba(128,104,72,.13)" : "rgba(255,250,236,.16)"); g.addColorStop(1, "rgba(128,104,72,0)");
+      x.save(); x.translate(R() * l, R() * h); x.rotate(R() * 3); x.scale(18 + R() * 60, 12 + R() * 34); x.fillStyle = g; x.beginPath(); x.arc(0, 0, 1, 0, Math.PI * 2); x.fill(); x.restore();
+    }
+    for (let k = 0; k < 14; k++) { const cx = R() * l; const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(110,88,60,.16)"); g.addColorStop(0.6 + R() * 0.4, "rgba(110,88,60,0)"); x.fillStyle = g; x.fillRect(cx, 0, 2 + R() * 5, h); }
+  };
+  const coutures = (x, l, h) => {
+    // les laizes : une couture double entre deux bandes de toile ; les bandes de ris et leurs garcettes ; la ralingue autour
+    for (let k = 1; k < 8; k++) {
+      const cx = Math.round((k * l) / 8);
+      x.fillStyle = "rgba(96,74,50,.34)"; x.fillRect(cx - 1, 0, 1.5, h);
+      x.fillStyle = "rgba(255,252,240,.3)"; x.fillRect(cx + 1.5, 0, 1.5, h);
+      x.fillStyle = "rgba(96,74,50,.16)"; x.fillRect(cx + 4, 0, 1, h);
+    }
+    for (const part of [0.3, 0.5]) {
+      const y = Math.round(h * part);
+      x.fillStyle = "rgba(120,96,66,.2)"; x.fillRect(0, y - 5, l, 10);
+      x.fillStyle = "rgba(90,68,46,.4)"; x.fillRect(0, y - 5, l, 1); x.fillRect(0, y + 4, l, 1);
+      for (let i = 12; i < l; i += 26) { x.fillStyle = "rgba(74,54,36,.6)"; x.fillRect(i, y - 1, 2, 2); x.fillStyle = "rgba(92,70,48,.42)"; x.fillRect(i, y - 15, 1.6, 14); }
+    }
+    x.strokeStyle = "rgba(92,68,44,.62)"; x.lineWidth = 9; x.strokeRect(1, 1, l - 2, h - 2);
+    x.strokeStyle = "rgba(240,228,200,.3)"; x.lineWidth = 1.5; x.strokeRect(8, 8, l - 16, h - 16);
+  };
+  const peinture = (x, l, h) => {
+    // les couleurs de la commu, peintes sur la toile près de la vergue : deux bandes, un peu passées
+    x.globalAlpha = 0.86; x.fillStyle = c1; x.fillRect(0, h - 62, l, 30);
+    x.globalAlpha = 0.8; x.fillStyle = c2; x.fillRect(0, h - 26, l, 9);
+    x.globalAlpha = 1;
+  };
+  const dessins = {
+    voile: [512, 384, (x, l, h) => { tissu(x, l, h); peinture(x, l, h); coutures(x, l, h); }],
+    voile_b: [512, 384, (x, l, h) => {
+      tissu(x, l, h); peinture(x, l, h);
+      // l'emblème, peint : un disque à la couleur de la commu, sa lettre (le logo de la commu vient par-dessus dès qu'il est chargé)
+      const cy = h / 2 - 20;
+      x.globalAlpha = 0.9; x.fillStyle = c1; x.beginPath(); x.arc(l / 2, cy, 100, 0, Math.PI * 2); x.fill(); x.globalAlpha = 1;
+      x.lineWidth = 10; x.strokeStyle = fonce; x.beginPath(); x.arc(l / 2, cy, 100, 0, Math.PI * 2); x.stroke();
+      x.font = `900 ${embleme.length > 1 ? 100 : 144}px 'Dela Gothic One', Arial Black, sans-serif`; x.textAlign = "center"; x.textBaseline = "middle";
+      x.lineWidth = 9; x.strokeStyle = fonce; x.strokeText(embleme, l / 2, cy + 6); x.fillStyle = "#fff6ec"; x.fillText(embleme, l / 2, cy + 6);
+      coutures(x, l, h);
+    }],
+    drapeau: [512, 320, (x, l, h) => { x.fillStyle = c1; x.fillRect(0, 0, l, h); x.fillStyle = c2; x.fillRect(0, h * 0.62, l, h * 0.38); plis(x, l, h); }],
+    flamme: [256, 32, (x, l, h) => { const d = x.createLinearGradient(0, 0, l, 0); d.addColorStop(0, c1); d.addColorStop(1, c2); x.fillStyle = d; x.fillRect(0, 0, l, h); x.fillStyle = "rgba(0,0,0,.14)"; x.fillRect(0, 0, l, 3); x.fillRect(0, h - 3, l, 3); }],
+  };
+  // un drapeau n'est jamais plat : des plis d'ombre et de lumière, l'ourlet, la gaine du côté de la hampe
+  function plis(x, l, h) {
+    for (let k = 0; k < 7; k++) {
+      const cx = (k + 0.5) * (l / 7) + (R() - 0.5) * 18;
+      const g = x.createLinearGradient(cx - 30, 0, cx + 30, 0);
+      g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(0.45, "rgba(0,0,0,.2)"); g.addColorStop(0.62, "rgba(255,255,255,.13)"); g.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = g; x.fillRect(cx - 30, 0, 60, h);
+    }
+    x.strokeStyle = "rgba(0,0,0,.3)"; x.lineWidth = 6; x.strokeRect(0, 0, l, h);
+    x.fillStyle = "rgba(235,226,205,.9)"; x.fillRect(0, 0, 12, h);
+  }
+  const [l, h, f] = dessins[nom];
+  const t = toile(l, h, f);
+  t.flipY = false;
+  toiles5[cle] = t;
+  if (theme.drapeau && (nom === "drapeau" || nom === "voile_b")) {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      const x = t.image.getContext("2d");
+      if (nom === "drapeau") {
+        x.fillStyle = "#0b0b0b"; x.fillRect(0, 0, l, h);
+        const e = Math.max(l / img.width, h / img.height);
+        x.drawImage(img, (l - img.width * e) / 2, (h - img.height * e) / 2, img.width * e, img.height * e);
+        plis(x, l, h);
+      } else {
+        const r = 100, cy = h / 2 - 20;
+        x.save(); x.beginPath(); x.arc(l / 2, cy, r, 0, Math.PI * 2); x.closePath(); x.fillStyle = "#0b0b0b"; x.fill(); x.clip();
+        x.globalAlpha = 0.93; x.drawImage(img, l / 2 - r * 1.08, cy - r * 1.08, r * 2.16, r * 2.16); x.globalAlpha = 1;
+        x.restore();
+        x.lineWidth = 10; x.strokeStyle = fonce; x.beginPath(); x.arc(l / 2, cy, r, 0, Math.PI * 2); x.stroke();
+        coutures(x, l, h);
+      }
+      t.needsUpdate = true;
+    };
+    img.src = theme.drapeau;
+  }
+  return t;
+}
+// la toile prend le soleil des modèles (le même que dans Blender), et en laisse passer un peu : le côté à l'ombre reste clair
+function matiereToile5(nom, theme) {
+  const cle = `toile5|${nom}|${theme.cle}`;
+  if (matieres.has(cle)) return matieres.get(cle);
+  const m = new THREE.MeshBasicMaterial({ map: toile5(nom, theme), side: THREE.DoubleSide });
+  m.onBeforeCompile = (s) => {
+    s.uniforms.uEclairage5 = eclairage5;
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vN5;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvN5 = normalize(mat3(modelMatrix) * normal);");
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vN5;\nuniform float uEclairage5;").replace("#include <map_fragment>", `#include <map_fragment>
+      vec3 n5 = normalize(vN5) * (gl_FrontFacing ? 1.0 : -1.0);
+      float soleil5 = dot(n5, normalize(vec3(-0.5, 0.62, 0.62)));
+      float lum5 = 0.6 + 0.42 * smoothstep(-0.85, 0.9, soleil5);
+      diffuseColor.rgb *= lum5 * uEclairage5 * mix(vec3(1.0, 0.93, 0.84), vec3(1.0), smoothstep(-0.3, 0.5, soleil5));`);
+  };
+  m.customProgramCacheKey = () => "toile5";
+  matieres.set(cle, m);
+  return m;
+}
 // habiller un modèle : les matières du site, les contours ; renvoie ce qui bouge et les reliefs
 function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit = false }) {
   const reliefs = [];
@@ -1213,6 +1379,8 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
         else o.material = base;
       } else if (nom === "vitre") {
         o.material = matiereVitre();
+      } else if (racine.userData.atlas && toileGLB.noms.has(nom)) {
+        o.material = matiereToile5(nom, theme); // niveau 5 : de la vraie toile, éclairée comme le reste du modèle
       } else {
         o.material = matiereGLB(nom, theme, Boolean(o.geometry.getAttribute("color")), cuit);
         if (!calme && !SANS_CONTOUR.has(nom)) o.add(new THREE.Mesh(o.geometry, matiereContour(contour)));
@@ -1263,7 +1431,13 @@ function niveauMer(o, s) {
   const m = o.parent?.matrixWorld.elements;
   if (!m) return 0;
   const p = o.position;
-  return houleMer(m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12], m[2] * p.x + m[6] * p.y + m[10] * p.z + m[14], s) / (Math.hypot(m[4], m[5], m[6]) || 1);
+  // à l'abri de son île (dans son port), la houle se calme : la même pente douce que dans le shader de la mer
+  let racine = o.parent;
+  while (racine && racine.userData.rMer === undefined && racine.parent) racine = racine.parent;
+  const d = Math.hypot(p.x, p.z) - (racine?.userData.rMer ?? -99);
+  const t = Math.min(1, Math.max(0, (d + 1) / 4.5));
+  const abri = racine?.userData.rMer === undefined ? 1 : t * t * (3 - 2 * t);
+  return houleMer(m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12], m[2] * p.x + m[6] * p.y + m[10] * p.z + m[14], s) * abri / (Math.hypot(m[4], m[5], m[6]) || 1);
 }
 // Blender a le haut en Z ; le site en Y
 const axeBlender = (a = [0, 0, 1]) => new THREE.Vector3(a[0], a[2], -a[1]).normalize();
@@ -1543,23 +1717,38 @@ function materiauMer(uniforms) {
   return new THREE.ShaderMaterial({
     uniforms,
     vertexShader: `
-      uniform float uT;
+      uniform float uT; uniform float uCine; uniform vec3 uIles[24];
       varying vec2 vXZ;
+      varying vec3 vMonde;
       void main() {
         vec3 p = position;
         vXZ = p.xz;
+        // en mode cinéma, la houle se calme à l'abri d'une île (son port, sa lagune) : voir niveauMer(), qui fait le même calcul
+        float abri = 1.0;
+        if (uCine > 0.5) for (int i = 0; i < 24; i++) { vec3 il = uIles[i]; if (il.z > 0.0) abri = min(abri, smoothstep(-1.0, 3.5, length(p.xz - il.xy) - il.z)); }
         float dans = step(abs(p.x), ${MER_X.toFixed(1)}) * step(abs(p.z), ${MER_Z.toFixed(1)});
-        p.y += (sin(p.x * 0.33 + uT * 0.9) * 0.09 + sin(p.z * 0.41 - uT * 1.1) * 0.07) * dans;
+        p.y += (sin(p.x * 0.33 + uT * 0.9) * 0.09 + sin(p.z * 0.41 - uT * 1.1) * 0.07) * dans * abri;
+        vMonde = (modelMatrix * vec4(p, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
     fragmentShader: `
       uniform float uT; uniform float uSombre; uniform float uVie; uniform vec3 uIles[24];
       uniform float uNuit; uniform float uOr; uniform float uReflet;
+      uniform float uCine; uniform float uRive[24];
       varying vec2 vXZ;
+      varying vec3 vMonde;
       float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float bruit(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
         return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y); }
       float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { s += a * bruit(p); p *= 2.03; a *= 0.5; } return s; }
+      // le clapot : trois couches de vagues, tournées chacune d'un angle différent, qui glissent l'une sur l'autre
+      float clapot(vec2 p) {
+        vec2 a = mat2(0.825, 0.565, -0.565, 0.825) * p * 0.46 + vec2(uT * 0.10, uT * 0.06);
+        vec2 b = mat2(0.454, -0.891, 0.891, 0.454) * p * 1.25 + vec2(-uT * 0.14, uT * 0.19);
+        vec2 c = mat2(-0.588, 0.809, -0.809, -0.588) * p * 3.1 + vec2(uT * 0.31, -uT * 0.22);
+        vec2 d = mat2(0.276, 0.961, -0.961, 0.276) * p * 7.4 + vec2(-uT * 0.47, -uT * 0.33);
+        return bruit(a) * 0.58 + bruit(b) * 0.27 + bruit(c) * 0.105 + bruit(d) * 0.045;
+      }
       void main() {
         vec2 p = vXZ;
         // la feuille : les bords déchirés et brûlés
@@ -1572,34 +1761,92 @@ function materiauMer(uniforms) {
         float mx = ${MER_X.toFixed(1)} - abs(p.x), mz = ${MER_Z.toFixed(1)} - abs(p.y);
         float bordMer = min(mx, mz) + (fbm(p * 0.09 + 3.0) - 0.5) * 12.0;
         float n = fbm(p * 0.045 + vec2(uT * 0.008, -uT * 0.005));
-        vec3 profond = vec3(0.43, 0.63, 0.80), clair = vec3(0.71, 0.86, 0.94);
-        float cote = 0.0, ecume = 0.0;
-        for (int i = 0; i < 24; i++) {
-          vec3 il = uIles[i];
-          if (il.z <= 0.0) continue;
-          float d = length(p - il.xy) - il.z;
-          cote = max(cote, 1.0 - smoothstep(0.0, 7.0, d));
-          float vague = sin(d * 2.4 - uT * 1.7) * 0.5 + 0.5;
-          ecume = max(ecume, (1.0 - smoothstep(0.0, 1.8, abs(d - 0.4))) * vague * step(-0.6, d));
+        vec3 mer;
+        float cote = 0.0;
+        float dIle = 99.0;
+        if (uCine > 0.5) {
+          // ----- la mer « cinéma » (niveau 5) : une eau profonde, des lagons clairs autour des îles, des vagues qui prennent
+          // la lumière, le ciel qui s'y reflète au loin, l'écume. Tout est calculé ici, sans image à charger -----
+          float rive = 0.0, frange = 0.0;
+          float fb = bruit(p * 1.6 + vec2(uT * 0.2, -uT * 0.13));
+          for (int i = 0; i < 24; i++) {
+            vec3 il = uIles[i];
+            if (il.z <= 0.0) continue;
+            float d = length(p - il.xy) - il.z;
+            dIle = min(dIle, d);
+            // les îles rondes d'avant ont leur frange claire et leur écume en anneau ; les îles « niveau 5 » ont une vraie côte
+            rive = max(rive, uRive[i] * (1.0 - smoothstep(0.0, 2.2, abs(d - 0.2))));
+            float bat = d - 0.35 - 0.3 * sin(uT * 0.8 + fb * 6.0) - fb * 0.5;
+            frange = max(frange, uRive[i] * (1.0 - smoothstep(0.0, 0.8, abs(bat))) * step(-1.0, d));
+          }
+          float bas = 1.0 - smoothstep(0.0, 11.0, dIle); // 1 contre la côte, 0 au large
+          float bassin = 1.0 - smoothstep(-2.6, -0.6, dIle); // l'eau abritée, à l'intérieur d'une île (un port, une lagune)
+          cote = bas;
+          // les vagues : deux couches qui glissent l'une sur l'autre ; leur pente donne le relief de l'eau
+          float agite = 1.0 + uSombre * 1.7;
+          const float e = 0.3;
+          float h0 = clapot(p), hx = clapot(p + vec2(e, 0.0)), hz = clapot(p + vec2(0.0, e));
+          float calme = 1.0 - bassin * 0.6; // un bassin est plus lisse que le large
+          vec3 N = normalize(vec3(-(hx - h0) / e * 0.8 * agite * calme - cos(p.x * 0.33 + uT * 0.9) * 0.03, 1.0, -(hz - h0) / e * 0.8 * agite * calme - cos(p.y * 0.41 - uT * 1.1) * 0.029));
+          vec3 V = normalize(cameraPosition - vMonde);
+          vec3 L = normalize(vec3(-0.5, 0.62, 0.62)); // le soleil des modèles (le même que dans Blender)
+          // la couleur de l'eau : selon la profondeur
+          vec3 fond = mix(vec3(0.030, 0.185, 0.365), vec3(0.055, 0.315, 0.490), n);
+          vec3 eau = mix(fond, vec3(0.13, 0.66, 0.66), bas * bas * 0.92);
+          eau = mix(eau, vec3(0.58, 0.86, 0.78), rive * 0.62);
+          eau = mix(eau, vec3(0.085, 0.42, 0.47), bassin * 0.9);
+          eau *= 1.0 + 1.25 * (dot(N, L) - L.y * N.y); // les pentes tournées vers le soleil s'éclairent
+          // le fond qui danse sous l'eau claire
+          vec2 cq = mat2(0.94, 0.34, -0.34, 0.94) * p * 2.5 + vec2(hx - h0, hz - h0) * 7.0;
+          float danse = pow(0.5 + 0.5 * sin(cq.x * 2.3 + uT * 1.1 + sin(cq.y * 1.7 - uT * 0.8) * 1.6), 7.0) + pow(0.5 + 0.5 * sin(cq.y * 2.6 - uT * 0.9 + sin(cq.x * 1.4 + uT * 0.7) * 1.8), 7.0);
+          eau += vec3(0.42, 0.62, 0.5) * danse * 0.075 * bas * bas * (1.0 - bassin * 0.6);
+          // le ciel dans l'eau : presque rien quand on regarde d'en haut, beaucoup au loin
+          vec3 R = reflect(-V, N);
+          float hR = pow(clamp(R.y, 0.0, 1.0), 0.55);
+          vec3 ciel = mix(mix(vec3(0.82, 0.91, 0.97), vec3(0.32, 0.57, 0.90), hR), mix(vec3(1.0, 0.76, 0.5), vec3(0.45, 0.52, 0.8), hR), uOr);
+          ciel = mix(ciel, vec3(0.44, 0.47, 0.54), uSombre * 0.85);
+          float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+          mer = mix(eau, ciel, fres);
+          // le soleil sur les crêtes, et de petits miroitements qui s'allument et s'éteignent
+          float jour = (1.0 - uSombre) * (1.0 - uNuit);
+          mer += vec3(1.0, 0.95, 0.82) * pow(max(dot(R, L), 0.0), 60.0) * 0.55 * jour;
+          vec2 cel = floor(p * 1.25), fc = fract(p * 1.25) - 0.5;
+          float eclat = step(0.972, h21(cel + floor(uT * 1.5 + h21(cel) * 5.0) * 7.0)) * (1.0 - smoothstep(0.03, 0.12, length(fc * vec2(1.0, 2.0))));
+          mer += vec3(1.0, 0.98, 0.9) * eclat * 0.5 * jour * (1.0 - bassin);
+          // l'écume : la frange qui bat la côte des îles rondes, les moutons au large (plus nombreux sous l'orage)
+          float mouton = smoothstep(0.80 - uSombre * 0.14, 0.88 - uSombre * 0.1, bruit(p * 0.5 + vec2(uT * 0.3, uT * 0.1)) * (0.72 + 0.28 * fb)) * smoothstep(0.42, 0.7, fbm(p * 0.06 + vec2(uT * 0.02, 0.0)));
+          float blanc = max(frange * (0.55 + 0.45 * fb), mouton * (0.34 + uSombre * 0.5) * (1.0 - bas));
+          mer = mix(mer, vec3(0.96, 0.98, 1.0), clamp(blanc, 0.0, 1.0) * 0.85);
+        } else {
+          vec3 profond = vec3(0.43, 0.63, 0.80), clair = vec3(0.71, 0.86, 0.94);
+          float ecume = 0.0;
+          for (int i = 0; i < 24; i++) {
+            vec3 il = uIles[i];
+            if (il.z <= 0.0) continue;
+            float d = length(p - il.xy) - il.z;
+            cote = max(cote, 1.0 - smoothstep(0.0, 7.0, d));
+            float vague = sin(d * 2.4 - uT * 1.7) * 0.5 + 0.5;
+            ecume = max(ecume, (1.0 - smoothstep(0.0, 1.8, abs(d - 0.4))) * vague * step(-0.6, d));
+          }
+          mer = mix(profond, clair, n * 0.7 + cote * 0.45);
+          float tache = fbm(p * 0.11 + 7.0);
+          mer = mix(mer, mer * 0.86, smoothstep(0.55, 0.78, tache));
+          float lignes = smoothstep(0.94, 1.0, sin(p.x * 0.75 + sin(p.y * 0.45) * 2.2 + uT * 0.55) * sin(p.y * 1.05 + uT * 0.35));
+          mer = mix(mer, vec3(0.97, 0.99, 1.0), lignes * 0.35);
+          mer = mix(mer, vec3(1.0), ecume * 0.6);
+          // la V4 : les hauts-fonds turquoise autour des îles, les moutons que pousse le vent, les reflets du soleil, les courants
+          if (uVie > 0.5) {
+            mer = mix(mer, vec3(0.42, 0.86, 0.84), cote * cote * 0.42);
+            float mouton = smoothstep(0.78, 0.86, bruit(p * 0.55 + vec2(uT * 0.35, uT * 0.12))) * smoothstep(0.45, 0.7, fbm(p * 0.06 + vec2(uT * 0.02, 0.0)));
+            mer = mix(mer, vec3(1.0), mouton * 0.35 * (1.0 - cote));
+            vec2 cel = floor(p * 0.9), fc = fract(p * 0.9) - 0.5;
+            float eclat = step(0.985, h21(cel + floor(uT * 1.3) * 7.0)) * (1.0 - smoothstep(0.04, 0.11, length(fc * vec2(1.0, 2.2))));
+            mer = mix(mer, vec3(1.0, 0.98, 0.88), eclat * 0.9 * (1.0 - cote));
+            float courant = smoothstep(0.975, 1.0, sin(p.y * 0.22 + sin(p.x * 0.045) * 3.2)) * step(0.55, fract(p.x * 0.12 - uT * 0.25));
+            mer = mix(mer, vec3(0.93, 0.97, 1.0), courant * 0.32);
+          }
+          mer -= h21(floor(p * 9.0)) * 0.035;
         }
-        vec3 mer = mix(profond, clair, n * 0.7 + cote * 0.45);
-        float tache = fbm(p * 0.11 + 7.0);
-        mer = mix(mer, mer * 0.86, smoothstep(0.55, 0.78, tache));
-        float lignes = smoothstep(0.94, 1.0, sin(p.x * 0.75 + sin(p.y * 0.45) * 2.2 + uT * 0.55) * sin(p.y * 1.05 + uT * 0.35));
-        mer = mix(mer, vec3(0.97, 0.99, 1.0), lignes * 0.35);
-        mer = mix(mer, vec3(1.0), ecume * 0.6);
-        // la V4 : les hauts-fonds turquoise autour des îles, les moutons que pousse le vent, les reflets du soleil, les courants
-        if (uVie > 0.5) {
-          mer = mix(mer, vec3(0.42, 0.86, 0.84), cote * cote * 0.42);
-          float mouton = smoothstep(0.78, 0.86, bruit(p * 0.55 + vec2(uT * 0.35, uT * 0.12))) * smoothstep(0.45, 0.7, fbm(p * 0.06 + vec2(uT * 0.02, 0.0)));
-          mer = mix(mer, vec3(1.0), mouton * 0.35 * (1.0 - cote));
-          vec2 cel = floor(p * 0.9), fc = fract(p * 0.9) - 0.5;
-          float eclat = step(0.985, h21(cel + floor(uT * 1.3) * 7.0)) * (1.0 - smoothstep(0.04, 0.11, length(fc * vec2(1.0, 2.2))));
-          mer = mix(mer, vec3(1.0, 0.98, 0.88), eclat * 0.9 * (1.0 - cote));
-          float courant = smoothstep(0.975, 1.0, sin(p.y * 0.22 + sin(p.x * 0.045) * 3.2)) * step(0.55, fract(p.x * 0.12 - uT * 0.25));
-          mer = mix(mer, vec3(0.93, 0.97, 1.0), courant * 0.32);
-        }
-        mer -= h21(floor(p * 9.0)) * 0.035;
         // la nuit : le chemin de lune, des paillettes qui dansent jusqu'à nous ; le soir : le même, en or
         float soir = max(uNuit, uOr);
         if (soir > 0.01) {
@@ -1611,15 +1858,31 @@ function materiauMer(uniforms) {
         }
         mer = mix(mer, vec3(0.19, 0.22, 0.32), uSombre * 0.6);
         // les terres du bord de la carte, en sépia hachuré (comme une vieille carte)
-        float terre = smoothstep(0.6, 0.64, fbm(p * 0.035 + 21.0) + (1.0 - smoothstep(0.0, 20.0, bordMer)) * 0.45);
+        float t0 = fbm(p * 0.035 + 21.0) + (1.0 - smoothstep(0.0, 20.0, bordMer)) * 0.45;
+        float terre = smoothstep(0.6, 0.64, t0);
         float relief = fbm(p * 0.3);
-        vec3 sepia = mix(vec3(0.62, 0.45, 0.26), vec3(0.43, 0.29, 0.16), relief);
-        sepia = mix(sepia, sepia * 0.8, step(0.6, fract((p.x + p.y) * 1.2)) * relief);
         float dansMer = smoothstep(0.0, 2.0, bordMer);
-        vec3 c = mix(papier, mer, dansMer);
-        c = mix(c, sepia, terre * smoothstep(0.0, 1.0, 22.0 - min(mx, mz)) * step(-30.0, -min(mx, mz)) * dansMer);
+        float bordCarte = smoothstep(0.0, 1.0, 22.0 - min(mx, mz)) * step(-30.0, -min(mx, mz)) * dansMer;
+        vec3 c;
+        if (uCine > 0.5) {
+          // une vraie côte : l'eau s'éclaircit, le ressac va et vient, le sable est mouillé puis sec ; jamais dans les eaux d'une île
+          float tc = mix(0.3, t0 - smoothstep(13.0, 24.0, min(mx, mz)) * 0.32, smoothstep(2.5, 9.0, dIle)); // loin du bord : plus de terre
+          bordCarte = dansMer;
+          mer = mix(mer, vec3(0.24, 0.76, 0.71), smoothstep(0.49, 0.6, tc) * 0.8 * bordCarte);
+          float ressac = 1.0 - smoothstep(0.0, 0.011, abs(tc - 0.597 - 0.005 * sin(uT * 0.9 + relief * 9.0)));
+          mer = mix(mer, vec3(0.97, 0.99, 1.0), ressac * 0.8 * bordCarte * (0.6 + 0.4 * bruit(p * 2.3)));
+          vec3 sable = mix(vec3(0.93, 0.86, 0.68), vec3(0.80, 0.71, 0.52), relief);
+          sable = mix(sable * vec3(0.66, 0.70, 0.72), sable, smoothstep(0.606, 0.66, tc));
+          c = mix(papier, mer, dansMer);
+          c = mix(c, sable, smoothstep(0.602, 0.612, tc) * bordCarte);
+        } else {
+          vec3 sepia = mix(vec3(0.62, 0.45, 0.26), vec3(0.43, 0.29, 0.16), relief);
+          sepia = mix(sepia, sepia * 0.8, step(0.6, fract((p.x + p.y) * 1.2)) * relief);
+          c = mix(papier, mer, dansMer);
+          c = mix(c, sepia, terre * bordCarte);
+        }
         // le trait d'encre au bord de la mer
-        c = mix(c, vec3(0.32, 0.2, 0.1), (1.0 - smoothstep(0.0, 0.5, abs(bordMer - 0.2))) * 0.55);
+        c = mix(c, vec3(0.32, 0.2, 0.1), (1.0 - smoothstep(0.0, 0.5, abs(bordMer - 0.2))) * 0.55 * (1.0 - uCine * 0.75));
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
@@ -1680,7 +1943,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   scene.add(hemi, soleil);
 
   // la feuille et la mer
-  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uNuit: { value: 0 }, uOr: { value: 0 }, uReflet: { value: 0 }, uVie: { value: ilesV4.length ? 1 : 0 }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
+  const uniformsMer = { uT: { value: 0 }, uSombre: { value: 0 }, uNuit: { value: 0 }, uOr: { value: 0 }, uReflet: { value: 0 }, uVie: { value: ilesV4.length ? 1 : 0 }, uCine: { value: ilesV5.length ? 1 : 0 }, uRive: { value: Array.from({ length: 24 }, () => 1) }, uIles: { value: Array.from({ length: 24 }, () => new THREE.Vector3(0, 0, 0)) } };
   const merGeo = new THREE.PlaneGeometry(W, H, 180, 110);
   merGeo.rotateX(-Math.PI / 2);
   const mer = new THREE.Mesh(merGeo, materiauMer(uniformsMer));
@@ -1753,7 +2016,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   }
   let k = 0;
   // l'écume autour des îles (celles qui ne sont pas sur la route n'en ont pas : voir maj)
-  for (const i of iles.values()) { if (k < 24) { i.indexMer = k; uniformsMer.uIles.value[k].set(i.x, i.z, i.r * 0.92); } k++; }
+  // la place de chaque île dans la mer : son rayon (une île « niveau 5 » donne le sien quand son modèle arrive)
+  const rayonMer = (i) => i.rMer ?? i.r * 0.92;
+  for (const i of iles.values()) { if (k < 24) { i.indexMer = k; uniformsMer.uIles.value[k].set(i.x, i.z, rayonMer(i)); } k++; }
 
   // ---------- les modèles de Blender : chaque île se charge quand on la voit (en attendant : la version dessinée ici) ----------
   let detruit = false;
@@ -1776,6 +2041,13 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const { reliefs, bouge, reperes } = habiller(modele, { relief: () => materiauRelief({ uLumiere }), cuit: glb.cuit });
       for (const r of reliefs) modele.add(traitDeCote(r.geometry));
       const boite = new THREE.Box3().setFromObject(modele);
+      if (i.niveau === 5 && i.indexMer !== undefined) {
+        // une île « niveau 5 » a une vraie côte (un port, des rochers) : pas d'anneau d'écume, et la mer connaît sa taille
+        i.rMer = Math.max(boite.max.x - boite.min.x, boite.max.z - boite.min.z) * 0.5 * 0.95;
+        modele.userData.rMer = i.rMer;
+        uniformsMer.uRive.value[i.indexMer] = 0;
+        if (uniformsMer.uIles.value[i.indexMer].z > 0) uniformsMer.uIles.value[i.indexMer].z = i.rMer;
+      }
       const anims = animateurs(bouge);
       for (const r of reperes) { const e = effetRepere(r); r.parent.add(e.groupe); anims.push(e.maj); }
       for (const c of i.contenu) { i.groupe.remove(c); c.traverse((o) => o.geometry?.dispose?.()); }
@@ -2591,7 +2863,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const e = etatDe(id);
       // une île qui n'est pas sur la route de ce voyage (les îles de la V4 avant le 22 décembre) n'existe pas sur la carte
       i.groupe.visible = Boolean(e);
-      if (i.indexMer !== undefined) uniformsMer.uIles.value[i.indexMer].z = e ? i.r * 0.92 : 0;
+      if (i.indexMer !== undefined) uniformsMer.uIles.value[i.indexMer].z = e ? rayonMer(i) : 0;
       i.etat = e?.etat || "inconnue";
       const visible = i.etat === "atteinte" || i.etat === "cible" || i.etat === "vote";
       for (const c of i.contenu) c.visible = visible;
@@ -2758,6 +3030,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const s = (maintenant - debut) / 1000;
     uniformsMer.uT.value = s;
     uniformsMer.uSombre.value += ((evenement?.type === "tempete" ? 1 : 0) - uniformsMer.uSombre.value) * Math.min(1, dt * 1.5);
+    eclairage5.value = 1 - 0.36 * uniformsMer.uSombre.value;
     for (const i of iles.values()) if (i.visible) for (const a of i.anims) a(s, dt);
     // le navire avance doucement jusqu'à sa place ; la route de l'étape suit
     progres += (progresVoulu - progres) * Math.min(1, dt * 0.8);

@@ -7,6 +7,7 @@
 import math, os, random
 import numpy as np
 import barhaw_niveau5 as N
+import barhaw_verif as Vf
 
 PI = math.pi
 T, Rz, Rx, Ry, S = N.T, N.Rz, N.Rx, N.Ry, N.S
@@ -54,6 +55,14 @@ def vers(angle, rayon, de=BASSIN):
 
 
 # ---------- les pièces ----------
+SOL = []  # (genre, nom, polygone au sol) des maisons, des tours, des arbres, des rochers : verifier() contrôle qu'ils ne se chevauchent pas
+
+
+def occupe(L, genre, nom, poly):
+    if L.nom == "ile_corps":
+        SOL.append((genre, nom, poly))
+
+
 def planche_mur(L, mat, M, x0, z0, x1, z1, larg=0.06, saillie=0.03):
     """Une pièce de bois sur un mur (le mur est le plan y = 0, dehors vers -y) : de (x0, z0) à (x1, z1)."""
     d = np.array([x1 - x0, z1 - z0], float)
@@ -98,7 +107,8 @@ CHEMINEES = []  # le haut de chaque cheminée (x, y, z) : le site y fait monter 
 
 
 def cheminee(L, M, x, y, z, h=0.5, l=0.17):
-    CHEMINEES.append(tuple((M @ np.array([x, y, z + h + 0.16, 1.0]))[:3]))
+    if L.nom == "ile_corps":
+        CHEMINEES.append(tuple((M @ np.array([x, y, z + h + 0.16, 1.0]))[:3]))
     L.ajouter(*N.boite(l, l, h, haut=True), "briques", M @ T(x, y, z))
     L.ajouter(*N.boite(l + 0.06, l + 0.06, 0.05, bas=True), "pierres_sombres", M @ T(x, y, z + h))
     L.ajouter(*N.cylindre(0.045, 0.035, 0.1, 6), "tuiles_rouges", M @ T(x, y, z + h + 0.05))
@@ -109,6 +119,7 @@ def maison(L, V, rng, x, y, angle, lx=1.5, ly=1.1, etages=2, mur="crepi", toit="
     La façade (local -y) regarde vers `angle` - 90° ; `angle` est la direction du faîtage."""
     z = sol(x, y) if z is None else z
     M = T(x, y, z) @ Rz(angle)
+    occupe(L, "maison", f"maison ({x:.1f}, {y:.1f})", Vf.rectangle(x, y, lx, ly, angle))
     murs = lambda lxx, lyy, zz: ((M @ T(0, -lyy / 2, zz), lxx, True), (M @ Rz(PI) @ T(0, -lyy / 2, zz), lxx, False), (M @ Rz(PI / 2) @ T(0, -lxx / 2, zz), lyy, False), (M @ Rz(-PI / 2) @ T(0, -lxx / 2, zz), lyy, False))
     L.ajouter(*N.boite(lx, ly, he + 0.2, haut=False), bas, M @ T(0, 0, -0.2))
     volets = rng.choice([None, None, "peint_bleu", "peint_vert", "peint_rouge"])
@@ -186,6 +197,7 @@ def maison(L, V, rng, x, y, angle, lx=1.5, ly=1.1, etages=2, mur="crepi", toit="
 def tour(L, V, rng, x, y, r=0.55, h=2.0, toit="tuiles_rouges", mur="pierres", creneaux=False, z=None, n=10):
     z = sol(x, y) if z is None else z
     M = T(x, y, z)
+    occupe(L, "tour", f"tour ({x:.1f}, {y:.1f})", Vf.rond(x, y, r * 1.08))
     L.ajouter(*N.cylindre(r * 1.08, r, h + 0.3, n, haut=False), mur, M @ T(0, 0, -0.3))
     L.ajouter(*N.cylindre(r * 1.12, r * 1.12, 0.12, n, bas=True), "pierres_sombres", M @ T(0, 0, h))
     for k in range(3):
@@ -219,6 +231,7 @@ def caisse(L, M, c=0.2, mat="planches_claires"):
 def arbre(L, rng, x, y, h=1.0, r=0.42, genre="rond", z=None):
     z = sol(x, y) if z is None else z
     M = T(x, y, z)
+    occupe(L, "arbre", f"arbre ({x:.1f}, {y:.1f})", Vf.rond(x, y, r * (0.5 if genre == "cypres" else 0.92)))
     if genre == "cypres":
         L.ajouter(*N.cylindre(0.04, 0.03, h * 0.25, 5, haut=False), "planches_sombres", M @ T(0, 0, -0.1))
         L.ajouter(*N.sphere(r * 0.45, 7, 6, h / (r * 0.9)), "feuillage_sombre", M @ T(0, 0, h * 0.62))
@@ -367,6 +380,7 @@ def mailles(graine=22, leger=False):
 def _mailles(graine, leger):
     rng = random.Random(graine)
     CHEMINEES.clear()
+    SOL.clear()
     L = N.Maille("ile_corps")  # tout ce qui est cuit
     V = N.Maille("ile_vitres")  # les vitres qui s'allument la nuit (matière « vitre » du site)
     U = N.Maille("ile_lumieres")  # les lanternes (matière « lumiere »)
@@ -416,13 +430,13 @@ def _mailles(graine, leger):
         L.ajouter(*N.quad((*p0, 0.47), (*q0, 0.47), (*q1, 0.47), (*p1, 0.47)), "paves_clairs")
         r0, r1 = vers(a, RB + 0.12), vers(a + pas, RB + 0.12)
         L.ajouter(*N.poutre((*r0, 0.5), (*r1, 0.5), 0.14, 0.07), "pierres_sombres")
-        if a % 16 == 8:
-            b = vers(a + 2, RB + 0.3)
-            L.ajouter(*N.cylindre(0.045, 0.06, 0.13, 6), "fer", T(*b, 0.47))
     # trois pontons de bois
-    for a, lg in ((48, 2.3), (90, 2.6), (132, 2.3)):
+    PONTONS = ((48, 2.3), (90, 2.6), (132, 2.3))
+    emprises = []  # (nom, polygone au sol) des pontons et des bateaux : aucune ne doit en toucher une autre (voir verifier)
+    for a, lg in PONTONS:
         d = np.array(vers(a, 1.0, (0, 0)))
         base = np.array(vers(a, RB))
+        emprises.append((f"ponton {a}", Vf.rectangle(*(base - d * lg / 2), lg, 0.5, math.radians(a))))
         M = T(base[0], base[1], 0) @ Rz(math.radians(a) + PI)
         L.ajouter(*N.boite(lg, 0.5, 0.05, bas=True), "pont", M @ T(lg / 2, 0, 0.38))
         for k in range(int(lg / 0.55) + 1):
@@ -434,36 +448,121 @@ def _mailles(graine, leger):
         tonneau(L, M @ T(lg - 0.5, 0.14, 0.43))
         caisse(L, M @ T(lg - 0.85, -0.12, 0.43) @ Rz(0.4), 0.16)
 
-    # --- les bateaux : deux caboteurs à quai, des barques ---
+    # --- le plan de circulation : où marchent les habitants. Rien d'autre ne s'y pose (voir libre() et verifier()) ---
+    # le quai, du bord vers les maisons (rayons depuis le centre du bassin) : la bordure (bittes, lanternes), les tas de
+    # caisses et ceux qui regardent la mer, deux files de passants, la charrette, puis les façades (RB + 1,02)
+    R_BORD, R_TAS = RB + 0.2, RB + 0.36
+    R_VOIE_A, R_VOIE_B, R_CHAR = RB + 0.64, RB + 0.8, RB + 0.8  # la charrette roule à l'ouest, sur la file B (le passant de cette file reste à l'est)
+    R_RUE2, R_RUE3 = 7.98, 10.88  # les rues des deuxième et troisième terrasses
+    px, py = vers(90, 5.75)  # la place du marché, sa fontaine au milieu
+    fz = 0.47
+
+    def arc(r, a0_, a1_, pas_=6.0, z=None):
+        pts = []
+        a_ = float(a0_)
+        while a_ <= a1_ + 1e-6:
+            x, y = vers(a_, r)
+            pts.append((x, y, (sol(x, y) + 0.02) if z is None else z))
+            a_ += pas_
+        return pts
+
+    def escalier(a_, depart, arrivee):
+        """Monter une rue en escalier, une marche après l'autre, du quai (ou de la place) jusqu'à une rue d'en haut."""
+        pts = [(*vers(a_, depart), 0.47)]
+        for (r0, r1, zb, zh) in TERRASSES:
+            if r1 > arrivee:
+                break
+            pts.append((*vers(a_, r0 - 0.12), zb + 0.02))
+            pts.append((*vers(a_, r0 - 0.005), zb + (zh - zb) * 0.16 + 0.04))  # le pied sur la première marche
+            for k in range(6):
+                pts.append((*vers(a_, r0 + (r1 - r0) * (k / 6 + 0.08)), zb + (zh - zb) * (k / 6 + 0.16) + 0.04))
+            pts.append((*vers(a_, r1 + 0.12), zh + 0.02))
+        x, y = vers(a_, arrivee)
+        pts.append((x, y, sol(x, y) + 0.02))
+        return pts
+
+    place_e = [(px + 0.74, py - 0.1, fz), (px + 1.85, py - 0.1, fz)]
+    place_o = [(px - 0.74, py - 0.1, fz), (px - 1.85, py - 0.1, fz)]
+    ponton_48 = [(*vers(48, RB + 0.5), 0.47), (*vers(48, RB + 0.02), 0.47), (*vers(48, RB - 0.12), 0.43), (*vers(48, RB - 1.2), 0.43)]
+    chemins = [  # (points, en rond, vitesse, départ, pause au bout) ; les cinq premiers suffisent à la version légère
+        (arc(R_VOIE_A, 22, 158, 6, 0.47), False, 0.26, 0.0, 1.5),
+        (place_e, False, 0.1, 0.1, 4.0),
+        (escalier(90, 6.45, R_RUE3), False, 0.2, 0.3, 2.0),
+        (arc(R_RUE2, 41, 152, 6), False, 0.21, 0.55, 1.5),
+        (ponton_48, False, 0.16, 0.2, 5.0),
+        (arc(R_VOIE_B, 22, 84, 6, 0.47), False, 0.23, 0.5, 1.5),
+        (place_o, False, 0.1, 0.62, 4.0),
+        (escalier(52, RB + 1.1, R_RUE3), False, 0.19, 0.7, 2.0),
+        (escalier(128, RB + 1.1, R_RUE3), False, 0.2, 0.15, 2.0),
+        (arc(R_RUE3, 51.5, 144, 5), False, 0.18, 0.4, 1.5),  # à l'est, une tour des remparts ferme la rue
+    ]
+    voie_charrette = arc(R_CHAR, 100, 156, 8, 0.47)
+    couloirs = [(pts, 0.07) for pts, *_ in chemins] + [(voie_charrette, 0.17)]
+
+    def hors_couloirs(x, y, r):
+        """Ce point (un objet de rayon r) laisse-t-il le passage aux habitants ?"""
+        q = np.array((x, y))
+        for pts, rc in couloirs:
+            for a_, b_ in zip(pts[:-1], pts[1:]):
+                a2, b2 = np.array(a_[:2]), np.array(b_[:2])
+                t = min(1.0, max(0.0, float(np.dot(q - a2, b2 - a2) / max(1e-9, np.dot(b2 - a2, b2 - a2)))))
+                if np.linalg.norm(q - (a2 + (b2 - a2) * t)) < r + rc + 0.03:
+                    return False
+        return True
+
+    # --- les bateaux : deux caboteurs à quai, chacun le long de son ponton, du côté libre ; des barques ---
     def au_ponton(a, le_long, de_cote):
         c, si = math.cos(math.radians(a)), math.sin(math.radians(a))
         bx, by = vers(a, RB - le_long)
         return bx - si * de_cote, by + c * de_cote
-    caboteur(L, V, rng, *au_ponton(90, 1.55, 0.72), math.radians(90) + PI, 2.7, bande="peint_rouge")
-    caboteur(L, V, rng, *au_ponton(132, 1.35, -0.68), math.radians(132), 2.4, bande="peint_bleu")
+
+    def navire_a_quai(nom, a, le_long, de_cote, angle, lg, bande):
+        x, y = au_ponton(a, le_long, de_cote)
+        caboteur(L, V, rng, x, y, angle, lg, bande=bande)
+        emprises.append((nom, Vf.rectangle(x, y, lg, lg * 0.34, angle)))
+
+    navire_a_quai("caboteur rouge", 90, 1.55, 0.72, math.radians(90) + PI, 2.7, "peint_rouge")  # à l'ouest du ponton du milieu
+    navire_a_quai("caboteur bleu", 48, 1.45, -0.7, math.radians(48), 2.4, "peint_bleu")  # à l'est du ponton de l'est, côté large
+    # le rameur fait le tour du bassin, au large des pontons
+    bxm, bym = BASSIN
+    tour_bassin = [(bxm - 3.3, bym - 1.3), (bxm - 1.2, bym + 0.55), (bxm + 0.9, bym + 0.5), (bxm + 3.4, bym - 1.1), (bxm + 0.2, bym - 2.7)]
     # les barques : chacune est un objet à part, qui monte et descend avec la houle du site (« mer ») ; sinon la mer, qui
     # bouge, les noie une vague sur deux. Elles flottent un peu haut (HB) : leur plancher reste au-dessus de l'eau, que le
-    # site dessine à plat (sans cela on verrait la mer dans la barque)
+    # site dessine à plat (sans cela on verrait la mer dans la barque). Chaque place est essayée : libre, à l'écart du
+    # quai, des pontons, des navires, des autres barques et de la route du rameur
     HB = 0.075
-    for k, (a, r, an) in enumerate(((28, 3.5, 2.0), (150, 3.5, 0.4), (166, 2.6, -0.3), (18, 2.4, 2.6), (62, 2.9, 0.2))):
+    route = Vf.points_du_chemin([(x, y, 0.0) for x, y in tour_bassin], True, 0.15)
+    places = []
+    for a, r, an in ((150, 3.5, 0.4), (166, 2.6, -0.3), (112, 3.45, 1.2), (20, 2.2, 2.6), (66, 3.5, 0.2), (8, 3.5, 1.0), (30, 1.0, 0.3), (140, 1.3, 2.0), (100, 0.3, 0.5), (172, 3.6, 0.9)):
+        x, y = vers(a, r)
+        large = Vf.rectangle(x, y, 0.8 + 0.3, 0.32 + 0.3, an)  # avec 15 cm de marge de chaque côté
+        if r > RB - 0.55 and y > BASSIN[1] - 0.2:
+            continue
+        if any(Vf.penetration(large, e) > 0 for _, e in emprises) or min(math.hypot(x - q[0], y - q[1]) for q in route) < 0.75:
+            continue
+        places.append((x, y, an))
+        emprises.append((f"barque {len(places)}", Vf.rectangle(x, y, 0.8, 0.32, an)))
+        if len(places) == 5:
+            break
+    assert len(places) == 5, f"seulement {len(places)} places de barque libres"
+    for k, (x, y, an) in enumerate(places):
         Bq = N.Maille("barque_flotte")
         barque(Bq, rng, 0, 0, an)
         if leger and k in (1, 2):  # le téléphone en garde trois
             continue
-        lots["animes"].append((Bq, (*vers(a, r), HB), {"anim": "flotte", "mer": 1, "ampl": 0.02, "phase": 1.7 * k + 0.4}))
+        lots["animes"].append((Bq, (x, y, HB), {"anim": "flotte", "mer": 1, "ampl": 0.02, "phase": 1.7 * k + 0.4}))
     Bq = N.Maille("barque_rame")  # et celle-là traverse le bassin, un rameur à bord
     barque(Bq, rng, 0, 0, 0.0, 0.9)
     passant(Bq, rng, -0.08, 0, angle=0.0, z=0.0)
     for s_ in (-1, 1):
         Bq.ajouter(*N.poutre((0.02, s_ * 0.12, 0.13), (0.1, s_ * 0.5, 0.0), 0.022), "planches_claires")
-    bxm, bym = BASSIN
-    tour_bassin = [(bxm - 3.3, bym - 1.3), (bxm - 1.2, bym + 0.55), (bxm + 0.9, bym + 0.5), (bxm + 3.4, bym - 1.1), (bxm + 0.2, bym - 2.7)]
     lots["animes"].append((Bq, (*tour_bassin[0], HB), {"anim": "marche", "chemin": [c for x, y in tour_bassin for c in (x, y, HB)], "boucle": 1, "vitesse": 0.34, "saut": 0.0, "roulis": 0.06, "phase": 0.2}))
+    lots["plan"] = {"emprises": emprises, "rameur": tour_bassin, "sol": SOL}
 
     # --- les entrepôts et les maisons du quai (premier rang, face au bassin) ---
-    def rang(angles, rayon, **k):
+    def rang(angles, rayon, jeu=2.0, **k):
         for a in angles:
-            x, y = vers(a + (rng.random() - 0.5) * 2, rayon + (rng.random() - 0.5) * 0.2)
+            x, y = vers(a + (rng.random() - 0.5) * jeu, rayon + (rng.random() - 0.5) * 0.2)
             if "z" not in k and not sur_ile(x, y):
                 continue
             reglages = dict(k)
@@ -477,32 +576,34 @@ def _mailles(graine, leger):
     alea = lambda a: dict(lx=1.25 + rng.random() * 0.55, ly=0.95 + rng.random() * 0.3, etages=rng.choice([2, 2, 3]), mur=rng.choice(murs), toit=rng.choice(toits), lucarne=rng.random() < 0.4,
                           boutique=rng.choice([None, None, "toile_rose", "toile_violette", "toile_or", "toile_turquoise"]), enseigne=rng.random() < 0.35)
     # les entrepôts : grands, en planches, toits bruns
-    for a in (24, 44, 136, 156):
+    # chaque rangée laisse passer les trois rues en escalier (à 52°, 90° et 128°) ; au milieu du premier rang, la place du marché
+    for a in (40, 140):  # un entrepôt de chaque côté ; aux bouts du quai : la batterie (est), la jetée du phare (ouest)
         x, y = vers(a, 6.05)
-        maison(L, V, rng, x, y, math.radians(a) + PI / 2, lx=1.9, ly=1.25, etages=2, mur=rng.choice(["planches", "planches_grises", "planches_sombres"]), toit="tuiles_brunes", bois=False, bas="pierres_sombres", z=0.47)
-    rang((62, 76, 104, 118), 6.15, f=alea, z=0.47)
-    # la deuxième terrasse
-    rang((28, 41, 54, 67, 80, 100, 113, 126, 139, 152), 9.05, f=alea)
+        maison(L, V, rng, x, y, math.radians(a) + PI / 2, lx=1.6, ly=1.25, etages=2, mur=rng.choice(["planches", "planches_grises", "planches_sombres"]), toit="tuiles_brunes", bois=False, bas="pierres_sombres", z=0.47)
+    rang((63, 117), 6.15, jeu=0.4, f=lambda a: {**alea(a), "lx": 1.3 + rng.random() * 0.2}, z=0.47)
+    # la deuxième terrasse (deux jardins à la place d'une maison, de chaque côté)
+    rang((31, 43, 61, 81, 99, 119, 137, 149), 9.05, jeu=0.6, f=alea)
     # la troisième terrasse (l'hôtel de ville est au milieu)
-    rang((38, 49, 60, 71, 109, 120, 131, 142), 12.0, f=alea)
+    rang((36, 45.5, 58.5, 69, 111, 121.5, 134.5, 144), 12.0, jeu=0.6, f=alea)
     # tout en haut, quelques maisons et des arbres
-    rang((82, 98, 110, 122, 134), 14.9, f=lambda a: dict(lx=1.2 + rng.random() * 0.4, ly=1.0, etages=2, mur=rng.choice(murs), toit=rng.choice(["ardoises", "tuiles_rouges"])))
+    rang((82, 98, 110, 125.5, 137), 14.9, f=lambda a: dict(lx=1.2 + rng.random() * 0.4, ly=1.0, etages=2, mur=rng.choice(murs), toit=rng.choice(["ardoises", "tuiles_rouges"])))
 
     # --- la place du marché : la fontaine, les étals, les bannières ---
-    px, py = vers(90, 5.75)
-    fz = 0.47
     L.ajouter(*N.cylindre(0.5, 0.5, 0.16, 8, haut=False), "pierres_claires", T(px, py, fz))
     L.ajouter(*N.cylindre(0.56, 0.56, 0.05, 8, bas=True), "pierres_sombres", T(px, py, fz + 0.16))
     L.ajouter(*N.cylindre(0.44, 0.44, 0.02, 8), "eau_bassin", T(px, py, fz + 0.13))
     L.ajouter(*N.cylindre(0.07, 0.05, 0.42, 6), "pierres_claires", T(px, py, fz + 0.1))
     L.ajouter(*N.cylindre(0.2, 0.08, 0.06, 8), "pierres_claires", T(px, py, fz + 0.5) @ Rx(PI) @ T(0, 0, -0.06))
     L.ajouter(*N.sphere(0.07, 7, 5), "or", T(px, py, fz + 0.62))
-    for k, (dx, dy, an) in enumerate(((-1.25, 0.35, 0.3), (-0.75, -0.45, -0.2), (0.85, -0.4, 0.2), (1.3, 0.4, -0.35), (-1.9, -0.25, 0.5), (1.95, -0.2, -0.5))):
-        etal(L, rng, px + dx, py + dy, an, ["toile_rose", "toile_violette", "toile_or", "toile_turquoise"][k % 4], z=fz)
-    for dx, c in ((-2.5, "rose"), (2.5, "violet"), (-0.9, "violet"), (0.9, "rose")):
-        banniere(lots, px + dx, py + (0.75 if abs(dx) < 1 else 0.1), fz, 1.25, c)
-    for dx in (-1.6, 1.6, -0.45, 0.45):
-        lampadaire(L, U, px + dx, py - 0.75, z=fz)
+    # quatre étals en rang au fond de la place, de part et d'autre de la fontaine ; ils regardent le quai
+    ETALS = (-1.72, -1.0, 1.0, 1.72)
+    ETAL_Y = 0.46
+    for k, dx in enumerate(ETALS):
+        etal(L, rng, px + dx, py + ETAL_Y, 0.0, ["toile_rose", "toile_violette", "toile_or", "toile_turquoise"][k % 4], z=fz)
+    for dx, dy, c in ((-1.4, 0.8, "rose"), (1.4, 0.8, "violet"), (-0.5, 0.86, "violet"), (0.5, 0.86, "rose")):
+        banniere(lots, px + dx, py + dy, fz, 1.25, c)
+    for dx, dy in ((-0.62, -0.3), (0.62, -0.3), (-1.4, -0.34), (1.4, -0.34)):
+        lampadaire(L, U, px + dx, py + dy, z=fz)
 
     # --- l'hôtel de ville et son beffroi (troisième terrasse, plein nord) ---
     hx, hy = vers(90, 11.75)
@@ -588,8 +689,9 @@ def _mailles(graine, leger):
     fx, fy = -5.75, -6.55
     for k in range(7):
         t = k / 6
-        x, y = -4.3 + (fx + 4.3) * t, -5.1 + (fy + 5.1) * t
-        L.ajouter(*N.sphere(0.75 - 0.2 * t, 8, 5, 0.7), "roche", T(x + 0.2 * math.sin(k * 2.1), y, 0.0) @ Rz(k))
+        x, y = -4.95 + (fx + 4.95) * t + 0.14 * math.sin(k * 2.1), -5.55 + (fy + 5.55) * t
+        L.ajouter(*N.sphere(0.75 - 0.2 * t, 8, 5, 0.7), "roche", T(x, y, 0.0) @ Rz(k))
+        occupe(L, "rocher", f"rocher de la jetée {k}", Vf.rond(x, y, (0.75 - 0.2 * t) * 0.8))
     L.ajouter(*N.cylindre(0.75, 0.68, 0.5, 10), "pierres_sombres", T(fx, fy, 0.25))
     L.ajouter(*N.cylindre(0.5, 0.36, 2.5, 12, haut=False), "crepi_blanc", T(fx, fy, 0.75))
     L.ajouter(*N.cylindre(0.455, 0.42, 0.42, 12, haut=False), "peint_rouge", T(fx, fy, 1.55), tourne=True)
@@ -608,8 +710,11 @@ def _mailles(graine, leger):
     fenetre(L, V, rng, T(fx, fy, 0.75) @ Rz(0.6) @ T(0, -0.47, 0), 0, 0.5, 0.12, 0.2, mat="fenetre_haute")
     fenetre(L, V, rng, T(fx, fy, 0.75) @ Rz(-1.2) @ T(0, -0.42, 0), 0, 1.5, 0.12, 0.2, mat="fenetre_haute")
     bx, by = 6.75, -5.35
-    for k in range(5):
-        L.ajouter(*N.sphere(0.8 - 0.1 * k, 8, 5, 0.7), "roche", T(5.3 + (bx - 5.3) * k / 4, -4.2 + (by + 4.2) * k / 4, 0.0) @ Rz(k * 1.3))
+    for k in range(5):  # son socle de rochers, du côté du large
+        an = math.radians(-120 + 40 * k)
+        x, y, rr = bx + math.cos(an) * 0.88, by + math.sin(an) * 0.88, 0.66 - 0.05 * k
+        L.ajouter(*N.sphere(rr, 8, 5, 0.7), "roche", T(x, y, 0.0) @ Rz(k * 1.3))
+        occupe(L, "rocher", f"rocher de la batterie {k}", Vf.rond(x, y, rr * 0.8))
     tour(L, V, rng, bx, by, 0.8, 0.95, creneaux=True, z=0.3, mur="pierres_sombres", n=12)
     for k in range(3):
         an = -1.2 - k * 0.55
@@ -619,34 +724,39 @@ def _mailles(graine, leger):
     banniere(lots, bx, by, 1.37, 0.9, "violet")
 
     # --- sur le quai : la grue de bois, des tas de caisses et de tonneaux, des filets, des lanternes ---
-    gx, gy = vers(80, RB + 0.55)
+    gx, gy = vers(80, R_TAS)
     Mg = T(gx, gy, 0.47) @ Rz(math.radians(80) + PI)
-    L.ajouter(*N.boite(0.5, 0.5, 0.08), "planches_sombres", Mg)
+    L.ajouter(*N.boite(0.42, 0.42, 0.08), "planches_sombres", Mg)
     L.ajouter(*N.poutre((0, 0, 0.08), (0, 0, 1.1), 0.08), "planches", Mg)
-    Gr = N.Maille("grue_bras")  # le bras tourne lentement, sa caisse au bout du câble
+    Gr = N.Maille("grue_bras")  # le bras tourne lentement, sa caisse au bout du câble (au-dessus des têtes)
     Mgl = Rz(math.radians(80) + PI)
     Gr.ajouter(*N.poutre((-0.25, 0, 0.48), (0.95, 0, 0.98), 0.06), "planches", Mgl)
     Gr.ajouter(*N.poutre((0, 0, 0.03), (0.5, 0, 0.78), 0.04), "planches_sombres", Mgl)
     Gr.ajouter(*N.tube([(0.92, 0, 0.96), (0.92, 0, 0.28)], 0.008, 3, bouts=False), "corde", Mgl)
     caisse(Gr, Mgl @ T(0.92, 0, 0.08), 0.2)
     lots["animes"].append((Gr, (gx, gy, 0.94), {"anim": "balance", "axe": [0.0, 0.0, 1.0], "ampl": 0.5, "vitesse": 0.28}))
-    L.ajouter(*N.cylindre(0.2, 0.2, 0.09, 10, bas=True), "planches_claires", Mg @ T(-0.14, 0.05, 0.42) @ Rx(PI / 2))
-    for a in (16, 34, 58, 100, 122, 146, 164):
-        x, y = vers(a, RB + 0.5 + rng.random() * 0.35)
-        M = T(x, y, 0.47) @ Rz(rng.random() * 3)
+    L.ajouter(*N.cylindre(0.2, 0.2, 0.09, 10, bas=True), "planches_claires", Mg @ T(-0.13, 0.0, 0.42) @ Ry(PI / 2))  # la roue, le long du quai
+    # les tas : rangés le long du quai, côté bassin
+    for a in (20, 33, 62, 104, 118, 146, 162):
+        x, y = vers(a, R_TAS + (rng.random() - 0.5) * 0.04)
+        M = T(x, y, 0.47) @ Rz(math.radians(a) + PI / 2 + (rng.random() - 0.5) * 0.2)
         genre = rng.random()
         if genre < 0.45:
-            caisse(L, M, 0.2)
-            caisse(L, M @ T(0.23, 0.03, 0) @ Rz(0.3), 0.17)
-            caisse(L, M @ T(0.08, 0.02, 0.2) @ Rz(0.5), 0.15)
+            caisse(L, M @ T(-0.1, 0, 0), 0.18)
+            caisse(L, M @ T(0.12, 0.01, 0) @ Rz(0.2), 0.16)
+            caisse(L, M @ T(-0.03, 0.0, 0.18) @ Rz(0.4), 0.14)
         elif genre < 0.8:
             for k in range(3):
-                tonneau(L, M @ T(k * 0.19, (k % 2) * 0.1, 0))
+                tonneau(L, M @ T((k - 1) * 0.19, (k % 2) * 0.07 - 0.035, 0))
         else:
-            L.ajouter(*N.sphere(0.22, 7, 4, 0.35), "corde", M @ T(0, 0, 0.05))
-            L.ajouter(*N.sphere(0.12, 6, 4, 0.5), "poisson", M @ T(0.25, 0.05, 0.04))
-    for a in range(14, 170, 13):
-        lampadaire(L, U, *vers(a, RB + 1.05), z=0.47)
+            L.ajouter(*N.sphere(0.19, 7, 4, 0.35), "corde", M @ T(-0.08, 0, 0.05))
+            L.ajouter(*N.sphere(0.11, 6, 4, 0.5), "poisson", M @ T(0.17, 0.02, 0.04))
+    reserve = lambda a: any(abs(a - ap) < 4.6 for ap, _ in PONTONS)  # l'entrée des pontons reste libre
+    for a in (12, 25, 38, 57, 71, 99, 113, 141, 155, 168):
+        lampadaire(L, U, *vers(a, R_BORD), z=0.47)
+    for a in range(14, 170, 12):  # les bittes d'amarrage, sur la bordure
+        if not reserve(a):
+            L.ajouter(*N.cylindre(0.04, 0.052, 0.12, 6), "fer", T(*vers(a, RB + 0.09), 0.5))
 
     # --- les rues : des escaliers de pierre entre les terrasses, des lanternes, des arbres, des jardins ---
     for a in (52, 90, 128):
@@ -655,8 +765,8 @@ def _mailles(graine, leger):
                 t = k / 6
                 x, y = vers(a, r0 + (r1 - r0) * (t + 0.08))
                 L.ajouter(*N.boite(0.62, (r1 - r0) / 6 + 0.02, 0.07), "pierres_claires", T(x, y, zb + (zh - zb) * (t + 0.16) - 0.03) @ Rz(math.radians(a) + PI / 2))
-            lampadaire(L, U, *vers(a + 3.3, r1 + 0.25))
-    for a, r in ((22, 9.6), (36, 13.4), (49, 15.6), (64, 16.4), (80, 15.8), (100, 16.0), (116, 16.5), (131, 15.5), (144, 13.5), (158, 9.6), (90, 14.2), (47, 10.6), (133, 10.6), (84, 13.2), (96, 13.2), (18, 7.4), (162, 7.4)):
+            lampadaire(L, U, *vers(a + 3.6, r1 + 0.03))
+    for a, r in ((22, 9.6), (36, 13.4), (49, 15.6), (64, 16.4), (80, 15.8), (100, 16.0), (116, 16.5), (131, 15.5), (144, 13.5), (158, 9.6), (90, 14.75), (57.5, 10.25), (122.5, 10.25), (84, 13.2), (96, 13.2), (18, 7.4), (162, 7.4), (71, 9.38), (71.4, 8.74), (109, 9.38), (108.6, 8.74)):
         x, y = vers(a, r)
         if sol(x, y) > 0.4:
             arbre(L, rng, x, y, 0.75 + rng.random() * 0.45, 0.34 + rng.random() * 0.14, "cypres" if rng.random() < 0.35 else "rond")
@@ -664,7 +774,7 @@ def _mailles(graine, leger):
         x, y = vers(a, r)
         L.ajouter(*N.sphere(0.2, 7, 4, 0.7), "feuillage", T(x, y, sol(x, y) + 0.05))
 
-    # --- les passants : sur le quai, au marché, dans les rues, sur les pontons ---
+    # --- les passants (immobiles) : chacun à une place libre, hors des passages des habitants qui marchent ---
     rien = N.Maille("rien")  # version légère : un passant sur deux (tiré quand même, pour que la ville reste la même)
     nb = [0]
 
@@ -672,17 +782,40 @@ def _mailles(graine, leger):
         nb[0] += 1
         return rien if leger and nb[0] % 2 == 0 else L
 
-    for k in range(13):
-        passant(ou(), rng, *vers(14 + k * 12 + rng.random() * 5, RB + 0.35 + rng.random() * 0.7), z=0.47)
-    for k in range(9):
-        passant(ou(), rng, px + (rng.random() - 0.5) * 3.6, py + (rng.random() - 0.5) * 1.3, z=0.47)
-    for a, r in ((52, 8.1), (90, 8.2), (128, 8.3), (90, 10.9), (60, 11.3), (118, 11.2), (90, 6.9)):
-        passant(ou(), rng, *vers(a + rng.random() * 3, r))
-    for a, d in ((48, 1.2), (90, 1.6), (132, 0.9)):
-        base = np.array(vers(a, RB - d))
-        passant(ou(), rng, base[0], base[1], z=0.43)
+    O = Vf.Obstacles(L)  # tout ce qui est déjà posé : personne ne se tient dans une caisse, un étal ou un mur
+    debout = []
 
-    # --- la vie : des habitants qui marchent (quatre modèles, posés à dix endroits), la fumée, les mouettes, le phare ---
+    def poser_passant(x, y, z, angle=None):
+        """Pose un passant ici si la place est libre (rien à 8 cm, hors des passages, pas collé à un autre)."""
+        if O.touche(x, y, z, 0.085) or not hors_couloirs(x, y, 0.065) or any(math.hypot(x - q[0], y - q[1]) < 0.19 for q in debout):
+            return False
+        passant(ou(), rng, x, y, angle=angle, z=z)
+        debout.append((x, y))
+        return True
+
+    def poser_vers(a, r, z=None, face=None):
+        """La même chose en essayant quelques places voisines le long de l'arc."""
+        for da in (0, 1.3, -1.3, 2.6, -2.6):
+            x, y = vers(a + da, r)
+            if poser_passant(x, y, sol(x, y) if z is None else z, None if face is None else math.radians(a + da) + face):
+                return True
+        return False
+
+    for a in (9, 26.5, 39.5, 56, 68.5, 97.5, 111, 124, 139, 153, 168):  # au bord du quai, ils regardent le bassin
+        poser_vers(a, R_TAS - 0.02, 0.47, PI + (rng.random() - 0.5) * 0.8)
+    for k, dx in enumerate(ETALS):  # au marché : le marchand derrière son étal, un client devant
+        poser_passant(px + dx + 0.02, py + ETAL_Y + 0.23, fz, -PI / 2)
+        poser_passant(px + dx + (0.12 if k % 2 else -0.1), py + ETAL_Y - 0.36, fz, PI / 2)
+    poser_passant(px + 0.45, py - 0.52, fz, 2.2)  # près de la fontaine
+    for a in (36, 46, 66, 76, 104, 114, 144):  # dans la rue de la deuxième terrasse, devant les maisons
+        poser_vers(a, 8.25)
+    for a, lg in PONTONS:  # au bout de chaque ponton
+        d = np.array(vers(a, 1.0, (0, 0)))
+        q = np.array(vers(a, RB)) - d * (lg - 0.3) + np.array((-d[1], d[0])) * 0.14
+        poser_passant(q[0], q[1], 0.43, math.radians(a) + PI + 0.9)
+    lots["plan"]["debout"] = len(debout)
+
+    # --- la vie : des habitants qui marchent (quatre modèles, posés à dix endroits), la charrette, la fumée, les mouettes, le phare ---
     types = []
     for k in range(4):
         Pm = N.Maille(f"habitant{k}")
@@ -699,38 +832,9 @@ def _mailles(graine, leger):
     tonneau(Ch, T(0.07, 0.0, 0.12), 0.055, 0.12)
     caisse(Ch, T(0.2, 0.01, 0.12) @ Rz(0.3), 0.1)
 
-    def arc(r, a0_, a1_, pas_=12, z=None):
-        pts = []
-        for a_ in range(a0_, a1_ + 1, pas_):
-            x, y = vers(a_, r)
-            pts.append((x, y, (sol(x, y) + 0.02) if z is None else z))
-        return pts
-
-    def montee(a_, r0, r1):
-        pts = []
-        for k_ in range(9):
-            x, y = vers(a_, r0 + (r1 - r0) * k_ / 8)
-            pts.append((x, y, max(sol(x, y) + 0.03, 0.47)))
-        return pts
-
-    px0, py0 = px, py
-    place = [(px0 - 2.25, py0 - 1.02, fz), (px0 + 2.25, py0 - 1.02, fz), (px0 + 2.25, py0 + 0.62, fz), (px0 - 2.25, py0 + 0.62, fz)]
-    ponton = [(*vers(48, RB + 0.5), 0.47), (*vers(48, RB - 0.1), 0.44), (*vers(48, RB - 1.9), 0.43)]
-    chemins = [  # (points, en rond, vitesse, départ) ; les cinq premiers suffisent à la version légère
-        (arc(RB + 0.78, 22, 158, 8, 0.47), False, 0.26, 0.0),
-        (place, True, 0.22, 0.1),
-        (montee(90, 6.5, 11.1), False, 0.2, 0.3),
-        (arc(11.45, 58, 122, 8), False, 0.21, 0.55),
-        (ponton, False, 0.16, 0.2),
-        (arc(RB + 0.6, 22, 158, 8, 0.47), False, 0.23, 0.5),
-        (place, True, 0.2, 0.62),
-        (montee(52, 6.5, 10.9), False, 0.19, 0.7),
-        (montee(128, 6.5, 10.9), False, 0.2, 0.15),
-        (arc(14.55, 72, 108, 6), False, 0.18, 0.4),
-    ]
     faits = {}
-    for k, (pts, rond, vit, depart) in enumerate(chemins[:5] if leger else chemins):
-        extras = {"anim": "marche", "chemin": [float(c) for p in pts for c in p], "vitesse": vit, "phase": depart, "saut": 0.022}
+    for k, (pts, rond, vit, depart, pause) in enumerate(chemins[:5] if leger else chemins):
+        extras = {"anim": "marche", "chemin": [float(c) for p in pts for c in p], "vitesse": vit, "phase": depart, "saut": 0.022, "pause": pause}
         if rond:
             extras["boucle"] = 1
         t_ = k % len(types)
@@ -739,7 +843,7 @@ def _mailles(graine, leger):
             lots["animes"].append((types[t_], pts[0], extras))
         else:
             lots["copies"].append((faits[t_], pts[0], extras))
-    lots["animes"].append((Ch, arc(RB + 0.95, 100, 156, 8, 0.47)[0], {"anim": "marche", "chemin": [float(c) for p_ in arc(RB + 0.95, 100, 156, 8, 0.47) for c in p_], "vitesse": 0.13, "phase": 0.35, "saut": 0.0, "pause": 4.0}))
+    lots["animes"].append((Ch, voie_charrette[0], {"anim": "marche", "chemin": [float(c) for p_ in voie_charrette for c in p_], "vitesse": 0.13, "phase": 0.35, "saut": 0.0, "pause": 4.0}))
     choisies = sorted(CHEMINEES, key=lambda c: math.atan2(c[1] - BASSIN[1], c[0] - BASSIN[0]))
     choisies = choisies[::max(1, len(choisies) // (3 if leger else 8))][:3 if leger else 8]
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in choisies for c in p], "grosseur": 0.6}))
@@ -747,6 +851,64 @@ def _mailles(graine, leger):
     lots["reperes"].append(((fx, fy, 4.5), {"anim": "oiseaux", "nb": 2 if leger else 3, "rayon": 1.5, "envergure": 0.12}))
     lots["reperes"].append(((fx, fy, 3.5), {"anim": "faisceau", "taille": 0.4, "nuit": 1}))  # « nuit » : éteint le jour
     return lots
+
+
+def verifier(lots=None, leger=False):
+    """Les erreurs de plan, à corriger avant de cuire : un bateau sur un autre, sur un ponton ou dans le quai ; un habitant qui
+    traverse un mur, une caisse, un étal, quelqu'un ; un trajet qui quitte la terre ferme. Renvoie la liste (vide : tout va bien)."""
+    lots = lots or mailles(leger=leger)
+    erreurs = []
+    E = lots["plan"]["emprises"]
+    for i in range(len(E)):
+        for j in range(i + 1, len(E)):
+            if Vf.penetration(E[i][1], E[j][1]) > 0.005:
+                erreurs.append(f"{E[i][0]} et {E[j][0]} se chevauchent de {Vf.penetration(E[i][1], E[j][1]):.2f}")
+    for nom, poly in E:
+        if nom.startswith("ponton"):
+            continue
+        for x, y in poly:
+            if sol(x, y) > -0.5 or (y > BASSIN[1] and math.hypot(x - BASSIN[0], y - BASSIN[1]) > RB - 0.03):
+                erreurs.append(f"{nom} : un coin dans le quai ou sur le fond ({x:.2f}, {y:.2f})")
+                break
+    for q in Vf.points_du_chemin([(x, y, 0.0) for x, y in lots["plan"]["rameur"]], True, 0.1):
+        for nom, poly in E:
+            if Vf.penetration(Vf.rond(q[0], q[1], 0.42), poly) > 0:
+                erreurs.append(f"le rameur passe sur {nom} en ({q[0]:.2f}, {q[1]:.2f})")
+                break
+    S = lots["plan"]["sol"]
+    for i in range(len(S)):
+        for j in range(i + 1, len(S)):
+            (g1, n1, p1), (g2, n2, p2) = S[i], S[j]
+            if g1 == g2 and g1 in ("arbre", "rocher"):
+                continue  # deux arbres ou deux rochers peuvent se toucher
+            if g1 == "rocher" and g2 == "tour" or g1 == "tour" and g2 == "rocher":
+                continue  # une tour sur son socle de rochers
+            e_ = Vf.penetration(p1, p2)
+            if e_ > 0.04:
+                erreurs.append(f"{n1} et {n2} se chevauchent de {e_:.2f}")
+    O = Vf.Obstacles(lots["corps"])
+    pontons = [poly for nom, poly in E if nom.startswith("ponton")]
+    marcheurs = [(A.nom, e) for A, _, e in lots["animes"]] + [(lots["animes"][k][0].nom, e) for k, _, e in lots["copies"]]
+    for n, (nom, e) in enumerate(marcheurs):
+        if e.get("anim") != "marche" or e.get("roulis"):
+            continue
+        c = e["chemin"]
+        pts = [c[k:k + 3] for k in range(0, len(c), 3)]
+        monte = max(q[2] for q in pts) - min(q[2] for q in pts) > 0.5  # un escalier : on enjambe ses marches (15 cm), pas une caisse
+        bloques = Vf.chemin_bloque(pts, O, 0.17 if nom == "charrette" else 0.07, bool(e.get("boucle")), bas=0.17 if monte else 0.12)
+        if bloques:
+            erreurs.append(f"{nom} (trajet {n}) bute {len(bloques)} fois, par exemple en {bloques[0]} et {bloques[-1]}")
+        for q in Vf.points_du_chemin(pts, bool(e.get("boucle"))):
+            u = math.hypot(q[0] - BASSIN[0], q[1] - BASSIN[1])
+            sur_quai = RB <= u <= RB + 1.25 and q[1] > BASSIN[1]
+            sur_ponton = any(Vf.penetration(Vf.rond(q[0], q[1], 0.03), poly) > 0 for poly in pontons)
+            if not (sur_quai or sur_ponton or sol(q[0], q[1]) > 0.4):
+                erreurs.append(f"{nom} (trajet {n}) quitte la terre ferme en ({q[0]:.2f}, {q[1]:.2f})")
+                break
+            if not (sur_quai or sur_ponton) and abs(q[2] - sol(q[0], q[1])) > 0.3:
+                erreurs.append(f"{nom} (trajet {n}) n'est pas à la hauteur du sol en ({q[0]:.2f}, {q[1]:.2f}) : {q[2]:.2f} pour {sol(q[0], q[1]):.2f}")
+                break
+    return erreurs
 
 
 def construire(rendu=True, cuire=True, exporter=True, taille=2048, echantillons=48, leger=False, alleger=True):
@@ -757,6 +919,9 @@ def construire(rendu=True, cuire=True, exporter=True, taille=2048, echantillons=
     nom = "ile-port-v5" + ("-leger" if leger else "")
     coll_nom = "ile_port_v5" + ("_leger" if leger else "")
     lots = mailles(leger=leger)
+    erreurs = verifier(lots)
+    if erreurs:
+        raise RuntimeError("Plan à corriger avant de cuire : " + " | ".join(erreurs[:8]))
     cuites = [lots["corps"]] + [A for A, _, _ in lots["animes"]]
     infos = {"triangles_avant": sum(M.triangles() for M in cuites)}
 
