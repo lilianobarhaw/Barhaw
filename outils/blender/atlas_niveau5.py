@@ -6,7 +6,7 @@
 # (le .glb est celui de Blender, avant compacter_glb.py : on y lit les UV pour savoir où sont les cartes)
 import json, struct, sys
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 TYPES = {5126: "<f4", 5123: "<u2", 5125: "<u4", 5121: "u1"}
 NB = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
@@ -26,18 +26,50 @@ def cartes(chemin_glb, taille):
         x = np.frombuffer(glb, TYPES[a["componentType"]], a["count"] * n, debut + v.get("byteOffset", 0) + a.get("byteOffset", 0))
         return x.reshape(-1, n) if n > 1 else x
 
-    masque = Image.new("L", (taille, taille), 0)
-    d = ImageDraw.Draw(masque)
+    # Un pixel est « plein » quand il est tout entier dans une carte (ses quatre coins dans une face). Blender cuit aussi les
+    # pixels dont seul le centre est dedans, au bord droit ou bas d'une carte, mais mal : une partie de ses rayons part d'à côté
+    # de la face, sous le sol voisin, et le pixel sort 10 à 20 % trop sombre (un fin trait sombre courait le long des raccords
+    # du sol). Ces pixels de bord sont donc rendus à leurs voisins, comme le vide entre les cartes. Une face plus fine qu'un
+    # pixel, qui n'en a aucun d'entier, garde ceux dont le centre est dedans.
+    centre = np.zeros((taille, taille), bool)
+    coins = np.zeros((taille + 1, taille + 1), bool)
     tris = 0
+
+    def dedans(a, b, c, aire, decal, borne):
+        x0, x1 = max(0, int(np.ceil(min(a[0], b[0], c[0]) - decal - 1e-3))), min(borne, int(np.floor(max(a[0], b[0], c[0]) - decal + 1e-3)))
+        y0, y1 = max(0, int(np.ceil(min(a[1], b[1], c[1]) - decal - 1e-3))), min(borne, int(np.floor(max(a[1], b[1], c[1]) - decal + 1e-3)))
+        if x1 < x0 or y1 < y0:
+            return None
+        X, Y = np.meshgrid(np.arange(x0, x1 + 1) + decal, np.arange(y0, y1 + 1) + decal)
+        w0 = ((b[0] - a[0]) * (Y - a[1]) - (b[1] - a[1]) * (X - a[0])) / aire
+        w1 = ((c[0] - b[0]) * (Y - b[1]) - (c[1] - b[1]) * (X - b[0])) / aire
+        w2 = ((a[0] - c[0]) * (Y - c[1]) - (a[1] - c[1]) * (X - c[0])) / aire
+        return (slice(y0, y1 + 1), slice(x0, x1 + 1)), (w0 >= -1e-4) & (w1 >= -1e-4) & (w2 >= -1e-4)
+
     for m in g["meshes"]:
         for p in m["primitives"]:
             if not str(g["materials"][p["material"]]["name"]).startswith("atlas"):
                 continue
-            uv = acc(p["attributes"]["TEXCOORD_0"]) * taille
+            uv = acc(p["attributes"]["TEXCOORD_0"]).astype(np.float64) * taille
             for t in acc(p["indices"]).reshape(-1, 3):
-                d.polygon([(float(uv[k][0]), float(uv[k][1])) for k in t], fill=255, outline=255)
+                a, b, c = uv[t[0]], uv[t[1]], uv[t[2]]
                 tris += 1
-    return np.asarray(masque) > 0, tris
+                aire = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+                r = dedans(a, b, c, aire, 0.5, taille - 1) if abs(aire) > 1e-9 else None
+                if r is not None and r[1].any():
+                    centre[r[0]] |= r[1]
+                    q = dedans(a, b, c, aire, 0.0, taille)
+                    if q is not None:
+                        coins[q[0]] |= q[1]
+                else:  # une face plus fine qu'un pixel : au moins le pixel de son milieu
+                    mx, my = (a + b + c) / 3
+                    centre[min(taille - 1, max(0, int(my))), min(taille - 1, max(0, int(mx)))] = True
+    entier = coins[:-1, :-1] & coins[1:, :-1] & coins[:-1, 1:] & coins[1:, 1:] & centre
+    pres = entier.copy()  # à un pixel d'un pixel entier
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            pres[max(0, dy):taille + min(0, dy), max(0, dx):taille + min(0, dx)] |= entier[max(0, -dy):taille + min(0, -dy), max(0, -dx):taille + min(0, -dx)]
+    return entier | (centre & ~pres), tris
 
 
 def etaler(img, plein, tours=24):

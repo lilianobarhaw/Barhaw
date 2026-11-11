@@ -70,6 +70,40 @@ def suivre(pts, sol, pas=0.3):
     return sortie
 
 
+H_RIVAGE = 0.035  # la hauteur de ce qui est dessiné sur l'eau : juste au-dessus de la mer du site, au calme près d'une île
+
+
+def tache(Rv, cx, cy, lx, ly, angle=0.0, z=H_RIVAGE, mat="ombre_eau", marge=0.34, rond=False, decal=(0.07, 0.1)):
+    """L'ombre d'une chose sur l'eau (un ponton, une coque) : pleine sous elle (son emprise lx × ly, ronde pour une coque), puis
+    fondue sur « marge », un peu plus loin du côté opposé au soleil (decal). v va de 2 (pleine) à 3 (plus rien) : au-dessus
+    de 1, le site sait que c'est une tache, sans liseré d'écume."""
+    c, s = math.cos(angle), math.sin(angle)
+    if rond:
+        forme = [(math.cos(t), math.sin(t)) for t in (k * math.pi / 6 for k in range(12))]
+    else:
+        forme = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    n = len(forme)
+    def tour(ax, ay, dx, dy):
+        return [(cx + dx + c * fx * ax - s * fy * ay, cy + dy + s * fx * ax + c * fy * ay, z) for fx, fy in forme]
+    dedans, dehors = tour(lx / 2, ly / 2, 0, 0), tour(lx / 2 + marge, ly / 2 + marge, *decal)
+    Rv.ajouter([(cx, cy, z)] + dedans, [(0, 1 + k, 1 + (k + 1) % n) for k in range(n)], mat, uv=[(0.5, 2.0)] * (n + 1))
+    Rv.ajouter(dedans + dehors, [(k, n + k, n + (k + 1) % n, (k + 1) % n) for k in range(n)], mat, uv=[(0.5, 2.0)] * n + [(0.5, 3.0)] * n)
+
+
+def bande(Rv, dedans, dehors, z=H_RIVAGE, mat="ecume", boucle=False):
+    """Un ruban sur l'eau le long d'un bord (une plage, un quai) : dedans et dehors, deux lignes de points face à face.
+    u court le long du bord (en unités du monde), v va du bord (0) vers le large (1). Le site y dessine l'écume ou le reflet.
+    boucle : le ruban fait le tour de l'île ; u est alors ramené à un multiple de 16, pour que le bruit du site (périodique
+    tous les 16) se referme sans couture."""
+    longs = [math.hypot(dedans[i + 1][0] - dedans[i][0], dedans[i + 1][1] - dedans[i][1]) for i in range(len(dedans) - 1)]
+    total = sum(longs)
+    k = 16 * max(1, round(total / 16)) / total if boucle else 1.0
+    u = 0.0
+    for i, l in enumerate(longs):
+        Rv.ajouter([(*dedans[i], z), (*dehors[i], z), (*dehors[i + 1], z), (*dedans[i + 1], z)], [(0, 1, 2, 3)], mat, uv=[(u, 0.0), (u, 1.0), (u + l * k, 1.0), (u + l * k, 0.0)])
+        u += l * k
+
+
 def controler(lots, sol):
     """Les erreurs de plan d'une île : deux choses l'une dans l'autre (emprises au sol), un marcheur qui bute sur quelque chose
     ou qui n'est pas à la hauteur du sol (sauf sur un pont de bois : plan["ponts"]). Renvoie la liste (vide : tout va bien)."""
@@ -134,7 +168,9 @@ def construire(nom, lots, erreurs, rendus=(), cuire=True, exporter=True, taille=
         for k, (Bm, origine, extras) in enumerate(lots["bannieres"]):
             N.objet(Bm, coll, f"ile_banniere{k}", origine=origine, extras=extras)
         for k, (Lm, origine, extras) in enumerate(lots.get("libres", [])):
-            N.objet(Lm, coll, f"ile_libre{k}", origine=origine, extras=extras).visible_shadow = False
+            o = N.objet(Lm, coll, f"ile_libre{k}", origine=origine, extras=extras)
+            o.visible_shadow = False
+            o.hide_render = Lm.nom.startswith("rivage")  # l'écume et les reflets sont dessinés par le site, pas par Blender
         if vitres:
             vitres.hide_render = True  # de jour, les vitres allumées ne se voient pas
         return coll, cuits, vitres
@@ -161,5 +197,5 @@ def construire(nom, lots, erreurs, rendus=(), cuire=True, exporter=True, taille=
     if vitres:
         vitres.hide_render = False
     if exporter:
-        infos["glb"] = N.exporter(coll.name, fichier + ".glb")
+        infos["glb"] = N.exporter(coll.name, fichier + ".glb", couleurs=True)  # les couleurs de sommet : ce que le site anime
     return infos

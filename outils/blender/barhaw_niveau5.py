@@ -474,7 +474,7 @@ matiere("cadran", tx_cadran, 0, 0.3)
 matiere("cadran_nu", tx_cadran, 0, 0.5, aiguilles=False)
 
 # Les matières du site (pas cuites) : ce qui s'allume, ce qui bouge, ce qui prend les couleurs de la commu
-SITE = ("vitre", "lumiere", "feu", "rose", "violet", "voile", "voile_b", "drapeau", "flamme", "fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme")
+SITE = ("ecume", "ombre_eau", "vitre", "lumiere", "feu", "rose", "violet", "voile", "voile_b", "drapeau", "flamme", "fanion_rose", "fanion_or", "fanion_violet", "fanion_turquoise", "fanion_creme")
 
 
 # =====================================================================================================================
@@ -923,7 +923,21 @@ def image_de(nom):
     return _images[nom]
 
 
-COULEURS_SITE = {"vitre": (1.0, 0.82, 0.45), "lumiere": (1.0, 0.95, 0.66), "feu": (1.0, 0.6, 0.12), "rose": (1.0, 0.31, 0.6), "violet": (0.61, 0.3, 1.0), "voile": (0.98, 0.95, 0.87), "voile_b": (0.98, 0.95, 0.87),
+def oublier(*noms):
+    """À appeler dans Blender après avoir changé la fabrique d'une matière : sa texture sera refaite (sinon Blender garde
+    celle d'avant, même après avoir rechargé les scripts)."""
+    for nom in noms:
+        _images.pop(nom, None)
+        m = bpy.data.materials.get(nom)
+        if m is not None:
+            m["n5"] = 0
+        for suffixe in ("", "_relief"):
+            img = bpy.data.images.get(f"n5_{nom}{suffixe}")
+            if img is not None:
+                bpy.data.images.remove(img)
+
+
+COULEURS_SITE = {"ecume": (0.95, 0.98, 1.0), "ombre_eau": (0.05, 0.2, 0.24), "vitre": (1.0, 0.82, 0.45), "lumiere": (1.0, 0.95, 0.66), "feu": (1.0, 0.6, 0.12), "rose": (1.0, 0.31, 0.6), "violet": (0.61, 0.3, 1.0), "voile": (0.98, 0.95, 0.87), "voile_b": (0.98, 0.95, 0.87),
                  "drapeau": (1.0, 0.31, 0.6), "flamme": (1.0, 0.31, 0.6), "fanion_rose": (1.0, 0.31, 0.6), "fanion_or": (1.0, 0.76, 0.24), "fanion_violet": (0.61, 0.3, 1.0), "fanion_turquoise": (0.18, 0.83, 0.77), "fanion_creme": (1.0, 0.95, 0.84)}
 
 
@@ -1032,7 +1046,12 @@ def objet(maille, coll, nom=None, lisse_angle=40, origine=None, extras=None):
     if any(maille.zones):
         ca = me.color_attributes.new(name="Color", type="BYTE_COLOR", domain="CORNER")
         teintes = {0: (1.0, 1.0, 1.0, 1.0), 1: (1.0, 0.0, 0.0, 1.0), 2: (0.0, 1.0, 0.0, 1.0)}
-        ca.data.foreach_set("color", np.asarray([teintes[z] for f, z in zip(faces, maille.zones) for _ in f], np.float32).ravel())
+        # une zone peut aussi être une couleur (r, v, b) : le site s'en sert pour animer (le vent dans les feuilles, les
+        # membres d'un marcheur), voir animee5() dans js/grandline-3d.js
+        # (Blender range cette couleur en linéaire et le site la relit en sRGB : on l'écrit donc « délinéarisée », pour que le
+        # site retrouve exactement la valeur voulue)
+        lin = lambda c: c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+        ca.data.foreach_set("color", np.asarray([(teintes[z] if not isinstance(z, tuple) else (*[lin(c) for c in z], 1.0)) for f, z in zip(faces, maille.zones) for _ in f], np.float32).ravel())
         me.color_attributes.active_color = ca
         try:
             me.color_attributes.render_color_index = 0

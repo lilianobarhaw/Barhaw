@@ -62,7 +62,7 @@ R_SOL = 10.2  # le sol de l'île est peint d'un seul tenant, de -R_SOL à R_SOL
 PISTES = []  # la terre battue (remplie par _mailles) : les trajets que les mousses ont tracés à force de passer
 
 
-def tx_sol_plage(taille=1024, graine=41):
+def tx_sol_plage(taille=2048, graine=41):
     """Le sol peint pixel par pixel : le sable mouillé du rivage, le sable rose et ses rides, l'herbe qui gagne par touffes, la
     terre battue des sentiers, la roche des pentes raides, la cendre autour du feu."""
     n = taille
@@ -73,16 +73,20 @@ def tx_sol_plage(taille=1024, graine=41):
     pente = K.agrandir(np.hypot(gx, gy).astype(np.float32), n)
     piste = K.agrandir(K.champ(lambda x, y: min((K.distance_au_trajet(x, y, p) for p in PISTES), default=9.0), R_SOL), n)
     b1, b2, b3, fin = N.bruit(n, 7, 7, graine, 4), N.bruit(n, 28, 28, graine + 1, 3), N.bruit(n, 90, 90, graine + 2, 2), N.bruit(n, 256, 256, graine + 3, 1)
+    # le détail qu'on voit de tout près (un pixel fait un centimètre) : le grain du sable, quelques grains clairs ou sombres,
+    # les brins de l'herbe
+    grain, brins = N.bruit(n, 640, 640, graine + 4, 1), N.bruit(n, 760, 250, graine + 5, 1)
+    semis = np.random.default_rng(graine + 6).random((n, n)).astype(np.float32)
     rose, mouille = N.hexa(0xf0cdb8), N.hexa(0xc79f88)
-    coul = np.broadcast_to(rose, (n, n, 3)).copy() * (0.93 + 0.1 * b1 + 0.06 * fin)[..., None]
+    coul = np.broadcast_to(rose, (n, n, 3)).copy() * (0.93 + 0.1 * b1 + 0.06 * fin + 0.09 * (grain - 0.5) + 0.1 * (semis > 0.988) - 0.13 * (semis < 0.012))[..., None]
     coul *= (1 + 0.016 * np.sin(d * 15 + b1 * 14 + b2 * 4))[..., None]  # les rides du sable
     coul = N.mel(coul, mouille * (0.9 + 0.15 * b2)[..., None], N.lisse(0.2, 0.02, h + (b2 - 0.5) * 0.08))
     coul = N.mel(coul, np.array([0.98, 0.97, 0.95], np.float32), (N.lisse(0.05, 0.0, np.abs(d - 0.06 - (b2 - 0.5) * 0.12)) * (b3 > 0.42))[..., None] * 0.7)  # la frange d'écume séchée
-    herbe = N.hexa(0x6f9e44) * (0.78 + 0.34 * b2 + 0.16 * fin)[..., None]
+    herbe = N.hexa(0x6f9e44) * (0.78 + 0.34 * b2 + 0.16 * fin + 0.3 * (brins - 0.5) + 0.12 * (grain - 0.5))[..., None]
     herbe = N.mel(herbe, N.hexa(0xa8a14a) * (0.85 + 0.25 * b3)[..., None], N.lisse(0.55, 0.75, b1))  # des plaques d'herbe sèche
     coul = N.mel(coul, herbe, N.lisse(0.36, 0.52, h + (b2 - 0.5) * 0.2 + (b3 - 0.5) * 0.12))
     coul = N.mel(coul, np.array([1.0, 0.95, 0.7], np.float32), ((b3 > 0.83) & (fin > 0.7) & (h > 0.55))[..., None] * 0.8)  # des fleurs
-    terre = N.hexa(0x9a7650) * (0.82 + 0.28 * b3 + 0.1 * fin)[..., None]
+    terre = N.hexa(0x9a7650) * (0.82 + 0.28 * b3 + 0.1 * fin + 0.14 * (grain - 0.5) - 0.16 * (semis < 0.02))[..., None]
     coul = N.mel(coul, terre, N.lisse(0.27, 0.12, piste + (b2 - 0.5) * 0.16) * N.lisse(0.3, 0.45, h))
     roche = N.hexa(0x8d8376) * (0.78 + 0.07 * np.sin((h * 5 + b1 * 3) * 2 * PI) + 0.3 * b3 + 0.14 * fin)[..., None]
     coul = N.mel(coul, roche, N.lisse(0.78, 1.0, pente + (b2 - 0.5) * 0.24))
@@ -131,6 +135,8 @@ def palmier(L, rng, x, y, h=2.6, penche=0.6, cap=0.0, leger=False):
                 v += [nerv[i - 1] + pas * 0.12, nerv[i] + pas * 0.02, pointe]
                 f.append((q, q + 1, q + 2) if s_ > 0 else (q, q + 2, q + 1))
         L.ajouter(v, f + [tuple(reversed(g)) for g in f], "palme_verte" if k % 3 else "palme_jeune")
+        poids = [(i + 0.5) / ns for i in range(ns)] + [i / ns for i in range(1, ns + 1) for _ in (0, 1)]  # la nervure, puis les folioles
+        L.zones[-2 * len(f):] = [(1.0, round(1.0 - 0.9 * w ** 1.4, 2), 1.0) for w in poids] * 2
     for k in range(3):
         a = cap + k * 2.1 + 0.5
         L.ajouter(*N.sphere(0.075, 6, 4), "noix", T(cx + math.cos(a) * 0.12, cy + math.sin(a) * 0.12, cz - 0.13))
@@ -385,7 +391,7 @@ def _mailles(graine, leger):
         r = 0.2 + rng.random() * 0.2
         if sol(x, y) < 0.42 or not libre(x, y, r):
             continue
-        L.ajouter(*N.sphere(r, 7, 4, 0.7), rng.choice(["feuillage", "feuillage", "feuillage_sombre"]), T(x, y, sol(x, y) + r * 0.2))
+        L.ajouter(*N.sphere(r, 7, 4, 0.7), rng.choice(["feuillage", "feuillage", "feuillage_sombre"]), T(x, y, sol(x, y) + r * 0.2), zone=(1.0, 0.8, 1.0))
         SOL.append(("rocher", "un buisson", Vf.rond(x, y, r * 0.8)))
     for k in range(8 if leger else 14):
         a, d = rng.random() * 360, 0.25 + rng.random() * 1.1
@@ -416,7 +422,7 @@ def _mailles(graine, leger):
     types = []
     for k in range(3):
         Pm = N.Maille(f"mousse{k}")
-        P.passant(Pm, rng, 0, 0, angle=0.0, z=0.0)
+        P.passant(Pm, rng, 0, 0, angle=0.0, z=0.0, marcheur=True)
         types.append(Pm)
     faits = {}
     for k, (pts, rond, vit, depart, pause, saut) in enumerate(chemins[:3] if leger else chemins):
@@ -443,7 +449,14 @@ def _mailles(graine, leger):
             lots["copies"].append((premier, pts[0], extras))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(feu[0]), float(feu[1]), float(fz + 0.45)], "grosseur": 0.5}))
     lots["reperes"].append(((0.5, 0.0, 4.2), {"anim": "oiseaux", "nb": 3 if leger else 6, "rayon": 5.2, "envergure": 0.13}))
-    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 7.3, "genre": 2}))  # pour la mer du site : une île naturelle, son lagon
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.4, "genre": 2}))  # pour la mer du site : une île naturelle, son lagon
+    # --- sur l'eau (dessiné par le site) : le ressac tout le long du rivage, le reflet du ponton et du canot ---
+    Rv = N.Maille("rivage")
+    cote = [(_COTE[i % 720][0], _COTE[i % 720][1]) for i in range(0, 724, 4)]
+    K.bande(Rv, [(x * 0.995, y * 0.995) for x, y in cote], [(x * (1 + 1.25 / math.hypot(x, y)), y * (1 + 1.25 / math.hypot(x, y))) for x, y in cote], mat="ecume", boucle=True)
+    K.tache(Rv, *(pa + dp * (lg / 2 + 0.3)), lg - 0.8, 0.56, math.atan2(dp[1], dp[0]))
+    K.tache(Rv, cq[0], cq[1], 0.82, 0.3, math.atan2(dp[1], dp[0]) + 0.1, rond=True, marge=0.26)
+    lots["libres"].append((Rv, (0.0, 0.0, 0.0), {"role": "decor"}))
     lots["plan"] = {"emprises": emprises, "sol": SOL, "ponts": ponts + [Vf.rectangle(hutte[0], hutte[1], 2.1, 1.7, cap_h)]}
     return lots
 
@@ -452,7 +465,7 @@ def verifier(lots=None, leger=False):
     return K.controler(lots or mailles(leger=leger), sol)
 
 
-def construire(rendu=True, cuire=True, exporter=True, taille=2048, echantillons=48, leger=False, alleger=True):
+def construire(rendu=True, cuire=True, exporter=True, taille=None, echantillons=48, leger=False, alleger=True):
     lots = mailles(leger=leger)
     rendus = [("plage-v5", (11, -22, 12), (0, -0.6, 0.8), 55), ("plage-v5-camp", (-1.5, -13.5, 3.6), (-0.6, -2.6, 0.7), 60)] if rendu else []
-    return K.construire("ile-moussaillons-v5", lots, verifier(lots), rendus, cuire, exporter, 1024 if leger and taille == 2048 else taille, echantillons, leger, alleger, atlas="plage")
+    return K.construire("ile-moussaillons-v5", lots, verifier(lots), rendus, cuire, exporter, taille or (1024 if leger else 3072), echantillons, leger, alleger, atlas="plage")  # 3072 : net au plus près
