@@ -1754,6 +1754,55 @@ function effetRepere(r) {
         f.material.opacity = 0.8 * (1 - p);
       }
     };
+  } else if (genre === "lucioles" && r.userData.nb) {
+    // niveau 5 : chaque luciole scintille à son rythme et se promène ; certaines dessinent des étoiles au-dessus de l'eau
+    // (« etoiles » : x, y, z, rayon, dans le repère de Blender). On les voit surtout la nuit, quand les lampes s'allument.
+    const u = r.userData;
+    const et = Array.isArray(u.etoiles) ? u.etoiles : [];
+    const pos = [], phase = [], fixe = [], lueurs = [];
+    for (let k = 0; k < u.nb; k++) { const a = R() * Math.PI * 2; const d = Math.sqrt(R()) * (u.rayon || 7); pos.push(Math.cos(a) * d, 0.25 + R() * (u.haut || 2.5), Math.sin(a) * d); phase.push(R()); fixe.push(0); }
+    for (let e = 0; e + 3 < et.length; e += 4) {
+      const x = et[e], y = et[e + 1], z = et[e + 2], ray = et[e + 3];
+      const tourne = R() * 6.28;
+      const coins = Array.from({ length: 10 }, (_, k) => { const a = tourne + (k * Math.PI) / 5; const d = k % 2 ? ray * 0.42 : ray; return [x + Math.cos(a) * d, y + Math.sin(a) * d]; });
+      for (let k = 0; k < 10; k++) for (let t = 0; t < 5; t++) { const [ax, ay] = coins[k]; const [bx, by] = coins[(k + 1) % 10]; pos.push(ax + ((bx - ax) * t) / 5, z, -(ay + ((by - ay) * t) / 5)); phase.push(R()); fixe.push(1); }
+      lueurs.push({ x, y: z, z: -y, r: ray * 3.6 });
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("phase", new THREE.Float32BufferAttribute(phase, 1));
+    geo.setAttribute("etoile", new THREE.Float32BufferAttribute(fixe, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTemps5: temps5, uNuit5: { value: 0 }, uTaille: { value: 40 } },
+      vertexShader: `
+        attribute float phase; attribute float etoile; uniform float uTemps5; uniform float uNuit5; uniform float uTaille; varying float vA;
+        void main() {
+          vec3 p = position;
+          float libre = 1.0 - etoile; // les libres se promènent, celles d'une étoile tiennent leur place
+          p.x += sin(uTemps5 * 0.4 + phase * 6.28) * 0.4 * libre;
+          p.z += cos(uTemps5 * 0.33 + phase * 9.1) * 0.4 * libre;
+          p.y += sin(uTemps5 * 0.6 + phase * 4.7) * (0.2 * libre + 0.03);
+          float scint = 0.5 + 0.5 * sin(uTemps5 * (1.6 + phase * 2.2) + phase * 40.0);
+          vA = (0.3 + 0.7 * scint * scint) * mix(0.12, 1.0, uNuit5);
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_PointSize = uTaille * (0.75 + 0.5 * scint + 0.25 * etoile) / -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        varying float vA;
+        void main() {
+          float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
+          gl_FragColor = vec4(vec3(1.0, 0.96, 0.5) * (0.5 + 0.9 * a), a * vA);
+        }`,
+      transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+    });
+    const p = new THREE.Points(geo, mat);
+    p.frustumCulled = false;
+    const taille = new THREE.Vector2();
+    p.onBeforeRender = (renderer, scene, camera) => { mat.uniforms.uTaille.value = (0.17 * camera.projectionMatrix.elements[5] * renderer.getDrawingBufferSize(taille).y) / 2; };
+    g.userData.calque = p; // dessiné après la teinte de la nuit, pour rester vif (voir chargerIle et grandline-fete.js)
+    g.userData.lueurs = lueurs; // là où une étoile de lucioles éclaire la nuit (voir chargerIle)
+    maj = () => { mat.uniforms.uNuit5.value = lampesAllumees; };
   } else if (genre === "neige" || genre === "spores" || genre === "etincelles" || genre === "lucioles") {
     const reglage = {
       neige: [200, 0xffffff, 0.35, 9, 11, -1.1],
@@ -2174,7 +2223,19 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         if (uniformsMer.uIles.value[i.indexMer].z > 0) uniformsMer.uIles.value[i.indexMer].z = i.rMer;
       }
       const anims = animateurs(bouge);
-      for (const r of reperes) { const e = effetRepere(r); r.parent.add(e.groupe); anims.push(e.maj); }
+      for (const r of reperes) {
+        const e = effetRepere(r);
+        r.parent.add(e.groupe);
+        anims.push(e.maj);
+        // les étoiles de lucioles éclairent la nuit, comme des lanternes (tant que l'île est visible)
+        const luit = e.groupe.userData.calque;
+        if (luit && fete?.calque) {
+          luit.position.set(i.x + r.position.x, r.position.y, i.z + r.position.z);
+          Object.defineProperty(luit, "visible", { get: () => Boolean(i.visible && i.groupe.visible), set() {} }); // elles suivent leur île
+          fete.calque.add(luit);
+        } else if (luit) e.groupe.add(luit);
+        for (const l of e.groupe.userData.lueurs || []) lanternes.push({ g: { get visible() { return Boolean(i.visible && i.groupe.visible); }, position: new THREE.Vector3(i.x + l.x, 0, i.z + l.z) }, y: l.y, r: l.r, clignote: true });
+      }
       for (const c of i.contenu) { i.groupe.remove(c); c.traverse((o) => o.geometry?.dispose?.()); }
       i.groupe.add(modele);
       i.contenu = [modele];

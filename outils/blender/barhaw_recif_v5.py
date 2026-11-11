@@ -144,10 +144,10 @@ def tablier(L, a, b, za, zb, larg=0.5, ep=0.05, mat="pont"):
     L.ajouter(v, [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], mat)
 
 
-def cabane(L, U, x, y, cap, hp=0.5):
+def cabane(L, U, x, y, cap, hp=0.5, z=0.0):
     """La cabane des perliers, sur pilotis dans le lagon : un plancher, la cabane de planches et son toit de palmes d'un
     côté, la terrasse de l'autre (du côté de la passerelle, vers +x), l'échelle qui descend dans l'eau, une lanterne."""
-    M = T(x, y, 0.0) @ Rz(cap)
+    M = T(x, y, z) @ Rz(cap)  # z : 0 sur l'eau ; à terre, la hauteur du sol moins ce que les pilotis s'enfoncent
     for sx in (-1.1, 0, 1.1):
         for sy in (-0.8, 0.8):
             L.ajouter(*N.cylindre(0.055, 0.05, hp + 0.75, 6, haut=False), "planches_sombres", M @ T(sx, sy, -0.75))
