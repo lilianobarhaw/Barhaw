@@ -5155,7 +5155,7 @@
   const modeleNavire = (c) => (window.__navireV3 || !c?.id ? "" : FLOTTE_STYLES[c.id]?.navire ? `navire-${c.id}.glb` : "navire-v4.glb");
   // Le « niveau 5 » (validé le 11 novembre) : matières et lumière cuites dans Blender. C'est le niveau de la VF 1.0 ;
   // « ?n5=non » dans l'adresse (ou les boutons de l'aperçu) remet les modèles d'avant, pour comparer.
-  const ILES_V5 = ["port"]; // modeles/grandline/ile-<id>-v5.glb + .webp
+  const ILES_V5 = ["port", "moussaillons"]; // modeles/grandline/ile-<id>-v5.glb + .webp
   // chaque équipage a son navire, vraiment différent : un type de coque et de voilure, sa figure de proue (tout est inventé)
   const NAVIRES_V5 = { barhaw: "galion", veyzo: "chebec", kikso: "jonque" }; // modeles/grandline/navire-<type>.glb ; les autres commus : le brick
   try { if (new URLSearchParams(location.search).get("n5") === "non") window.__niveau5 = false; } catch {}

@@ -1767,7 +1767,9 @@ function materiauMer(uniforms) {
         if (uCine > 0.5) {
           // ----- la mer « cinéma » (niveau 5) : une eau profonde, des lagons clairs autour des îles, des vagues qui prennent
           // la lumière, le ciel qui s'y reflète au loin, l'écume. Tout est calculé ici, sans image à charger -----
-          float rive = 0.0, frange = 0.0;
+          // uRive : 1, une île ronde d'avant (frange claire, anneau d'écume) ; 0, un port « niveau 5 » (eau de bassin à
+          // l'intérieur) ; 2, une île naturelle « niveau 5 » (lagon clair autour et dans ses anses, pas d'anneau)
+          float rive = 0.0, frange = 0.0, bassin = 0.0, lagon = 0.0;
           float fb = bruit(p * 1.6 + vec2(uT * 0.2, -uT * 0.13));
           for (int i = 0; i < 24; i++) {
             vec3 il = uIles[i];
@@ -1775,12 +1777,15 @@ function materiauMer(uniforms) {
             float d = length(p - il.xy) - il.z;
             dIle = min(dIle, d);
             // les îles rondes d'avant ont leur frange claire et leur écume en anneau ; les îles « niveau 5 » ont une vraie côte
-            rive = max(rive, uRive[i] * (1.0 - smoothstep(0.0, 2.2, abs(d - 0.2))));
+            float genre = uRive[i];
+            float ronde = 1.0 - min(1.0, abs(genre - 1.0)), naturelle = step(1.5, genre);
+            rive = max(rive, ronde * (1.0 - smoothstep(0.0, 2.2, abs(d - 0.2))));
             float bat = d - 0.35 - 0.3 * sin(uT * 0.8 + fb * 6.0) - fb * 0.5;
-            frange = max(frange, uRive[i] * (1.0 - smoothstep(0.0, 0.8, abs(bat))) * step(-1.0, d));
+            frange = max(frange, ronde * (1.0 - smoothstep(0.0, 0.8, abs(bat))) * step(-1.0, d));
+            bassin = max(bassin, (1.0 - step(0.5, genre)) * (1.0 - smoothstep(-2.6, -0.6, d)));
+            lagon = max(lagon, naturelle * (1.0 - smoothstep(-1.5, 2.4 + fb * 0.8, d)));
           }
           float bas = 1.0 - smoothstep(0.0, 11.0, dIle); // 1 contre la côte, 0 au large
-          float bassin = 1.0 - smoothstep(-2.6, -0.6, dIle); // l'eau abritée, à l'intérieur d'une île (un port, une lagune)
           cote = bas;
           // les vagues : deux couches qui glissent l'une sur l'autre ; leur pente donne le relief de l'eau
           float agite = 1.0 + uSombre * 1.7;
@@ -1794,6 +1799,7 @@ function materiauMer(uniforms) {
           vec3 fond = mix(vec3(0.030, 0.185, 0.365), vec3(0.055, 0.315, 0.490), n);
           vec3 eau = mix(fond, vec3(0.13, 0.66, 0.66), bas * bas * 0.92);
           eau = mix(eau, vec3(0.58, 0.86, 0.78), rive * 0.62);
+          eau = mix(eau, vec3(0.36, 0.80, 0.74), lagon * 0.7);
           eau = mix(eau, vec3(0.085, 0.42, 0.47), bassin * 0.9);
           eau *= 1.0 + 1.25 * (dot(N, L) - L.y * N.y); // les pentes tournées vers le soleil s'éclairent
           // le fond qui danse sous l'eau claire
@@ -2043,9 +2049,10 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const boite = new THREE.Box3().setFromObject(modele);
       if (i.niveau === 5 && i.indexMer !== undefined) {
         // une île « niveau 5 » a une vraie côte (un port, des rochers) : pas d'anneau d'écume, et la mer connaît sa taille
-        i.rMer = Math.max(boite.max.x - boite.min.x, boite.max.z - boite.min.z) * 0.5 * 0.95;
+        const mer5 = reperes.find((r) => r.userData.anim === "mer")?.userData; // { rayon, genre } : 0 un port, 2 une île naturelle
+        i.rMer = mer5?.rayon ?? Math.max(boite.max.x - boite.min.x, boite.max.z - boite.min.z) * 0.5 * 0.95;
         modele.userData.rMer = i.rMer;
-        uniformsMer.uRive.value[i.indexMer] = 0;
+        uniformsMer.uRive.value[i.indexMer] = mer5?.genre ?? 0;
         if (uniformsMer.uIles.value[i.indexMer].z > 0) uniformsMer.uIles.value[i.indexMer].z = i.rMer;
       }
       const anims = animateurs(bouge);
