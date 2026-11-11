@@ -105,13 +105,21 @@ def arbre(L, U, rng, x, y, z, h=1.8, r=0.75, lanternes=0, mats=("feuillage", "fe
     a0 = rng.random() * 6.28
     tronc = [(0, 0, -0.2), (math.cos(a0) * 0.06 * h, math.sin(a0) * 0.06 * h, h * 0.35), (math.cos(a0 + 1.5) * 0.05 * h, math.sin(a0 + 1.5) * 0.05 * h, h * 0.68)]
     L.ajouter(*N.tube(tronc, [0.085 * h, 0.06 * h, 0.04 * h], 7, bouts=False), "ecorce_vieille", M, tourne=True)
-    nb = 4 + int(r * 3)
+    # la couronne : beaucoup de touffes bosselées, de tailles et de verts différents, les grosses au cœur, les petites au
+    # bord et en dessous (une silhouette irrégulière, pas des boules) ; plus une touffe est haute, plus le vent la prend
+    leger = N.DETAIL < 1
+    nb = (5 if leger else 8) + int(r * (3 if leger else 6))
     for k in range(nb):
-        a, dd = a0 + k * 2.4, r * 0.55 * (k > 0) * (0.7 + 0.5 * rng.random())
-        rk = r * (0.62 if k else 0.8) * (0.85 + 0.3 * rng.random())
-        if k:  # une branche jusqu'à sa touffe
-            L.ajouter(*N.tube([tronc[2], (math.cos(a) * dd, math.sin(a) * dd, h * (0.74 + 0.05 * (k % 3)))], [0.03 * h, 0.018 * h], 5, bouts=False), "ecorce_vieille", M)
-        L.ajouter(*N.sphere(rk, 8, 5, 0.72), mats[k % len(mats)], M @ T(math.cos(a) * dd, math.sin(a) * dd, h * (0.82 + 0.07 * (k % 3))) @ Rz(rng.random() * 3), zone=(1.0, 0.72 - 0.05 * (k % 3), 1.0))
+        a, el = a0 + k * 2.4, (0.15 + 0.85 * rng.random()) * PI / 2  # la direction : autour, et plus ou moins haut
+        dd = r * (0.0 if k == 0 else 0.42 + 0.3 * rng.random())
+        cx, cy, cz = math.cos(a) * math.cos(el) * dd, math.sin(a) * math.cos(el) * dd, h * 0.84 + math.sin(el) * dd * 0.75 - (0.12 * r if k % 4 == 3 else 0)
+        rk = r * (0.56 if k == 0 else 0.3 + 0.2 * rng.random())
+        if k and k % 2 == 0:  # une branche jusqu'à sa touffe
+            L.ajouter(*N.tube([tronc[2], (cx * 0.8, cy * 0.8, cz - rk * 0.4)], [0.03 * h, 0.016 * h], 5, bouts=False), "ecorce_vieille", M)
+        v, f = N.sphere(rk, 8 if leger else 11, 5 if leger else 7, 0.8)
+        g = rng.random() * 9
+        v = [(x * q, y * q, z * q) for (x, y, z) in v for q in [1 + 0.2 * math.sin(x / rk * 4.3 + g) * math.sin(y / rk * 3.7 + g * 1.7) * math.sin(z / rk * 5.1 + g * 0.6) + 0.07 * math.sin(x / rk * 11 + y / rk * 9 + g)]]
+        L.ajouter(v, f, mats[k % len(mats)], M @ T(cx, cy, cz) @ Rz(rng.random() * 3), zone=(1.0, round(0.78 - 0.14 * min(1.0, (cz - h * 0.8) / max(0.2, r * 0.6)), 2), 1.0))
     for k in range(lanternes):
         a, dd = a0 + 0.7 + k * 2 * PI / lanternes, r * (0.45 + 0.4 * rng.random())
         bas = h * (0.34 + 0.16 * rng.random())
