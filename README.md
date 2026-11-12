@@ -124,7 +124,7 @@ Tout est fabriqué par des scripts Python, dans Blender (5.1 ou plus) : `outils/
    ```
 3. Compacter pour le site : `python3 outils/blender/compacter_glb.py <Barhaw-3D/glb> modeles/grandline` (positions en 16 bits, normales en 8 bits : environ 35 % plus léger ; seul `js/grandline-3d.js` sait les lire).
 
-Les noms comptent : les matières portent les noms de la palette (le site remet ses propres couleurs par nom), et les objets qui bougent ont une propriété `anim` (`voile`, `drapeau`, `flamme`, `tourne`, `balance`, `flotte`, `clignote`, `mirage`) ; les points vides avec `role = repere` disent où la page ajoute un effet (`fumee`, `neige`, `lucioles`, `spores`, `etincelles`, `faisceau`, `orage`, `ecume`).
+Les noms comptent : les matières portent les noms de la palette (le site remet ses propres couleurs par nom), et les objets qui bougent ont une propriété `anim` (`voile`, `drapeau`, `flamme`, `tourne`, `balance`, `flotte`, `clignote`, `mirage`) ; les points vides avec `role = repere` disent où la page ajoute un effet (`fumee`, `fumees`, `neige`, `lucioles`, `spores`, `etincelles`, `faisceau`, `orage`, `ecume`, `rafales`). Sur une île « niveau 5 », la couleur de sommet anime aussi la maille cuite : le vert sous 1 fait bouger le feuillage, le rouge sous 1 fait courir la houle du vent sur l'herbe et les blés (l'Île des Vents).
 
 ## Les objets 3D des titres
 

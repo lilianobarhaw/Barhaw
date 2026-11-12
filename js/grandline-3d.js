@@ -1244,7 +1244,8 @@ function cine5(m) {
   return m;
 }
 // Ce qui vit dans un modèle cuit, animé par la carte graphique à partir d'une couleur de sommet posée dans Blender :
-//   « vent » : le feuillage (vert < 1 : plus il est bas, plus la feuille bouge) ;
+//   « vent » : le feuillage (vert < 1 : plus il est bas, plus la feuille bouge) ; et la houle du vent (rouge < 1) : des
+//   risées claires et sombres qui courent avec le vent, du sud-ouest au nord-est, sur les blés et l'herbe (l'Île des Vents) ;
 //   « marche » : les membres d'un marcheur (bleu sous 0,5 : un membre ; rouge : le sens ; vert : 0 une jambe, 1 un bras), qui
 //   balancent autour de la hanche ou de l'épaule au rythme de ses pas (uPas, de -1 à 1, que donne l'animateur « marche »).
 const VENT5 = `
@@ -1255,8 +1256,18 @@ const VENT5 = `
     transformed.x += (sin(ph5) * 0.05 + sin(ph5 * 2.3 + 1.7) * 0.016) * vent5 * raf5;
     transformed.z += cos(ph5 * 0.8 + 0.6) * 0.034 * vent5 * raf5;
     transformed.y += sin(ph5 * 1.6) * 0.014 * vent5;
+  }
+  float houle5 = 1.0 - color.r;
+  vHoule5 = 0.0;
+  if (houle5 > 0.02) {
+    float long5 = (position.x - position.z) * 0.7071; // le long du vent (il souffle vers le nord-est)
+    float travers5 = (position.x + position.z) * 0.7071;
+    float onde5 = sin(uTemps5 * 2.3 - long5 * 3.1 + travers5 * 0.9 + sin(travers5 * 1.7 + uTemps5 * 0.45) * 1.3);
+    float risee5 = 0.55 + 0.45 * sin(uTemps5 * 0.41 - long5 * 0.5 + travers5 * 0.33);
+    vHoule5 = onde5 * risee5 * houle5;
   }`;
 const MARCHE5 = `
+  vHoule5 = 0.0;
   if (color.b < 0.5) {
     float axe5 = color.b - 0.25; // où se tient le marcheur dans son objet (le pousseur d'une charrette est derrière elle)
     float pivot5 = mix(0.137, 0.207, color.g); // la hanche, l'épaule
@@ -1273,12 +1284,12 @@ function animee5(base, genre, pas = { value: 0 }) {
   m.userData.uPas = pas;
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, { uEclairage5: eclairage5, uDetail5: { value: textureDetail5() }, uTemps5: temps5, uPas: m.userData.uPas });
-    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;\nvarying vec2 vNuage5;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}\nvNuage5 = (modelMatrix * vec4(transformed, 1.0)).xz;`);
-    s.fragmentShader = s.fragmentShader.replace("#include <common>", `#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;\nuniform float uTemps5;\nvarying vec2 vNuage5;${NUAGES5}`)
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5 * nuages5(vNuage5, uTemps5);")
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTemps5;\nuniform float uPas;\nvarying vec2 vNuage5;\nvarying float vHoule5;").replace("#include <begin_vertex>", `#include <begin_vertex>\n${genre === "marche" ? MARCHE5 : VENT5}\nvNuage5 = (modelMatrix * vec4(transformed, 1.0)).xz;`);
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", `#include <common>\nuniform float uEclairage5;\nuniform sampler2D uDetail5;\nuniform float uTemps5;\nvarying vec2 vNuage5;\nvarying float vHoule5;${NUAGES5}`)
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= (0.87 + 0.26 * texture2D(uDetail5, vMapUv * 52.0).r) * uEclairage5 * nuages5(vNuage5, uTemps5) * (1.0 + vHoule5 * 0.55);")
       .replace("#include <color_fragment>", ""); // la couleur de sommet sert à animer, pas à teindre
   };
-  m.customProgramCacheKey = () => `animee5n-${genre}`;
+  m.customProgramCacheKey = () => `animee5h-${genre}`;
   if (genre === "vent") vents5.set(base, m);
   return m;
 }
@@ -1707,6 +1718,11 @@ function effetRepere(r) {
     const nbC = Math.floor(c.length / 3);
     const par = 5;
     const N = nbC * par;
+    // « cap » (où va le vent, en radians de Blender), « force » et « monte » : un vent qui couche la fumée (l'Île des Vents)
+    const cap = r.userData.cap;
+    const force = r.userData.force || 0.5;
+    const monte = r.userData.monte ?? 1.5;
+    const [ventX, ventZ] = cap === undefined ? [0.5, 0.16] : [Math.cos(cap) * force, -Math.sin(cap) * force];
     const pos = new Float32Array(N * 3);
     const vie = new Float32Array(N);
     const geo = new THREE.BufferGeometry();
@@ -1732,9 +1748,9 @@ function effetRepere(r) {
       for (let k = 0; k < N; k++) {
         const ch = Math.floor(k / par);
         const p = (s * 0.16 + (k % par) / par + ch * 0.37) % 1;
-        pos[k * 3] = c[ch * 3] + Math.sin(p * 4 + ch) * 0.1 * p + p * 0.5;
-        pos[k * 3 + 1] = c[ch * 3 + 2] + p * 1.5;
-        pos[k * 3 + 2] = -c[ch * 3 + 1] + p * 0.16;
+        pos[k * 3] = c[ch * 3] + Math.sin(p * 4 + ch) * 0.1 * p + p * ventX;
+        pos[k * 3 + 1] = c[ch * 3 + 2] + p * monte;
+        pos[k * 3 + 2] = -c[ch * 3 + 1] + p * ventZ;
         vie[k] = p;
       }
       aPos.needsUpdate = true;
@@ -1952,6 +1968,61 @@ function effetRepere(r) {
       }
       p.material.opacity = genre === "etincelles" ? 0.5 + Math.sin(s * 6) * 0.4 : genre === "lucioles" ? 0.55 + Math.sin(s * 3) * 0.35 : 0.85;
       if (genre === "lucioles") p.rotation.y = s * 0.05;
+    };
+  } else if (genre === "rafales") {
+    // les rafales de l'Île des Vents : des traits de vent clairs qui filent en ondulant, s'effilent et s'effacent (des
+    // rubans posés de biais, pour se voir d'en haut comme de côté ; un seul dessin pour tous). « cap » : où va le vent
+    // (en radians de Blender ; sans lui, vers l'est).
+    g.rotation.y = r.userData.cap || 0;
+    const nb = Math.max(1, Math.min(24, r.userData.nb || 12));
+    const rayon = r.userData.rayon || 7;
+    const haut = r.userData.haut || 4;
+    const SEG = 8;
+    const pos = new Float32Array(nb * (SEG + 1) * 6);
+    const voile = new Float32Array(nb * (SEG + 1) * 2);
+    const idx = [];
+    for (let k = 0; k < nb; k++) for (let j = 0; j < SEG; j++) { const i = (k * (SEG + 1) + j) * 2; idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
+    const geo = new THREE.BufferGeometry();
+    const aPos = new THREE.BufferAttribute(pos, 3);
+    const aVoile = new THREE.BufferAttribute(voile, 1);
+    aPos.setUsage(THREE.DynamicDrawUsage);
+    aVoile.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("position", aPos);
+    geo.setAttribute("aVoile", aVoile);
+    geo.setIndex(idx);
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, haut / 2, 0), rayon * 2 + 4);
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: "attribute float aVoile; varying float vA; void main() { vA = aVoile; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: "varying float vA; void main() { gl_FragColor = vec4(1.0, 0.99, 0.94, vA); }",
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+    g.add(new THREE.Mesh(geo, mat));
+    const alea = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+    maj = (s) => {
+      for (let k = 0; k < nb; k++) {
+        const duree = 3.4 + (k % 4) * 0.55; // le temps d'une traversée
+        const tour = s / duree + k * 0.618;
+        const t = tour % 1;
+        const passe = Math.floor(tour) * 7 + k * 13; // à chaque traversée, une autre place dans le ciel
+        const z0 = (alea(passe) * 2 - 1) * rayon * 0.8;
+        const y0 = 0.45 + alea(passe + 3) * haut;
+        const long = 1.1 + alea(passe + 5) * 1.0;
+        const tete = -rayon + t * (rayon * 2 + long);
+        const fondu = Math.sin(t * Math.PI);
+        for (let j = 0; j <= SEG; j++) {
+          const u = j / SEG; // de la queue (0) à la tête (1)
+          const x = tete - (1 - u) * long;
+          const y = y0 + Math.sin(x * 1.6 + k * 2.1 + s * 0.8) * 0.13;
+          const z = z0 + Math.cos(x * 1.1 + k) * 0.25;
+          const demi = 0.026 * Math.sin(u * Math.PI) + 0.003;
+          const i = (k * (SEG + 1) + j) * 2;
+          pos[i * 3] = x; pos[i * 3 + 1] = y + demi; pos[i * 3 + 2] = z - demi;
+          pos[i * 3 + 3] = x; pos[i * 3 + 4] = y - demi; pos[i * 3 + 5] = z + demi;
+          voile[i] = voile[i + 1] = Math.sin(u * Math.PI) * fondu * 0.5;
+        }
+      }
+      aPos.needsUpdate = true;
+      aVoile.needsUpdate = true;
     };
   } else if (genre === "ecume") {
     const rayon = r.userData.rayon || 1.5;
