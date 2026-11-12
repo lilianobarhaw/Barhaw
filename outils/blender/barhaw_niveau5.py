@@ -1055,7 +1055,9 @@ def objet(maille, coll, nom=None, lisse_angle=40, origine=None, extras=None):
         # (Blender range cette couleur en linéaire et le site la relit en sRGB : on l'écrit donc « délinéarisée », pour que le
         # site retrouve exactement la valeur voulue)
         lin = lambda c: c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-        ca.data.foreach_set("color", np.asarray([(teintes[z] if not isinstance(z, tuple) else (*[lin(c) for c in z], 1.0)) for f, z in zip(faces, maille.zones) for _ in f], np.float32).ravel())
+        # (une zone peut encore être une liste : une couleur par coin de la face, pour un dégradé sans marches d'une face à l'autre)
+        teinte = lambda z: teintes[z] if not isinstance(z, tuple) else (*[lin(c) for c in z], 1.0)
+        ca.data.foreach_set("color", np.asarray([teinte(q) for f, z in zip(faces, maille.zones) for q in (z if isinstance(z, list) else [z] * len(f))], np.float32).ravel())
         me.color_attributes.active_color = ca
         try:
             me.color_attributes.render_color_index = 0
