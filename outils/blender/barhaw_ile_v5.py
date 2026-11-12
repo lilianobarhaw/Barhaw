@@ -125,7 +125,7 @@ def controler(lots, sol):
     ponts = plan.get("ponts", [])
     marcheurs = [(A.nom, e) for A, _, e in lots["animes"]] + [(lots["animes"][k][0].nom, e) for k, _, e in lots["copies"]]
     for n, (nom, e) in enumerate(marcheurs):
-        if e.get("anim") != "marche" or e.get("roulis"):
+        if e.get("anim") != "marche" or e.get("roulis") or e.get("suspendu"):  # suspendu : une charge au bout d'une corde
             continue
         c = e["chemin"]
         pts = [c[k:k + 3] for k in range(0, len(c), 3)]

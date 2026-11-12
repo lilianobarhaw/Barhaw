@@ -531,6 +531,7 @@ class Maille:
         self.finesse = []  # par carte : la finesse voulue dans l'atlas (1 : normale)
         self.atlas = None  # par face : (k, 2), rempli par emballer()
         self.zones = []  # par face : 0, ou 1 / 2 = peinte aux couleurs de la commu (le site teinte ces faces : rouge / vert dans le .glb)
+        self.doux = []  # par face : vrai, elle reste lisse quel que soit l'angle avec ses voisines (le feuillage, un nuage)
         self.mats = []
 
     def mat(self, nom):
@@ -538,13 +539,14 @@ class Maille:
             self.mats.append(nom)
         return self.mats.index(nom)
 
-    def ajouter(self, verts, faces, mat, M=None, tourne=False, plein=None, decal=(0.0, 0.0), finesse=1.0, cale=False, uv=None, zone=0):
+    def ajouter(self, verts, faces, mat, M=None, tourne=False, plein=None, decal=(0.0, 0.0), finesse=1.0, cale=False, uv=None, zone=0, doux=False):
         """verts (k, 3), faces (listes d'indices, dans le sens inverse des aiguilles vu de dehors).
         Le motif : chaque face est dépliée à plat, à l'échelle du monde (u à l'horizontale, v vers le haut de la face) ;
         tourne : motif tourné d'un quart de tour ; plein : l'image entière sur chaque face (les fenêtres, les portes) ;
         cale : le motif part du coin de chaque face (les pans de bois) ; finesse : la place de ces faces dans l'atlas ;
         uv : les UV donnés par sommet (les voiles, les drapeaux : l'image du site s'y pose) ; zone : 1 ou 2, une face peinte
-        aux couleurs de la commu (cuite en blanc, teintée par le site)."""
+        aux couleurs de la commu (cuite en blanc, teintée par le site) ; doux : ces faces restent lisses entre elles, même
+        quand leurs angles sont vifs (une boule de feuillage bosselée paraît ronde, pas taillée en facettes)."""
         v = np.asarray(verts, np.float64)
         if M is not None:
             v = v @ M[:3, :3].T + M[:3, 3]
@@ -588,6 +590,7 @@ class Maille:
             self.f.append(([self.nv + i for i in f], k))
             self.uv.append(uvf)
             self.zones.append(zone)
+            self.doux.append(doux)
         self.v.append(v)
         self.nv += len(v)
         return self
@@ -636,6 +639,7 @@ class Maille:
         self.uv = [x for x, g in zip(self.uv, masque) if g]
         self.cartes = [x for x, g in zip(self.cartes, masque) if g]
         self.zones = [x for x, g in zip(self.zones, masque) if g]
+        self.doux = [x for x, g in zip(self.doux, masque) if g]
         if self.atlas is not None:
             self.atlas = [x for x, g in zip(self.atlas, masque) if g]
         self.v = [v[sert]]
@@ -1069,6 +1073,24 @@ def objet(maille, coll, nom=None, lisse_angle=40, origine=None, extras=None):
         me.set_sharp_from_angle(angle=math.radians(lisse_angle))
     except Exception:
         pass
+    doux = getattr(maille, "doux", None)
+    att = me.attributes.get("sharp_edge")
+    if doux and any(doux) and att is not None:  # les faces « douces » : aucune arête vive entre elles
+        ev = np.zeros(len(me.edges) * 2, np.int32)
+        me.edges.foreach_get("vertices", ev)
+        ev = ev.reshape(-1, 2)
+        cle = {(int(min(a, b)), int(max(a, b))): i for i, (a, b) in enumerate(ev)}
+        vif = np.zeros(len(me.edges), bool)
+        att.data.foreach_get("value", vif)
+        for f, d in zip(faces, doux):
+            if d:
+                for k in range(len(f)):
+                    a, b = f[k], f[(k + 1) % len(f)]
+                    i = cle.get((min(a, b), max(a, b)))
+                    if i is not None:
+                        vif[i] = False
+        att.data.foreach_set("value", vif)
+        me.update()
     o = bpy.data.objects.new(nom or maille.nom, me)
     if origine is not None:
         o.location = tuple(origine)
