@@ -1270,8 +1270,11 @@ const MARCHE5 = `
   vHoule5 = 0.0;
   if (color.b < 0.5) {
     float axe5 = color.b - 0.25; // où se tient le marcheur dans son objet (le pousseur d'une charrette est derrière elle)
-    float pivot5 = mix(0.137, 0.207, color.g); // la hanche, l'épaule
-    float ang5 = uPas * (color.r * 2.0 - 1.0) * mix(0.5, 0.4, color.g);
+    // une patte de bête (un dromadaire) : vert entre 0,45 et 0,95, sa hanche est à (vert - 0,45) × 1,5 ; « axe » : où est la
+    // patte, d'avant en arrière ; les pattes en diagonale vont ensemble (rouge)
+    float bete5 = step(0.42, color.g) * step(color.g, 0.95);
+    float pivot5 = mix(mix(0.137, 0.207, color.g), (color.g - 0.45) * 1.5, bete5); // la hanche, l'épaule
+    float ang5 = uPas * (color.r * 2.0 - 1.0) * mix(mix(0.5, 0.4, color.g), 0.3, bete5);
     vec2 d5 = vec2(transformed.x - axe5, transformed.y - pivot5);
     transformed.x = axe5 + cos(ang5) * d5.x - sin(ang5) * d5.y;
     transformed.y = pivot5 + sin(ang5) * d5.x + cos(ang5) * d5.y;
@@ -1681,6 +1684,21 @@ function animateurs(bouge, vent = () => 1) {
         if (u.anim === "mirage") Object.assign(m.material, { transparent: true, depthWrite: false });
         mats.push([m.material, m.material.color.clone()]);
       });
+      // « eclipse » (le buffet du Désert d'Ambre) : il ne tourne pas ; il apparaît, tremble dans la chaleur (il s'étire et
+      // se tasse un peu), puis s'efface tout à fait, et il n'y a plus rien pendant un moment ; « cycle » : la durée d'un tour
+      if (u.anim === "mirage" && u.eclipse) {
+        const s0 = o.scale.clone();
+        const cycle = u.cycle || 14;
+        return (s) => {
+          const t = ((s / cycle + ph) % 1 + 1) % 1;
+          const vu = Math.max(0, Math.sin(t * Math.PI * 2)) ** 1.4 * (1 - lampesAllumees); // pas de mirage la nuit
+          o.visible = vu > 0.01;
+          if (!o.visible) return;
+          o.position.y = p0.y + Math.sin(s * 1.1) * ampl;
+          o.scale.set(s0.x * (1 + Math.sin(s * 9.3) * 0.012), s0.y * (1 + Math.sin(s * 6.1 + 1) * 0.04 + Math.sin(s * 13.3) * 0.015), s0.z * (1 + Math.sin(s * 7.7 + 2) * 0.012));
+          for (const [m] of mats) m.opacity = vu * 0.7 * (0.88 + Math.sin(s * 11) * 0.12);
+        };
+      }
       if (u.anim === "mirage") return (s) => {
         o.position.y = p0.y + Math.sin(s * 1.2) * ampl;
         o.rotation.y = s * 0.2;
@@ -1972,8 +1990,11 @@ function effetRepere(r) {
   } else if (genre === "rafales") {
     // les rafales de l'Île des Vents : des traits de vent clairs qui filent en ondulant, s'effilent et s'effacent (des
     // rubans posés de biais, pour se voir d'en haut comme de côté ; un seul dessin pour tous). « cap » : où va le vent
-    // (en radians de Blender ; sans lui, vers l'est).
+    // (en radians de Blender ; sans lui, vers l'est). « couleur » [r, g, b] (du sable soulevé, au Désert d'Ambre) ; « bas » :
+    // la hauteur des plus basses.
     g.rotation.y = r.userData.cap || 0;
+    const teinteR = Array.isArray(r.userData.couleur) ? r.userData.couleur.map(Number) : [1.0, 0.99, 0.94];
+    const basR = r.userData.bas ?? 0.45;
     const nb = Math.max(1, Math.min(24, r.userData.nb || 12));
     const rayon = r.userData.rayon || 7;
     const haut = r.userData.haut || 4;
@@ -1993,7 +2014,8 @@ function effetRepere(r) {
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, haut / 2, 0), rayon * 2 + 4);
     const mat = new THREE.ShaderMaterial({
       vertexShader: "attribute float aVoile; varying float vA; void main() { vA = aVoile; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-      fragmentShader: "varying float vA; void main() { gl_FragColor = vec4(1.0, 0.99, 0.94, vA); }",
+      fragmentShader: "uniform vec3 uTeinte; varying float vA; void main() { gl_FragColor = vec4(uTeinte, vA); }",
+      uniforms: { uTeinte: { value: new THREE.Vector3(...teinteR) } },
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
     });
     g.add(new THREE.Mesh(geo, mat));
@@ -2005,7 +2027,7 @@ function effetRepere(r) {
         const t = tour % 1;
         const passe = Math.floor(tour) * 7 + k * 13; // à chaque traversée, une autre place dans le ciel
         const z0 = (alea(passe) * 2 - 1) * rayon * 0.8;
-        const y0 = 0.45 + alea(passe + 3) * haut;
+        const y0 = basR + alea(passe + 3) * haut;
         const long = 1.1 + alea(passe + 5) * 1.0;
         const tete = -rayon + t * (rayon * 2 + long);
         const fondu = Math.sin(t * Math.PI);
@@ -2023,6 +2045,46 @@ function effetRepere(r) {
       }
       aPos.needsUpdate = true;
       aVoile.needsUpdate = true;
+    };
+  } else if (genre === "tourbillon") {
+    // le tourbillon de sable du Désert d'Ambre : une colonne de poussière qui tourne sur elle-même, s'évase vers le haut, se
+    // tord et se promène lentement sur son cercle (« rayon ») ; elle se forme, vit un moment, retombe, et renaît plus loin.
+    // « haut » : sa hauteur ; « large » : son évasement en haut ; « couleur » [r, g, b] ; « vie » : la durée d'un tourbillon.
+    const haut = r.userData.haut || 1.8;
+    const rayon = r.userData.rayon || 1.2;
+    const large = r.userData.large || 0.35;
+    const vie = r.userData.vie || 22;
+    const nbG = Math.max(20, Math.min(240, r.userData.nb || 150));
+    const nbV = Math.round(nbG / 5);
+    const coul = new THREE.Color(...(Array.isArray(r.userData.couleur) ? r.userData.couleur.map(Number) : [0.86, 0.68, 0.42]));
+    const gros = r.userData.grosseur || 0.09;
+    const grains = points(nbG, coul, gros, () => [0, 0, 0]);
+    const voile = points(nbV, coul, gros * 5.5, () => [0, 0, 0]);
+    for (const p of [grains, voile]) {
+      Object.assign(p.material, { blending: THREE.NormalBlending, opacity: 0 });
+      p.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, haut / 2, 0), rayon + large + haut);
+    }
+    g.add(grains, voile);
+    const graine = Array.from({ length: nbG }, () => [R(), R(), R()]);
+    maj = (s) => {
+      const t = (s / vie) % 1;
+      const n = Math.floor(s / vie);
+      const force = Math.min(1, t * 6, (1 - t) * 4); // il se forme, puis retombe
+      const a0 = n * 2.4 + t * 1.6; // il se promène sur son cercle
+      const cx = Math.cos(a0) * rayon, cz = Math.sin(a0) * rayon;
+      for (const [p, nb, fin] of [[grains, nbG, true], [voile, nbV, false]]) {
+        const a = p.geometry.attributes.position;
+        for (let k = 0; k < nb; k++) {
+          const [g1, g2, g3] = graine[k];
+          const h = (g1 + s * (0.16 + g2 * 0.18)) % 1; // chaque grain monte, et repart d'en bas
+          const rr = (0.05 + large * h ** 1.4) * (0.75 + g3 * 0.5) * (fin ? 1 : 0.7);
+          const ang = s * (3.2 - h * 1.4) + g2 * 6.283;
+          const tord = Math.sin(h * 2.4 + s * 0.7) * 0.18 * h;
+          a.setXYZ(k, cx + tord + Math.cos(ang) * rr, h * haut * force, cz + Math.sin(ang) * rr + tord * 0.5);
+        }
+        a.needsUpdate = true;
+        p.material.opacity = (fin ? 0.75 : 0.26) * force;
+      }
     };
   } else if (genre === "feuilles") {
     // les feuilles qui tombent du Grand Arbre : chacune se détache de la couronne, tournoie en descendant (elle bascule d'un
