@@ -2024,6 +2024,56 @@ function effetRepere(r) {
       aPos.needsUpdate = true;
       aVoile.needsUpdate = true;
     };
+  } else if (genre === "feuilles") {
+    // les feuilles qui tombent du Grand Arbre : chacune se détache de la couronne, tournoie en descendant (elle bascule d'un
+    // bord sur l'autre, le vent la pousse un peu vers l'est) et s'efface près du sol ; un seul dessin pour toutes.
+    // « rayon » : la couronne ; « haut » : d'où elles partent ; « bas » : où elles s'effacent (au-dessus du repère).
+    const nb = Math.max(1, Math.min(60, r.userData.nb || 30));
+    const rayon = r.userData.rayon || 4;
+    const haut = r.userData.haut || 7;
+    const bas = r.userData.bas ?? 0.5;
+    const pos = new Float32Array(nb * 12);
+    const coul = new Float32Array(nb * 12);
+    const idx = [];
+    const TEINTES = [[0.16, 0.34, 0.07], [0.3, 0.46, 0.09], [0.62, 0.42, 0.07], [0.7, 0.25, 0.05], [0.22, 0.4, 0.06]];
+    for (let k = 0; k < nb; k++) {
+      idx.push(k * 4, k * 4 + 1, k * 4 + 2, k * 4, k * 4 + 2, k * 4 + 3);
+      for (let j = 0; j < 4; j++) coul.set(TEINTES[k % TEINTES.length].map((c) => c * (j === 2 ? 0.7 : 1)), (k * 4 + j) * 3); // la pointe plus sombre
+    }
+    const geo = new THREE.BufferGeometry();
+    const aPos = new THREE.BufferAttribute(pos, 3);
+    aPos.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("position", aPos);
+    geo.setAttribute("color", new THREE.BufferAttribute(coul, 3));
+    geo.setIndex(idx);
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, haut / 2, 0), rayon + haut);
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+    const alea = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+    maj = (s) => {
+      for (let k = 0; k < nb; k++) {
+        const duree = 9 + (k % 5) * 1.4; // le temps d'une chute
+        const tour = s / duree + k * 0.618;
+        const t = tour % 1;
+        const passe = Math.floor(tour) * 7 + k * 13; // à chaque chute, une autre feuille, ailleurs dans la couronne
+        const a = alea(passe) * Math.PI * 2;
+        const d = Math.sqrt(alea(passe + 1)) * rayon;
+        const cx = Math.cos(a) * d + Math.sin(s * 1.1 + k) * 0.35 * t + t * 0.7;
+        const cz = Math.sin(a) * d + Math.cos(s * 0.9 + k * 1.7) * 0.3 * t - t * 0.25;
+        const cy = haut - (haut - bas) * t + Math.sin(s * 2.6 + k) * 0.04;
+        const taille = 0.075 * Math.min(1, t * 10, (1 - t) * 6);
+        const b = s * (1.6 + (k % 3) * 0.5) + k; // elle tourne sur elle-même
+        const c = Math.sin(s * 1.9 + k * 2.3) * 1.2; // et bascule
+        const ux = Math.cos(b), uz = Math.sin(b);
+        const vx = -Math.sin(b) * Math.sin(c), vy = Math.cos(c), vz = Math.cos(b) * Math.sin(c);
+        const L = taille, l = taille * 0.5;
+        const i = k * 12;
+        pos[i] = cx + ux * L; pos[i + 1] = cy; pos[i + 2] = cz + uz * L;
+        pos[i + 3] = cx + vx * l; pos[i + 4] = cy + vy * l; pos[i + 5] = cz + vz * l;
+        pos[i + 6] = cx - ux * L; pos[i + 7] = cy; pos[i + 8] = cz - uz * L;
+        pos[i + 9] = cx - vx * l; pos[i + 10] = cy - vy * l; pos[i + 11] = cz - vz * l;
+      }
+      aPos.needsUpdate = true;
+    };
   } else if (genre === "ecume") {
     const rayon = r.userData.rayon || 1.5;
     const ronds = Array.from({ length: 3 }, (_, k) => {
@@ -3205,7 +3255,13 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   function viser() {
     const v = cam.voulu;
     if (mode === "ensemble") { v.cible.set(0, 0, 6).add(decalage); v.dist = distanceEnsemble() * Math.min(1, zoom * 1.6); v.tilt = 0.5; }
-    else if (mode === "ile" && vise) { v.cible.copy(vise).add(decalage); v.dist = 46 * zoom; v.tilt = 0.95 - (1 - Math.min(1, zoom)) * 0.25; }
+    else if (mode === "ile" && vise) {
+      v.cible.copy(vise).add(decalage);
+      // une île très haute (le Grand Arbre) : on vise un peu plus haut que la mer, pour la voir en entier
+      if (viseIle?.haut > 8) v.cible.y += Math.min(4, (viseIle.haut - 8) * 0.55);
+      v.dist = 46 * zoom;
+      v.tilt = 0.95 - (1 - Math.min(1, zoom)) * 0.25;
+    }
     else {
       v.cible.copy(porteur.position);
       v.dist = (camera.aspect < 1 ? 64 : 48) * zoom;
@@ -3217,6 +3273,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     }
   }
   let vise = null;
+  let viseIle = null; // l'île que la caméra regarde (pour sa hauteur)
 
   // ---------- les données ----------
   let donnees = null;
@@ -3249,7 +3306,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       if (arrivee) {
         const ile = d.route[d.etape]?.find((x) => x.etat === "atteinte");
         const i = ile && iles.get(ile.id);
-        if (i) { i.disparition = 1; vise = v3(i.x, i.z); mode = "ile"; setTimeout(() => { if (mode === "ile") mode = "navire"; }, 4200); fete.feter(i.x, i.z, leger ? 5 : 8); } // terre ! un feu d'artifice
+        if (i) { i.disparition = 1; vise = v3(i.x, i.z); viseIle = i; mode = "ile"; setTimeout(() => { if (mode === "ile") mode = "navire"; }, 4200); fete.feter(i.x, i.z, leger ? 5 : 8); } // terre ! un feu d'artifice
         progres = 0;
       }
     }
@@ -3373,7 +3430,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     if (appui && !appui.bouge) {
       const o = viseSous(ev);
       if (o?.userData.bouteille) surBouteille();
-      else if (o?.userData.ile) { const i = iles.get(o.userData.ile); vise = v3(i.x, i.z); decalage.set(0, 0, 0); mode = "ile"; surIle(o.userData.ile); }
+      else if (o?.userData.ile) { const i = iles.get(o.userData.ile); vise = v3(i.x, i.z); viseIle = i; decalage.set(0, 0, 0); mode = "ile"; surIle(o.userData.ile); }
     }
     appui = null;
   };
@@ -3606,6 +3663,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const i = iles.get(id);
     if (!i) return;
     vise = v3(i.x, i.z);
+    viseIle = i;
     decalage.set(0, 0, 0);
     zoom = 0.8;
     mode = "ile";
