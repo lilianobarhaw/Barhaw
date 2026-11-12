@@ -3478,57 +3478,78 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 @keyframes caritatif-pop { 0% { opacity: 0; transform: translateY(26px) scale(0.92); } 100% { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .caritatif-coeurs { display: none; } .caritatif-doudou, .caritatif-doudou.grand, .caritatif-carte, .caritatif-intro { animation: none; } .caritatif-intro { transition: none; } }
 
-/* ---------- la VF 1.0 : la Soirée Fortnite des commus ---------- */
-.soiree { display: grid; gap: 18px; justify-items: center; text-align: center; }
-.soiree-vs { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: clamp(8px, 2vw, 22px); }
-.soiree-commu { display: grid; justify-items: center; gap: 6px; }
-.soiree-commu img { width: clamp(64px, 14vw, 104px); height: auto; border: 3px solid var(--encre); border-radius: 16px; box-shadow: 4px 4px 0 var(--ombre); background: var(--nuit); }
-.soiree-commu b { font-family: var(--fort); font-size: 15px; }
-.soiree-vs-mot { font-family: var(--titre); font-size: clamp(22px, 4vw, 36px); color: var(--rose); -webkit-text-stroke: 1.5px var(--encre); paint-order: stroke fill; }
-.soiree-quand { margin: 0; font-family: var(--fort); font-weight: 800; }
-.soiree-inscription { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 520px; }
-.soiree-inscription input { flex: 1 1 200px; min-width: 0; height: 46px; padding: 0 14px; border-radius: 12px; border: 2px solid var(--ligne); background: var(--nuit); color: var(--blanc); font: inherit; }
-.soiree-inscription input:focus { outline: none; border-color: var(--rose); }
-.soiree-inscription .note { flex-basis: 100%; margin: 0; }
-.soiree-moi p { margin: 4px 0; }
-.soiree-mes-points { font-family: var(--titre); font-size: 22px; color: var(--rose); }
-/* le soir même : le score des commus, leurs lives ; puis le comptage et le podium */
-.soiree-direct { display: inline-flex; align-items: center; gap: 8px; }
-.soiree-point { width: 10px; height: 10px; border-radius: 50%; background: #ff3b5c; box-shadow: 0 0 0 3px rgba(255, 59, 92, 0.25); }
-.soiree-direct .soiree-point, .soiree-live.allume .soiree-point { animation: soiree-pulse 1.4s ease-in-out infinite; }
-@keyframes soiree-pulse { 50% { box-shadow: 0 0 0 7px rgba(255, 59, 92, 0); } }
-.soiree-scores, .soiree-lives { width: min(100%, 620px); display: grid; gap: 10px; text-align: left; }
-.soiree-scores-titre { margin: 0; color: var(--terne); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
-.soiree-liste { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.soiree-score { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "img nom pts" "barre barre barre"; gap: 6px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--verre); }
-.soiree-score.en-tete { border-color: var(--rose); box-shadow: 4px 4px 0 var(--ombre); }
-.soiree-score img { grid-area: img; width: 40px; height: 40px; border-radius: 10px; border: 2px solid var(--encre); background: var(--nuit); }
-.soiree-score-nom { grid-area: nom; display: grid; min-width: 0; }
-.soiree-score-nom b { font-family: var(--fort); font-size: 15px; }
-.soiree-score-nom small { color: var(--terne); font-size: 12px; }
-.soiree-points { grid-area: pts; font-family: var(--titre); font-size: 18px; color: var(--rose); }
-.soiree-barre { grid-area: barre; height: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
-.soiree-barre i { display: block; height: 100%; min-width: 4px; border-radius: 10px; background: var(--degrade); transition: width 0.8s ease; }
-.soiree-lives ul { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0; padding: 0; list-style: none; }
-.soiree-live { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 2px solid var(--ligne); color: var(--blanc); text-decoration: none; }
-.soiree-live:not(.allume) .soiree-point { background: #6b5a70; box-shadow: none; }
-.soiree-live small { color: var(--terne); }
-.soiree-live:hover, .soiree-live:focus-visible { border-color: var(--rose); }
-.soiree-comptage { display: grid; gap: 4px; padding: 12px 16px; border-radius: 14px; border: 2px dashed var(--ligne); }
-.soiree-comptage p { margin: 0; }
-.soiree-podium-bloc { display: grid; gap: 12px; justify-items: center; }
-.soiree-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 150px)); align-items: end; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.soiree-marche { position: relative; display: grid; justify-items: center; gap: 4px; }
-.soiree-marche img { width: clamp(52px, 14vw, 88px); height: auto; border: 3px solid var(--encre); border-radius: 16px; background: var(--nuit); }
-.soiree-marche.place-1 img { width: clamp(68px, 18vw, 110px); }
-.soiree-marche b { font-family: var(--fort); font-size: 14px; }
-.soiree-marche .fp-couronne { position: static; inset: auto; transform: none; translate: none; font-size: 26px; line-height: 1; }
-.soiree-podium { margin-top: 6px; }
-.soiree-socle { display: grid; place-items: center; width: 100%; border: 3px solid var(--encre); border-radius: 12px 12px 0 0; background: var(--verre); font-family: var(--titre); font-size: 24px; }
-.soiree-marche.place-1 .soiree-socle { height: 90px; background: var(--degrade); }
-.soiree-marche.place-2 .soiree-socle { height: 64px; }
-.soiree-marche.place-3 .soiree-socle { height: 46px; }
-@media (prefers-reduced-motion: reduce) { .soiree-direct .soiree-point, .soiree-live.allume .soiree-point { animation: none; } .soiree-barre i { transition: none; } }
+/* ---------- la VF 1.0 : la SEMAINE BAHRIOT (toute la flotte sur les jeux Riot, tous les 3 mois) ---------- */
+.bahriot { display: grid; gap: 18px; justify-items: center; text-align: center; }
+.carte.bahriot { padding: clamp(20px, 3vw, 32px) clamp(12px, 3vw, 32px); }
+.br-tete { display: grid; gap: 4px; justify-items: center; }
+.br-edition { margin: 0; color: var(--brume); }
+.br-edition b { font-family: var(--fort); color: var(--blanc); }
+.br-quand { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 17px; }
+.br-direct { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 8px; }
+.br-point { flex: none; width: 10px; height: 10px; border-radius: 50%; background: #ff3b5c; box-shadow: 0 0 0 3px rgba(255, 59, 92, 0.25); }
+.br-direct .br-point, .br-live.allume .br-point { animation: br-pulse 1.4s ease-in-out infinite; }
+@keyframes br-pulse { 50% { box-shadow: 0 0 0 7px rgba(255, 59, 92, 0); } }
+.br-jeux { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: min(100%, 640px); margin: 0; padding: 0; list-style: none; }
+.br-jeu { display: grid; gap: 1px; min-width: 0; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--ligne-douce); background: var(--verre); text-align: left; }
+.br-jeu b { font-family: var(--fort); font-size: 13.5px; }
+.br-jeu small { color: var(--terne); font-size: 11.5px; }
+.br-jeu.auto { border-color: rgba(85, 204, 255, 0.55); }
+.br-jeu.auto small { color: #9fe3ff; }
+.br-jeu.bientot { border-style: dashed; opacity: 0.75; }
+.br-finale { margin: 0; max-width: 620px; padding: 10px 16px; border-radius: 14px; border: 2px solid var(--rose); background: rgba(255, 90, 174, 0.1); font-weight: 700; }
+.br-comptage { display: grid; gap: 4px; padding: 12px 16px; border-radius: 14px; border: 2px dashed var(--ligne); }
+.br-comptage p { margin: 0; }
+.br-scores, .br-lives { display: grid; gap: 10px; width: min(100%, 640px); text-align: left; }
+.br-titre { margin: 0; color: var(--terne); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-align: center; text-transform: uppercase; }
+.br-liste { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.br-score { display: grid; grid-template-columns: 22px 40px minmax(0, 1fr) auto; grid-template-areas: "rang img nom pts" "barre barre barre barre"; gap: 6px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--verre); }
+.br-score.sans-points { grid-template-areas: "rang img nom pts"; }
+.br-score.en-tete { border-color: var(--rose); box-shadow: 4px 4px 0 var(--ombre); }
+.br-score.br-moi { outline: 2px dashed rgba(255, 255, 255, 0.32); outline-offset: 3px; }
+.br-rang { grid-area: rang; font-family: var(--titre); font-size: 16px; color: var(--terne); text-align: center; }
+.br-drapeau { grid-area: img; width: 40px; height: 40px; border-radius: 10px; border: 2px solid var(--encre); background: var(--nuit); object-fit: cover; }
+.br-embleme { display: grid; place-items: center; background: linear-gradient(135deg, var(--c1), var(--c2)); color: var(--fl-texte); font-family: var(--titre); font-size: 18px; line-height: 1; }
+.br-nom { grid-area: nom; display: grid; min-width: 0; }
+.br-nom b { font-family: var(--fort); font-size: 15px; overflow-wrap: anywhere; }
+.br-nom small { color: var(--terne); font-size: 12px; }
+.br-nom .br-detail { color: var(--brume); }
+.br-points { grid-area: pts; font-family: var(--titre); font-size: 18px; color: var(--rose); white-space: nowrap; }
+.br-barre { grid-area: barre; height: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.br-barre i { display: block; height: 100%; min-width: 4px; border-radius: 10px; background: linear-gradient(90deg, var(--c1, var(--rose)), var(--c2, #9b4dff)); transition: width 0.8s ease; }
+.br-lives ul { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0; padding: 0; list-style: none; }
+.br-live { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 2px solid var(--ligne); color: var(--blanc); text-decoration: none; }
+.br-live:not(.allume) .br-point { background: #6b5a70; box-shadow: none; }
+.br-live small { color: var(--terne); }
+.br-live:hover, .br-live:focus-visible { border-color: var(--rose); }
+.br-podium-bloc { display: grid; gap: 12px; justify-items: center; }
+.br-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 150px)); align-items: end; gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; }
+.br-marche { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; }
+.br-marche .br-drapeau { grid-area: auto; width: clamp(52px, 14vw, 88px); height: clamp(52px, 14vw, 88px); border-width: 3px; border-radius: 16px; }
+.br-marche.place-1 .br-drapeau { width: clamp(68px, 18vw, 110px); height: clamp(68px, 18vw, 110px); }
+.br-marche .br-embleme { font-size: clamp(24px, 6vw, 40px); }
+.br-marche b { font-family: var(--fort); font-size: 14px; overflow-wrap: anywhere; }
+.br-marche small { color: #9fe3ff; font-size: 11.5px; font-weight: 700; }
+.br-couronne { font-size: 26px; line-height: 1; }
+.br-socle { display: grid; place-items: center; width: 100%; border: 3px solid var(--encre); border-radius: 12px 12px 0 0; background: var(--verre); font-family: var(--titre); font-size: 24px; }
+.br-marche.place-1 .br-socle { height: 90px; background: var(--degrade); }
+.br-marche.place-2 .br-socle { height: 64px; }
+.br-marche.place-3 .br-socle { height: 46px; }
+.br-moi-bloc { display: grid; gap: 10px; justify-items: center; max-width: 580px; }
+.br-moi-bloc p { margin: 0; }
+.br-moi-bloc .lien-discret { justify-self: center; }
+.br-mes-points { font-family: var(--titre); font-size: 22px; color: var(--rose); }
+.br-comptes { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0; padding: 0; list-style: none; }
+.br-compte { padding: 6px 12px; border-radius: 999px; border: 2px solid var(--ligne); font-size: 13px; }
+.br-compte.ok { border-color: rgba(61, 220, 151, 0.7); }
+.br-compte a { color: var(--blanc); text-underline-offset: 3px; }
+.br-regles { width: min(100%, 640px); padding: 10px 14px; border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--verre); text-align: left; }
+.br-regles summary { cursor: pointer; font-family: var(--fort); font-weight: 800; }
+.br-regles ul { display: grid; gap: 4px; margin: 8px 0 0; padding-left: 18px; color: var(--brume); font-size: 14px; }
+.br-histo { margin: 0; color: var(--terne); font-size: 13px; }
+.br-mention { max-width: 640px; margin: 0; font-size: 11.5px; }
+@media (max-width: 560px) { .br-jeux { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .br-score { grid-template-columns: 18px 34px minmax(0, 1fr) auto; gap: 6px 8px; padding: 9px 10px; } .br-score .br-drapeau { width: 34px; height: 34px; } .br-points { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .br-direct .br-point, .br-live.allume .br-point { animation: none; } .br-barre i { transition: none; } }
 
 /* ---------- le récit de GRAND LINE (VF) : les pages de l'équipage, la voix, la bulle dorée sur la carte ---------- */
 .gl-recit { margin-top: 20px; padding: 22px 22px 20px; }
