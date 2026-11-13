@@ -3550,6 +3550,106 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 @media (max-width: 560px) { .br-jeux { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) { .br-score { grid-template-columns: 18px 34px minmax(0, 1fr) auto; gap: 6px 8px; padding: 9px 10px; } .br-score .br-drapeau { width: 34px; height: 34px; } .br-points { font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { .br-direct .br-point, .br-live.allume .br-point { animation: none; } .br-barre i { transition: none; } }
+/* la SEMAINE BAHRIOT : le bandeau (la faille, la phase en très grand, le compte à rebours) et les animations (js/bahriot-anim.js) */
+.br-banniere { position: relative; isolation: isolate; display: grid; align-content: center; justify-items: center; gap: 8px; width: min(100%, 760px); min-height: clamp(220px, 30vw, 280px); padding: 22px 14px; border-radius: 20px; border: 2px solid var(--ligne); background: radial-gradient(120% 95% at 50% 50%, #2c0f35 0%, #12050d 72%); box-shadow: 0 0 0 1px rgba(255, 79, 154, 0.08) inset, 6px 6px 0 var(--ombre); overflow: hidden; }
+.br-banniere.phase-derniere { border-color: rgba(255, 59, 48, 0.6); background: radial-gradient(120% 95% at 50% 50%, #3a0c10 0%, #12050d 72%); }
+.br-banniere.phase-comptage { border-color: rgba(95, 208, 216, 0.45); background: radial-gradient(120% 95% at 50% 50%, #0d2430 0%, #0a0510 72%); }
+.br-banniere.phase-fini { border-color: rgba(255, 211, 107, 0.55); background: radial-gradient(120% 95% at 50% 50%, #33230a 0%, #12050d 72%); }
+.br-fond { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; }
+.br-faille { position: absolute; left: -2%; right: -2%; top: 50%; z-index: -1; height: 3px; background: linear-gradient(90deg, transparent, #ff8fcb 18%, #fff 50%, #9b4dff 82%, transparent); box-shadow: 0 0 22px 6px rgba(255, 79, 154, 0.5); transform: rotate(-2deg); }
+.br-banniere.br-anime .br-faille { display: none; }
+.br-etat { margin: 0; color: var(--brume); font-size: 13.5px; text-shadow: 0 1px 6px #000; }
+.br-etat b { font-family: var(--fort); color: var(--blanc); }
+.br-grand { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 0.32em; margin: 0; font-family: var(--titre); font-size: clamp(30px, 7.4vw, 66px); line-height: 1.02; letter-spacing: 0.02em; text-transform: uppercase; color: #fff; text-shadow: 0 0 22px rgba(255, 79, 154, 0.8), 0 0 3px #fff, 4px 4px 0 var(--ombre); }
+.phase-derniere .br-grand { color: #fff1ec; text-shadow: 0 0 24px rgba(255, 59, 48, 0.95), 0 0 3px #fff, 4px 4px 0 #7a0d16; animation: br-glitch 2.6s steps(1) infinite; }
+.phase-comptage .br-grand { text-shadow: 0 0 22px rgba(95, 208, 216, 0.85), 0 0 3px #fff, 4px 4px 0 #0f4a55; }
+.phase-fini .br-grand { color: #fff6d6; text-shadow: 0 0 24px rgba(255, 211, 107, 0.9), 0 0 3px #fff, 4px 4px 0 #8a5a00; }
+.br-mot { display: inline-flex; white-space: nowrap; }
+.br-lettre { display: inline-block; }
+.br-attente .br-lettre, .br-attente .br-etat, .br-attente .br-rebours { opacity: 0; }
+.br-entree { animation: br-secoue 0.45s 0.32s both; }
+.br-entree .br-lettre { animation: br-tombe 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) both; animation-delay: calc(0.3s + var(--i) * 38ms); }
+.br-entree .br-etat { animation: br-apparait 0.5s 0.15s both; }
+.br-entree .br-rebours { animation: br-monte 0.7s 1s both cubic-bezier(0.2, 1.3, 0.4, 1); }
+.br-secousse { animation: br-secoue 0.35s both; }
+@keyframes br-tombe { 0% { opacity: 0; transform: translateY(-70px) scale(1.9) rotate(-14deg); filter: blur(6px); } 55% { opacity: 1; filter: none; } 100% { opacity: 1; transform: none; } }
+@keyframes br-apparait { from { opacity: 0; } to { opacity: 1; } }
+@keyframes br-monte { from { opacity: 0; transform: translateY(26px) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes br-secoue { 0%, 100% { transform: none; } 20% { transform: translate(-5px, 2px); } 40% { transform: translate(5px, -2px); } 60% { transform: translate(-3px, -1px); } 80% { transform: translate(2px, 1px); } }
+@keyframes br-glitch { 0%, 90%, 100% { transform: none; } 91% { transform: translate(-3px, 0) skewX(-9deg); text-shadow: -3px 0 #00e5ff, 3px 0 #ff3b30, 0 0 24px rgba(255, 59, 48, 0.95); } 93% { transform: translate(3px, 1px) skewX(7deg); } 95% { transform: none; } 97% { transform: translate(-2px, 0); } }
+/* le compte à rebours */
+.br-rebours { display: grid; justify-items: center; gap: 6px; margin-top: 4px; }
+.br-compte-libelle { margin: 0; color: var(--brume); font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; text-shadow: 0 1px 6px #000; }
+.br-tuiles { display: flex; align-items: flex-start; gap: clamp(6px, 1.8vw, 14px); }
+.br-groupe { display: grid; justify-items: center; gap: 4px; }
+.br-groupe[hidden] { display: none; }
+.br-groupe small { color: var(--terne); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.br-chiffres { display: flex; gap: 3px; perspective: 400px; }
+.br-chiffre { position: relative; display: grid; place-items: center; width: clamp(25px, 6vw, 40px); height: clamp(36px, 8.4vw, 56px); border-radius: 8px; border: 2px solid rgba(255, 143, 203, 0.38); background: linear-gradient(180deg, #2d1338 0 50%, #200b28 50% 100%); color: #fff; font-family: var(--titre); font-size: clamp(19px, 5vw, 32px); box-shadow: 0 4px 0 #0b0309, 0 0 16px rgba(255, 79, 154, 0.22); transform-origin: 50% 50%; }
+.br-chiffre::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(0, 0, 0, 0.5); }
+.br-chiffre.bascule { animation: br-bascule 0.5s cubic-bezier(0.3, 1.4, 0.5, 1); }
+@keyframes br-bascule { 0% { transform: rotateX(90deg); filter: brightness(2.4); } 100% { transform: none; filter: none; } }
+.br-urgent .br-chiffre { border-color: #ff3b30; color: #ffe0dc; box-shadow: 0 4px 0 #0b0309, 0 0 20px rgba(255, 59, 48, 0.75); animation: br-urgent 1s ease-in-out infinite; }
+@keyframes br-urgent { 50% { transform: scale(1.08); } }
+/* les jeux : un emblème dessiné, un reflet qui passe */
+.br-jeu { position: relative; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 10px; overflow: hidden; transition: transform 0.25s var(--doux, ease), border-color 0.25s, box-shadow 0.25s; }
+.br-jeu-txt { display: grid; gap: 1px; min-width: 0; }
+.br-sigle { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--violet-clair); }
+.br-jeu.auto .br-sigle { color: #9fe3ff; }
+.br-jeu.br-brille::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.2) 50%, transparent 65%); transform: translateX(-130%); animation: br-reflet 5.5s ease-in-out infinite; animation-delay: calc(var(--i) * 0.4s); pointer-events: none; }
+@keyframes br-reflet { 0%, 72% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
+.br-jeu:hover { transform: translateY(-3px) rotate(-1deg); border-color: var(--rose); box-shadow: 4px 4px 0 var(--ombre); }
+.br-jeu:hover .br-sigle { animation: br-sigle 0.6s ease; }
+@keyframes br-sigle { 50% { transform: scale(1.25) rotate(-10deg); } }
+/* le score */
+@property --br-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.br-score { position: relative; }
+.br-score.en-tete { border-color: transparent; background: linear-gradient(rgba(255, 170, 220, 0.06), rgba(255, 170, 220, 0.06)) padding-box, linear-gradient(#1f0c24, #1f0c24) padding-box, conic-gradient(from var(--br-angle), var(--c1, #ff4f9a), var(--c2, #9b4dff), #fff, var(--c1, #ff4f9a)) border-box; animation: br-tourne 4s linear infinite; }
+@keyframes br-tourne { to { --br-angle: 360deg; } }
+.br-drapeau-tete { grid-area: img; position: relative; display: block; width: 40px; height: 40px; }
+.br-drapeau-tete .br-drapeau { width: 100%; height: 100%; }
+.br-couronne-mini { position: absolute; top: -15px; left: 50%; translate: -50% 0; font-size: 16px; line-height: 1; animation: br-flotte 2.4s ease-in-out infinite; }
+@keyframes br-flotte { 50% { transform: translateY(-3px) rotate(8deg); } }
+.br-barre i { position: relative; overflow: hidden; }
+.br-barre i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent); transform: translateX(-100%); animation: br-reflet-barre 2.8s ease-in-out infinite; }
+@keyframes br-reflet-barre { 0%, 40% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+.br-flotteur { position: absolute; right: 12px; top: 2px; color: #7dffb5; font-family: var(--titre); font-size: 15px; text-shadow: 0 0 10px rgba(125, 255, 181, 0.75); pointer-events: none; animation: br-envol 1.7s ease-out forwards; }
+@keyframes br-envol { 0% { opacity: 0; transform: translateY(8px) scale(0.6); } 15% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-34px); } }
+.br-etincelles { position: absolute; width: 0; height: 0; pointer-events: none; }
+.br-etincelles i { position: absolute; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 2px var(--c1, #ff4f9a); animation: br-etincelle 0.8s ease-out forwards; }
+@keyframes br-etincelle { to { transform: translate(var(--x), var(--y)) scale(0.2); opacity: 0; } }
+.br-eclat { animation: br-eclat 1.2s ease; }
+@keyframes br-eclat { 0% { box-shadow: 0 0 0 0 rgba(255, 211, 107, 0.9); } 100% { box-shadow: 0 0 0 20px rgba(255, 211, 107, 0); } }
+.br-depasse { justify-self: center; margin: 0; padding: 8px 18px; border-radius: 999px; background: linear-gradient(100deg, #ff4f9a, #9b4dff); color: #fff; font-family: var(--fort); font-weight: 800; box-shadow: 4px 4px 0 var(--ombre); animation: br-tranche 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.br-depasse.part { animation: br-part 0.5s ease forwards; }
+@keyframes br-tranche { 0% { opacity: 0; transform: translateX(-60px) skewX(-25deg) scale(0.8); clip-path: inset(0 100% 0 0); } 100% { opacity: 1; transform: none; clip-path: inset(0); } }
+@keyframes br-part { to { opacity: 0; transform: translateX(60px) skewX(20deg); } }
+/* la dernière soirée, le comptage */
+.carte.bahriot.br-alerte { animation: br-alerte 1.6s ease-in-out infinite; }
+@keyframes br-alerte { 50% { box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.55), 0 0 44px rgba(255, 59, 48, 0.35); } }
+.br-comptage { justify-items: center; }
+.br-radar { width: 46px; height: 46px; border-radius: 50%; border: 2px solid rgba(95, 208, 216, 0.6); background: conic-gradient(from 0deg, rgba(95, 208, 216, 0.7), transparent 32%); animation: br-radar 1.6s linear infinite; }
+@keyframes br-radar { to { transform: rotate(360deg); } }
+/* son inscription : le tampon */
+.br-tampon { display: inline-block; padding: 6px 14px; border: 3px solid var(--c1, #ff4f9a); border-radius: 10px; animation: br-tampon 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes br-tampon { 0% { opacity: 0; transform: scale(2.4) rotate(-14deg); } 70% { opacity: 1; transform: scale(0.94) rotate(-4deg); } 100% { transform: rotate(-3deg); } }
+/* le podium : le 3e, le 2e, puis le 1er, la couronne qui tombe, les projecteurs */
+.br-podium-bloc { position: relative; isolation: isolate; }
+.br-podium-bloc::before { content: ""; position: absolute; left: 50%; top: -24px; z-index: -1; width: min(520px, 100%); height: 420px; translate: -50% 0; background: conic-gradient(from 180deg at 50% 0%, transparent 0 152deg, rgba(255, 211, 107, 0.22) 164deg, transparent 176deg, transparent 184deg, rgba(255, 211, 107, 0.22) 196deg, transparent 208deg); transform-origin: 50% 0; opacity: 0; transition: opacity 0.8s; pointer-events: none; animation: br-projecteurs 5s ease-in-out infinite alternate; }
+.br-podium-bloc:has(.pas-1)::before, .br-podium-bloc:has(.fige)::before { opacity: 1; }
+@keyframes br-projecteurs { from { transform: rotate(-9deg); } to { transform: rotate(9deg); } }
+.br-podium.anim .br-marche { opacity: 0; transform: translateY(40px) scale(0.9); transition: opacity 0.5s, transform 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.br-podium.anim .br-socle { height: 0 !important; transition: height 0.8s cubic-bezier(0.2, 1.2, 0.4, 1); }
+.br-podium.anim .br-couronne { opacity: 0; }
+.br-podium.anim.pas-3 .place-3, .br-podium.anim.pas-2 .place-2, .br-podium.anim.pas-1 .place-1 { opacity: 1; transform: none; }
+.br-podium.anim.pas-3 .place-3 .br-socle { height: 46px !important; }
+.br-podium.anim.pas-2 .place-2 .br-socle { height: 64px !important; }
+.br-podium.anim.pas-1 .place-1 .br-socle { height: 90px !important; }
+.br-podium.anim.pas-1 .br-couronne { animation: br-couronne 1s 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+@keyframes br-couronne { 0% { opacity: 0; transform: translateY(-90px) rotate(-30deg) scale(1.7); } 100% { opacity: 1; transform: none; } }
+/* les confettis et les feux d'artifice, par-dessus la page */
+.br-fete { position: fixed; inset: 0; z-index: 60; width: 100vw; height: 100vh; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .phase-derniere .br-grand, .br-jeu.br-brille::after, .br-score.en-tete, .br-couronne-mini, .br-barre i::after, .carte.bahriot.br-alerte, .br-radar, .br-podium-bloc::before, .br-urgent .br-chiffre { animation: none; } }
 
 /* ---------- le récit de GRAND LINE (VF) : les pages de l'équipage, la voix, la bulle dorée sur la carte ---------- */
 .gl-recit { margin-top: 20px; padding: 22px 22px 20px; }

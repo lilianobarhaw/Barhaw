@@ -7876,6 +7876,18 @@
     { id: "lor", nom: "Legends of Runeterra" },
   ];
   let monBahriot = null, bahriotOccupe = false, bahriotMessage = null, bahriotDemande = 0, bahriotPhase = "";
+  // les animations (js/bahriot-anim.js) : chargées seulement si l'appareil ne demande pas moins d'animations
+  let animBr = null, animBrCharge = false, bahriotSig = "", bahriotFete = null;
+  async function chargerAnimBahriot() {
+    if (animBrCharge || reduit.matches) return;
+    animBrCharge = true;
+    try {
+      const { creerAnimBahriot } = await import("/js/bahriot-anim.js");
+      animBr = creerAnimBahriot({ zero: () => { bahriotSig = ""; charger(); setTimeout(charger, 25_000); } });
+      bahriotSig = "";
+      rendreBahriot();
+    } catch { /* sans animations, la page marche pareil */ }
+  }
   // les données publiques (phase, score) viennent toujours de /api/public ; la réponse du bot pour le membre ne sert que pour « moi »
   const infosBahriot = () => (donnees?.bahriot ? { ...donnees.bahriot, moi: monBahriot ? monBahriot.moi : donnees.bahriot.moi } : null);
   const jourBahriot = (t, o = {}) => new Date(t).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", ...o });
@@ -7889,12 +7901,35 @@
   const drapeauBahriot = (c, taille) => (c.image
     ? el("img", { class: "br-drapeau", src: c.image, alt: "", width: taille, height: taille, loading: "lazy", decoding: "async" })
     : el("span", { class: "br-drapeau br-embleme", style: c.style, "aria-hidden": "true", text: c.embleme }));
-  function quandBahriot(s) {
-    if (s.phase === "bientot") return ["Inscriptions dans ", el("b", { text: dureeCourte(s.inscriptions) })];
-    if (s.phase === "inscriptions") return ["Ça commence dans ", el("b", { text: dureeCourte(s.debut) })];
-    if (s.phase === "en-cours") return [el("span", { class: "br-point", "aria-hidden": "true" }), "C'est parti ! ", el("b", { text: `Fin dans ${dureeCourte(s.fin)}` })];
-    if (s.phase === "comptage") return ["Le podium arrive"];
-    return s.prochaine ? ["La prochaine : ", el("b", { text: `le ${jourBahriot(s.prochaine.debut, { year: "numeric" })}` })] : ["Merci à tous !"];
+  // le bandeau en haut de la carte : la phase en très grand, l'édition, le compte à rebours
+  function phaseBahriot(s) {
+    if (s.phase === "en-cours" && s.derniereSoiree) return { cle: "derniere", titre: "Dernière soirée", libelle: "Fin dans", cible: s.fin };
+    if (s.phase === "bientot") return { cle: "bientot", titre: "Bientôt", libelle: "Inscriptions dans", cible: s.inscriptions };
+    if (s.phase === "inscriptions") return { cle: "inscriptions", titre: "Inscriptions ouvertes", libelle: "Ça commence dans", cible: s.debut };
+    if (s.phase === "en-cours") return { cle: "en-cours", titre: "C'est parti", libelle: "Fin dans", cible: s.fin };
+    if (s.phase === "comptage") return { cle: "comptage", titre: "Le comptage", libelle: "Podium dans", cible: s.resultat };
+    return { cle: "fini", titre: "Le podium", libelle: s.prochaine ? "Prochaine édition dans" : "", cible: s.prochaine?.debut || 0 };
+  }
+  // un compte à rebours en tuiles (jours, heures, minutes, secondes)
+  function compteBahriot(cible, libelle) {
+    const r = Math.max(0, cible - Date.now());
+    const j = Math.floor(r / 86_400_000), h = Math.floor(r / 3_600_000) % 24, m = Math.floor(r / 60_000) % 60, sec = Math.floor(r / 1000) % 60;
+    const groupe = (v, u, nom) => el("span", { class: "br-groupe", "data-u": u, hidden: u === "j" && !v },
+      el("span", { class: "br-chiffres" }, String(v).padStart(2, "0").split("").map((c) => el("span", { class: "br-chiffre", text: c }))),
+      el("small", { text: nom }));
+    return el("div", { class: "br-rebours", "data-cible": String(cible), role: "timer", "aria-label": `${libelle} ${dureeCourte(cible)}` },
+      el("p", { class: "br-compte-libelle", "aria-hidden": "true", text: libelle }),
+      el("div", { class: "br-tuiles", "aria-hidden": "true" }, groupe(j, "j", j > 1 ? "jours" : "jour"), groupe(h, "h", "h"), groupe(m, "m", "min"), groupe(sec, "s", "s")));
+  }
+  function banniereBahriot(s) {
+    const p = phaseBahriot(s);
+    const lettres = (texte) => texte.split(" ").map((mot, k) => el("span", { class: "br-mot" }, mot.split("").map((c, i) => el("span", { class: "br-lettre", style: `--i:${k * 6 + i}`, text: c }))));
+    return el("div", { class: `br-banniere phase-${p.cle}`, "data-br-banniere": p.cle },
+      el("canvas", { class: "br-fond", "aria-hidden": "true" }),
+      el("span", { class: "br-faille", "aria-hidden": "true" }),
+      el("p", { class: "br-etat" }, el("b", { text: `Édition n° ${nombre(s.numero)}` }), ` · ${datesBahriot(s)}`),
+      el("p", { class: "br-grand", "aria-label": p.titre }, ...lettres(p.titre)),
+      p.cible > Date.now() ? compteBahriot(p.cible, p.libelle) : el("p", { class: "br-compte-libelle", text: s.phase === "comptage" ? "Le podium arrive…" : "Merci à tous !" }));
   }
   function rendreBahriot() {
     const section = $("bahriot"), z = $("bahriot-carte");
@@ -7908,16 +7943,21 @@
     // (et de nouveau dès que la phase change : la semaine commence, le podium tombe)
     if (bahriotPhase && s.phase !== bahriotPhase) bahriotMessage = null;
     if (moi?.connecte && s.phase !== "bientot" && (!bahriotDemande || s.phase !== bahriotPhase || Date.now() - bahriotDemande > (s.phase === "en-cours" ? 300_000 : 3_600_000))) { bahriotDemande = Date.now(); bahriotPhase = s.phase; agirBahriot("bahriot"); }
+    chargerAnimBahriot();
+    // on ne refait la carte que si quelque chose a changé (sans animations : chaque minute, pour le compte à rebours)
+    const sig = JSON.stringify([s, Boolean(moi?.connecte), bahriotMessage, bahriotOccupe, bahriotFete, animBr ? 1 : Math.floor(Date.now() / 60_000)]);
+    if (sig === bahriotSig && z.childElementCount) return;
+    bahriotSig = sig;
+    z.classList.toggle("br-alerte", s.phase === "en-cours" && Boolean(s.derniereSoiree));
     const bloc = [];
-    bloc.push(el("div", { class: "br-tete" },
-      el("p", { class: "br-edition" }, el("b", { text: `Édition n° ${nombre(s.numero)}` }), ` · ${datesBahriot(s)}`),
-      el("p", { class: `br-quand${s.phase === "en-cours" ? " br-direct" : ""}` }, ...quandBahriot(s))));
+    bloc.push(banniereBahriot(s));
     bloc.push(jeuxBahriot(s));
-    if (s.phase === "en-cours" && s.derniereSoiree) bloc.push(el("p", { class: "br-finale", role: "status", text: "🏴‍☠️ Dernière soirée ! Jusqu'à minuit, sur GRAND LINE, les navires des premières commus se font face." }));
+    if (s.phase === "en-cours" && s.derniereSoiree) bloc.push(el("p", { class: "br-finale", role: "status", text: "🏴‍☠️ Dernière ligne droite : jusqu'à minuit, chaque partie compte encore. Sur GRAND LINE, les navires des premières commus se font face." }));
     if (s.phase === "comptage") {
       bloc.push(el("div", { class: "br-comptage", role: "status" },
+        el("span", { class: "br-radar", "aria-hidden": "true" }),
         el("p", { class: "br-quand", text: "Minuit est passé : les dernières parties se terminent." }),
-        el("p", {}, "Dernier calcul à 0 h 20, ", el("b", { text: Date.now() < s.resultat ? `podium ici dans ${dureeCourte(s.resultat)} (à 0 h 30)` : "podium dans un instant" }), ".")));
+        el("p", { text: "Dernier calcul à 0 h 20, le podium tombe ici à 0 h 30." })));
     }
     if (s.phase === "fini") bloc.push(podiumBahriot(s));
     bloc.push(scoresBahriot(s));
@@ -7927,13 +7967,35 @@
     bloc.push(reglesBahriot(s));
     if (s.historique?.length) bloc.push(historiqueBahriot(s));
     bloc.push(el("p", { class: "note br-mention", text: "Un événement de la commu Barhaw, ni organisé ni soutenu par Riot Games. League of Legends, VALORANT, Teamfight Tactics, 2XKO, Wild Rift et Legends of Runeterra sont des marques de Riot Games, Inc." }));
+    const avant = animBr?.avant(z);
     vider(z, ...bloc);
+    animBr?.apres(z, s, { avant, fete: bahriotFete });
+    bahriotFete = null;
   }
-  // les jeux de la semaine, et comment chacun compte
+  // les jeux de la semaine, et comment chacun compte ; chacun a un petit emblème dessiné ici (jamais leurs logos)
+  const EMBLEMES_BR = {
+    lol: "M5 19 17 7M17 7l2.5-2.5M8 13l3 3M19 19 7 7M7 7 4.5 4.5M16 13l-3 3",
+    valorant: "M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5M12 6a6 6 0 1 0 .01 0Z",
+    tft: "M5 5h14v14H5ZM9 9h.01M15 9h.01M12 12h.01M9 15h.01M15 15h.01",
+    "2xko": "M3 6l6 6-6 6M21 6l-6 6 6 6M13 4l-3 8h4l-3 8",
+    wildrift: "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 16l4-8M11 18h2",
+    lor: "M4 7.5 12 4l3 7-8 3.5ZM10 9l8-2 2 9-8 2Z",
+  };
+  function emblemeBr(id) {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "br-sigle");
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", EMBLEMES_BR[id] || "");
+    svg.append(p);
+    return svg;
+  }
   function jeuxBahriot(s) {
     const comment = (j) => (j.id === "tft" && !s.jeux?.tft ? "arrive bientôt" : j.auto ? "compté tout seul" : "points de Liliano");
-    return el("ul", { class: "br-jeux", "aria-label": "Les jeux de la semaine" }, BAHRIOT_JEUX.map((j) => el("li", { class: `br-jeu${j.auto && (j.id !== "tft" || s.jeux?.tft) ? " auto" : j.auto ? " bientot" : ""}` },
-      el("b", { text: j.nom }), el("small", { text: comment(j) }))));
+    return el("ul", { class: "br-jeux", "aria-label": "Les jeux de la semaine" }, BAHRIOT_JEUX.map((j, k) => el("li", { class: `br-jeu${j.auto && (j.id !== "tft" || s.jeux?.tft) ? " auto" : j.auto ? " bientot" : ""}`, style: `--i:${k}`, "data-jeu": j.id },
+      emblemeBr(j.id), el("span", { class: "br-jeu-txt" }, el("b", { text: j.nom }), el("small", { text: comment(j) })))));
   }
   // le score des commus : une barre chacune, à leurs couleurs (les commus seulement, jamais les joueurs)
   function scoresBahriot(s) {
@@ -7954,12 +8016,12 @@
         const m = commuBahriot(x.id, x.nom);
         const sous = [`${pluriel(Number(x.inscrits) || 0, "inscrit")}`, !avant && x.actifs !== undefined ? pluriel(Number(x.actifs) || 0, "actif") : "", x.id === mienne ? "ta commu" : ""].filter(Boolean).join(" · ");
         const d = avant ? "" : detail(x);
-        return el("li", { class: `br-score${avant ? " sans-points" : ""}${k === 0 && x.points > 0 ? " en-tete" : ""}${x.id === mienne ? " br-moi" : ""}`, style: m.style },
+        return el("li", { class: `br-score${avant ? " sans-points" : ""}${k === 0 && x.points > 0 ? " en-tete" : ""}${x.id === mienne ? " br-moi" : ""}`, style: m.style, "data-br-id": x.id, "data-br-nom": m.nom },
           el("span", { class: "br-rang", text: String(k + 1) }),
-          drapeauBahriot(m, 40),
+          k === 0 && x.points > 0 && !avant ? el("span", { class: "br-drapeau-tete" }, drapeauBahriot(m, 40), el("span", { class: "br-couronne-mini", "aria-hidden": "true", text: "👑" })) : drapeauBahriot(m, 40),
           el("span", { class: "br-nom" }, el("b", { text: m.nom }), el("small", { text: sous }), d ? el("small", { class: "br-detail", text: d }) : null),
           avant ? null : el("span", { class: "br-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round(((Number(x.points) || 0) / max) * 100)}%` })),
-          avant ? null : el("b", { class: "br-points", text: `${nombre(x.points)} pts` }));
+          avant ? null : el("b", { class: "br-points", "data-points": String(Number(x.points) || 0), text: `${nombre(x.points)} pts` }));
       })));
   }
   // les lives de la flotte pendant la semaine (les chaînes Twitch des commus ; en live d'abord)
@@ -7992,8 +8054,9 @@
     };
     return el("div", { class: "br-podium-bloc" },
       el("p", { class: "br-quand" }, "La commu gagnante : ", el("b", { text: commuBahriot(p[0].id, p[0].nom).nom }), " !"),
-      el("ol", { class: "br-podium", "aria-label": "Le podium des commus" }, marche(p[1], 2), marche(p[0], 1), marche(p[2], 3)),
-      el("p", { class: "note", text: "Merci à tous les joueurs ! Les milles sont déjà sur les navires de GRAND LINE." }));
+      el("ol", { class: "br-podium", "aria-label": "Le podium des commus", "data-br-podium": `${s.id}`, "data-br-couleurs": p.map((x) => commuBahriot(x.id, x.nom).style).join("|") }, marche(p[1], 2), marche(p[0], 1), marche(p[2], 3)),
+      el("p", { class: "note", text: "Merci à tous les joueurs ! Les milles sont déjà sur les navires de GRAND LINE." }),
+      animBr ? el("button", { class: "lien-discret", type: "button", onclick: () => animBr.rejouerPodium(), text: "▶ Revoir l'annonce" }) : null);
   }
   // son inscription, ses comptes reliés et ses points
   function moiBahriot(s) {
@@ -8021,7 +8084,7 @@
     const p = m.points;
     const parJeu = p ? [["LoL", p.lol], ["VALORANT", p.valorant], ["TFT", p.tft], ["bonus", p.bonus]].filter(([, v]) => v).map(([k, v]) => `${k} ${nombre(v)}`).join(" · ") : "";
     return el("div", { class: "br-moi-bloc" },
-      el("p", {}, "✅ Inscrit pour ", el("b", { text: nomCommu }), m.enJeu || s.phase === "inscriptions" ? "." : " pour la prochaine édition."),
+      el("p", { class: "br-inscrit", style: commuBahriot(m.commu, m.nomCommu).style }, "✅ Inscrit pour ", el("b", { text: nomCommu }), m.enJeu || s.phase === "inscriptions" ? "." : " pour la prochaine édition."),
       p && (m.enJeu || s.phase === "fini") ? el("p", { class: "br-mes-points", text: `${s.phase === "fini" ? "Tu as marqué" : "Tes points"} : ${nombre(p.total)}` }) : null,
       parJeu ? el("p", { class: "note", text: parJeu }) : null,
       comptes,
@@ -8062,7 +8125,10 @@
     if (d.bahriot) monBahriot = d.bahriot;
     const s = infosBahriot();
     if (d.erreur) bahriotMessage = { texte: d.texte || (typeof d.erreur === "string" && d.erreur.length > 12 ? d.erreur : "Ça n'a pas marché, réessaie."), erreur: true };
-    else if (action === "bahriot-inscrire" && d.ok) bahriotMessage = { texte: s?.phase === "en-cours" ? "C'est parti : tes parties comptent dès maintenant !" : `C'est noté ! Rendez-vous le ${jourBahriot(s?.debut || Date.now())}.` };
+    else if (action === "bahriot-inscrire" && d.ok) {
+      bahriotMessage = { texte: s?.phase === "en-cours" ? "C'est parti : tes parties comptent dès maintenant !" : `C'est noté ! Rendez-vous le ${jourBahriot(s?.debut || Date.now())}.` };
+      if (!d.deja) bahriotFete = "inscription";
+    }
     else if (action === "bahriot-desinscrire" && d.ok) bahriotMessage = { texte: "Tu n'es plus inscrit." };
     rendreBahriot();
   }
