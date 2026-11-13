@@ -7921,12 +7921,55 @@
   function banniereBahriot(s) {
     const p = phaseBahriot(s);
     const lettres = (texte) => texte.split(" ").map((mot, k) => el("span", { class: "br-mot" }, mot.split("").map((c, i) => el("span", { class: "br-lettre", style: `--i:${k * 6 + i}`, text: c }))));
-    return el("div", { class: `br-banniere phase-${p.cle}`, "data-br-banniere": p.cle },
+    const defile = tickerBahriot(s);
+    return el("div", { class: `br-banniere phase-${p.cle}${defile ? " avec-ticker" : ""}`, "data-br-banniere": p.cle },
       el("canvas", { class: "br-fond", "aria-hidden": "true" }),
       el("span", { class: "br-faille", "aria-hidden": "true" }),
       el("p", { class: "br-etat" }, el("b", { text: `Édition n° ${nombre(s.numero)}` }), ` · ${datesBahriot(s)}`),
       el("p", { class: "br-grand" }, el("span", { class: "br-lu", text: p.titre }), el("span", { class: "br-lettres", "aria-hidden": "true" }, ...lettres(p.titre))),
-      p.cible > Date.now() ? compteBahriot(p.cible, p.libelle) : el("p", { class: "br-compte-libelle", text: s.phase === "comptage" ? "Le podium arrive…" : "Merci à tous !" }));
+      p.cible > Date.now() ? compteBahriot(p.cible, p.libelle) : el("p", { class: "br-compte-libelle", text: s.phase === "comptage" ? "Le podium arrive…" : "Merci à tous !" }),
+      multiBahriot(s),
+      defile);
+  }
+  // ×2 toute la semaine, ×3 pendant les lives de Liliano (la pastille ×3 s'allume quand il est en live)
+  function multiBahriot(s) {
+    const f = s.facteurs;
+    if (!f || s.phase === "fini" || s.phase === "comptage") return null;
+    return el("p", { class: "br-multi" },
+      el("span", { class: "br-x x2" }, el("b", { text: `×${f.semaine}` }), " toute la semaine"),
+      el("span", { class: `br-x x3${s.enLive ? " allume" : ""}` }, el("b", { text: `×${f.live}` }), s.enLive ? " Liliano est en live !" : " pendant les lives de Liliano"));
+  }
+  // le bandeau défilant (ce qu'on lit déjà plus bas, en boucle : il est caché aux lecteurs d'écran)
+  function tickerBahriot(s) {
+    const c = (s.classement || []).filter((x) => x.inscrits > 0 || x.points > 0);
+    const j = s.joueurs || [];
+    const morceaux = [];
+    if (s.phase === "fini") {
+      const p = (s.valide?.podium || c).filter((x) => x.points > 0);
+      if (p[0]) morceaux.push(`🏆 ${p[0].nom} remporte la SEMAINE BAHRIOT n° ${s.numero}`);
+      if (j[0] && s.lot) morceaux.push(`👑 ${j[0].nom} gagne ${s.lot}`);
+      if (p[1]) morceaux.push(`🥈 ${p[1].nom} · ${nombre(p[1].points)} pts`);
+      if (p[2]) morceaux.push(`🥉 ${p[2].nom} · ${nombre(p[2].points)} pts`);
+      if (s.prochaine) morceaux.push(`⏭️ Prochaine édition le ${jourBahriot(s.prochaine.debut)}`);
+    } else if (s.phase === "en-cours" || s.phase === "comptage") {
+      morceaux.push(s.phase === "comptage" ? "🧮 Le comptage est en cours" : s.derniereSoiree ? "🏴‍☠️ DERNIÈRE SOIRÉE" : "🔴 EN DIRECT");
+      if (s.enLive && s.facteurs) morceaux.push(`🔥 Liliano est en live : tes parties comptent ×${s.facteurs.live}`);
+      else if (s.facteurs && s.phase === "en-cours") morceaux.push(`⚡ ×${s.facteurs.semaine} toute la semaine · ×${s.facteurs.live} pendant les lives de Liliano`);
+      c.slice(0, 8).forEach((x, k) => morceaux.push(`${k + 1}. ${x.nom} · ${nombre(x.points)} pts`));
+      if (j[0]) morceaux.push(`👑 ${j[0].nom} mène chez les joueurs · ${nombre(j[0].total)} pts`);
+      if (s.lot) morceaux.push(`🎁 À gagner : ${s.lot}`);
+    } else if (s.phase === "inscriptions") {
+      morceaux.push("✍️ Les inscriptions sont ouvertes");
+      if (s.inscrits) morceaux.push(`${nombre(s.inscrits)} inscrit${s.inscrits > 1 ? "s" : ""}`);
+      c.slice(0, 8).forEach((x) => morceaux.push(`${x.nom} · ${pluriel(Number(x.inscrits) || 0, "inscrit")}`));
+      if (s.lot) morceaux.push(`🎁 À gagner : ${s.lot}`);
+      if (s.facteurs) morceaux.push(`⚡ Toutes les parties ×${s.facteurs.semaine} · ×${s.facteurs.live} pendant les lives de Liliano`);
+      morceaux.push("LoL · VALORANT · TFT");
+    }
+    if (morceaux.length < 2) return null;
+    const ligne = () => el("span", { class: "br-ticker-ligne" }, morceaux.map((m) => el("span", { class: "br-ticker-item", text: m })));
+    const duree = Math.max(18, Math.round(morceaux.join(" ").length * 0.22));
+    return el("div", { class: "br-ticker", "aria-hidden": "true" }, el("div", { class: "br-ticker-piste", style: `--duree:${duree}s` }, ligne(), ligne()));
   }
   function rendreBahriot() {
     const section = $("bahriot"), z = $("bahriot-carte");
@@ -7948,6 +7991,12 @@
     z.classList.toggle("br-alerte", s.phase === "en-cours" && Boolean(s.derniereSoiree));
     const bloc = [];
     bloc.push(banniereBahriot(s));
+    if (s.phase === "en-cours" && s.enLive && s.facteurs) {
+      bloc.push(el("a", { class: "br-live-x3", href: `https://www.twitch.tv/${MA_CHAINE}`, ...externe },
+        el("span", { class: "br-point", "aria-hidden": "true" }),
+        el("span", {}, el("b", { text: "Liliano est en live !" }), ` Tes parties comptent ×${s.facteurs.live} tant qu'il est en live.`),
+        el("span", { class: "br-live-x3-cta", text: "Regarder ↗" })));
+    }
     bloc.push(jeuxBahriot(s));
     if (s.lot) bloc.push(lotBahriot(s));
     if (s.phase === "en-cours" && s.derniereSoiree) bloc.push(el("p", { class: "br-finale", role: "status", text: "🏴‍☠️ Dernière ligne droite : jusqu'à minuit, chaque partie compte encore. Sur GRAND LINE, les navires des premières commus se font face." }));
@@ -7985,6 +8034,7 @@
     svg.setAttribute("class", "br-sigle");
     const p = document.createElementNS(NS, "path");
     p.setAttribute("d", EMBLEMES_BR[id] || "");
+    p.setAttribute("pathLength", "1");
     svg.append(p);
     return svg;
   }
@@ -8036,14 +8086,20 @@
   function lotBahriot(s) {
     const g = s.phase === "fini" ? s.joueurs?.[0] : null;
     if (g) {
-      return el("div", { class: "br-lot gagne", role: "status" },
+      return el("div", { class: "br-lot gagne", role: "status", "data-br-lot": s.id },
+        paillettesBr(),
         el("span", { class: "br-lot-icone", "aria-hidden": "true", text: "👑" }),
-        el("p", {}, el("b", { text: g.nom }), ` (${g.nomCommu}, ${nombre(g.total)} pts) gagne ${s.lot} !`));
+        el("p", {}, el("b", { text: g.nom }), ` (${g.nomCommu}, ${nombre(g.total)} pts) gagne ${s.lot} !`),
+        el("span", { class: "br-lot-dos", "aria-hidden": "true" }, el("span", { text: "🎁" }), el("b", { text: "Et le gagnant du lot est…" })));
     }
     return el("div", { class: "br-lot" },
+      paillettesBr(),
       el("span", { class: "br-lot-icone", "aria-hidden": "true", text: "🎁" }),
       el("p", {}, el("small", { text: "À gagner" }), el("b", { text: s.lot }), el("small", { text: "pour le n° 1 du classement des joueurs" })));
   }
+  // des paillettes dorées qui scintillent sur la carte du lot
+  const paillettesBr = () => el("span", { class: "br-paillettes", "aria-hidden": "true" },
+    [[8, 20, 0], [22, 78, 0.6], [46, 12, 1.3], [63, 70, 0.3], [80, 26, 1.8], [93, 66, 1], [35, 50, 2.2], [72, 46, 2.7]].map(([x, y, d]) => el("i", { style: `--x:${x}%;--y:${y}%;--d:${d}s` })));
   // le classement des joueurs : le top 10 (pseudo Discord, commu, total), jamais leurs parties
   function joueursBahriot(s) {
     const l = s.joueurs;
@@ -8055,12 +8111,12 @@
       el("p", { class: "br-titre", text: titre }),
       el("ol", { class: "br-liste", "aria-label": titre }, l.map((j) => {
         const m = commuBahriot(j.commu, j.nomCommu);
-        return el("li", { class: `br-joueur${j.rang === 1 ? " premier" : ""}${j.rang === place ? " br-moi" : ""}`, style: m.style },
+        return el("li", { class: `br-joueur${j.rang === 1 ? " premier" : ""}${j.rang === place ? " br-moi" : ""}`, style: m.style, "data-br-j": j.nom },
           el("span", { class: "br-rang", text: j.rang === 1 ? "👑" : String(j.rang) }),
           drapeauBahriot(m, 26),
           el("span", { class: "br-nom" }, el("b", { text: j.nom }), el("small", { text: j.rang === place ? `${m.nom} · toi` : m.nom })),
           el("span", { class: "br-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round(((Number(j.total) || 0) / max) * 100)}%` })),
-          el("b", { class: "br-points", text: `${nombre(j.total)} pts` }));
+          el("b", { class: "br-points", "data-points": String(Number(j.total) || 0), text: `${nombre(j.total)} pts` }));
       })),
       reste || place > l.length ? el("p", { class: "note", text: [reste ? `… et ${nombre(reste)} autre${reste > 1 ? "s" : ""} joueur${reste > 1 ? "s" : ""}` : "", place > l.length ? `toi : ${place}e` : ""].filter(Boolean).join(" · ") }) : null);
   }
@@ -8127,11 +8183,13 @@
       el("summary", { text: "Comment ça compte" }),
       el("ul", {},
         el("li", { text: "Toutes tes parties de la semaine comptent, à partir de ton inscription, pour la commu de ton équipage." }),
+        s.facteurs ? el("li", { text: `Pendant la semaine, chaque partie compte ×${s.facteurs.semaine}. Une partie jouée, même en partie, pendant un live de Liliano compte ×${s.facteurs.live}. Les points ci-dessous sont avant ce ×${s.facteurs.semaine} / ×${s.facteurs.live}.` }) : null,
         el("li", { text: "League of Legends : la note de chaque game de La Faille des potes (S+ 10 pts, S 7, A 5, B 3, C 1), et aussi ARAM, Arena, URF… (victoire 3, défaite 1)." }),
         el("li", { text: "VALORANT : la note de chaque partie de Valorant des potes." }),
         el("li", { text: `Teamfight Tactics : ta place (1re 10 pts, 2e 7, 3e 5, 4e 3, 5e et 6e 1), avec ton compte LoL relié.${s.jeux?.tft ? "" : " Arrive bientôt."}` }),
         el("li", { text: `Tes ${r.meilleuresParties || 10} meilleures parties de chaque jeu comptent. Jouer à 2 jeux : +${b[2] || 5}, aux 3 : +${b[3] || 10}.` }),
         el("li", { text: `Le score d'une commu : la somme de ses ${r.meilleursJoueurs || 5} meilleurs joueurs. Une grosse commu ne gagne pas juste par le nombre.` }),
+        s.facteurs ? el("li", { text: `Sur GRAND LINE aussi : pendant la semaine, tes games notées (LoL, VALORANT) font avancer le navire de ta commu ×${s.facteurs.semaine}, et ×${s.facteurs.live} pendant les lives de Liliano.` }) : null,
         el("li", { text: `Les 3 premières commus gagnent ${(r.milles || [500, 250, 100]).map((x) => nombre(x)).join(", ").replace(/, ([^,]*)$/, " et $1")} milles sur GRAND LINE.` }),
         s.lot ? el("li", { text: `Le n° 1 du classement des joueurs gagne ${s.lot}. Ton total se calcule comme pour ta commu ; à égalité, c'est celui qui a atteint ce total le premier qui gagne.` }) : null,
         s.lot ? el("li", { text: "Gratuit, sans obligation d'achat. Le lot est remis par Liliano (un code ou une carte cadeau Riot) ; pour un joueur mineur, avec l'accord d'un parent." }) : null,
