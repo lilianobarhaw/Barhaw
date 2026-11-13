@@ -7,7 +7,12 @@
 //   • le score : les barres qui se remplissent, les points qui montent, « +12 » qui s'envole, des étincelles, les commus
 //     qui changent de place en glissant, et un bandeau « X passe devant Y ! » ;
 //   • son inscription : un tampon et des confettis aux couleurs de sa commu ;
-//   • le podium : le 3e, le 2e, puis le 1er qui montent, la couronne qui tombe, les projecteurs, les feux d'artifice.
+//   • le podium : « Et la commu gagnante est… », le 3e, le 2e, puis le 1er qui montent, la couronne qui tombe, les
+//     projecteurs, les feux d'artifice ;
+//   • et aussi : un clic sur le bandeau (onde de choc, gerbe, les lettres qui sautent), une traînée d'étincelles derrière la
+//     souris, des étoiles filantes ; les emblèmes des jeux qui se dessinent ; les lignes qui arrivent une à une ; le top 10
+//     des joueurs (points qui montent, ▲ ▼ quand on change de place, « X prend la tête ») ; la carte du lot qui penche sous
+//     la souris, et qui se retourne pour révéler le gagnant ; une explosion rouge quand Liliano lance son live (×3).
 // Rien ne tourne quand le bandeau n'est pas à l'écran ou que l'onglet est caché ; moins de particules sur téléphone.
 
 const PALETTES = {
@@ -40,13 +45,14 @@ const couleursDe = (style) => [/--c1:\s*([^;]+)/.exec(style || "")?.[1], /--c2:\
 
 export function creerAnimBahriot({ zero = null } = {}) {
   const telephone = () => innerWidth < 700;
-  const memo = { points: new Map(), largeurs: new Map(), ordre: [], zeros: new Set() };
+  const memo = { points: new Map(), largeurs: new Map(), ordre: [], zeros: new Set(), live: undefined, dessine: false };
+  const memoJ = { points: new Map(), largeurs: new Map(), ordre: [] };
   const minuteurs = new Set();
   const plus_tard = (f, ms) => { const t = setTimeout(() => { minuteurs.delete(t); f(); }, ms); minuteurs.add(t); return t; };
 
   // ---------- le bandeau : la faille ----------
   const B = { el: null, canvas: null, ctx: null, w: 0, h: 0, dpr: 1, phase: "inscriptions", visible: false, ouverture: 1, intro: 0, flash: 0,
-    base: [], braises: [], arcs: [], anneaux: [], feux: [], foudre: [], prochainArc: 0, prochaineFoudre: 0, prochainFeu: 0, balayage: 0,
+    base: [], braises: [], arcs: [], anneaux: [], feux: [], foudre: [], cometes: [], prochainArc: 0, prochaineFoudre: 0, prochainFeu: 0, prochaineComete: 0, balayage: 0, trainee: 0,
     souris: { x: 0, y: 0, cx: 0, cy: 0 } };
   let raf = 0, avantT = 0;
   const vueBandeau = new IntersectionObserver((l) => {
@@ -72,6 +78,27 @@ export function creerAnimBahriot({ zero = null } = {}) {
       const r = el.getBoundingClientRect();
       B.souris.x = ((ev.clientX - r.left) / r.width - 0.5) * 2;
       B.souris.y = ((ev.clientY - r.top) / r.height - 0.5) * 2;
+      // une traînée d'étincelles derrière la souris (pas au doigt)
+      const t = performance.now();
+      if (ev.pointerType === "mouse" && t - B.trainee > 35 && B.feux.length < 380) {
+        B.trainee = t;
+        const c = PALETTES[B.phase] || PALETTES.inscriptions;
+        B.feux.push({ x: ev.clientX - r.left, y: ev.clientY - r.top, vx: hasard(-25, 25), vy: hasard(-50, -10), vie: 1, duree: hasard(0.45, 0.8), c: choix(c), r: hasard(0.9, 1.8), g: -40 });
+      }
+    }, { passive: true });
+    // un clic (ou un doigt) sur le bandeau : une onde de choc, une gerbe, et les lettres sautent
+    el.addEventListener("pointerdown", (ev) => {
+      if (ev.target.closest?.("a, button")) return;
+      const r = el.getBoundingClientRect();
+      const x = ev.clientX - r.left, y = ev.clientY - r.top;
+      onde(x, y, 0.8);
+      gerbe(x, y, telephone() ? 18 : 30);
+      B.flash = Math.max(B.flash, 0.18);
+      el.classList.remove("br-saut");
+      void el.offsetWidth;
+      el.classList.add("br-saut");
+      plus_tard(() => el.classList.remove("br-saut"), 1300);
+      boucle();
     }, { passive: true });
     el.addEventListener("pointerleave", () => { B.souris.x = 0; B.souris.y = 0; }, { passive: true });
     redimensionner();
@@ -266,6 +293,21 @@ export function creerAnimBahriot({ zero = null } = {}) {
       onde(x, y, 0.35);
       B.prochainFeu = s + hasard(1.2, 2.6);
     }
+    // les étoiles filantes
+    if (B.ouverture > 0.9 && s > B.prochaineComete) {
+      if (B.prochaineComete) B.cometes.push({ x: hasard(-0.1 * w, 0.55 * w), y: hasard(-10, h * 0.3), vx: hasard(420, 680), vy: hasard(90, 170), vie: 1 });
+      B.prochaineComete = s + hasard(4, 10);
+    }
+    for (const c of B.cometes) {
+      c.x += c.vx * dt; c.y += c.vy * dt; c.vie -= dt * 0.9;
+      const queue = g.createLinearGradient(c.x - c.vx * 0.16, c.y - c.vy * 0.16, c.x, c.y);
+      queue.addColorStop(0, "rgba(255,255,255,0)");
+      queue.addColorStop(1, hexA("#ffffff", Math.max(0, c.vie) * 0.9));
+      g.beginPath(); g.moveTo(c.x - c.vx * 0.16, c.y - c.vy * 0.16); g.lineTo(c.x, c.y);
+      g.lineWidth = 2; g.strokeStyle = queue; g.stroke();
+      g.beginPath(); g.arc(c.x, c.y, 1.8, 0, Math.PI * 2); g.fillStyle = hexA(pal[2], Math.max(0, c.vie)); g.fill();
+    }
+    B.cometes = B.cometes.filter((c) => c.vie > 0 && c.x < w + 40 && c.y < h + 40);
     // les braises
     for (const b of B.braises) {
       b.x += (b.vx + Math.sin(s * 1.3 + b.p) * 10 + B.souris.cx * 6) * dt * hum.braises;
@@ -455,8 +497,7 @@ export function creerAnimBahriot({ zero = null } = {}) {
     barre.parentElement.parentElement.append(z);
     plus_tard(() => z.remove(), 900);
   }
-  function bandeauDepasse(zone, texte) {
-    const liste = zone.querySelector(".br-scores");
+  function bandeauDepasse(liste, texte) {
     if (!liste) return;
     liste.querySelector(".br-depasse")?.remove();
     const b = Object.assign(document.createElement("p"), { className: "br-depasse", textContent: texte });
@@ -465,39 +506,49 @@ export function creerAnimBahriot({ zero = null } = {}) {
     plus_tard(() => b.classList.add("part"), 4200);
     plus_tard(() => b.remove(), 4800);
   }
-  function animerScores(zone, avant) {
-    const liste = zone.querySelector(".br-liste");
-    const lignes = [...zone.querySelectorAll(".br-liste [data-br-id]")];
+  // une liste qui s'anime : les commus (data-br-id) ou les joueurs (data-br-j)
+  function animerListe(conteneur, { cle, m, avant, toast }) {
+    const liste = conteneur?.querySelector(".br-liste");
+    const lignes = liste ? [...liste.querySelectorAll(`[data-${cle}]`)] : [];
     if (!liste || !lignes.length) return;
-    const premiere = memo.points.size === 0;
-    // les commus qui changent de place glissent jusqu'à la nouvelle
-    if (avant?.places) {
+    const nomCle = cle.replace(/-(\w)/g, (_, c) => c.toUpperCase());
+    const premiere = m.points.size === 0;
+    // les lignes qui changent de place glissent jusqu'à la nouvelle
+    if (avant) {
       const haut = liste.getBoundingClientRect().top;
       for (const l of lignes) {
-        const y0 = avant.places.get(l.dataset.brId);
+        const y0 = avant.get(l.dataset[nomCle]);
         if (y0 === undefined) continue;
         const dy = y0 - (l.getBoundingClientRect().top - haut);
         if (Math.abs(dy) > 2) l.animate([{ transform: `translateY(${dy}px)`, zIndex: 2 }, { transform: "none", zIndex: 2 }], { duration: 800, easing: "cubic-bezier(.2,.8,.2,1)" });
       }
     }
     const ordre = [];
+    const avantOrdre = m.ordre;
     lignes.forEach((l, k) => {
-      const id = l.dataset.brId;
+      const id = l.dataset[nomCle];
       const b = l.querySelector("[data-points]");
       const barre = l.querySelector(".br-barre i");
       if (!b) return;
       const v = Number(b.dataset.points) || 0;
       const largeur = parseFloat(barre?.style.width) || 0;
-      const ancien = memo.points.get(id), ancienneL = memo.largeurs.get(id) ?? 0;
-      memo.points.set(id, v);
-      memo.largeurs.set(id, largeur);
+      const ancien = m.points.get(id), ancienneL = m.largeurs.get(id) ?? 0;
+      m.points.set(id, v);
+      m.largeurs.set(id, largeur);
       ordre.push({ id, nom: l.dataset.brNom || id, v });
       if (ancien === undefined) {
         if (!premiere) return;
-        // la première fois : les barres se remplissent et les points montent quand le score arrive à l'écran
+        // la première fois : les lignes arrivent une à une, les barres se remplissent, les points montent
         b.textContent = "0 pts";
         if (barre) { barre.style.transition = "none"; barre.style.width = "0%"; }
-        attendreVue(liste, () => { remplir(barre, 0, largeur, k * 140); plus_tard(() => compter(b, 0, v), k * 140); });
+        l.classList.add("br-attend");
+        l.style.setProperty("--i", String(k));
+        attendreVue(liste, () => {
+          l.classList.remove("br-attend");
+          l.classList.add("br-entre");
+          remplir(barre, 0, largeur, 250 + k * 110);
+          plus_tard(() => compter(b, 0, v), 250 + k * 110);
+        });
         return;
       }
       if (ancien !== v || ancienneL !== largeur) {
@@ -505,22 +556,40 @@ export function creerAnimBahriot({ zero = null } = {}) {
         compter(b, ancien, v, 1000);
         if (v > ancien) { flotteur(l, v - ancien); plus_tard(() => etincelles(l, barre), 700); }
       }
+      // ▲ / ▼ quand on change de place
+      const iAvant = avantOrdre.indexOf(id);
+      if (!premiere && iAvant >= 0 && iAvant !== k) {
+        const f = Object.assign(document.createElement("span"), { className: `br-fleche ${iAvant > k ? "monte" : "descend"}`, textContent: `${iAvant > k ? "▲" : "▼"}${Math.abs(iAvant - k)}` });
+        f.setAttribute("aria-hidden", "true");
+        l.append(f);
+        plus_tard(() => f.remove(), 6000);
+      }
     });
-    // quelqu'un passe devant ?
-    const avantOrdre = memo.ordre;
-    memo.ordre = ordre.map((x) => x.id);
+    m.ordre = ordre.map((x) => x.id);
     if (premiere || avantOrdre.length < 2) return;
-    for (let i = 0; i < ordre.length; i++) {
-      const x = ordre[i];
-      const iAvant = avantOrdre.indexOf(x.id);
-      if (iAvant <= i || x.v <= 0) continue;
-      const depasse = ordre.slice(i + 1).find((y) => avantOrdre.indexOf(y.id) < iAvant && avantOrdre.indexOf(y.id) >= i);
-      if (!depasse) continue;
-      bandeauDepasse(zone, i === 0 ? `👑 ${x.nom} prend la tête !` : `⚔️ ${x.nom} passe devant ${depasse.nom} !`);
-      const l = lignes.find((y) => y.dataset.brId === x.id);
-      if (l) { l.classList.remove("br-eclat"); void l.offsetWidth; l.classList.add("br-eclat"); }
-      break;
-    }
+    toast?.(ordre, avantOrdre, lignes);
+  }
+  function animerScores(zone, avant) {
+    animerListe(zone.querySelector(".br-scores:not(.br-joueurs)"), { cle: "br-id", m: memo, avant: avant?.places, toast: (ordre, avantOrdre, lignes) => {
+      for (let i = 0; i < ordre.length; i++) {
+        const x = ordre[i];
+        const iAvant = avantOrdre.indexOf(x.id);
+        if (iAvant <= i || x.v <= 0) continue;
+        const depasse = ordre.slice(i + 1).find((y) => avantOrdre.indexOf(y.id) < iAvant && avantOrdre.indexOf(y.id) >= i);
+        if (!depasse) continue;
+        bandeauDepasse(zone.querySelector(".br-scores:not(.br-joueurs)"), i === 0 ? `👑 ${x.nom} prend la tête !` : `⚔️ ${x.nom} passe devant ${depasse.nom} !`);
+        const l = lignes.find((y) => y.dataset.brId === x.id);
+        if (l) { l.classList.remove("br-eclat"); void l.offsetWidth; l.classList.add("br-eclat"); }
+        break;
+      }
+    } });
+    animerListe(zone.querySelector(".br-joueurs"), { cle: "br-j", m: memoJ, avant: avant?.placesJ, toast: (ordre, avantOrdre, lignes) => {
+      if (ordre[0] && avantOrdre[0] !== ordre[0].id) {
+        bandeauDepasse(zone.querySelector(".br-joueurs"), `👑 ${ordre[0].id} prend la tête des joueurs !`);
+        const l = lignes[0];
+        if (l) { l.classList.remove("br-eclat"); void l.offsetWidth; l.classList.add("br-eclat"); }
+      }
+    } });
   }
 
   // ---------- le podium ----------
@@ -530,6 +599,19 @@ export function creerAnimBahriot({ zero = null } = {}) {
     ol.classList.remove("pas-1", "pas-2", "pas-3", "fige");
     ol.classList.add("anim");
     void ol.offsetWidth;
+    // « Et la commu gagnante est… », tapé lettre par lettre, à la place du nom
+    const bloc = ol.closest(".br-podium-bloc");
+    const ligne = bloc?.querySelector(":scope > .br-quand");
+    if (bloc && ligne) {
+      bloc.querySelector(".br-suspense")?.remove();
+      const t = Object.assign(document.createElement("p"), { className: "br-suspense" });
+      t.setAttribute("aria-hidden", "true");
+      bloc.insertBefore(t, ligne);
+      bloc.classList.add("suspense");
+      const phrase = "Et la commu gagnante est…";
+      [...phrase].forEach((_, i) => plus_tard(() => { t.textContent = phrase.slice(0, i + 1); }, 60 + i * 55));
+      plus_tard(() => { t.remove(); bloc.classList.remove("suspense"); ligne.classList.remove("br-pop"); void ligne.offsetWidth; ligne.classList.add("br-pop"); }, 2050);
+    }
     plus_tard(() => ol.classList.add("pas-3"), 250);
     plus_tard(() => ol.classList.add("pas-2"), 1150);
     plus_tard(() => ol.classList.add("pas-1"), 2050);
@@ -550,6 +632,34 @@ export function creerAnimBahriot({ zero = null } = {}) {
     attendreVue(ol, () => jouerPodium(ol), 0.4);
   }
 
+  // ---------- le lot ----------
+  function lot(zone) {
+    const c = zone.querySelector(".br-lot");
+    if (!c) return;
+    c.addEventListener("pointermove", (ev) => {
+      if (ev.pointerType !== "mouse") return;
+      const r = c.getBoundingClientRect();
+      const x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height;
+      c.style.setProperty("--ry", `${((x - 0.5) * 10).toFixed(2)}deg`);
+      c.style.setProperty("--rx", `${((0.5 - y) * 8).toFixed(2)}deg`);
+      c.style.setProperty("--mx", `${Math.round(x * 100)}%`);
+      c.style.setProperty("--my", `${Math.round(y * 100)}%`);
+    }, { passive: true });
+    c.addEventListener("pointerleave", () => { c.style.setProperty("--rx", "0deg"); c.style.setProperty("--ry", "0deg"); }, { passive: true });
+    if (!c.classList.contains("gagne") || !c.dataset.brLot) return;
+    const cle = `br-lot-${c.dataset.brLot}`;
+    if (lire(cle)) return;
+    c.classList.add("cache");
+    attendreVue(c, () => {
+      plus_tard(() => {
+        c.classList.add("retourne");
+        const r = c.getBoundingClientRect();
+        fete(r.left + r.width / 2, r.top + r.height / 2, ["#ffd36b", "#ff9f1c", "#fff3c4"], { n: telephone() ? 90 : 170, feux: 2 });
+        ecrire(cle, "1");
+      }, 900);
+    }, 0.6);
+  }
+
   // ---------- son inscription ----------
   function inscription(zone) {
     const p = zone.querySelector(".br-inscrit");
@@ -560,12 +670,15 @@ export function creerAnimBahriot({ zero = null } = {}) {
   }
 
   return {
-    // avant que site.js refasse la carte : où était chaque commu
+    // avant que site.js refasse la carte : où était chaque commu, chaque joueur
     avant(zone) {
-      const liste = zone.querySelector(".br-liste");
-      if (!liste) return null;
-      const haut = liste.getBoundingClientRect().top;
-      return { places: new Map([...liste.querySelectorAll("[data-br-id]")].map((l) => [l.dataset.brId, l.getBoundingClientRect().top - haut])) };
+      const places = (sel, cle) => {
+        const liste = zone.querySelector(`${sel} .br-liste`);
+        if (!liste) return null;
+        const haut = liste.getBoundingClientRect().top;
+        return new Map([...liste.querySelectorAll(`[data-${cle}]`)].map((l) => [cle === "br-id" ? l.dataset.brId : l.dataset.brJ, l.getBoundingClientRect().top - haut]));
+      };
+      return { places: places(".br-scores:not(.br-joueurs)", "br-id"), placesJ: places(".br-joueurs", "br-j") };
     },
     // après : on branche le bandeau et on anime ce qui a changé
     apres(zone, s, { avant = null, fete: f = null } = {}) {
@@ -575,7 +688,21 @@ export function creerAnimBahriot({ zero = null } = {}) {
       animerScores(zone, avant);
       if (s?.phase === "fini") podium(zone);
       if (f === "inscription") inscription(zone);
+      lot(zone);
       for (const j of zone.querySelectorAll(".br-jeu")) j.classList.add("br-brille");
+      // les emblèmes des jeux se dessinent, la première fois qu'on les voit
+      const jeux = zone.querySelector(".br-jeux");
+      if (jeux && !memo.dessine) { memo.dessine = true; jeux.classList.add("br-a-dessiner"); attendreVue(jeux, () => { jeux.classList.remove("br-a-dessiner"); jeux.classList.add("br-dessine"); }, 0.5); }
+      // Liliano lance son live pendant la semaine : ×3, une explosion rouge
+      if (s?.enLive && memo.live === false && B.el) {
+        B.flash = 0.9;
+        onde(B.w / 2, B.h / 2, 1.8);
+        gerbe(B.w / 2, B.h / 2, telephone() ? 40 : 70);
+        const r = B.el.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < innerHeight) fete(r.left + r.width / 2, r.top + r.height / 2, ["#ff3b30", "#ff4f9a", "#ffd36b"], { n: telephone() ? 100 : 180, feux: 2 });
+        boucle();
+      }
+      memo.live = Boolean(s?.enLive);
     },
     rejouerPodium() { jouerPodium(document.querySelector("[data-br-podium]")); },
     fete,
