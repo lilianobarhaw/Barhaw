@@ -3479,7 +3479,7 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 @media (prefers-reduced-motion: reduce) { .caritatif-coeurs { display: none; } .caritatif-doudou, .caritatif-doudou.grand, .caritatif-carte, .caritatif-intro { animation: none; } .caritatif-intro { transition: none; } }
 
 /* ---------- la VF 1.0 : la SEMAINE BAHRIOT (toute la flotte sur les jeux Riot, tous les 3 mois) ---------- */
-.bahriot { display: grid; gap: 18px; justify-items: center; text-align: center; }
+.bahriot { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; justify-items: center; text-align: center; }
 .carte.bahriot { padding: clamp(20px, 3vw, 32px) clamp(12px, 3vw, 32px); }
 .br-tete { display: grid; gap: 4px; justify-items: center; }
 .br-edition { margin: 0; color: var(--brume); }
@@ -3547,7 +3547,6 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 .br-regles ul { display: grid; gap: 4px; margin: 8px 0 0; padding-left: 18px; color: var(--brume); font-size: 14px; }
 .br-histo { margin: 0; color: var(--terne); font-size: 13px; }
 .br-mention { max-width: 640px; margin: 0; font-size: 11.5px; }
-@media (max-width: 560px) { .br-jeux { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) { .br-score { grid-template-columns: 18px 34px minmax(0, 1fr) auto; gap: 6px 8px; padding: 9px 10px; } .br-score .br-drapeau { width: 34px; height: 34px; } .br-points { font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { .br-direct .br-point, .br-live.allume .br-point { animation: none; } .br-barre i { transition: none; } }
 /* la SEMAINE BAHRIOT : le bandeau (la faille, la phase en très grand, le compte à rebours) et les animations (js/bahriot-anim.js) */
@@ -3564,6 +3563,8 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 .phase-derniere .br-grand { color: #fff1ec; text-shadow: 0 0 24px rgba(255, 59, 48, 0.95), 0 0 3px #fff, 4px 4px 0 #7a0d16; animation: br-glitch 2.6s steps(1) infinite; }
 .phase-comptage .br-grand { text-shadow: 0 0 22px rgba(95, 208, 216, 0.85), 0 0 3px #fff, 4px 4px 0 #0f4a55; }
 .phase-fini .br-grand { color: #fff6d6; text-shadow: 0 0 24px rgba(255, 211, 107, 0.9), 0 0 3px #fff, 4px 4px 0 #8a5a00; }
+.br-lettres { display: contents; }
+.br-lu { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .br-mot { display: inline-flex; white-space: nowrap; }
 .br-lettre { display: inline-block; }
 .br-attente .br-lettre, .br-attente .br-etat, .br-attente .br-rebours { opacity: 0; }
@@ -3601,6 +3602,8 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 .br-jeu:hover { transform: translateY(-3px) rotate(-1deg); border-color: var(--rose); box-shadow: 4px 4px 0 var(--ombre); }
 .br-jeu:hover .br-sigle { animation: br-sigle 0.6s ease; }
 @keyframes br-sigle { 50% { transform: scale(1.25) rotate(-10deg); } }
+/* sur téléphone : l'emblème au-dessus du nom, les trois jeux sur une ligne */
+@media (max-width: 560px) { .br-jeux .br-jeu { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 4px; padding: 10px 6px; text-align: center; } .br-jeu-txt { justify-items: center; } .br-jeux .br-jeu b { font-size: 12.5px; overflow-wrap: anywhere; } }
 /* le score */
 @property --br-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 .br-score { position: relative; }

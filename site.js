@@ -7871,9 +7871,6 @@
     { id: "lol", nom: "League of Legends", auto: true },
     { id: "valorant", nom: "VALORANT", auto: true },
     { id: "tft", nom: "Teamfight Tactics", auto: true },
-    { id: "2xko", nom: "2XKO" },
-    { id: "wildrift", nom: "Wild Rift" },
-    { id: "lor", nom: "Legends of Runeterra" },
   ];
   let monBahriot = null, bahriotOccupe = false, bahriotMessage = null, bahriotDemande = 0, bahriotPhase = "";
   // les animations (js/bahriot-anim.js) : chargées seulement si l'appareil ne demande pas moins d'animations
@@ -7928,7 +7925,7 @@
       el("canvas", { class: "br-fond", "aria-hidden": "true" }),
       el("span", { class: "br-faille", "aria-hidden": "true" }),
       el("p", { class: "br-etat" }, el("b", { text: `Édition n° ${nombre(s.numero)}` }), ` · ${datesBahriot(s)}`),
-      el("p", { class: "br-grand", "aria-label": p.titre }, ...lettres(p.titre)),
+      el("p", { class: "br-grand" }, el("span", { class: "br-lu", text: p.titre }), el("span", { class: "br-lettres", "aria-hidden": "true" }, ...lettres(p.titre))),
       p.cible > Date.now() ? compteBahriot(p.cible, p.libelle) : el("p", { class: "br-compte-libelle", text: s.phase === "comptage" ? "Le podium arrive…" : "Merci à tous !" }));
   }
   function rendreBahriot() {
@@ -7966,7 +7963,7 @@
     if (bahriotMessage) bloc.push(el("p", { class: bahriotMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: bahriotMessage.texte }));
     bloc.push(reglesBahriot(s));
     if (s.historique?.length) bloc.push(historiqueBahriot(s));
-    bloc.push(el("p", { class: "note br-mention", text: "Un événement de la commu Barhaw, ni organisé ni soutenu par Riot Games. League of Legends, VALORANT, Teamfight Tactics, 2XKO, Wild Rift et Legends of Runeterra sont des marques de Riot Games, Inc." }));
+    bloc.push(el("p", { class: "note br-mention", text: "Un événement de la commu Barhaw, ni organisé ni soutenu par Riot Games. League of Legends, VALORANT et Teamfight Tactics sont des marques de Riot Games, Inc." }));
     const avant = animBr?.avant(z);
     vider(z, ...bloc);
     animBr?.apres(z, s, { avant, fete: bahriotFete });
@@ -7977,9 +7974,6 @@
     lol: "M5 19 17 7M17 7l2.5-2.5M8 13l3 3M19 19 7 7M7 7 4.5 4.5M16 13l-3 3",
     valorant: "M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5M12 6a6 6 0 1 0 .01 0Z",
     tft: "M5 5h14v14H5ZM9 9h.01M15 9h.01M12 12h.01M9 15h.01M15 15h.01",
-    "2xko": "M3 6l6 6-6 6M21 6l-6 6 6 6M13 4l-3 8h4l-3 8",
-    wildrift: "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 16l4-8M11 18h2",
-    lor: "M4 7.5 12 4l3 7-8 3.5ZM10 9l8-2 2 9-8 2Z",
   };
   function emblemeBr(id) {
     const NS = "http://www.w3.org/2000/svg";
@@ -7993,7 +7987,7 @@
     return svg;
   }
   function jeuxBahriot(s) {
-    const comment = (j) => (j.id === "tft" && !s.jeux?.tft ? "arrive bientôt" : j.auto ? "compté tout seul" : "points de Liliano");
+    const comment = (j) => (j.id === "tft" && !s.jeux?.tft ? "arrive bientôt" : "compté tout seul");
     return el("ul", { class: "br-jeux", "aria-label": "Les jeux de la semaine" }, BAHRIOT_JEUX.map((j, k) => el("li", { class: `br-jeu${j.auto && (j.id !== "tft" || s.jeux?.tft) ? " auto" : j.auto ? " bientot" : ""}`, style: `--i:${k}`, "data-jeu": j.id },
       emblemeBr(j.id), el("span", { class: "br-jeu-txt" }, el("b", { text: j.nom }), el("small", { text: comment(j) })))));
   }
@@ -8007,7 +8001,7 @@
     const titre = avant ? "Les commus de la flotte" : s.phase === "en-cours" ? "Le score en direct (recalculé toutes les 5 minutes)" : s.phase === "comptage" ? "Le score provisoire" : "Le classement final";
     const detail = (x) => {
       const d = x.detail || {};
-      const morceaux = [["LoL", d.lol], ["VALORANT", d.valorant], ["TFT", d.tft], ["bonus", d.bonus], ["Liliano", d.main]].filter(([, v]) => v);
+      const morceaux = [["LoL", d.lol], ["VALORANT", d.valorant], ["TFT", d.tft], ["bonus", d.bonus]].filter(([, v]) => v);
       return morceaux.length ? morceaux.map(([k, v]) => `${k} ${nombre(v)}`).join(" · ") : "";
     };
     return el("div", { class: "br-scores" },
@@ -8101,9 +8095,8 @@
         el("li", { text: "League of Legends : la note de chaque game de La Faille des potes (S+ 10 pts, S 7, A 5, B 3, C 1), et aussi ARAM, Arena, URF… (victoire 3, défaite 1)." }),
         el("li", { text: "VALORANT : la note de chaque partie de Valorant des potes." }),
         el("li", { text: `Teamfight Tactics : ta place (1re 10 pts, 2e 7, 3e 5, 4e 3, 5e et 6e 1), avec ton compte LoL relié.${s.jeux?.tft ? "" : " Arrive bientôt."}` }),
-        el("li", { text: "2XKO, Wild Rift, Legends of Runeterra : des points ajoutés par Liliano (défis, tournois en live)." }),
         el("li", { text: `Tes ${r.meilleuresParties || 10} meilleures parties de chaque jeu comptent. Jouer à 2 jeux : +${b[2] || 5}, aux 3 : +${b[3] || 10}.` }),
-        el("li", { text: `Le score d'une commu : ses ${r.meilleursJoueurs || 5} meilleurs joueurs, plus les points de Liliano. Une grosse commu ne gagne pas juste par le nombre.` }),
+        el("li", { text: `Le score d'une commu : la somme de ses ${r.meilleursJoueurs || 5} meilleurs joueurs. Une grosse commu ne gagne pas juste par le nombre.` }),
         el("li", { text: `Les 3 premières commus gagnent ${(r.milles || [500, 250, 100]).map((x) => nombre(x)).join(", ").replace(/, ([^,]*)$/, " et $1")} milles sur GRAND LINE.` }),
         el("li", { text: "Pas de MMR, pas de rang, pas de paris. Le site ne montre que les commus : personne d'autre ne voit tes parties." })));
   }
