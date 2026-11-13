@@ -363,13 +363,13 @@
     { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "tournoi", "evenements"] },
     { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
-    { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["soiree", "potes", "youtube", "discord"] },
+    { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
     chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], tournoi: ["trophee", "Le TOURNOI BARHAW"],
     evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
-    faille: ["epees", "Les games de LoL entre potes"], soiree: ["trophee", "Commu contre commu sur Fortnite"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
+    faille: ["epees", "Les games de LoL entre potes"], bahriot: ["trophee", "Toute la flotte sur les jeux Riot"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
   };
   const TAILLES_OBJETS = { camera: 84, bouteille: 203, borne: 100, chopes: 106, casque: 177, trophee: 112, lanterne: 99, panneau: 126, gamelle: 244, coffre: 150, epees: 144, clap: 187, cloche: 159 };
   const objetMenu = (nom, classe) => el("img", { class: classe, src: `/img/objets/${nom}.webp`, alt: "", width: Math.round((TAILLES_OBJETS[nom] || 120) / 4), height: 40, loading: "lazy", decoding: "async" });
@@ -5500,15 +5500,17 @@
   }
   if (new URLSearchParams(location.search).has("3d")) window.__glAmbiance = (phase, allure = "vite") => { ambianceForcee = AMBIANCES[phase] ? phase : ""; const a = majAmbianceGL(allure); if (infosGL()) rendreHudGL(infosGL()); return a; }; // pour les essais
 
-  // Un défi entre commus, vu sur la carte (V4). Aujourd'hui : la Soirée Fortnite. Pendant la soirée, les navires des commus
-  // inscrites quittent leur route et se font face dans une arène ; une fois le résultat validé, le vainqueur porte la couronne (36 h).
+  // Un défi entre commus, vu sur la carte (V4). Aujourd'hui : la SEMAINE BAHRIOT. Pendant sa dernière soirée (le dimanche
+  // à 20 h) et jusqu'au podium, les navires des premières commus quittent leur route et se font face dans une arène ; une
+  // fois le podium figé, le vainqueur porte la couronne 7 jours (le temps que le podium reste à l'affiche).
   function defiGL() {
-    const s = donnees?.soiree;
-    if (!s || !Array.isArray(s.commus) || !v4Ouverte()) return null;
-    const base = { id: String(s.id || "soiree"), nom: String(s.nom || "Le défi des commus"), commus: s.commus, scores: Object.fromEntries((s.classement || []).map((x) => [x.id, Number(x.points) || 0])) };
-    if (s.phase === "en-cours" || s.phase === "comptage") return { ...base, phase: "combat" };
+    const s = donnees?.bahriot;
+    if (!s || !Array.isArray(s.classement) || !v4Ouverte()) return null;
+    const enJeu = s.classement.filter((x) => ID_COMMU.test(String(x?.id || "")) && (x.inscrits > 0 || x.points > 0));
+    const base = { id: String(s.id || "bahriot"), nom: String(s.nom || "La SEMAINE BAHRIOT"), commus: enJeu.map((x) => x.id), scores: Object.fromEntries(enJeu.map((x) => [x.id, Number(x.points) || 0])) };
+    if ((s.phase === "en-cours" && s.derniereSoiree) || s.phase === "comptage") return enJeu.length >= 2 ? { ...base, phase: "combat" } : null;
     const premier = s.valide?.podium?.[0];
-    if (s.phase === "fini" && premier?.points > 0 && Date.now() - (Number(s.valide.t) || 0) < 36 * 3600_000) return { ...base, phase: "victoire", gagnant: premier.id };
+    if (s.phase === "fini" && premier?.points > 0) return { ...base, phase: "victoire", gagnant: premier.id };
     return null;
   }
   function donneesCarteGL(g) {
@@ -7704,7 +7706,7 @@
     rendreEscale();
     rendreEntete();
     rendreFideles();
-    rendreSoiree();
+    rendreBahriot();
     rendreMaintenant();
     rendreEvenements();
     bulleAccueil();
@@ -7861,125 +7863,208 @@
       el("p", { class: "note", text: `${nombre(f.relies || 0)} ${(f.relies || 0) > 1 ? "fidèles reliés" : "fidèle relié"} · seuls ceux qui ont relié leur Twitch apparaissent, avec leur pseudo Discord. Twitch ne compte que les viewers connectés au chat (connectés à leur compte, chat ouvert).` }),
     );
   }
-  // ---------- la VF 1.0 : la Soirée Fortnite des commus (le bot compte : lib/soiree.js) ----------
-  // Avant : le compte à rebours, les 3 commus, l'inscription (son pseudo Epic, stats publiques). Pendant : le score des
-  // commus en direct. Après : le podium. Jamais le pseudo d'un autre joueur : seulement les commus, et ses propres points.
-  const SOIREE_NOMS = { barhaw: "Barhaw", veyzo: "Veyzo Family", kikso: "Squirt.exe" };
-  let maSoiree = null, soireeOccupee = false, soireeMessage = null, soireeDemandee = false;
-  // les données publiques (phase, score) viennent toujours de /api/public ; la réponse du bot pour le membre ne sert que pour
-  // « moi » (sinon une page ouverte avant la soirée resterait bloquée sur l'ancienne phase)
-  const infosSoiree = () => (donnees?.soiree ? { ...donnees.soiree, moi: maSoiree ? maSoiree.moi : donnees.soiree.moi } : null);
-  function rendreSoiree() {
-    const section = $("soiree"), z = $("soiree-carte");
-    const s = infosSoiree();
+  // ---------- la VF 1.0 : la SEMAINE BAHRIOT (le bot compte : lib/bahriot.js) ----------
+  // Une semaine tous les 3 mois où toute la flotte s'affronte sur les jeux Riot. Avant : les dates, le compte à rebours,
+  // l'inscription. Pendant : le score des commus (recalculé toutes les 5 minutes) et les lives de la flotte. Après : le
+  // podium. Jamais le pseudo d'un autre joueur : seulement les commus, et ses propres points.
+  const BAHRIOT_JEUX = [
+    { id: "lol", nom: "League of Legends", auto: true },
+    { id: "valorant", nom: "VALORANT", auto: true },
+    { id: "tft", nom: "Teamfight Tactics", auto: true },
+    { id: "2xko", nom: "2XKO" },
+    { id: "wildrift", nom: "Wild Rift" },
+    { id: "lor", nom: "Legends of Runeterra" },
+  ];
+  let monBahriot = null, bahriotOccupe = false, bahriotMessage = null, bahriotDemande = 0, bahriotPhase = "";
+  // les données publiques (phase, score) viennent toujours de /api/public ; la réponse du bot pour le membre ne sert que pour « moi »
+  const infosBahriot = () => (donnees?.bahriot ? { ...donnees.bahriot, moi: monBahriot ? monBahriot.moi : donnees.bahriot.moi } : null);
+  const jourBahriot = (t, o = {}) => new Date(t).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", ...o });
+  const datesBahriot = (s) => `du ${jourBahriot(s.debut)} au ${jourBahriot(s.fin - 3600_000)}`;
+  // une commu de la flotte : son drapeau (ou son emblème sur ses couleurs) et son nom
+  function commuBahriot(id, nom = "") {
+    const c = commu(id) || (Array.isArray(donnees?.flotte?.commus) ? donnees.flotte.commus.find((x) => x?.id === id) : null) || { id, nom };
+    const n = String(c.nom || nom || id);
+    return { id, nom: n, image: drapeauImage(c), style: styleCommu(c), embleme: String(c.embleme || n[0] || "?").slice(0, 2), twitch: c.twitch || "", live: Boolean(c.live) };
+  }
+  const drapeauBahriot = (c, taille) => (c.image
+    ? el("img", { class: "br-drapeau", src: c.image, alt: "", width: taille, height: taille, loading: "lazy", decoding: "async" })
+    : el("span", { class: "br-drapeau br-embleme", style: c.style, "aria-hidden": "true", text: c.embleme }));
+  function quandBahriot(s) {
+    if (s.phase === "bientot") return ["Inscriptions dans ", el("b", { text: dureeCourte(s.inscriptions) })];
+    if (s.phase === "inscriptions") return ["Ça commence dans ", el("b", { text: dureeCourte(s.debut) })];
+    if (s.phase === "en-cours") return [el("span", { class: "br-point", "aria-hidden": "true" }), "C'est parti ! ", el("b", { text: `Fin dans ${dureeCourte(s.fin)}` })];
+    if (s.phase === "comptage") return ["Le podium arrive"];
+    return s.prochaine ? ["La prochaine : ", el("b", { text: `le ${jourBahriot(s.prochaine.debut, { year: "numeric" })}` })] : ["Merci à tous !"];
+  }
+  function rendreBahriot() {
+    const section = $("bahriot"), z = $("bahriot-carte");
+    const s = infosBahriot();
     if (!section || !z) return;
     section.hidden = !s || !document.documentElement.classList.contains("v4");
-    const pastille = $("pastille-soiree");
+    const pastille = $("pastille-bahriot");
     if (pastille) pastille.hidden = s?.phase !== "en-cours";
     if (!s || section.hidden) return;
-    // connecté : on demande une fois au bot si on est inscrit (et ses points)
-    // (et toutes les 5 minutes pendant la soirée, pour ses points)
-    if (moi?.connecte && s.phase !== "bientot" && (!soireeDemandee || (s.phase === "en-cours" && Date.now() - soireeDemandee > 300_000))) { soireeDemandee = Date.now(); agirSoiree("soiree"); }
-    const drapeau = (id) => el("div", { class: `soiree-commu commu-${id}` },
-      el("img", { src: `/img/flotte/${id}.webp`, alt: "", width: 96, height: 96, loading: "lazy", decoding: "async" }),
-      el("b", { text: SOIREE_NOMS[id] || id }));
-    const vs = el("div", { class: "soiree-vs" }, (s.commus || []).flatMap((id, k) => [k ? el("span", { class: "soiree-vs-mot", "aria-hidden": "true", text: "VS" }) : null, drapeau(id)]));
+    // connecté : on demande au bot s'il est inscrit et ses points (toutes les 5 minutes pendant la semaine)
+    // (et de nouveau dès que la phase change : la semaine commence, le podium tombe)
+    if (bahriotPhase && s.phase !== bahriotPhase) bahriotMessage = null;
+    if (moi?.connecte && s.phase !== "bientot" && (!bahriotDemande || s.phase !== bahriotPhase || Date.now() - bahriotDemande > (s.phase === "en-cours" ? 300_000 : 3_600_000))) { bahriotDemande = Date.now(); bahriotPhase = s.phase; agirBahriot("bahriot"); }
     const bloc = [];
-    if (s.phase === "bientot" || s.phase === "inscriptions") {
-      bloc.push(el("p", { class: "soiree-quand" }, "Vendredi 22 janvier · 20 h 45 → minuit · ", el("b", { text: s.phase === "bientot" ? `inscriptions dans ${dureeCourte(s.inscriptions)}` : `dans ${dureeCourte(s.debut)}` })));
-    }
-    // le soir même : le score des commus (photo des stats toutes les 15 min) et leurs lives
-    if (s.phase === "en-cours") {
-      bloc.push(el("p", { class: "soiree-quand soiree-direct" }, el("span", { class: "soiree-point", "aria-hidden": "true" }), "C'est parti ! ", el("b", { text: `Fin dans ${dureeCourte(s.fin)}` })));
-      bloc.push(scoresSoiree(s, "Le score en direct, mis à jour toutes les 15 minutes"));
-      bloc.push(livesSoiree(s));
-    }
-    // minuit → 0 h 30 : les parties en cours finissent, dernier calcul à 0 h 20, résultat à 0 h 30
+    bloc.push(el("div", { class: "br-tete" },
+      el("p", { class: "br-edition" }, el("b", { text: `Édition n° ${nombre(s.numero)}` }), ` · ${datesBahriot(s)}`),
+      el("p", { class: `br-quand${s.phase === "en-cours" ? " br-direct" : ""}` }, ...quandBahriot(s))));
+    bloc.push(jeuxBahriot(s));
+    if (s.phase === "en-cours" && s.derniereSoiree) bloc.push(el("p", { class: "br-finale", role: "status", text: "🏴‍☠️ Dernière soirée ! Jusqu'à minuit, sur GRAND LINE, les navires des premières commus se font face." }));
     if (s.phase === "comptage") {
-      bloc.push(el("div", { class: "soiree-comptage", role: "status" },
-        el("p", { class: "soiree-quand" }, "Minuit est passé : les parties en cours se terminent."),
-        el("p", {}, "Dernier calcul à 0 h 20, ", el("b", { text: Date.now() < s.resultat ? `résultat ici dans ${dureeCourte(s.resultat)} (à 0 h 30)` : "résultat dans un instant" }), ".")));
-      bloc.push(scoresSoiree(s, "Le score provisoire"));
+      bloc.push(el("div", { class: "br-comptage", role: "status" },
+        el("p", { class: "br-quand", text: "Minuit est passé : les dernières parties se terminent." }),
+        el("p", {}, "Dernier calcul à 0 h 20, ", el("b", { text: Date.now() < s.resultat ? `podium ici dans ${dureeCourte(s.resultat)} (à 0 h 30)` : "podium dans un instant" }), ".")));
     }
-    // après 0 h 30 : le podium des commus
-    if (s.phase === "fini") bloc.push(podiumSoiree(s));
-    bloc.push(inscriptionSoiree(s));
-    if (soireeMessage) bloc.push(el("p", { class: soireeMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: soireeMessage.texte }));
-    vider(z, vs, ...bloc);
+    if (s.phase === "fini") bloc.push(podiumBahriot(s));
+    bloc.push(scoresBahriot(s));
+    if (s.phase === "en-cours" || s.phase === "comptage") bloc.push(livesBahriot());
+    bloc.push(moiBahriot(s));
+    if (bahriotMessage) bloc.push(el("p", { class: bahriotMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: bahriotMessage.texte }));
+    bloc.push(reglesBahriot(s));
+    if (s.historique?.length) bloc.push(historiqueBahriot(s));
+    bloc.push(el("p", { class: "note br-mention", text: "Un événement de la commu Barhaw, ni organisé ni soutenu par Riot Games. League of Legends, VALORANT, Teamfight Tactics, 2XKO, Wild Rift et Legends of Runeterra sont des marques de Riot Games, Inc." }));
+    vider(z, ...bloc);
   }
-  // le score des commus : une barre chacune (les commus seulement, jamais les joueurs)
-  function scoresSoiree(s, titre) {
-    const c = s.classement || [];
-    const max = Math.max(1, ...c.map((x) => x.points));
-    return el("div", { class: "soiree-scores" },
-      el("p", { class: "soiree-scores-titre", text: titre }),
-      el("ol", { class: "soiree-liste", "aria-label": titre }, c.map((x, k) => el("li", { class: `soiree-score commu-${x.id}${k === 0 && x.points ? " en-tete" : ""}` },
-        el("img", { src: `/img/flotte/${x.id}.webp`, alt: "", width: 40, height: 40, loading: "lazy", decoding: "async" }),
-        el("span", { class: "soiree-score-nom" }, el("b", { text: SOIREE_NOMS[x.id] || x.id }), el("small", { text: `${pluriel(x.inscrits, "inscrit")}${x.squad ? ` · ${nombre(x.squad)} pts en squad` : ""}` })),
-        el("span", { class: "soiree-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round((x.points / max) * 100)}%` })),
-        el("b", { class: "soiree-points", text: `${nombre(x.points)} pts` })))));
+  // les jeux de la semaine, et comment chacun compte
+  function jeuxBahriot(s) {
+    const comment = (j) => (j.id === "tft" && !s.jeux?.tft ? "arrive bientôt" : j.auto ? "compté tout seul" : "points de Liliano");
+    return el("ul", { class: "br-jeux", "aria-label": "Les jeux de la semaine" }, BAHRIOT_JEUX.map((j) => el("li", { class: `br-jeu${j.auto && (j.id !== "tft" || s.jeux?.tft) ? " auto" : j.auto ? " bientot" : ""}` },
+      el("b", { text: j.nom }), el("small", { text: comment(j) }))));
   }
-  // les lives des commus ce soir-là (les chaînes Twitch de la flotte)
-  function livesSoiree(s) {
-    const commus = donnees?.flotte?.commus || [];
-    const lives = (s.commus || []).map((id) => commus.find((c) => c.id === id)).filter((c) => c?.twitch);
+  // le score des commus : une barre chacune, à leurs couleurs (les commus seulement, jamais les joueurs)
+  function scoresBahriot(s) {
+    const avant = s.phase === "bientot" || s.phase === "inscriptions";
+    const c = (s.classement || []).filter((x) => !avant || x.inscrits > 0 || (s.classement || []).length <= 8);
+    if (!c.length) return el("p", { class: "note", text: "Les commus de la flotte apparaîtront ici dès les premières inscriptions." });
+    const max = Math.max(1, ...c.map((x) => Number(x.points) || 0));
+    const mienne = s.moi?.inscrit ? s.moi.commu : "";
+    const titre = avant ? "Les commus de la flotte" : s.phase === "en-cours" ? "Le score en direct (recalculé toutes les 5 minutes)" : s.phase === "comptage" ? "Le score provisoire" : "Le classement final";
+    const detail = (x) => {
+      const d = x.detail || {};
+      const morceaux = [["LoL", d.lol], ["VALORANT", d.valorant], ["TFT", d.tft], ["bonus", d.bonus], ["Liliano", d.main]].filter(([, v]) => v);
+      return morceaux.length ? morceaux.map(([k, v]) => `${k} ${nombre(v)}`).join(" · ") : "";
+    };
+    return el("div", { class: "br-scores" },
+      el("p", { class: "br-titre", text: titre }),
+      el("ol", { class: "br-liste", "aria-label": titre }, c.map((x, k) => {
+        const m = commuBahriot(x.id, x.nom);
+        const sous = [`${pluriel(Number(x.inscrits) || 0, "inscrit")}`, !avant && x.actifs !== undefined ? pluriel(Number(x.actifs) || 0, "actif") : "", x.id === mienne ? "ta commu" : ""].filter(Boolean).join(" · ");
+        const d = avant ? "" : detail(x);
+        return el("li", { class: `br-score${avant ? " sans-points" : ""}${k === 0 && x.points > 0 ? " en-tete" : ""}${x.id === mienne ? " br-moi" : ""}`, style: m.style },
+          el("span", { class: "br-rang", text: String(k + 1) }),
+          drapeauBahriot(m, 40),
+          el("span", { class: "br-nom" }, el("b", { text: m.nom }), el("small", { text: sous }), d ? el("small", { class: "br-detail", text: d }) : null),
+          avant ? null : el("span", { class: "br-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round(((Number(x.points) || 0) / max) * 100)}%` })),
+          avant ? null : el("b", { class: "br-points", text: `${nombre(x.points)} pts` }));
+      })));
+  }
+  // les lives de la flotte pendant la semaine (les chaînes Twitch des commus ; en live d'abord)
+  function livesBahriot() {
+    const commus = Array.isArray(donnees?.flotte?.commus) ? donnees.flotte.commus : [];
+    const lives = commus.filter((c) => c?.twitch && /^[a-z0-9_]{3,25}$/i.test(c.twitch)).sort((a, b) => Number(Boolean(b.live)) - Number(Boolean(a.live))).slice(0, 8);
     if (!lives.length) return null;
-    return el("div", { class: "soiree-lives" },
-      el("p", { class: "soiree-scores-titre", text: "Les lives de la soirée" }),
-      el("ul", {}, lives.map((c) => el("li", {}, el("a", { class: `soiree-live${c.live ? " allume" : ""}`, href: `https://www.twitch.tv/${encodeURIComponent(c.twitch)}`, target: "_blank", rel: "noopener" },
-        el("span", { class: "soiree-point", "aria-hidden": "true" }),
-        el("b", { text: SOIREE_NOMS[c.id] || c.nom }),
-        el("small", { text: c.live ? "en live" : "pas encore en live" }))))));
+    return el("div", { class: "br-lives" },
+      el("p", { class: "br-titre", text: "Les lives de la flotte" }),
+      el("ul", {}, lives.map((c) => el("li", {}, el("a", { class: `br-live${c.live ? " allume" : ""}`, href: `https://www.twitch.tv/${encodeURIComponent(c.twitch)}`, target: "_blank", rel: "noopener" },
+        el("span", { class: "br-point", "aria-hidden": "true" }),
+        el("b", { text: c.nom || c.id }),
+        el("small", { text: c.live ? "en live" : "hors ligne" }))))));
   }
-  // le podium : la commu gagnante au milieu, plus haut
-  function podiumSoiree(s) {
-    const p = (s.valide?.podium || s.classement || []).slice(0, 3);
-    if (!p.length) return null;
-    const marche = (x, place) => (x ? el("li", { class: `soiree-marche place-${place}` },
-      place === 1 ? el("span", { class: "fp-couronne", "aria-hidden": "true", text: "👑" }) : null,
-      el("img", { src: `/img/flotte/${x.id}.webp`, alt: "", width: 88, height: 88, loading: "lazy", decoding: "async" }),
-      el("b", { text: SOIREE_NOMS[x.id] || x.id }),
-      el("span", { text: `${nombre(x.points)} pts` }),
-      el("span", { class: "soiree-socle", text: String(place) })) : null);
-    return el("div", { class: "soiree-podium-bloc" },
-      el("p", { class: "soiree-quand" }, "La commu gagnante : ", el("b", { text: SOIREE_NOMS[p[0].id] || p[0].id }), " !"),
-      el("ol", { class: "soiree-podium", "aria-label": "Le podium des commus" }, marche(p[1], 2), marche(p[0], 1), marche(p[2], 3)),
-      el("p", { class: "note", text: "Merci à tous les joueurs ! Le classement compte les commus, pas les joueurs." }));
+  // le podium : la commu gagnante au milieu, plus haut, et ses milles sur GRAND LINE
+  function podiumBahriot(s) {
+    const p = (s.valide?.podium || s.classement || []).filter((x) => x.points > 0).slice(0, 3);
+    if (!p.length) return el("p", { class: "br-quand", text: "Pas de points cette fois : rendez-vous à la prochaine !" });
+    const milles = s.regles?.milles || [];
+    const marche = (x, place) => {
+      if (!x) return null;
+      const m = commuBahriot(x.id, x.nom);
+      return el("li", { class: `br-marche place-${place}`, style: m.style },
+        place === 1 ? el("span", { class: "br-couronne", "aria-hidden": "true", text: "👑" }) : null,
+        drapeauBahriot(m, 88),
+        el("b", { text: m.nom }),
+        el("span", { text: `${nombre(x.points)} pts` }),
+        milles[place - 1] ? el("small", { text: `+${nombre(milles[place - 1])} milles` }) : null,
+        el("span", { class: "br-socle", text: String(place) }));
+    };
+    return el("div", { class: "br-podium-bloc" },
+      el("p", { class: "br-quand" }, "La commu gagnante : ", el("b", { text: commuBahriot(p[0].id, p[0].nom).nom }), " !"),
+      el("ol", { class: "br-podium", "aria-label": "Le podium des commus" }, marche(p[1], 2), marche(p[0], 1), marche(p[2], 3)),
+      el("p", { class: "note", text: "Merci à tous les joueurs ! Les milles sont déjà sur les navires de GRAND LINE." }));
   }
-  // l'inscription : connecté avec Discord, on donne son pseudo Epic (le sien) ; la commu, c'est celle de son Discord
-  function inscriptionSoiree(s) {
-    const ouverte = s.phase === "inscriptions" || s.phase === "en-cours";
-    if (!ouverte) return s.phase === "bientot" ? el("p", { class: "note", text: "Les inscriptions ouvrent le 22 décembre à 21 h 30." }) : null;
+  // son inscription, ses comptes reliés et ses points
+  function moiBahriot(s) {
+    if (s.phase === "bientot") return el("p", { class: "note", text: "Les inscriptions ouvrent le 22 décembre à 21 h 30." });
     if (!moi?.connecte) return el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter pour s'inscrire" });
-    if (s.moi) {
-      return el("div", { class: "soiree-moi" },
-        el("p", {}, "✅ Inscrit pour ", el("b", { text: SOIREE_NOMS[s.moi.commu] || s.moi.commu }), ` avec ton pseudo Epic `, el("b", { text: s.moi.epic }), "."),
-        s.phase === "en-cours" ? el("p", { class: "soiree-mes-points", text: `Tes points ce soir : ${nombre(s.moi.points?.total || 0)}` }) : null,
-        s.phase === "inscriptions" ? el("button", { class: "lien-discret", type: "button", disabled: soireeOccupee, onclick: () => agirSoiree("soiree-desinscrire"), text: "Me désinscrire" }) : null);
+    const m = s.moi;
+    if (!m) return el("p", { class: "note", role: "status", text: "On regarde ton inscription…" });
+    const c = m.comptes || {};
+    const compte = (ok, nom, texteOk, lien, texteLien) => el("li", { class: `br-compte${ok ? " ok" : ""}` },
+      el("b", { text: nom }), " ", ok ? el("span", { text: texteOk }) : lien ? el("a", { href: lien, text: texteLien }) : el("span", { text: texteLien }));
+    const comptes = el("ul", { class: "br-comptes", "aria-label": "Tes comptes reliés" },
+      compte(c.lol, "LoL", "✅ relié", "#faille", "relier dans La Faille"),
+      compte(c.valorant, "VALORANT", "✅ relié", "/valorant", "relier mon compte"),
+      compte(c.tft, "TFT", "✅ avec ton compte LoL", s.jeux?.tft && !c.lol ? "#faille" : "", s.jeux?.tft ? "relie ton compte LoL" : "arrive bientôt"));
+    const nomCommu = commuBahriot(m.commu, m.nomCommu).nom;
+    if (!m.inscrit) {
+      const ouvert = s.phase !== "comptage";
+      return el("div", { class: "br-moi-bloc" },
+        el("p", {}, "Tu joueras pour ", el("b", { text: nomCommu }), " : l'équipage pour lequel tu rames sur GRAND LINE."),
+        ouvert ? el("button", { class: "btn btn-plein", type: "button", disabled: bahriotOccupe, onclick: () => agirBahriot("bahriot-inscrire"), text: s.phase === "en-cours" ? "Je m'inscris (ça compte tout de suite)" : s.phase === "fini" ? "Je m'inscris pour la prochaine" : "Je m'inscris" })
+          : el("p", { class: "note", text: "Les inscriptions pour la prochaine édition rouvrent avec le podium." }),
+        comptes,
+        el("p", { class: "note", text: "LoL et VALORANT comptent grâce à tes comptes reliés (La Faille, Valorant des potes) ; TFT passe par ton compte LoL. Aucun mot de passe, jamais." }));
     }
-    const champ = el("input", { type: "text", id: "soiree-epic", maxlength: 16, autocomplete: "off", spellcheck: "false", placeholder: "Ton pseudo Epic", "aria-label": "Ton pseudo Epic (Fortnite)" });
-    const envoyer = (e) => { e.preventDefault(); if (champ.value.trim()) agirSoiree("soiree-inscrire", { epic: champ.value }); };
-    return el("form", { class: "soiree-inscription", onsubmit: envoyer },
-      champ, el("button", { class: "btn btn-plein", type: "submit", disabled: soireeOccupee, text: "Je m'inscris" }),
-      el("p", { class: "note", text: "Tes stats Fortnite doivent être publiques (dans Fortnite : Réglages > Compte et confidentialité). Tu joues pour la commu de ton Discord." }));
+    const p = m.points;
+    const parJeu = p ? [["LoL", p.lol], ["VALORANT", p.valorant], ["TFT", p.tft], ["bonus", p.bonus]].filter(([, v]) => v).map(([k, v]) => `${k} ${nombre(v)}`).join(" · ") : "";
+    return el("div", { class: "br-moi-bloc" },
+      el("p", {}, "✅ Inscrit pour ", el("b", { text: nomCommu }), m.enJeu || s.phase === "inscriptions" ? "." : " pour la prochaine édition."),
+      p && (m.enJeu || s.phase === "fini") ? el("p", { class: "br-mes-points", text: `${s.phase === "fini" ? "Tu as marqué" : "Tes points"} : ${nombre(p.total)}` }) : null,
+      parJeu ? el("p", { class: "note", text: parJeu }) : null,
+      comptes,
+      !c.lol && !c.valorant ? el("p", { class: "note erreur", text: "Relie au moins un compte (LoL ou VALORANT) pour marquer des points." }) : null,
+      m.peutPartir ? el("button", { class: "lien-discret", type: "button", disabled: bahriotOccupe, onclick: () => agirBahriot("bahriot-desinscrire"), text: "Me désinscrire" }) : null);
   }
-  async function agirSoiree(action, extra = {}) {
-    if (soireeOccupee) return;
-    soireeOccupee = true;
-    soireeMessage = null;
-    rendreSoiree();
+  function reglesBahriot(s) {
+    const r = s.regles || {};
+    const b = r.bonusJeux || {};
+    return el("details", { class: "br-regles" },
+      el("summary", { text: "Comment ça compte" }),
+      el("ul", {},
+        el("li", { text: "Toutes tes parties de la semaine comptent, à partir de ton inscription, pour la commu de ton équipage." }),
+        el("li", { text: "League of Legends : la note de chaque game de La Faille des potes (S+ 10 pts, S 7, A 5, B 3, C 1), et aussi ARAM, Arena, URF… (victoire 3, défaite 1)." }),
+        el("li", { text: "VALORANT : la note de chaque partie de Valorant des potes." }),
+        el("li", { text: `Teamfight Tactics : ta place (1re 10 pts, 2e 7, 3e 5, 4e 3, 5e et 6e 1), avec ton compte LoL relié.${s.jeux?.tft ? "" : " Arrive bientôt."}` }),
+        el("li", { text: "2XKO, Wild Rift, Legends of Runeterra : des points ajoutés par Liliano (défis, tournois en live)." }),
+        el("li", { text: `Tes ${r.meilleuresParties || 10} meilleures parties de chaque jeu comptent. Jouer à 2 jeux : +${b[2] || 5}, aux 3 : +${b[3] || 10}.` }),
+        el("li", { text: `Le score d'une commu : ses ${r.meilleursJoueurs || 5} meilleurs joueurs, plus les points de Liliano. Une grosse commu ne gagne pas juste par le nombre.` }),
+        el("li", { text: `Les 3 premières commus gagnent ${(r.milles || [500, 250, 100]).map((x) => nombre(x)).join(", ").replace(/, ([^,]*)$/, " et $1")} milles sur GRAND LINE.` }),
+        el("li", { text: "Pas de MMR, pas de rang, pas de paris. Le site ne montre que les commus : personne d'autre ne voit tes parties." })));
+  }
+  function historiqueBahriot(s) {
+    return el("p", { class: "br-histo" }, "Les éditions d'avant : ", ...s.historique.flatMap((h, k) => [k ? " · " : "", `n° ${h.numero} (${new Date(Date.parse(`${h.jour}T12:00:00Z`)).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}) : 👑 `, el("b", { text: commuBahriot(h.gagnant.id, h.gagnant.nom).nom })]));
+  }
+  async function agirBahriot(action) {
+    if (bahriotOccupe) return;
+    bahriotOccupe = true;
+    if (action !== "bahriot") bahriotMessage = null;
+    if (action !== "bahriot") rendreBahriot();
     let d = {};
     try {
-      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
       d = await r.json().catch(() => ({}));
       if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
     } catch { d = { erreur: "reseau", texte: "Impossible de joindre le bot. Vérifie ta connexion." }; }
-    soireeOccupee = false;
-    if (d.soiree) maSoiree = d.soiree;
-    if (d.erreur) soireeMessage = { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
-    else if (action === "soiree-inscrire" && d.ok) soireeMessage = { texte: "C'est noté ! Rendez-vous le 22 janvier à 20 h 45." };
-    else if (action === "soiree-desinscrire" && d.ok) soireeMessage = { texte: "Tu n'es plus inscrit." };
-    rendreSoiree();
+    bahriotOccupe = false;
+    if (d.bahriot) monBahriot = d.bahriot;
+    const s = infosBahriot();
+    if (d.erreur) bahriotMessage = { texte: d.texte || (typeof d.erreur === "string" && d.erreur.length > 12 ? d.erreur : "Ça n'a pas marché, réessaie."), erreur: true };
+    else if (action === "bahriot-inscrire" && d.ok) bahriotMessage = { texte: s?.phase === "en-cours" ? "C'est parti : tes parties comptent dès maintenant !" : `C'est noté ! Rendez-vous le ${jourBahriot(s?.debut || Date.now())}.` };
+    else if (action === "bahriot-desinscrire" && d.ok) bahriotMessage = { texte: "Tu n'es plus inscrit." };
+    rendreBahriot();
   }
   async function demanderFideles(action) {
     try {
@@ -8035,7 +8120,7 @@
     rendreCompte();
     rendreActions();
     rendreClassementJeu();
-    rendreSoiree();
+    rendreBahriot();
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
     chargerMesJeux();
