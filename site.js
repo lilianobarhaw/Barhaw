@@ -690,7 +690,11 @@
   // Web Audio : les boucles (la mer, les musiques) ont 0,5 s de marge de chaque côté et se rejouent sans blanc.
   const SON = { actif: false, ctx: null, maitre: null, tampons: new Map(), chargements: new Map(), boucles: {}, musiqueSite: null };
   const SON_BOUCLES = { mer: 24, "jeu-quiz": 20, "jeu-memory": 18.2944, "jeu-course": 23.2798, "jeu-rumble": 26.1818, "jeu-docteur": 19.6018 };
-  const SON_NIVEAUX = { pop: 0.5, souffle: 0.45, clic: 0.55, taiko: 0.85, impact: 0.9, carte: 0.75, paire: 0.6, "quiz-bon": 0.65, "quiz-faux": 0.55, saut: 0.4, tonneau: 0.7, cloche: 0.7, potion: 0.5, soin: 0.55, victoire: 0.65 };
+  const SON_NIVEAUX = { pop: 0.5, souffle: 0.45, clic: 0.55, taiko: 0.85, impact: 0.9, carte: 0.75, paire: 0.6, "quiz-bon": 0.65, "quiz-faux": 0.55, saut: 0.4, tonneau: 0.7, cloche: 0.7, potion: 0.5, soin: 0.55, victoire: 0.65,
+    "br-tic": 0.39, "br-boum": 0.61, "br-onde": 0.38, "br-charge": 0.45, "br-score": 0.26, "br-monte": 0.47, "br-tampon": 0.92,
+    "br-roulement": 0.76, "br-cymbale": 0.76, "br-fanfare": 0.64, "br-feux": 0.54, "br-acclame": 0.31, "br-paillettes": 0.58 };
+  // la SEMAINE BAHRIOT (js/bahriot-anim.js) : ses bruitages, préchargés quand ses animations arrivent
+  const SONS_BAHRIOT = ["br-tic", "br-boum", "br-onde", "br-charge", "br-score", "br-monte", "br-tampon", "br-roulement", "br-cymbale", "br-fanfare", "br-feux", "br-acclame", "br-paillettes", "carte"];
   const SONS_JEUX = { rumble: ["cloche", "potion", "victoire", "quiz-faux"], quiz: ["clic", "quiz-bon", "quiz-faux", "souffle", "victoire"], docteur: ["soin", "quiz-faux", "victoire", "souffle"], memory: ["carte", "paire", "victoire"], course: ["clic", "saut", "tonneau", "impact", "pop", "victoire"] };
   try { SON.actif = localStorage.getItem("barhaw-sons") === "oui"; } catch {}
   const sonVF = () => document.documentElement.classList.contains("v4");
@@ -826,6 +830,7 @@
         contexteSon();
         jouerSon("pop");
         prechargerSons(["pop", "souffle", "taiko"]);
+        if (animBahriotPret()) prechargerSons(SONS_BAHRIOT);
         if (SALLE.ouverte) merSon(true);
         const jeu = jeuEnCours();
         if (jeu) musiqueJeu(jeu);
@@ -7875,12 +7880,14 @@
   let monBahriot = null, bahriotOccupe = false, bahriotMessage = null, bahriotDemande = 0, bahriotPhase = "";
   // les animations (js/bahriot-anim.js) : chargées seulement si l'appareil ne demande pas moins d'animations
   let animBr = null, animBrCharge = false, bahriotSig = "", bahriotFete = null;
+  function animBahriotPret() { return Boolean(animBr); }
   async function chargerAnimBahriot() {
     if (animBrCharge || reduit.matches) return;
     animBrCharge = true;
     try {
       const { creerAnimBahriot } = await import("/js/bahriot-anim.js");
-      animBr = creerAnimBahriot({ zero: () => { bahriotSig = ""; charger(); setTimeout(charger, 25_000); } });
+      animBr = creerAnimBahriot({ zero: () => { bahriotSig = ""; charger(); setTimeout(charger, 25_000); }, son: (nom, o) => jouerSon(nom, o) });
+      prechargerSons(SONS_BAHRIOT);
       bahriotSig = "";
       rendreBahriot();
     } catch { /* sans animations, la page marche pareil */ }

@@ -13,6 +13,10 @@
 //     souris, des étoiles filantes ; les emblèmes des jeux qui se dessinent ; les lignes qui arrivent une à une ; le top 10
 //     des joueurs (points qui montent, ▲ ▼ quand on change de place, « X prend la tête ») ; la carte du lot qui penche sous
 //     la souris, et qui se retourne pour révéler le gagnant ; une explosion rouge quand Liliano lance son live (×3).
+//   • les bruitages (banque Artlist, son/br-*.m4a), seulement si les sons du site sont allumés : un tic les
+//     10 dernières secondes et un boum à zéro, un whoosh au clic, une charge quand le live commence, un carillon
+//     quand des points tombent, un « level up » quand quelqu'un passe devant, le tampon de l'inscription,
+//     roulement + cymbale + fanfare + foule pour le podium, la carte et des paillettes pour le lot.
 // Rien ne tourne quand le bandeau n'est pas à l'écran ou que l'onglet est caché ; moins de particules sur téléphone.
 
 const PALETTES = {
@@ -43,7 +47,18 @@ const ecrireSession = (cle, v) => { try { sessionStorage.setItem(cle, v); } catc
 // « --c1:#e3447f;--c2:#ffd36b;… » → ["#e3447f", "#ffd36b"]
 const couleursDe = (style) => [/--c1:\s*([^;]+)/.exec(style || "")?.[1], /--c2:\s*([^;]+)/.exec(style || "")?.[1]].filter(Boolean).map((c) => c.trim());
 
-export function creerAnimBahriot({ zero = null } = {}) {
+export function creerAnimBahriot({ zero = null, son = null } = {}) {
+  // les bruitages (Artlist, son/br-*.m4a) : joués par site.js, seulement si les sons du site sont allumés ;
+  // « ecart » : pas deux fois le même son en moins de tant de millisecondes
+  const dernierSon = new Map();
+  const bruit = (nom, o = {}, ecart = 0) => {
+    if (!son) return;
+    const t = performance.now();
+    if (ecart && t - (dernierSon.get(nom) || -1e9) < ecart) return;
+    dernierSon.set(nom, t);
+    son(nom, o);
+  };
+  const aLEcran = (el) => { const r = el?.getBoundingClientRect(); return Boolean(r) && r.bottom > 0 && r.top < innerHeight; };
   const telephone = () => innerWidth < 700;
   const memo = { points: new Map(), largeurs: new Map(), ordre: [], zeros: new Set(), live: undefined, dessine: false };
   const memoJ = { points: new Map(), largeurs: new Map(), ordre: [] };
@@ -94,6 +109,7 @@ export function creerAnimBahriot({ zero = null } = {}) {
       onde(x, y, 0.8);
       gerbe(x, y, telephone() ? 18 : 30);
       B.flash = Math.max(B.flash, 0.18);
+      bruit("br-onde", { volume: hasard(0.75, 1) }, 140);
       el.classList.remove("br-saut");
       void el.offsetWidth;
       el.classList.add("br-saut");
@@ -376,7 +392,11 @@ export function creerAnimBahriot({ zero = null } = {}) {
     }
     c.classList.toggle("br-urgent", r > 0 && r <= 60_000);
     // les 10 dernières secondes : une onde à chaque seconde ; à zéro, l'explosion
-    if (r > 0 && r <= 10_000 && B.el?.contains(c)) { onde(B.w / 2, B.h / 2, 0.5); B.el.classList.remove("br-secousse"); void B.el.offsetWidth; B.el.classList.add("br-secousse"); }
+    if (r > 0 && r <= 10_000 && B.el?.contains(c)) {
+      onde(B.w / 2, B.h / 2, 0.5);
+      B.el.classList.remove("br-secousse"); void B.el.offsetWidth; B.el.classList.add("br-secousse");
+      if (B.visible) bruit("br-tic", { volume: r <= 3000 ? 1 : 0.7 }, 600);
+    }
     if (r === 0 && !memo.zeros.has(cible) && Date.now() - cible < 5000) {
       memo.zeros.add(cible);
       boum(c);
@@ -384,6 +404,8 @@ export function creerAnimBahriot({ zero = null } = {}) {
     }
   }
   function boum(c) {
+    bruit("br-boum", {}, 2000);
+    bruit("br-feux", { retard: 0.4, volume: 0.7 }, 2000);
     if (B.el?.contains(c)) {
       B.flash = 1;
       onde(B.w / 2, B.h / 2, 2);
@@ -503,6 +525,7 @@ export function creerAnimBahriot({ zero = null } = {}) {
     const b = Object.assign(document.createElement("p"), { className: "br-depasse", textContent: texte });
     b.setAttribute("role", "status");
     liste.prepend(b);
+    if (aLEcran(liste)) bruit("br-monte", { retard: 0.3 }, 1500);
     plus_tard(() => b.classList.add("part"), 4200);
     plus_tard(() => b.remove(), 4800);
   }
@@ -554,7 +577,7 @@ export function creerAnimBahriot({ zero = null } = {}) {
       if (ancien !== v || ancienneL !== largeur) {
         remplir(barre, ancienneL, largeur);
         compter(b, ancien, v, 1000);
-        if (v > ancien) { flotteur(l, v - ancien); plus_tard(() => etincelles(l, barre), 700); }
+        if (v > ancien) { flotteur(l, v - ancien); plus_tard(() => etincelles(l, barre), 700); if (!premiere && aLEcran(l)) bruit("br-score", { retard: 0.1 }, 900); }
       }
       // ▲ / ▼ quand on change de place
       const iAvant = avantOrdre.indexOf(id);
@@ -592,6 +615,25 @@ export function creerAnimBahriot({ zero = null } = {}) {
     } });
   }
 
+  // ---------- les deux grandes annonces (le podium, la carte du lot) ne se marchent pas dessus ----------
+  // une file : chaque annonce joue à son tour ; celle dont la carte a été redessinée entre-temps (f rend false) est sautée
+  const scenes = [];
+  let sceneEnCours = false;
+  function enScene(duree, f) {
+    scenes.push([duree, f]);
+    if (!sceneEnCours) sceneSuivante();
+  }
+  function sceneSuivante() {
+    sceneEnCours = false;
+    while (scenes.length) {
+      const [duree, f] = scenes.shift();
+      if (f() === false) continue;
+      sceneEnCours = true;
+      plus_tard(sceneSuivante, duree);
+      return;
+    }
+  }
+
   // ---------- le podium ----------
   function jouerPodium(ol) {
     if (!ol?.isConnected) return;
@@ -599,6 +641,10 @@ export function creerAnimBahriot({ zero = null } = {}) {
     ol.classList.remove("pas-1", "pas-2", "pas-3", "fige");
     ol.classList.add("anim");
     void ol.offsetWidth;
+    bruit("br-roulement", { retard: 0.45 }); // son coup final (à 1,6 s) tombe pile sur la cymbale
+    plus_tard(() => { bruit("br-cymbale"); bruit("br-fanfare", { retard: 0.05 }); }, 2050);
+    plus_tard(() => bruit("br-feux", { volume: 0.8 }), 2600);
+    plus_tard(() => bruit("br-acclame", { duree: 4 }), 2750);
     // « Et la commu gagnante est… », tapé lettre par lettre, à la place du nom
     const bloc = ol.closest(".br-podium-bloc");
     const ligne = bloc?.querySelector(":scope > .br-quand");
@@ -629,7 +675,11 @@ export function creerAnimBahriot({ zero = null } = {}) {
     if (!ol) return;
     if (lire(`br-podium-${ol.dataset.brPodium}`)) { ol.classList.add("fige"); return; }
     ol.classList.add("anim");
-    attendreVue(ol, () => jouerPodium(ol), 0.4);
+    attendreVue(ol, () => enScene(4600, () => {
+      if (!ol.isConnected) return false;
+      if (lire(`br-podium-${ol.dataset.brPodium}`)) { ol.classList.add("fige"); return false; }
+      jouerPodium(ol);
+    }), 0.4);
   }
 
   // ---------- le lot ----------
@@ -650,14 +700,21 @@ export function creerAnimBahriot({ zero = null } = {}) {
     const cle = `br-lot-${c.dataset.brLot}`;
     if (lire(cle)) return;
     c.classList.add("cache");
-    attendreVue(c, () => {
+    attendreVue(c, () => enScene(2300, () => {
+      if (!c.isConnected) return false;
+      if (lire(cle)) { c.classList.add("retourne"); return false; }
       plus_tard(() => {
-        c.classList.add("retourne");
-        const r = c.getBoundingClientRect();
+        // la carte a pu être redessinée pendant l'attente : on retourne celle qui est à l'écran
+        const v = c.isConnected ? c : document.querySelector(`.br-lot.gagne[data-br-lot="${CSS.escape(c.dataset.brLot)}"]`);
+        if (!v) return;
+        v.classList.add("retourne");
+        bruit("carte");
+        bruit("br-paillettes", { retard: 0.15 });
+        const r = v.getBoundingClientRect();
         fete(r.left + r.width / 2, r.top + r.height / 2, ["#ffd36b", "#ff9f1c", "#fff3c4"], { n: telephone() ? 90 : 170, feux: 2 });
         ecrire(cle, "1");
       }, 900);
-    }, 0.6);
+    }), 0.6);
   }
 
   // ---------- son inscription ----------
@@ -665,6 +722,8 @@ export function creerAnimBahriot({ zero = null } = {}) {
     const p = zone.querySelector(".br-inscrit");
     if (!p) return;
     p.classList.add("br-tampon");
+    bruit("br-tampon");
+    bruit("br-paillettes", { retard: 0.3, volume: 0.6 });
     const r = p.getBoundingClientRect();
     fete(r.left + r.width / 2, r.top + r.height / 2, couleursDe(p.getAttribute("style")), { n: telephone() ? 90 : 160, feux: 1 });
   }
@@ -699,7 +758,14 @@ export function creerAnimBahriot({ zero = null } = {}) {
         onde(B.w / 2, B.h / 2, 1.8);
         gerbe(B.w / 2, B.h / 2, telephone() ? 40 : 70);
         const r = B.el.getBoundingClientRect();
-        if (r.bottom > 0 && r.top < innerHeight) fete(r.left + r.width / 2, r.top + r.height / 2, ["#ff3b30", "#ff4f9a", "#ffd36b"], { n: telephone() ? 100 : 180, feux: 2 });
+        if (r.bottom > 0 && r.top < innerHeight) {
+          fete(r.left + r.width / 2, r.top + r.height / 2, ["#ff3b30", "#ff4f9a", "#ffd36b"], { n: telephone() ? 100 : 180, feux: 2 });
+          // (pas par-dessus le boum du compte à rebours, si la semaine commence pendant le live)
+          if (performance.now() - (dernierSon.get("br-boum") || -1e9) > 4000) {
+            bruit("br-charge", {}, 5000);
+            bruit("br-feux", { retard: 0.7, volume: 0.6 }, 5000);
+          }
+        }
         boucle();
       }
       memo.live = Boolean(s?.enLive);
