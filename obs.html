@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>GRAND LINE · les alertes pour OBS · Barhaw</title>
+<link rel="icon" href="/img/favicon-32.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@700;800&display=swap">
+<script src="/obs.js" defer></script>
+<style>
+/* GRAND LINE dans le live : une page transparente à poser dans OBS (source navigateur), en 1920 × 1080 pour Twitch ou en
+   1080 × 1920 pour TikTok. Rien ne s'affiche en dehors des alertes. Tout est dessiné sur une base de 1920 × 1080 (ou
+   1080 × 1920 debout) : 1rem = 10 px de cette base, et la page suit la taille de la source. Le reste : obs.js. */
+:root {
+  --u: min(100vw / 1920, 100vh / 1080);
+  --nuit: #1f0c1e; --prune: #2c1232; --creux: #3a1a3c;
+  --rose: #ff4f9a; --rose-clair: #ff8fcb; --rose-fonce: #c2286e; --violet: #9b4dff; --violet-clair: #d1a6ff; --or: #ffcf5c;
+  --blanc: #fff0f7; --brume: #e3c1d9; --ombre: #6f22c9; --papier: #fff2f8; --encre: #12050d; --prune-texte: #5a1d47;
+  --titre: "Dela Gothic One", "M PLUS Rounded 1c", "Hiragino Sans", system-ui, sans-serif;
+  --texte: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+  --rebond: cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+@media (orientation: portrait) { :root { --u: min(100vw / 1080, 100vh / 1920); } }
+html { font-size: calc(var(--u) * 10); }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { font-family: var(--texte); font-weight: 700; color: var(--blanc); }
+/* ?fond=oui : un fond sombre, pour régler la page dans un onglet (dans OBS elle reste transparente) */
+body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 0 50%) 0 0 / 8rem 8rem; }
+#obs { position: fixed; inset: 0; }
+.zone { position: absolute; left: 0; right: 0; top: 5.4rem; display: flex; justify-content: center; pointer-events: none; }
+.place-milieu .zone { top: 0; bottom: 0; align-items: center; }
+.place-bas .zone { top: auto; bottom: 6.6rem; }
+@media (orientation: portrait) { .zone { top: 17rem; } .place-bas .zone { top: auto; bottom: 36rem; } }
+
+/* ---------- une alerte : elle tombe d'en haut, rebondit, repart ---------- */
+.al {
+  box-sizing: border-box; display: flex; align-items: center; gap: 3.2rem; max-width: calc(100vw - 8rem); padding: 2.4rem 3.6rem 2.8rem;
+  border: 0.5rem solid var(--encre); border-radius: 2.8rem; box-shadow: 1.1rem 1.2rem 0 var(--ombre);
+  opacity: 0; transform: translateY(-140%) rotate(-3deg); transition: transform 0.65s var(--rebond), opacity 0.25s linear;
+}
+.place-bas .al { transform: translateY(140%) rotate(3deg); }
+.al.entre { opacity: 1; transform: none; }
+.al.sort { opacity: 0; transform: translateY(-50%) scale(0.96); transition: transform 0.4s ease-in, opacity 0.35s linear; }
+.al-papier { background: var(--papier); color: var(--encre); }
+.al-nuit { background: var(--nuit); color: var(--blanc); }
+.al-texte { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.al-sur { font-weight: 800; font-size: 2.6rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rose-fonce); }
+.al-nuit .al-sur { color: var(--rose-clair); }
+.al-titre { font-family: var(--titre); font-weight: 400; font-size: 7.4rem; line-height: 1.05; text-shadow: 0.5rem 0.5rem 0 var(--rose-clair); }
+.al-nuit .al-titre { text-shadow: 0.5rem 0.5rem 0 var(--rose-fonce); }
+.al-titre.long { font-size: 5.4rem; text-shadow: 0.4rem 0.4rem 0 var(--rose-clair); }
+.al-nuit .al-titre.long { text-shadow: 0.4rem 0.4rem 0 var(--rose-fonce); }
+.al-nom { font-weight: 800; font-size: 4.4rem; line-height: 1.15; }
+.al-info { font-size: 2.8rem; color: var(--prune-texte); }
+.al-nuit .al-info { color: var(--brume); }
+.al-image { position: relative; flex: none; width: 46rem; aspect-ratio: 16 / 9; border: 0.4rem solid var(--encre); border-radius: 1.8rem; overflow: hidden; background: #37b6cf; rotate: -2deg; box-shadow: 0.7rem 0.8rem 0 var(--rose); }
+.al-image img, .choix-image img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.al-image.maquette img, .choix-image.maquette img { object-fit: contain; }
+.al-emoji { flex: none; font-size: 14rem; line-height: 1; filter: drop-shadow(0.6rem 0.7rem 0 rgba(18, 5, 13, 0.35)); }
+.al-or .al-titre { text-shadow: 0.5rem 0.5rem 0 var(--or); }
+.al-or .al-image { box-shadow: 0.7rem 0.8rem 0 var(--or); }
+
+/* ---------- les jauges ---------- */
+.jauge { height: 2.4rem; background: var(--creux); border: 0.3rem solid var(--encre); border-radius: 99rem; overflow: hidden; }
+.jauge i { display: block; height: 100%; width: 0; background: var(--rose); transition: width 0.6s ease-out; }
+.jauge.grande { height: 3.2rem; border-width: 0.4rem; }
+.jauge.rage i { background: #ff2d55; }
+.pastille { align-self: flex-start; font-family: var(--titre); font-weight: 400; font-size: 4rem; line-height: 1.1; color: #fff; background: var(--violet); border: 0.4rem solid var(--encre); border-radius: 99rem; padding: 0.8rem 2.8rem 1.2rem; }
+.pastille.rose { font-family: var(--texte); font-weight: 800; font-size: 3rem; color: var(--encre); background: var(--rose); padding: 0.6rem 2rem; }
+
+/* ---------- le vote du carrefour ---------- */
+.vote { flex-direction: column; align-items: stretch; gap: 2rem; width: 124rem; }
+.vote-tete { display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
+.vote-temps { font-weight: 800; font-size: 3.2rem; white-space: nowrap; }
+.vote-choix { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 2.2rem; }
+.choix { display: flex; flex-direction: column; background: var(--prune); border: 0.4rem solid var(--encre); border-radius: 1.8rem; overflow: hidden; }
+.choix-image { position: relative; flex: none; aspect-ratio: 16 / 9; overflow: hidden; background: #37b6cf; }
+.choix-corps { display: flex; flex-direction: column; gap: 1rem; padding: 1.4rem 2rem 1.8rem; }
+.choix-ligne { display: flex; align-items: baseline; justify-content: space-between; gap: 1.4rem; }
+.choix-nom { font-weight: 800; font-size: 3.2rem; line-height: 1.15; }
+.choix-pct { font-family: var(--titre); font-weight: 400; font-size: 3.6rem; white-space: nowrap; }
+.choix:nth-child(2) .jauge i { background: var(--violet-clair); }
+.choix:nth-child(3) .jauge i { background: var(--or); }
+.vote-pied { font-size: 2.8rem; color: var(--brume); }
+/* le rappel : la même chose en petit (une vignette à côté du nom) */
+.vote.rappel { gap: 1.6rem; padding: 2rem 3rem 2.2rem; }
+.vote.rappel .pastille { font-size: 3.2rem; padding: 0.6rem 2.4rem 0.9rem; }
+.vote.rappel .choix { flex-direction: row; align-items: stretch; }
+.vote.rappel .choix-image { flex: none; width: 21rem; aspect-ratio: 16 / 9; }
+.vote.rappel .trois .choix-image { width: 12rem; aspect-ratio: 1; }
+.vote.rappel .choix-corps { flex: 1; min-width: 0; justify-content: center; padding: 1rem 1.8rem 1.2rem; }
+.trois .choix-nom { font-size: 2.8rem; }
+
+/* ---------- le BOSS LIVE ---------- */
+.boss { gap: 2.6rem; width: 124rem; }
+.boss-image { flex: none; width: 38rem; height: 40rem; object-fit: contain; filter: drop-shadow(0.8rem 0.9rem 0 rgba(18, 5, 13, 0.5)); }
+.boss-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.4rem; }
+.boss-nom { font-family: var(--titre); font-weight: 400; font-size: 9.6rem; line-height: 1; text-shadow: 0.6rem 0.6rem 0 var(--rose-fonce); }
+.boss-titre { font-weight: 800; font-size: 3.4rem; color: var(--rose-clair); }
+.boss-vie { display: flex; align-items: baseline; justify-content: space-between; gap: 2rem; font-weight: 800; font-size: 3rem; }
+.boss-vie b { font-family: var(--titre); font-weight: 400; font-size: 3.4rem; color: var(--rose-clair); }
+
+/* ---------- la barre : pendant le combat, avant la sortie ---------- */
+.barre {
+  box-sizing: border-box; display: flex; align-items: center; gap: 1.8rem; padding: 1rem 2.6rem 1rem 1.4rem; background: var(--nuit);
+  border: 0.4rem solid var(--encre); border-radius: 99rem; box-shadow: 0.7rem 0.8rem 0 var(--ombre);
+  opacity: 0; transform: translateY(-160%); transition: transform 0.5s var(--rebond), opacity 0.2s linear;
+}
+.place-bas .barre { transform: translateY(160%); }
+.barre.entre { opacity: 1; transform: none; }
+.barre img { flex: none; width: 7.4rem; height: 7.4rem; object-fit: contain; }
+.barre-nom { font-family: var(--titre); font-weight: 400; font-size: 3.4rem; line-height: 1.1; white-space: nowrap; }
+.barre .jauge { flex: none; width: 46rem; }
+.barre-temps { font-family: var(--titre); font-weight: 400; font-size: 3.6rem; color: var(--rose-clair); min-width: 10rem; text-align: right; font-variant-numeric: tabular-nums; }
+.barre.attente { padding-left: 2.8rem; }
+
+/* ---------- la sortie de la VF 1.0 ---------- */
+.zone-compte { top: 0; bottom: 0; align-items: center; }
+.compte { font-family: var(--titre); font-size: 34rem; line-height: 1; color: var(--papier); -webkit-text-stroke: 1rem var(--encre); paint-order: stroke fill; text-shadow: 1.4rem 1.5rem 0 var(--ombre); animation: tic 1s var(--rebond) both; }
+@keyframes tic { from { transform: scale(1.7) rotate(-6deg); opacity: 0; } 30% { opacity: 1; } to { transform: none; opacity: 1; } }
+.sortie { flex-direction: column; gap: 1.2rem; text-align: center; padding: 3.2rem 6rem 4rem; }
+.sortie-vf { font-family: var(--titre); font-weight: 400; font-size: 17rem; line-height: 1; color: var(--rose); -webkit-text-stroke: 0.5rem var(--encre); paint-order: stroke fill; text-shadow: 0.9rem 0.9rem 0 var(--violet), 1.4rem 1.4rem 0 var(--encre); }
+.sortie-titre { font-family: var(--titre); font-weight: 400; font-size: 8rem; line-height: 1.05; }
+.sortie-ligne { font-weight: 800; font-size: 3.6rem; color: var(--prune-texte); }
+.sortie-site { align-self: center; margin-top: 1rem; font-weight: 800; font-size: 3.4rem; background: var(--encre); color: var(--papier); padding: 0.8rem 2.8rem 1rem; border-radius: 99rem; }
+
+/* ---------- debout (TikTok) : tout s'empile ---------- */
+@media (orientation: portrait) {
+  .al { flex-direction: column; align-items: stretch; text-align: center; gap: 2.4rem; width: 100rem; max-width: calc(100vw - 6rem); padding: 2.6rem 3rem 3rem; }
+  .al-image { width: 100%; rotate: none; }
+  .al-titre { font-size: 6.4rem; }
+  .al-titre.long { font-size: 5rem; }
+  .al-emoji { align-self: center; }
+  .pastille { align-self: center; }
+  .vote, .boss { width: 100rem; }
+  .vote { text-align: left; }
+  .vote-tete { flex-direction: column; align-items: center; gap: 1rem; }
+  .vote-choix { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; }
+  .choix { flex-direction: row; align-items: stretch; }
+  .choix-image { width: 34rem; }
+  .choix-corps { flex: 1; min-width: 0; justify-content: center; }
+  .vote-pied { text-align: center; }
+  .boss-image { align-self: center; width: 46rem; height: 46rem; }
+  .boss-vie { text-align: left; }
+  .barre { max-width: calc(100vw - 6rem); }
+  .barre .jauge { width: 30rem; }
+  .sortie-vf { font-size: 15rem; }
+  .sortie-titre { font-size: 7rem; }
+  .compte { font-size: 40rem; }
+}
+/* ouverte dans un navigateur : un mot d'explication (obs.js ne le montre jamais dans OBS) */
+.aide { position: fixed; left: 2.4vmin; bottom: 2.4vmin; box-sizing: border-box; max-width: min(46rem, calc(100vw - 4.8vmin)); padding: 1.6rem 2rem 1.8rem; background: var(--nuit); color: var(--blanc); border: 0.3rem solid var(--encre); border-radius: 1.6rem; box-shadow: 0.5rem 0.6rem 0 var(--ombre); font-size: max(1.5rem, 14px); line-height: 1.45; }
+.aide b { font-size: max(1.8rem, 16px); }
+.aide p { margin: 0.6em 0 0; color: var(--brume); }
+.aide a { display: inline-block; margin-top: 0.9em; padding: 0.35em 1em 0.45em; background: var(--rose); color: var(--encre); border: 0.2rem solid var(--encre); border-radius: 99rem; font-weight: 800; text-decoration: none; }
+@media (prefers-reduced-motion: reduce) { .al, .barre { transition: opacity 0.3s linear; transform: none; } .compte { animation: none; } }
+</style>
+</head>
+<body>
+<main id="obs" aria-live="polite"></main>
+<noscript>Cette page a besoin de JavaScript : elle affiche les alertes de GRAND LINE dans OBS.</noscript>
+</body>
+</html>
