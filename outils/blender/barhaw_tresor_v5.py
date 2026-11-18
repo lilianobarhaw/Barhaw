@@ -252,6 +252,11 @@ def _mailles(graine, leger):
     L.ajouter(sommets, faces, "sol_tresor", uv=uvs)
     L.regrouper(debut_sol, None, 4, 0.75)
     SOL.append(("decor", "le Mont du Butin", Vf.rond(MONT[0], MONT[1], R_MONT * 0.72, 16)))
+    # le Mont n'est pas un cône : de gros blocs de roche, à moitié pris dans la pente, cassent sa silhouette (la vraie
+    # roche taillée, les strates et la cascade restent à faire)
+    for k, (ang, dist, r) in enumerate(((0, 0.0, 0.95), (200, 0.75, 0.8), (320, 0.8, 0.72), (95, 0.85, 0.7), (255, 1.3, 0.6), (20, 1.35, 0.55), (150, 1.4, 0.5))[: 4 if leger else 7]):
+        x, y = MONT[0] + math.cos(math.radians(ang)) * dist, MONT[1] + math.sin(math.radians(ang)) * dist * 0.85
+        A.rocher(L, rng, x, y, sol(x, y) - r * 0.45, r, "roche_claire")
 
     etape("la Croix Rouge")
     # --- la Croix Rouge : deux bandes de planches peintes, posées en croix sur le sable ; au croisement, la Fosse ---
