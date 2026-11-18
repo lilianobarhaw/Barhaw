@@ -159,9 +159,9 @@ def _couvercle(l, p, n=5):
 
 def coffre(L, U, M, l=0.5, p=0.34, h=0.3, ouvert=True, plein=True):
     """Un coffre de bois ferré : la caisse, les ferrures, le couvercle bombé (ouvert : relevé en arrière), l'or dedans."""
-    L.ajouter(*N.boite(l, p, h), "planches_sombres", M @ T(0, 0, h / 2))
+    L.ajouter(*N.boite(l, p, h), "planches_sombres", M)  # N.boite : posée sur sa base
     for xx in (-l * 0.36, 0, l * 0.36):
-        L.ajouter(*N.boite(0.035, p + 0.012, h + 0.01), "fer", M @ T(xx, 0, h / 2))
+        L.ajouter(*N.boite(0.035, p + 0.012, h + 0.008), "fer", M @ T(xx, 0, 0))
     Mc = M @ T(0, p / 2, h) @ Rx(math.radians(-112 if ouvert else 0)) @ T(0, -p / 2, 0)
     L.ajouter(*_couvercle(l, p), "planches_sombres", Mc)
     for xx in (-l * 0.36, 0, l * 0.36):
@@ -300,7 +300,7 @@ def _mailles(graine, leger):
     etape("la jetée")
     # --- la jetée du lagon : des planches sur pilotis, le canot ---
     Mj = T(*((pa + pb) / 2), 0) @ Rz(cap_j)
-    L.ajouter(*N.boite(lg + 0.3, 0.62, 0.06), "planches", Mj @ T(0, 0, ZQ - 0.03))
+    L.ajouter(*N.boite(lg + 0.3, 0.62, 0.06), "planches", Mj @ T(0, 0, ZQ - 0.05))
     for k in range(5):
         for s in (-1, 1):
             L.ajouter(*N.cylindre(0.04, 0.035, ZQ + 0.75, 5), "poutre", Mj @ T(-lg / 2 + 0.1 + k * (lg / 4), s * 0.27, -0.6))
