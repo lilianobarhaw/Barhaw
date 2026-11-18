@@ -40,6 +40,41 @@ function pastille() {
   });
   return rond;
 }
+// une nuée d'orage (l'Île Tonnerre) : des bouillons qui se chevauchent, clairs en haut, un ventre sombre et presque plat
+let toileNuee = null;
+function nuee() {
+  toileNuee ||= toile(256, 128, (x, l, h) => {
+    const R = hasard(4242);
+    for (let k = 0; k < 30; k++) {
+      const u = R();
+      const r = h * (0.15 + 0.2 * R()) * (1.05 - 1.1 * Math.abs(u - 0.5));
+      const cx = l * (0.13 + 0.74 * u), cy = h * 0.66 - r * (0.15 + 0.8 * R());
+      const d = x.createRadialGradient(cx, cy, r * 0.25, cx, cy, r);
+      d.addColorStop(0, "rgba(255,255,255,1)");
+      d.addColorStop(0.72, "rgba(255,255,255,.96)");
+      d.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = d;
+      x.beginPath();
+      x.arc(cx, cy, r, 0, 7);
+      x.fill();
+    }
+    // le ventre : il s'efface en bas, à plat
+    x.globalCompositeOperation = "destination-out";
+    const bas = x.createLinearGradient(0, h * 0.6, 0, h * 0.82);
+    bas.addColorStop(0, "rgba(0,0,0,0)");
+    bas.addColorStop(1, "rgba(0,0,0,1)");
+    x.fillStyle = bas;
+    x.fillRect(0, h * 0.6, l, h * 0.4);
+    // l'ombre : le dessous est sombre, le dessus garde un peu de jour
+    x.globalCompositeOperation = "source-atop";
+    const ombre = x.createLinearGradient(0, h * 0.12, 0, h * 0.74);
+    ombre.addColorStop(0, "rgba(0,0,0,0)");
+    ombre.addColorStop(1, "rgba(0,0,0,.6)");
+    x.fillStyle = ombre;
+    x.fillRect(0, 0, l, h);
+  });
+  return toileNuee;
+}
 
 // ---------- ce que les îles ont l'air d'être (couleurs du parchemin, et ce qu'il y a dessus) ----------
 const THEMES = {
@@ -2260,6 +2295,224 @@ function effetRepere(r) {
         }
       }
     };
+  } else if (genre === "foudre") {
+    // l'orage de l'Île Tonnerre (« l'orage ne s'arrête jamais ici ») : un plafond de nuées sombres qui tourne lentement
+    // au-dessus du Pic, la pluie en biais, et la foudre. Toutes les « cadence » secondes (à peu près), un éclair tombe sur
+    // le Grand Paratonnerre (le repère est à sa pointe) ou sur une borne (« ailleurs » : x, y, z de Blender) ; les nuées
+    // s'allument, l'île sort de l'ombre (la nuit : une lueur, voir chargerIle), puis l'étincelle court le long du câble de
+    // cuivre (« cable ») jusqu'aux bocaux de la forge (« bocaux »), qui flambent un instant. Entre deux coups, des
+    // éclairs sourds dans les nuées. L'éclair, les éclats et les bocaux sont dessinés après la teinte de la nuit (le calque).
+    const haut = r.userData.haut ?? 4;
+    const rayon = r.userData.rayon || 8;
+    const cadence = Math.max(1.5, r.userData.cadence || 5.5);
+    const lent = r.userData.lent || 1; // pour regarder un coup au ralenti (les essais)
+    const nbN = Math.max(3, Math.min(14, r.userData.nuages || 9));
+    const nbP = Math.max(0, Math.min(700, r.userData.pluie ?? 400));
+    const alea = (n) => { const x = Math.sin(n * 127.1 + 11.7) * 43758.5453; return x - Math.floor(x); };
+    // un point de Blender (dans l'île) → ici (le repère pour origine)
+    const ici = (t, k) => new THREE.Vector3(t[k] - r.position.x, t[k + 2] - r.position.y, -t[k + 1] - r.position.z);
+    const liste = (t) => { const o = []; if (Array.isArray(t)) for (let k = 0; k + 2 < t.length; k += 3) o.push(ici(t, k)); return o; };
+    const ailleurs = liste(r.userData.ailleurs);
+    const cable = liste(r.userData.cable);
+    const bocaux = liste(r.userData.bocaux);
+    const centre = new THREE.Vector3(-r.position.x, 0, -r.position.z); // le milieu de l'île
+    const sol = -r.position.y; // la mer
+    // --- les nuées : de gros nuages sombres (voir nuee()), les uns devant les autres, plus clairs quand ils sont hauts ---
+    const SOMBRE = new THREE.Color(0x5b5f6d), DOS = new THREE.Color(0x9aa0ae), VIF = new THREE.Color(0xe6f2ff);
+    const nuees = [];
+    for (let k = 0; k < nbN; k++) {
+      const bas = k < Math.ceil(nbN * 0.45);
+      const base = SOMBRE.clone().lerp(DOS, bas ? alea(k) * 0.3 : 0.4 + alea(k) * 0.6);
+      const nu = new THREE.Sprite(new THREE.SpriteMaterial({ map: nuee(), color: base, transparent: true, opacity: 0.94, depthWrite: false }));
+      const a = k * 2.399, d = rayon * 0.52 * Math.sqrt((k + 0.4) / nbN);
+      const l = (bas ? 8.2 : 6) + alea(k + 40) * 3;
+      nu.userData = { base, a, d, y: haut + (bas ? alea(k + 20) * 0.6 : 0.9 + alea(k + 20) * 1.3), l, h: l * (0.44 + alea(k + 60) * 0.12) };
+      g.add(nu);
+      nuees.push(nu);
+    }
+    // --- la pluie : des traits qui tombent en biais, tout se fait dans le dessin ---
+    const uPluie = { uT: { value: 0 }, uH: { value: haut - 0.4 - sol }, uY: { value: haut - 0.4 }, uVif: { value: 0 } };
+    if (nbP) {
+      const pos = new Float32Array(nbP * 6), bout = new Float32Array(nbP * 2), ph = new Float32Array(nbP * 2);
+      for (let k = 0; k < nbP; k++) {
+        const a = alea(k * 3 + 1) * 6.283, d = rayon * 0.74 * Math.sqrt(alea(k * 3 + 2));
+        for (let j = 0; j < 2; j++) {
+          pos[k * 6 + j * 3] = centre.x + Math.cos(a) * d - 1.9;
+          pos[k * 6 + j * 3 + 2] = centre.z + Math.sin(a) * d;
+          bout[k * 2 + j] = j;
+          ph[k * 2 + j] = alea(k * 3 + 3);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute("aBout", new THREE.BufferAttribute(bout, 1));
+      geo.setAttribute("aPhase", new THREE.BufferAttribute(ph, 1));
+      const pluie = new THREE.LineSegments(geo, new THREE.ShaderMaterial({
+        uniforms: uPluie,
+        vertexShader: `
+          attribute float aBout; attribute float aPhase; uniform float uT; uniform float uH; uniform float uY; varying float vA;
+          void main() {
+            float t = fract(uT * (0.95 + aPhase * 0.35) + aPhase * 9.0); // 0 : sous la nuée ; 1 : au sol
+            float chute = t * uH + aBout * 0.7;
+            vec3 p = vec3(position.x + chute * 0.3, uY - chute, position.z + chute * 0.06);
+            vA = smoothstep(0.0, 0.1, t) * smoothstep(1.0, 0.9, t) * (0.55 + 0.45 * aPhase);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+          }`,
+        fragmentShader: "uniform float uVif; varying float vA; void main() { gl_FragColor = vec4(mix(vec3(0.74, 0.83, 0.93), vec3(0.93, 0.98, 1.0), uVif), vA * (0.34 + 0.5 * uVif)); }",
+        transparent: true, depthWrite: false,
+      }));
+      pluie.frustumCulled = false;
+      g.add(pluie);
+    }
+    // --- la foudre : un ruban en zigzag (le trait et deux branches), tourné vers l'œil à chaque coup ---
+    const feu = new THREE.Group();
+    const K = 14, KB = 4; // les morceaux du trait, ceux d'une branche
+    const nbPts = K + 1 + 2 * (KB + 1);
+    const posE = new Float32Array(nbPts * 6), bordE = new Float32Array(nbPts * 2), longE = new Float32Array(nbPts * 2), forceE = new Float32Array(nbPts * 2);
+    const indices = [];
+    const ruban = (debut, n, force) => {
+      for (let k = 0; k <= n; k++) for (let j = 0; j < 2; j++) { bordE[(debut + k) * 2 + j] = j ? 1 : -1; longE[(debut + k) * 2 + j] = k / n; forceE[(debut + k) * 2 + j] = force; }
+      for (let k = 0; k < n; k++) { const a = (debut + k) * 2; indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    };
+    ruban(0, K, 1);
+    ruban(K + 1, KB, 0.5);
+    ruban(K + 1 + KB + 1, KB, 0.5);
+    const geoE = new THREE.BufferGeometry();
+    const aPosE = new THREE.BufferAttribute(posE, 3);
+    aPosE.setUsage(THREE.DynamicDrawUsage);
+    geoE.setAttribute("position", aPosE);
+    geoE.setAttribute("aBord", new THREE.BufferAttribute(bordE, 1));
+    geoE.setAttribute("aLong", new THREE.BufferAttribute(longE, 1));
+    geoE.setAttribute("aForce", new THREE.BufferAttribute(forceE, 1));
+    geoE.setIndex(indices);
+    const uE = { uA: { value: 0 } };
+    const eclair = new THREE.Mesh(geoE, new THREE.ShaderMaterial({
+      uniforms: uE,
+      vertexShader: "attribute float aBord; attribute float aLong; attribute float aForce; varying float vB; varying float vL; varying float vF; void main() { vB = aBord; vL = aLong; vF = aForce; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: `
+        uniform float uA; varying float vB; varying float vL; varying float vF;
+        void main() {
+          float d = abs(vB);
+          float coeur = smoothstep(0.3, 0.06, d);
+          float halo = (1.0 - d) * (1.0 - d) * 0.42;
+          float bouts = smoothstep(0.0, 0.1, vL) * mix(1.0, 1.0 - vL * 0.85, step(vF, 0.9)); // il sort de la nuée ; une branche s'éteint au bout
+          gl_FragColor = vec4(mix(vec3(0.5, 0.78, 1.0), vec3(1.0, 1.0, 1.0), coeur), (coeur + halo) * bouts * vF * uA);
+        }`,
+      transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    }));
+    eclair.frustumCulled = false;
+    eclair.visible = false;
+    const lueur = (c) => new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: c, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+    const eclat = lueur(0xcfe8ff); // là où il tombe
+    const ventre = lueur(0xbcdcff); // dans la nuée, au-dessus
+    const sourd = lueur(0xa9c8f5); // les éclairs sourds, entre deux coups
+    const etincelle = lueur(0xd6f4ff); // celle qui court le long du câble
+    const flammes = bocaux.map((p) => { const f = lueur(0xa8f0ff); f.position.copy(p); return f; });
+    feu.add(eclair, eclat, ventre, sourd, etincelle, ...flammes);
+    g.userData.calque = feu;
+    // la nuit, l'éclair éclaire l'île : une lueur dont le rayon suit le coup (voir chargerIle)
+    const jour = { x: r.position.x, y: r.position.y - 2.5, z: r.position.z, r: 0, c: [0.72, 0.88, 1], fixe: true }; // autour du Pic
+    const jourBas = { x: 0, y: 1.6, z: 0, r: 0, c: [0.72, 0.88, 1], fixe: true }; // et toute l'île, avec la mer autour (une lueur très large : la lumière d'une lanterne tombe vite)
+    g.userData.lueurs = [jour, jourBas];
+    let oeil = null;
+    eclat.onBeforeRender = (renderer, scene, camera) => { oeil = camera; };
+    const origine = new THREE.Vector3(), vers = new THREE.Vector3(), tang = new THREE.Vector3(), cote = new THREE.Vector3();
+    const tracerRuban = (pts, debut, large) => {
+      for (let k = 0; k < pts.length; k++) {
+        tang.subVectors(pts[Math.min(pts.length - 1, k + 1)], pts[Math.max(0, k - 1)]);
+        vers.subVectors(origine, pts[k]);
+        cote.crossVectors(tang, vers).normalize().multiplyScalar(large);
+        const a = (debut + k) * 6;
+        posE[a] = pts[k].x - cote.x; posE[a + 1] = pts[k].y - cote.y; posE[a + 2] = pts[k].z - cote.z;
+        posE[a + 3] = pts[k].x + cote.x; posE[a + 4] = pts[k].y + cote.y; posE[a + 5] = pts[k].z + cote.z;
+      }
+    };
+    let coup = null; // { t0, cible, grand }
+    let numero = 0, prochain = 1.2, avant = 0;
+    const frapper = (s) => {
+      const n = numero++;
+      const grand = !ailleurs.length || alea(n * 5 + 1) < 0.55;
+      const cible = grand ? new THREE.Vector3(0, 0, 0) : ailleurs[Math.floor(alea(n * 5 + 2) * ailleurs.length) % ailleurs.length];
+      const depart = new THREE.Vector3(cible.x * 0.55 + (alea(n * 5 + 3) - 0.5) * 2.6, haut * (0.86 + alea(n * 5 + 4) * 0.2), cible.z * 0.55 + (alea(n * 5 + 5) - 0.5) * 1.6);
+      const long = depart.distanceTo(cible);
+      // où est l'œil, vu d'ici (le calque est posé au repère, sans tourner)
+      if (oeil) { feu.getWorldPosition(origine); origine.subVectors(oeil.position, origine); } else origine.set(0, 12, 30);
+      const pts = [];
+      for (let k = 0; k <= K; k++) {
+        const t = k / K;
+        const ampl = 0.085 * long * (1 - t * t * t) * (k ? 1 : 0.4);
+        pts.push(new THREE.Vector3().lerpVectors(depart, cible, t).add(new THREE.Vector3((alea(n * 91 + k * 3) - 0.5) * 2 * ampl, (alea(n * 91 + k * 3 + 1) - 0.5) * ampl * 0.5, (alea(n * 91 + k * 3 + 2) - 0.5) * ampl)));
+      }
+      pts[K].copy(cible);
+      tracerRuban(pts, 0, 0.27);
+      for (let b = 0; b < 2; b++) {
+        const k0 = 3 + Math.floor(alea(n * 13 + b) * 6) + b * 2;
+        const sens = alea(n * 17 + b) < 0.5 ? -1 : 1;
+        const br = [pts[k0].clone()];
+        for (let k = 1; k <= KB; k++) br.push(br[k - 1].clone().add(new THREE.Vector3(sens * long * (0.05 + alea(n * 23 + b * 7 + k) * 0.06), -long * (0.035 + alea(n * 29 + b * 7 + k) * 0.05), (alea(n * 31 + b * 7 + k) - 0.5) * long * 0.05)));
+        tracerRuban(br, K + 1 + b * (KB + 1), 0.16);
+      }
+      aPosE.needsUpdate = true;
+      eclat.position.copy(cible);
+      ventre.position.copy(depart);
+      coup = { t0: s, cible, grand, tiers: alea(n * 5 + 6) < 0.6 };
+    };
+    // la force du coup au fil du temps : deux ou trois décharges, puis la lueur qui retombe
+    const enveloppe = (t, tiers) => t < 0 ? 0 : t < 0.06 ? 1 : t < 0.11 ? 0.12 : t < 0.2 ? 1 : t < 0.26 ? 0.25 : t < 0.32 ? (tiers ? 0.85 : 0.2) : (tiers ? 0.85 : 0.2) * Math.exp(-(t - 0.32) / 0.13);
+    const surCable = new THREE.Vector3();
+    maj = (s) => {
+      const L = lampesAllumees;
+      if (s < avant - 1 || s > prochain + 30) { prochain = s + 0.8; coup = null; } // l'horloge a sauté
+      avant = s;
+      if (s >= prochain) { frapper(s); prochain = s + cadence * (0.45 + alea(numero * 5 + 7) * 1.1); }
+      const t = coup ? (s - coup.t0) / lent : 99;
+      const e = coup ? enveloppe(t, coup.tiers) : 0;
+      const fort = coup?.grand ? 1 : 0.7;
+      // les nuées tournent, respirent, et s'allument de l'intérieur
+      const es = Math.pow(Math.max(0, Math.sin(s * 1.9) * Math.sin(s * 0.83 + 1.3)), 6); // un éclair sourd, de temps en temps
+      const ks = Math.floor(s * 1.9 / Math.PI);
+      const as = alea(ks) * 6.283, ds = rayon * 0.3 * alea(ks + 50);
+      sourd.position.set(centre.x * 0.5 + Math.cos(as) * ds, haut + 0.6, centre.z * 0.5 + Math.sin(as) * ds);
+      sourd.scale.set(6.5, 3, 1);
+      sourd.material.opacity = es * (0.2 + 0.25 * L);
+      for (const nu of nuees) {
+        const u = nu.userData;
+        const a = u.a + s * 0.016;
+        nu.position.set(centre.x * 0.45 + Math.cos(a) * u.d, u.y + Math.sin(s * 0.21 + u.a) * 0.12, centre.z * 0.45 + Math.sin(a) * u.d * 0.8);
+        const souffle = 1 + Math.sin(s * 0.17 + u.a * 3) * 0.05;
+        nu.scale.set(u.l * souffle, u.h, 1);
+        const pres = coup ? Math.max(0, 1 - Math.hypot(nu.position.x - ventre.position.x, nu.position.z - ventre.position.z) / (rayon * 0.7)) : 0;
+        const vs = Math.max(0, 1 - nu.position.distanceTo(sourd.position) / 4.5) * es * 0.5;
+        nu.material.color.copy(u.base).lerp(VIF, Math.min(0.85, e * fort * (0.25 + 0.6 * pres) + vs));
+      }
+      uPluie.uT.value = s;
+      uPluie.uVif.value = Math.min(1, e * fort);
+      // l'éclair, son éclat, la nuée qui s'allume
+      eclair.visible = e > 0.06;
+      uE.uA.value = Math.min(1, e * 1.15) * fort;
+      eclat.scale.setScalar((1.6 + 2.6 * e) * (1 + 0.9 * L) * fort);
+      eclat.material.opacity = Math.min(1, e) * (0.55 + 0.35 * L);
+      ventre.scale.set(9 * fort, 4.2, 1);
+      ventre.material.opacity = Math.min(1, e) * (0.34 + 0.3 * L);
+      jour.r = L > 0.02 ? 12.5 * Math.min(1, e) * fort : 0;
+      jourBas.r = jour.r * 4;
+      // l'étincelle descend le câble, puis les bocaux flambent
+      const tc = coup?.grand && cable.length > 1 ? (t - 0.12) / 0.55 : -1;
+      if (tc >= 0 && tc <= 1) {
+        const f = tc * (cable.length - 1), k = Math.min(cable.length - 2, Math.floor(f));
+        surCable.lerpVectors(cable[k], cable[k + 1], f - k);
+        etincelle.position.copy(surCable);
+        etincelle.scale.setScalar(0.5 + 0.35 * Math.sin(s * 60) + 0.5 * L);
+        etincelle.material.opacity = 0.95;
+      } else etincelle.material.opacity = 0;
+      const tb = coup?.grand ? t - 0.67 : -1;
+      const flambe = tb >= 0 ? Math.exp(-tb / 0.9) * Math.min(1, tb * 14) : 0;
+      for (let k = 0; k < flammes.length; k++) {
+        const veille = 0.5 + 0.5 * Math.sin(s * 2.3 + k * 2.1); // elle bat doucement, comme un cœur
+        flammes[k].scale.setScalar(0.5 + 0.12 * veille + (0.25 + 0.14 * veille) * L + flambe * (0.8 + 0.6 * L));
+        flammes[k].material.opacity = Math.min(1, 0.1 + 0.07 * veille + (0.3 + 0.12 * veille) * L + flambe * 0.7);
+      }
+    };
   } else if (genre === "orage") {
     const nuage = new THREE.Group();
     for (let k = 0; k < 9; k++) {
@@ -2637,7 +2890,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
           Object.defineProperty(luit, "visible", { get: () => Boolean(i.visible && i.groupe.visible), set() {} }); // elles suivent leur île
           fete.calque.add(luit);
         } else if (luit) e.groupe.add(luit);
-        for (const l of e.groupe.userData.lueurs || []) lanternes.push({ g: { get visible() { return Boolean(i.visible && i.groupe.visible); }, position: new THREE.Vector3(i.x + l.x, 0, i.z + l.z) }, y: l.y, r: l.r, c: l.c, clignote: true });
+        for (const l of e.groupe.userData.lueurs || []) lanternes.push({ g: { get visible() { return Boolean(i.visible && i.groupe.visible && l.r > 0); }, position: new THREE.Vector3(i.x + l.x, 0, i.z + l.z) }, y: l.y, get r() { return l.r; }, c: l.c, clignote: !l.fixe }); // « r » se relit : l'éclair de l'Île Tonnerre
       }
       for (const c of i.contenu) { i.groupe.remove(c); c.traverse((o) => o.geometry?.dispose?.()); }
       i.groupe.add(modele);
