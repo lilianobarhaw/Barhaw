@@ -35,7 +35,7 @@ CAMP = (-3.7, 1.2)  # le camp des chercheurs, à l'ouest de la clairière
 TENTES = [(-4.6, 2.25, math.radians(-35)), (-5.05, 0.55, math.radians(10)), (-2.75, 2.95, math.radians(-70))]
 EPAVE, CAP_EPAVE = (-6.1, -2.3), math.radians(115)  # le galion, sur la plage de l'ouest
 TROUS = [(3.3, 0.2), (4.5, 1.5), (3.9, -1.3), (5.3, -0.2), (2.9, 2.2)]  # les trous pour rien : on a creusé là d'abord
-GARDIENS = [(2.35, -0.35, 0.3), (4.45, 0.4, -0.2), (5.55, 1.05, 0.5)]  # trois gardiens de pierre, le long du sentier de l'est
+BORNES = [(2.35, -0.35, 0.3), (4.45, 0.4, -0.2), (5.55, 1.05, 0.5)]  # trois bornes des chercheurs, le long du sentier de l'est
 
 
 def rivage(th):
@@ -72,8 +72,8 @@ def mont(x, y):
     return H_MONT * max(0.0, 1 - (d / R_MONT) ** 2) ** 1.4 * (0.74 + 0.42 * crete)
 
 
-def terrain(x, y):
-    """La hauteur du sol : la plage qui monte doucement, le plateau des cocotiers, la clairière bien plate, le Mont."""
+def _brut(x, y):
+    """Le sol avant les replats des trous."""
     d = bord(x, y)
     if d < 0:
         return max(-1.5, 0.4 * d)
@@ -86,6 +86,21 @@ def terrain(x, y):
     h = h * (1 - camp) + 0.8 * camp
     quai = K.lisse(1.05, 0.5, math.hypot(x - JETEE_A[0], y - JETEE_A[1]))  # le sable monte jusqu'au plancher de la jetée
     return h * (1 - quai) + (ZQ - 0.015) * quai
+
+
+Z_TROUS = [_brut(x, y) for x, y in TROUS]  # chaque trou est creusé sur un petit replat, à la hauteur du sol à cet endroit
+
+
+def terrain(x, y):
+    """La hauteur du sol : la plage qui monte doucement, le plateau des cocotiers, la clairière bien plate, le Mont, les
+    replats des trous."""
+    h = _brut(x, y)
+    for (tx, ty), tz in zip(TROUS, Z_TROUS):
+        d = math.hypot(x - tx, y - ty)
+        if d < 1.15:
+            p = K.lisse(1.1, 0.72, d)
+            h = h * (1 - p) + tz * p
+    return h
 
 
 sol = terrain
@@ -282,7 +297,7 @@ def _mailles(graine, leger):
     for k, (x, y) in enumerate(TROUS):
         zt_ = sol(x, y)
         L.ajouter(*N.cylindre(0.3, 0.38, 0.07, 9, haut=False), "sable_mouille", T(x, y, zt_ - 0.02))
-        L.ajouter(*N.cylindre(0.29, 0.29, 0.012, 9, haut=True), "terre", T(x, y, zt_ - 0.012))
+        L.ajouter(*N.cylindre(0.29, 0.29, 0.014, 9, haut=True), "terre", T(x, y, zt_ + 0.002))  # le fond sombre, juste au-dessus du sol (sinon l'herbe passe à travers)
         a = k * 2.3
         L.ajouter(*N.sphere(0.2, 7, 4, 0.5), "sable_rose", T(x + math.cos(a) * 0.47, y + math.sin(a) * 0.47, zt_ - 0.02))
         if k % 2 == 0:
@@ -290,17 +305,17 @@ def _mailles(graine, leger):
             L.ajouter(*N.poutre((q[0], q[1], zt_ + 0.05), (q[0] - 0.05, q[1] + 0.07, zt_ + 0.5), 0.02), "poutre")
             L.ajouter(*N.boite(0.08, 0.012, 0.12), "fer", T(q[0] + 0.005, q[1] - 0.008, zt_ + 0.02))
         SOL.append(("decor", "un trou pour rien", Vf.rond(x + math.cos(a) * 0.2, y + math.sin(a) * 0.2, 0.58)))  # le trou et son tas
-    # --- les gardiens : trois pierres dressées, une tête ronde posée dessus, deux creux pour les yeux, de la mousse ---
-    for x, y, cap in GARDIENS:
+    # --- les bornes des chercheurs : des pierres plates empilées, une perche et son chiffon rouge (la piste du trésor) ---
+    for x, y, cap in BORNES:
         zg = sol(x, y)
-        Mg = T(x, y, zg - 0.05) @ Rz(cap - PI / 2)
-        L.ajouter(*N.cylindre(0.2, 0.15, 0.62, 7, haut=True), "pierres_claires", Mg)
-        L.ajouter(*N.sphere(0.2, 8, 5, 0.9), "pierres_claires", Mg @ T(0, 0, 0.78))
-        for s in (-1, 1):
-            L.ajouter(*N.sphere(0.04, 5, 3, 1.0), "pierres_sombres", Mg @ T(s * 0.075, -0.17, 0.82))
-        L.ajouter(*N.boite(0.14, 0.03, 0.03), "pierres_sombres", Mg @ T(0, -0.175, 0.68))
-        L.ajouter(*N.sphere(0.12, 6, 3, 0.45), "feuillage", Mg @ T(0.03, 0.03, 0.95))
-        SOL.append(("decor", "un gardien de pierre", Vf.rond(x, y, 0.24)))
+        haut_b = zg - 0.04
+        for k, (r, e) in enumerate(((0.21, 0.5), (0.17, 0.55), (0.13, 0.6), (0.095, 0.7))):
+            L.ajouter(*N.sphere(r, 7, 4, e), "pierres_claires" if k % 2 == 0 else "roche_claire", T(x + 0.015 * (k % 2), y - 0.01 * k, haut_b + r * e * 0.9) @ Rz(cap + k * 0.7))
+            haut_b += r * e * 1.55
+        L.ajouter(*N.cylindre(0.014, 0.011, 0.62, 4), "poutre", T(x + 0.03, y + 0.02, haut_b - 0.12))
+        zf_ = haut_b + 0.48
+        A.toile(L, [(x + 0.03, y + 0.02, zf_), (x + 0.03, y + 0.02, zf_ - 0.2), (x + 0.03 + math.cos(cap) * 0.3, y + 0.02 + math.sin(cap) * 0.3, zf_ - 0.13)], [(0, 1, 2)], "tissu_rouge", ep=0.008)
+        SOL.append(("decor", "une borne des chercheurs", Vf.rond(x, y, 0.24)))
 
     etape("le camp")
     # --- le camp des chercheurs : trois tentes, le feu, des tonneaux, la table de la carte ---
