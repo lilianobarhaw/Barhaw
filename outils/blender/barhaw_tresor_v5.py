@@ -66,7 +66,8 @@ ZQ = 0.42  # la hauteur de son plancher
 def mont(x, y):
     """Le Mont du Butin : un dôme de roche, plus raide au sud (la falaise de la cascade, à venir)."""
     d = math.hypot(x - MONT[0], (y - MONT[1]) * (1.25 if y < MONT[1] else 0.9))
-    return H_MONT * max(0.0, 1 - (d / R_MONT) ** 2) ** 1.4
+    crete = abs(K.bruit2(x * 1.9 + 3.1, y * 1.9, 5) - 0.5) * 2  # des arêtes et des ravines : pas un pain de sucre
+    return H_MONT * max(0.0, 1 - (d / R_MONT) ** 2) ** 1.4 * (0.74 + 0.42 * crete)
 
 
 def terrain(x, y):
@@ -139,17 +140,38 @@ def tente(L, x, y, z, cap, mat="toile_tente_brune", lg=1.25, larg=1.0, h=0.82):
     return Vf.rectangle(x, y, lg + 0.1, larg + 0.1, cap)
 
 
+def _couvercle(l, p, n=5):
+    """Un demi-cylindre couché le long de x, le dos bombé vers +z, fermé aux deux bouts et dessous (faces vers le dehors)."""
+    v, f = [], []
+    for sx in (-l / 2, l / 2):
+        for k in range(n + 1):
+            a = PI * k / n
+            v.append((sx, -math.cos(a) * p / 2, math.sin(a) * p / 2))
+    m = n + 1
+    for k in range(n):
+        f.append((k, m + k, m + k + 1, k + 1))  # le dos
+    for k in range(1, n):
+        f.append((0, k, k + 1))  # le bout de gauche
+        f.append((m, m + k + 1, m + k))  # le bout de droite
+    f.append((0, n, m + n, m))  # le dessous
+    return v, f
+
+
 def coffre(L, U, M, l=0.5, p=0.34, h=0.3, ouvert=True, plein=True):
     """Un coffre de bois ferré : la caisse, les ferrures, le couvercle bombé (ouvert : relevé en arrière), l'or dedans."""
     L.ajouter(*N.boite(l, p, h), "planches_sombres", M @ T(0, 0, h / 2))
     for xx in (-l * 0.36, 0, l * 0.36):
         L.ajouter(*N.boite(0.035, p + 0.012, h + 0.01), "fer", M @ T(xx, 0, h / 2))
     Mc = M @ T(0, p / 2, h) @ Rx(math.radians(-112 if ouvert else 0)) @ T(0, -p / 2, 0)
-    L.ajouter(*N.cylindre(p / 2, p / 2, l, 8, haut=True, bas=True), "planches_sombres", Mc @ T(-l / 2, 0, 0) @ Ry(PI / 2))
-    if plein:
-        U.ajouter(*N.sphere(min(l, p) * 0.46, 8, 5, 0.5), "or", M @ T(0, 0, h - 0.02))
-        U.ajouter(*N.sphere(p * 0.28, 6, 4, 0.6), "or", M @ T(l * 0.22, -0.02, h + 0.0))
-        U.ajouter(*N.sphere(p * 0.25, 6, 4, 0.6), "or", M @ T(-l * 0.24, 0.03, h - 0.01))
+    L.ajouter(*_couvercle(l, p), "planches_sombres", Mc)
+    for xx in (-l * 0.36, 0, l * 0.36):
+        L.ajouter(*_couvercle(0.035, p + 0.012), "fer", Mc @ T(xx, 0, 0.002))
+    if plein:  # l'or : un tas qui dépasse du bord, des gemmes dedans
+        U.ajouter(*N.sphere(min(l, p) * 0.56, 8, 5, 0.62), "or", M @ T(0, -0.01, h - 0.03))
+        U.ajouter(*N.sphere(p * 0.3, 6, 4, 0.7), "or", M @ T(l * 0.24, -0.03, h + 0.0))
+        U.ajouter(*N.sphere(p * 0.27, 6, 4, 0.7), "or", M @ T(-l * 0.25, 0.02, h - 0.01))
+        for k, (gx, gy, mat) in enumerate(((0.08, -0.08, "vif_turquoise"), (-0.12, -0.04, "vif_rose"), (0.18, 0.04, "vif_violet"))):
+            L.ajouter(*N.sphere(0.03, 4, 2), mat, M @ T(gx * l / 0.5, gy * p / 0.34, h + 0.13 - 0.03 * k))
 
 
 def mailles(graine=377, leger=False):
@@ -237,6 +259,21 @@ def _mailles(graine, leger):
         L.ajouter(*N.boite(0.09, 0.012, 0.13), "fer", T(q[0] - 0.008, q[1] - 0.003, zc + 0.11))
         SOL.append(("decor", "un tas de sable", Vf.rond(q[0], q[1], 0.3)))
 
+    # la chèvre : trois perches liées au-dessus de la Fosse, une poulie, un petit coffre qui remonte au bout de sa corde
+    haut_chevre = (cx, cy, zc + 1.62)
+    for a in (math.radians(75), math.radians(195), math.radians(315)):
+        L.ajouter(*N.poutre((cx + math.cos(a) * 0.7, cy + math.sin(a) * 0.7, zc + 0.02), (cx - math.cos(a) * 0.06, cy - math.sin(a) * 0.06, haut_chevre[2] + 0.1), 0.04), "poutre")
+    L.ajouter(*N.cylindre(0.07, 0.07, 0.05, 8, haut=True, bas=True), "corde", T(cx, cy, haut_chevre[2] - 0.05))
+    Pc = N.Maille("petit_coffre")
+    Pc.ajouter(*N.tube([(0, 0, 0), (0, 0, -0.52)], 0.012, 4, bouts=False), "corde")
+    coffre(Pc, Pc, T(0, 0, -0.74) @ Rz(0.6), 0.3, 0.2, 0.18, ouvert=False, plein=False)
+    lots["animes"].append((Pc, haut_chevre, {"anim": "balance", "axe": [0.6, 0.8, 0.0], "ampl": 0.05, "vitesse": 0.8, "phase": 0.3}))
+    for k, (dx, dy) in enumerate(((-1.75, -0.55), (1.8, -0.35), (-0.4, 1.6), (1.45, 1.05))):  # les lanternes de la clairière
+        if leger and k > 1:
+            break
+        P.lampadaire(L, U, cx + dx, cy + dy, zc, 0.66)
+        SOL.append(("decor", "une lanterne", Vf.rond(cx + dx, cy + dy, 0.05)))
+
     etape("le camp")
     # --- le camp des chercheurs : trois tentes, le feu, des tonneaux, la table de la carte ---
     for k, (x, y, cap) in enumerate(TENTES):
@@ -274,6 +311,15 @@ def _mailles(graine, leger):
     Ph.canot(Bq, Rz(cap_j + 0.1), 0.85)
     lots["animes"].append((Bq, (float(bq[0]), float(bq[1]), 0.02), {"anim": "flotte", "ampl": 0.02, "roulis": 0.03, "phase": 0.6}))
 
+    # le butin qui attend d'embarquer : deux coffres fermés et des sacs, sur le plancher, côté ouest
+    cote_o = np.array((dp[1], -dp[0]))
+    for k, t in enumerate((0.25, 0.42)):
+        q = pa + dp * (lg * t) + cote_o * 0.225
+        coffre(L, U, T(q[0], q[1], ZQ) @ Rz(cap_j + 0.08 * k), 0.24, 0.15, 0.15, ouvert=False, plein=False)
+    for k in range(3):
+        q = pa + dp * (lg * (0.56 + 0.07 * k)) + cote_o * (0.215 + 0.02 * (k % 2))
+        L.ajouter(*N.sphere(0.07, 6, 4, 1.15), "toile_ecrue", T(q[0], q[1], ZQ + 0.065))
+
     etape("l'épave")
     # --- l'épave du galion, échouée sur la plage de l'ouest ---
     ze = sol(*EPAVE)
@@ -288,11 +334,34 @@ def _mailles(graine, leger):
         essais += 1
         a = (nb + 0.5 + (rng.random() - 0.5) * 0.9) / voulus * 2 * PI  # un par secteur : tout le tour de l'île en a
         x, y = vers(math.degrees(a), 1.1 + rng.random() * 2.6)
-        if bord(x, y) < 0.9 or mont(x, y) > 0.5 or math.hypot(x - CROIX[0], y - CROIX[1]) < R_CLAIRIERE + 0.35 or math.hypot(x - CAMP[0], y - CAMP[1]) < 1.5 or not libre(x, y, 0.16):
+        if (y < CROIX[1] - 0.3 and abs(x - CROIX[0]) < 2.3) or bord(x, y) < 0.9 or mont(x, y) > 0.5 or math.hypot(x - CROIX[0], y - CROIX[1]) < R_CLAIRIERE + 0.35 or math.hypot(x - CAMP[0], y - CAMP[1]) < 1.5 or not libre(x, y, 0.16):
             continue
         Pl.palmier(L, rng, x, y, 2.1 + rng.random() * 1.2, 0.3 + rng.random() * 0.6, rng.random() * 2 * PI, leger or nb >= 5, z=sol(x, y))  # cinq cocotiers fournis, les autres plus simples
         SOL.append(("arbre", "un cocotier", Vf.rond(x, y, 0.13)))
         nb += 1
+
+    etape("le sous-bois")
+    # --- le sous-bois : des buissons en fleur, des herbes hautes, des rochers au pied du Mont ---
+    for k in range(5 if leger else 12):
+        for _ in range(30):
+            a = rng.random() * 2 * PI
+            x, y = vers(math.degrees(a), 1.9 + rng.random() * 2.4)
+            if math.hypot(x - CROIX[0], y - CROIX[1]) > R_CLAIRIERE + 0.4 and mont(x, y) < 0.3 and libre(x, y, 0.3):
+                A.buisson(L, rng, x, y, sol(x, y) - 0.03, 0.22 + rng.random() * 0.12, ("fleur_rouge", "fleur_jaune", None, "fleur_blanche")[k % 4])
+                SOL.append(("rocher", "un buisson", Vf.rond(x, y, 0.26)))
+                break
+    for k in range(6 if leger else 14):
+        a = rng.random() * 2 * PI
+        x, y = vers(math.degrees(a), 1.6 + rng.random() * 2.2)
+        if math.hypot(x - CROIX[0], y - CROIX[1]) > R_CLAIRIERE + 0.2 and mont(x, y) < 0.3 and libre(x, y, 0.1):
+            Vt.herbes(L, rng, x, y, sol(x, y), 5)
+    for k in range(4 if leger else 8):
+        a = math.radians(200 + k * 44 + rng.random() * 20)
+        x, y = MONT[0] + math.cos(a) * (R_MONT * (0.92 + 0.14 * rng.random())), MONT[1] + math.sin(a) * (R_MONT * (0.8 + 0.12 * rng.random()))
+        r = 0.2 + rng.random() * 0.2
+        if bord(x, y) > 0.6 and libre(x, y, r):
+            A.rocher(L, rng, x, y, sol(x, y) - 0.05, r, "roche_claire")
+            SOL.append(("rocher", "un rocher du Mont", Vf.rond(x, y, r)))
 
     etape("les habitants")
     # --- ceux qui restent sur place ---
@@ -322,7 +391,19 @@ def _mailles(graine, leger):
             lots["animes"].append((types[t_], pts[0], extras))
         else:
             lots["copies"].append((deja[t_], pts[0], extras))
+    # les crabes de la plage : ils vont et viennent le long de l'eau
+    Cr = Pl.crabe()
+    premier = None
+    for k, (a0, a1, depart) in enumerate(((-160, -146, 0.0), (-20, -34, 0.5), (150, 138, 0.3))[:1 if leger else 3]):
+        pts = terre([vers(a0 + (a1 - a0) * t / 3, 0.45 + 0.12 * (t % 2)) for t in range(4)])
+        extras = {"anim": "marche", "chemin": [float(c) for p in pts for c in p], "vitesse": 0.09, "phase": depart, "saut": 0.0, "pause": 2.5, "rayon": 0.04}
+        if premier is None:
+            premier = len(lots["animes"])
+            lots["animes"].append((Cr, pts[0], extras))
+        else:
+            lots["copies"].append((premier, pts[0], extras))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(feu[0]), float(feu[1]), float(zf + 0.25)], "grosseur": 0.45}))
+    lots["reperes"].append(((0.5, 0.5, 4.6), {"anim": "oiseaux", "nb": 3 if leger else 6, "rayon": 5.0, "envergure": 0.13}))
     lots["reperes"].append(((float(cx), float(cy), float(zc + 0.5)), {"anim": "etincelles"}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.6, "genre": 2}))
 
