@@ -34,6 +34,7 @@ N.matiere("cristal_rose", Gv.tx_glace, 1.6, 0.4, rugueux=0.12, lueur=0.35, c=0xf
 N.matiere("cristal_turquoise", Gv.tx_glace, 1.6, 0.4, rugueux=0.12, lueur=0.35, c=0xbdf5f0, fond=0x3fb0b8, graine=703, givre=0.2, fissures=0.6)
 N.matiere("cristal_blanc", Gv.tx_glace, 1.6, 0.4, rugueux=0.1, lueur=0.3, c=0xf4f6ff, fond=0xa9b8e6, graine=704, givre=0.3, fissures=0.8)
 CRISTAUX = ("cristal_violet", "cristal_rose", "cristal_turquoise", "cristal_blanc")
+N.matiere("pierres_lilas", N.tx_pierres, 1.2, 1.0, c=0xb9aad8, rangs=5, graine=705, mortier=0x7d6fa6, mousse=0.15)
 
 
 def rivage(th):
@@ -153,6 +154,25 @@ def marches(L, x, y0, y1, larg, nb=6):
         L.ajouter(*N.boite(larg, (y1 - y0) / nb + 0.015, 0.3), "pierres_claires", T(x, y, zz - 0.3))
 
 
+def muret(L, rayon, z_bas, z_haut, pas=6):
+    """Le muret de pierre sèche qui tient une terrasse : un anneau de pans droits au bord du talus, ouvert dans l'axe de
+    l'allée (là où passent les marches). Il cache le bord en escalier du terrain."""
+    ouverture = math.degrees(math.asin(min(0.99, (DEMI_ALLEE + 0.06) / rayon(-PI / 2))))
+    pts = []
+    for g in range(-90 + pas, 270, pas):  # un tour, du bord de l'allée à l'autre bord
+        if abs(g + 90) <= ouverture or abs(g - 270) <= ouverture:
+            continue
+        a = math.radians(g)
+        pts.append((PITON[0] + math.cos(a) * rayon(a), PITON[1] + math.sin(a) * rayon(a)))
+    for a_, b_ in zip(pts[:-1], pts[1:]):
+        cx, cy = (a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2
+        lg, cap = math.hypot(b_[0] - a_[0], b_[1] - a_[1]), math.atan2(b_[1] - a_[1], b_[0] - a_[0])
+        L.ajouter(*N.boite(lg + 0.04, 0.14, z_haut - z_bas + 0.3), "pierres_lilas", T(cx, cy, z_bas - 0.22) @ Rz(cap), tourne=True)
+    for q in (pts[0], pts[-1]):  # un pilier de chaque côté des marches, une boule de cristal dessus
+        L.ajouter(*N.boite(0.2, 0.2, z_haut - z_bas + 0.5), "pierres_lilas", T(q[0], q[1], z_bas - 0.22))
+        L.ajouter(*N.sphere(0.085, 8, 6), "cristal_blanc", T(q[0], q[1], z_haut + 0.34))
+
+
 def mailles(graine=523, leger=False):
     """leger : la version téléphone (pas encore réglée : ce premier jet ne fait qu'alléger le relief)."""
     N.DETAIL = 0.6 if leger else 1.0
@@ -229,6 +249,8 @@ def _mailles(graine, leger):
     emprises.append(("le débarcadère", quai))
     ponts.append(quai)
     P.banniere(lots, quai_mer[0] + 0.34, quai_mer[1] + 0.25, -0.3, 1.75, "rose", math.radians(100))
+    muret(L, r_terrasse, Z1, Z2, 9 if leger else 6)
+    muret(L, r_piton, Z2, Z3, 12 if leger else 8)
     marches(L, 0.0, y_t - 0.5, y_t + 0.5, 2 * DEMI_ALLEE, 6)
     marches(L, 0.0, y_p - 0.48, y_p + 0.48, 2 * DEMI_ALLEE, 6)
     zb = sol(*BASSIN)
