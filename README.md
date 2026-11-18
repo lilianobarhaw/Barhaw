@@ -10,6 +10,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | --- | --- |
 | `index.html`, `site.css`, `site.js` | La page (parties Accueil, Events, Tournoi, Ma chaîne, Potes, YouTube, Chopper avec son mini-jeu, Discord) |
 | `mentions.html` | Mentions, données personnelles, cookies, crédits (adresse `/mentions`) |
+| `obs.html`, `obs.js`, `img/obs/` | Les alertes de GRAND LINE pour OBS (adresse `/obs`) : une page transparente à poser dans le live, voir plus bas |
 | `api/public.js` | Ce que la page affiche, demandé au bot (gardé 20 s par Vercel) |
 | `api/chopper.js` | La carte et les animations de Chopper ; nourrir, jouer et parler au nom du membre connecté |
 | `api/recit.js` | Le récit de GRAND LINE (VF) : les pages (texte et voix) que l'équipage du membre a débloquées ; les autres restent scellées |
@@ -142,6 +143,24 @@ Tout ce qui suit ne se voit qu'une fois la VF 1.0 ouverte (classe `v4` sur la pa
 - **Les cartes et les boutons** : les mêmes bords, ombres et coins partout ; les cartes arrivent avec un petit rebond, et le titre fait « pop » quand on y arrive par le menu.
 - **Les jeux en relief** : des décors faits dans Blender (`outils/blender/barhaw_jeux_vf.py`, images dans `img/jeux/`) : la table du Memory (les cartes s'y posent et se soulèvent en se retournant), le plateau télé du quiz (la question sur le grand écran, 15 ampoules pour les 15 secondes, des pupitres à buzzer), l'arène de la Rumble (les cordes de devant passent devant Chopper), le cabinet du Docteur et ses 8 remèdes en 3D. La course change de piste tous les 250 m (coucher de soleil, nuit étoilée, tempête, aurore) avec des îles de GRAND LINE à l'horizon, et un grand pavé « SAUTE ! » pour le pouce. Le goûter a sa « fièvre » à 10 bonbons d'affilée. Pour tous : un écran de fin clair (record, ce que la partie a rapporté, ta place de la semaine) et, sur téléphone, la partie en plein écran.
 - **L'aperçu en avance** : connecté avec le Discord du propriétaire du serveur Barhaw (Liliano), un bouton 見 « Aperçu VF 1.0 » apparaît dans l'en-tête avant le 22/12. Il bascule entre le site d'aujourd'hui et la VF ; personne d'autre ne le voit (c'est le bot qui dit qui est le propriétaire). La Traversée s'y joue pour du beurre : rien n'est envoyé au bot.
+
+## La page OBS : les alertes de GRAND LINE dans le live
+
+`/obs` est une page transparente à poser dans OBS (source « Navigateur », 1920 × 1080 pour Twitch, 1080 × 1920 pour un live vertical). Rien ne s'y affiche en dehors des alertes :
+
+- **Terre en vue** quand l'équipage accoste (et « Le trésor est trouvé ! » au bout de la route) ;
+- **le vote du carrefour** : une grande carte à l'ouverture, un petit rappel toutes les 15 minutes tant qu'il est ouvert, puis « La commu a choisi » ;
+- **ce qui arrive en mer** (tempête, monstre marin, vent arrière, bouteille, vaisseau fantôme, maître des lieux), avec ce que l'équipage doit faire ;
+- **le BOSS LIVE** : son réveil, une barre de vie pendant le combat, puis la fin ;
+- **la sortie de la VF 1.0** : une alerte dix minutes avant, une barre avec le temps qui reste, les dix dernières secondes en grand, puis « VF 1.0 : c'est parti ! » à l'heure d'ouverture que donne le bot (le 22/12/2026 à 21 h 30 ; si le bot ne répond pas, la page garde cette date).
+
+Réglages dans l'adresse : `?commu=<id>` (un autre équipage de la flotte ; sans rien : barhaw), `?place=haut|milieu|bas`, `?son=non`, `?rappel=<minutes>` (0 : aucun rappel du vote), `?fond=oui` (un fond sombre, pour régler la page dans un onglet), `?essai=tout` (ou `terre`, `tresor`, `vote`, `rappel`, `choisi`, `mer`, `monstre`, `boss`, `vaincu`, `fui`, `bientot`, `compte`, `sortie`) : des alertes d'exemple en boucle, sans rien demander au bot, pour placer la source.
+
+- **Ce qu'elle lit** : `/api/public` (toutes les 20 s) et `/api/bosslive` (toutes les 6 s, 2,5 s pendant un combat), comme le site. Rien d'autre, et aucun pseudo n'est affiché.
+- **Ce qu'elle garde** : dans le navigateur d'OBS, l'heure de ce qu'elle a déjà annoncé, pour ne rien rejouer quand on la recharge. Elle n'annonce que ce qui a moins de trois minutes.
+- **Avant la VF** : les îles gardent leur image d'aujourd'hui (`img/iles`). Les cartes postales de la nouvelle carte (`img/obs/<id>.webp`, 960 × 540, des captures de la carte 3D recadrées) ne se montrent qu'une fois la VF ouverte, et un essai lancé avant la date ne dit rien d'elle. Quand une île passe en niveau 5 : ajouter sa carte postale et son nom dans `CARTES` (`obs.js`) ; sans carte postale, l'alerte montre la maquette.
+- **L'heure** : celle du bot (donnée avec le BOSS LIVE), pour que le compte à rebours tombe juste même si l'horloge du PC est décalée. Vercel peut rendre une réponse vieille de quelques secondes : la page garde la mesure la plus fraîche des cinq dernières minutes.
+- **Hors d'OBS** : ouverte dans un navigateur ordinaire, elle affiche un mot d'explication dès qu'on bouge la souris (jamais dans OBS, où personne ne la touche).
 
 ## L'escale : quand le bot fait une pause
 
