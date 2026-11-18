@@ -34,6 +34,8 @@ BRAS = 2.15  # la demi-longueur d'une bande de la croix
 CAMP = (-3.7, 1.2)  # le camp des chercheurs, à l'ouest de la clairière
 TENTES = [(-4.6, 2.25, math.radians(-35)), (-5.05, 0.55, math.radians(10)), (-2.75, 2.95, math.radians(-70))]
 EPAVE, CAP_EPAVE = (-6.1, -2.3), math.radians(115)  # le galion, sur la plage de l'ouest
+TROUS = [(3.3, 0.2), (4.5, 1.5), (3.9, -1.3), (5.3, -0.2), (2.9, 2.2)]  # les trous pour rien : on a creusé là d'abord
+GARDIENS = [(2.35, -0.35, 0.3), (4.45, 0.4, -0.2), (5.55, 1.05, 0.5)]  # trois gardiens de pierre, le long du sentier de l'est
 
 
 def rivage(th):
@@ -201,9 +203,10 @@ def _mailles(graine, leger):
     butin = [(*(pa + dp * (lg - 0.5)), ZQ + 0.02), (*(pa + dp * 0.3), ZQ + 0.02)] + terre([tuple(pa - dp * 0.2), (0.25, -1.0), bord_fosse])
     vers_camp = terre([(CROIX[0] - 0.95, CROIX[1] + 0.1), (CROIX[0] - 2.1, CROIX[1] + 0.45), (CAMP[0] + 0.55, CAMP[1] + 0.1)])
     vers_epave = terre([(CAMP[0] - 0.1, CAMP[1] - 0.75), (-4.6, -0.9), (EPAVE[0] + 1.0, EPAVE[1] + 0.85)])
-    chemins = [(butin, False, 0.16, 0.0, 4.0), (vers_camp, False, 0.15, 0.4, 4.0), (vers_epave, False, 0.14, 0.2, 5.0)]
-    PISTES[:] = [butin[1:], vers_camp, vers_epave]
-    couloirs = [(butin[1:], 0.12), (vers_camp, 0.12), (vers_epave, 0.12)]
+    vers_est = terre([(CROIX[0] + 1.05, CROIX[1] - 0.25), (2.6, 0.45), (3.75, 0.95), (5.2, 0.65), vers(8, 0.8)])
+    chemins = [(butin, False, 0.16, 0.0, 4.0), (vers_camp, False, 0.15, 0.4, 4.0), (vers_epave, False, 0.14, 0.2, 5.0), (vers_est, False, 0.15, 0.6, 5.0)]
+    PISTES[:] = [butin[1:], vers_camp, vers_epave, vers_est]
+    couloirs = [(butin[1:], 0.12), (vers_camp, 0.12), (vers_epave, 0.12), (vers_est, 0.12)]
     loin_des_sentiers = lambda x, y, r: all(K.distance_au_trajet(x, y, pts) > r + rc + 0.05 for pts, rc in couloirs)
 
     def libre(x, y, r):
@@ -268,11 +271,36 @@ def _mailles(graine, leger):
     Pc.ajouter(*N.tube([(0, 0, 0), (0, 0, -0.52)], 0.012, 4, bouts=False), "corde")
     coffre(Pc, Pc, T(0, 0, -0.74) @ Rz(0.6), 0.3, 0.2, 0.18, ouvert=False, plein=False)
     lots["animes"].append((Pc, haut_chevre, {"anim": "balance", "axe": [0.6, 0.8, 0.0], "ampl": 0.05, "vitesse": 0.8, "phase": 0.3}))
-    for k, (dx, dy) in enumerate(((-1.75, -0.55), (1.8, -0.35), (-0.4, 1.6), (1.45, 1.05))):  # les lanternes de la clairière
+    for k, (dx, dy) in enumerate(((-1.75, -0.55), (1.75, -0.75), (-0.4, 1.6), (1.45, 1.05))):  # les lanternes de la clairière
         if leger and k > 1:
             break
         P.lampadaire(L, U, cx + dx, cy + dy, zc, 0.66)
         SOL.append(("decor", "une lanterne", Vf.rond(cx + dx, cy + dy, 0.05)))
+
+    etape("l'est")
+    # --- les trous pour rien : un creux sombre, le sable rejeté autour, parfois la pelle oubliée ---
+    for k, (x, y) in enumerate(TROUS):
+        zt_ = sol(x, y)
+        L.ajouter(*N.cylindre(0.3, 0.38, 0.07, 9, haut=False), "sable_mouille", T(x, y, zt_ - 0.02))
+        L.ajouter(*N.cylindre(0.29, 0.29, 0.012, 9, haut=True), "terre", T(x, y, zt_ - 0.012))
+        a = k * 2.3
+        L.ajouter(*N.sphere(0.2, 7, 4, 0.5), "sable_rose", T(x + math.cos(a) * 0.47, y + math.sin(a) * 0.47, zt_ - 0.02))
+        if k % 2 == 0:
+            q = (x + math.cos(a) * 0.47, y + math.sin(a) * 0.47)
+            L.ajouter(*N.poutre((q[0], q[1], zt_ + 0.05), (q[0] - 0.05, q[1] + 0.07, zt_ + 0.5), 0.02), "poutre")
+            L.ajouter(*N.boite(0.08, 0.012, 0.12), "fer", T(q[0] + 0.005, q[1] - 0.008, zt_ + 0.02))
+        SOL.append(("decor", "un trou pour rien", Vf.rond(x + math.cos(a) * 0.2, y + math.sin(a) * 0.2, 0.58)))  # le trou et son tas
+    # --- les gardiens : trois pierres dressées, une tête ronde posée dessus, deux creux pour les yeux, de la mousse ---
+    for x, y, cap in GARDIENS:
+        zg = sol(x, y)
+        Mg = T(x, y, zg - 0.05) @ Rz(cap - PI / 2)
+        L.ajouter(*N.cylindre(0.2, 0.15, 0.62, 7, haut=True), "pierres_claires", Mg)
+        L.ajouter(*N.sphere(0.2, 8, 5, 0.9), "pierres_claires", Mg @ T(0, 0, 0.78))
+        for s in (-1, 1):
+            L.ajouter(*N.sphere(0.04, 5, 3, 1.0), "pierres_sombres", Mg @ T(s * 0.075, -0.17, 0.82))
+        L.ajouter(*N.boite(0.14, 0.03, 0.03), "pierres_sombres", Mg @ T(0, -0.175, 0.68))
+        L.ajouter(*N.sphere(0.12, 6, 3, 0.45), "feuillage", Mg @ T(0.03, 0.03, 0.95))
+        SOL.append(("decor", "un gardien de pierre", Vf.rond(x, y, 0.24)))
 
     etape("le camp")
     # --- le camp des chercheurs : trois tentes, le feu, des tonneaux, la table de la carte ---
