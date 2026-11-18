@@ -16,7 +16,7 @@ const CHAUD = TEINTES.lumiere;
 const CYAN = [0.3, 0.92, 1];
 const ROSE = [1, 0.31, 0.6];
 const FEUX = [[1, 0.31, 0.6], [1, 0.83, 0.42], [0.7, 0.42, 1], [0.25, 0.9, 0.85], [1, 1, 0.94], [1, 0.42, 0.3], [0.55, 1, 0.5]];
-const MAX_LUM = 384;
+const MAX_LUM = 1280; // 22 îles « niveau 5 » × (1 halo + 22 lumières × 2) = 990, plus les navires, la mer qui vit, la fête ; à 384, dès 9 îles découvertes, les dernières posées (les navires, la foudre de l'Île Tonnerre) n'étaient plus dessinées
 const borne = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const lisse = (a, b, x) => { const t = borne((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const versAngle = (a, b, t) => a + (((((b - a + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI) * t;

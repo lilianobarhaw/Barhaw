@@ -2495,7 +2495,7 @@ function effetRepere(r) {
       ventre.scale.set(9 * fort, 4.2, 1);
       ventre.material.opacity = Math.min(1, e) * (0.34 + 0.3 * L);
       jour.r = L > 0.02 ? 12.5 * Math.min(1, e) * fort : 0;
-      jourBas.r = jour.r * 4.8;
+      jourBas.r = jour.r * 4;
       // l'étincelle descend le câble, puis les bocaux flambent
       const tc = coup?.grand && cable.length > 1 ? (t - 0.12) / 0.55 : -1;
       if (tc >= 0 && tc <= 1) {
