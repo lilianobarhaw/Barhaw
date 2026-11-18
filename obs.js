@@ -11,7 +11,7 @@
 // postales de la nouvelle carte (img/obs) ne se montrent qu'après, comme sur le site.
 // Réglages dans l'adresse : ?commu=<id> (l'équipage suivi ; sans rien : barhaw) · ?place=haut|milieu|bas · ?son=non ·
 // ?rappel=<minutes> (le rappel du vote : 15 sans rien, 0 pour aucun) · ?fond=oui (un fond sombre, pour régler la page dans
-// un onglet) · ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|compte|sortie|tout (des alertes d'exemple
+// un onglet) · ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|bientot|compte|sortie|tout (des alertes d'exemple
 // en boucle, sans rien demander au bot, pour placer la source).
 (() => {
   "use strict";
@@ -40,6 +40,7 @@
   let sortieLe = 0; // l'instant que vise le compte à rebours (0 : aucun)
   let depart = 0; // le départ de la course, quand la flotte est en mer
   let attente = 0; // ce qu'il reste avant la sortie, quand c'est moins de dix minutes
+  let bientotPour = 0; // la sortie pour laquelle « dans 10 minutes » a déjà été dit
   let chiffre = null; // { zone, valeur } : les dix dernières secondes, en grand
   let combat = null; // le BOSS LIVE en cours
   let barre = null; // { genre, zone, noeud } : la vie du boss, ou le compte à rebours
@@ -61,7 +62,8 @@
   const el = (balise, classe, ...enfants) => {
     const n = document.createElement(balise);
     if (classe) n.className = classe;
-    for (const e of enfants) if (e !== null && e !== undefined && e !== false) n.append(e); // du texte ou des nœuds : jamais de HTML venu d'ailleurs
+    // du texte ou des nœuds, jamais de HTML venu d'ailleurs ; le texte garde ses espaces insécables (« ! », « : », « % »)
+    for (const e of enfants) if (e !== null && e !== undefined && e !== false) n.append(typeof e === "string" ? e.replace(/ ([!?:;%»])/g, "\u00a0$1").replace(/« /g, "«\u00a0") : e);
     return n;
   };
   const propre = (id) => String(id || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
@@ -134,14 +136,19 @@
     if (!noeud) return suivante();
     const zone = el("div", "zone", noeud);
     scene.append(zone);
-    enCours = { ...a, noeud, zone };
+    const moi = { ...a, noeud, zone, parti: false };
+    moi.partir = () => {
+      if (moi.parti) return;
+      moi.parti = true;
+      clearTimeout(moi.minuteur);
+      noeud.classList.add("sort");
+      setTimeout(() => { zone.remove(); if (enCours === moi) enCours = null; majBarre(); suivante(); }, 450);
+    };
+    moi.minuteur = setTimeout(moi.partir, a.duree);
+    enCours = moi;
     majBarre();
     montrer(noeud);
     jouer(a.son);
-    setTimeout(() => {
-      noeud.classList.add("sort");
-      setTimeout(() => { zone.remove(); enCours = null; majBarre(); suivante(); }, 450);
-    }, a.duree);
   }
 
   // ---------- chaque alerte ----------
@@ -196,9 +203,9 @@
     faire: () => el("div", "al al-nuit",
       el("div", "al-emoji", String(ev.emoji || "🌊")),
       el("div", "al-texte",
-        el("div", "al-sur", entete()),
+        el("div", "al-sur", ev.type === "maitre" && ile?.nom ? `${entete()} · ${ile.nom}` : entete()),
         titre(ev.type === "maitre" ? "LE MAÎTRE DES LIEUX !" : String(ev.titre || "Du nouveau en mer !").toUpperCase()),
-        ev.type === "maitre" && ev.nom ? el("div", "al-nom", `${ev.nom} défend ${ile?.nom || "son île"}`) : null,
+        ev.type === "maitre" && ev.nom ? el("div", "al-nom", String(ev.nom)) : null,
         el("div", "al-info", (CONSIGNES[ev.type] || (() => `Ça se passe sur ${location.host}`))(ev)))),
   });
   const vieBoss = (c) => Math.max(0, Math.min(1, (Number(c?.pv) || 0) / Math.max(1, Number(c?.pvMax) || 1)));
@@ -212,7 +219,8 @@
         c.titre ? el("div", "boss-titre", String(c.titre)) : null,
         el("div", "boss-vie", el("span", "", "Sa vie"), el("b", "", `${Math.round(vieBoss(c) * 100)} %`)),
         jauge(vieBoss(c), "grande"),
-        el("div", "al-info", "Chaque message du chat le frappe · !frappe : un coup lourd"))),
+        el("div", "al-info", "Chaque message du chat le frappe !"),
+        el("div", "al-info", "!frappe : un coup lourd"))),
     suivre: (n) => {
       const v = vieBoss(combat || c);
       n.querySelector(".jauge i").style.width = `${(v * 100).toFixed(1)}%`;
@@ -221,7 +229,7 @@
   });
   const alBossFin = (c) => ({
     nom: c.gagne ? "vaincu" : "fui", duree: 11_000, son: c.gagne ? "victoire" : "",
-    faire: () => el("div", `al ${c.gagne ? "al-papier al-or" : "al-nuit"} boss`,
+    faire: () => el("div", `al ${c.gagne ? "al-papier al-or" : "al-nuit"} boss fin`,
       imageBoss(c, "boss-image"),
       el("div", "boss-corps",
         el("div", "pastille rose", "BOSS LIVE"),
@@ -240,7 +248,7 @@
       el("div", "sortie-vf", "VF 1.0"),
       el("div", "sortie-titre", "C'EST PARTI !"),
       // le détail de la VF ne se dit qu'une fois sortie (un essai avant l'heure reste discret)
-      el("div", "sortie-ligne", maintenant() >= ouverture ? "GRAND LINE : la course des équipages est lancée" : "La grande mise à jour du site est en ligne"),
+      el("div", "sortie-ligne", vfBot === true || maintenant() >= ouverture ? "GRAND LINE : la course des équipages est lancée" : "La grande mise à jour du site est en ligne"),
       el("div", "sortie-site", location.host)),
   });
 
@@ -287,7 +295,8 @@
     // à l'heure dite : l'annonce (sauf si la course était déjà partie bien avant, ouverte en avance)
     if (reste <= 0) return sortir(sortieLe, reste > -FRAIS && !(depart && depart < sortieLe - 60_000));
     if (reste > 600_000 || vfBot === true) return rangerCompte(); // trop tôt, ou déjà ouverte en avance
-    if (!attente && reste > 570_000) annoncer(alBientot());
+    if (bientotPour !== sortieLe && reste > 570_000) annoncer(alBientot());
+    bientotPour = sortieLe;
     attente = reste;
     majBarre();
     if (reste > 10_000 || enCours) return;
@@ -424,6 +433,7 @@
       },
       vaincu: () => annoncer(alBossFin(bossE({ gagne: true, fini: true }))),
       fui: () => annoncer(alBossFin(bossE({ gagne: false, fini: true }))),
+      bientot: () => annoncer(alBientot()),
       compte: () => { delete memoire.sortie; sortieLe = Date.now() + 16_000; },
       sortie: () => annoncer(alSortie()),
     };
@@ -441,7 +451,7 @@
 
   // ---------- ouverte dans un navigateur (et pas dans OBS) : un mot d'explication dès qu'on bouge la souris ----------
   function aide() {
-    if (document.querySelector(".aide")) return;
+    if (window.obsstudio || window.streamlabsOBS || document.querySelector(".aide")) return;
     const exemple = new URLSearchParams(location.search);
     exemple.set("essai", "tout");
     exemple.set("fond", "oui");
@@ -459,6 +469,7 @@
   window.__obs = {
     etat: () => ({ commu: COMMU, enCours: enCours?.nom || null, file: file.map((a) => a.nom), barre: barre?.genre || null, combat: Boolean(combat), vote: Boolean(vote), attente, chiffre: chiffre?.valeur || 0, ouverture, depart, vf: vf(), decal, lu: dejaLu, memoire: { ...memoire } }),
     relire: () => Promise.all([chargerPublic(), chargerBoss()]),
+    passer: () => enCours?.partir(),
   };
   if (ESSAI && essais()) return;
   sortieLe = ouverture;

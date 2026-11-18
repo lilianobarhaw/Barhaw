@@ -89,8 +89,10 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
 .vote.rappel { gap: 1.6rem; padding: 2rem 3rem 2.2rem; }
 .vote.rappel .pastille { font-size: 3.2rem; padding: 0.6rem 2.4rem 0.9rem; }
 .vote.rappel .choix { flex-direction: row; align-items: stretch; }
-.vote.rappel .choix-image { flex: none; width: 21rem; aspect-ratio: 16 / 9; }
-.vote.rappel .trois .choix-image { width: 12rem; aspect-ratio: 1; }
+.vote.rappel .choix-image { flex: none; width: 16rem; aspect-ratio: 16 / 9; }
+.vote.rappel .choix-nom { font-size: 2.8rem; }
+.vote.rappel .choix-pct { font-size: 3rem; }
+.vote.rappel .trois .choix-image { display: none; } /* à trois, en large : pas la place */
 .vote.rappel .choix-corps { flex: 1; min-width: 0; justify-content: center; padding: 1rem 1.8rem 1.2rem; }
 .trois .choix-nom { font-size: 2.8rem; }
 
@@ -102,6 +104,9 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
 .boss-titre { font-weight: 800; font-size: 3.4rem; color: var(--rose-clair); }
 .boss-vie { display: flex; align-items: baseline; justify-content: space-between; gap: 2rem; font-weight: 800; font-size: 3rem; }
 .boss-vie b { font-family: var(--titre); font-weight: 400; font-size: 3.4rem; color: var(--rose-clair); }
+.boss .al-info + .al-info { margin-top: -0.8rem; }
+.boss.fin .boss-image { width: 30rem; height: 30rem; }
+.boss.fin .al-titre { font-size: 5rem; }
 
 /* ---------- la barre : pendant le combat, avant la sortie ---------- */
 .barre {
@@ -141,9 +146,11 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
   .vote-choix { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; }
   .choix { flex-direction: row; align-items: stretch; }
   .choix-image { width: 34rem; }
+  .vote.rappel .trois .choix-image { display: block; }
   .choix-corps { flex: 1; min-width: 0; justify-content: center; }
   .vote-pied { text-align: center; }
   .boss-image { align-self: center; width: 46rem; height: 46rem; }
+  .boss.fin .boss-image { width: 38rem; height: 38rem; }
   .boss-vie { text-align: left; }
   .barre { max-width: calc(100vw - 6rem); }
   .barre .jauge { width: 30rem; }
