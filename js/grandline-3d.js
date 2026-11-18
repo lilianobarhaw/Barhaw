@@ -2166,6 +2166,100 @@ function effetRepere(r) {
       pivot.rotation.y = s * 0.9;
       if (r.userData.nuit) { faisceau.material.opacity = plein * lampesAllumees; faisceau.visible = lampesAllumees > 0.02; }
     };
+  } else if (genre === "phare") {
+    // le feu du Phare du Bout du Monde, vu de près. L'optique du modèle tourne (anim « tourne ») et, la nuit, la fête pose
+    // ses deux grands pinceaux sur la mer à la même vitesse (grandline-fete.js : 0,5). Ici : deux cônes de lumière qui
+    // sortent de la lanterne, dos à dos, dans l'axe des lentilles ; et l'éclat : quand une lentille passe face à l'œil,
+    // elle flamboie (la nuit, avec un trait de lumière en travers), ou renvoie juste un reflet de soleil (le jour).
+    // Dessiné après la teinte de la nuit (le calque) pour rester vif. « portee » : la longueur des cônes.
+    const portee = r.userData.portee || 14;
+    const vit = r.userData.vitesse ?? 0.5;
+    const feu = new THREE.Group();
+    const pivot = new THREE.Group();
+    const uForce = { value: 0 };
+    const matCone = new THREE.ShaderMaterial({
+      uniforms: { uForce },
+      vertexShader: "varying float vL; varying vec3 vN; varying vec3 vV; void main() { vL = uv.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalMatrix * normal; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }",
+      fragmentShader: "uniform float uForce; varying float vL; varying vec3 vN; varying vec3 vV; void main() { float coeur = pow(abs(dot(normalize(vN), normalize(vV))), 1.8); gl_FragColor = vec4(1.0, 0.93, 0.66, coeur * smoothstep(0.0, 0.04, vL) * pow(1.0 - vL, 1.7) * 0.5 * uForce); }",
+      transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    const geoCone = new THREE.CylinderGeometry(portee * 0.075, 0.08, portee, 24, 1, true);
+    geoCone.rotateZ(-Math.PI / 2); // l'axe du cône : +x, la petite ouverture à la lanterne
+    geoCone.translate(portee / 2 + 0.2, 0, 0);
+    for (const sens of [0, Math.PI]) {
+      const cone = new THREE.Mesh(geoCone, matCone);
+      cone.rotation.y = sens;
+      cone.frustumCulled = false;
+      pivot.add(cone);
+    }
+    const lueur = (c) => new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: c, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+    const eclat = lueur(0xfff0b8);
+    const trait = lueur(0xffe6a0);
+    feu.add(pivot, eclat, trait);
+    g.userData.calque = feu;
+    let oeil = null;
+    eclat.onBeforeRender = (renderer, scene, camera) => { oeil = camera; };
+    const ici = new THREE.Vector3();
+    maj = (s) => {
+      const L = r.userData.nuit ? lampesAllumees : 1;
+      const a = s * vit;
+      pivot.rotation.y = a;
+      uForce.value = L;
+      pivot.visible = L > 0.02;
+      let e = 0;
+      if (oeil) {
+        feu.getWorldPosition(ici);
+        const dx = oeil.position.x - ici.x, dz = oeil.position.z - ici.z;
+        e = Math.pow(Math.abs(Math.cos(a) * dx - Math.sin(a) * dz) / (Math.hypot(dx, dz) || 1), 70); // 1 : une lentille regarde l'œil
+      }
+      eclat.scale.setScalar((0.5 + 1.8 * e) * (1 - L) + (1.3 + 6 * e) * L);
+      eclat.material.opacity = 0.75 * e * (1 - L) + (0.4 + 0.6 * e) * L;
+      trait.scale.set(0.01 + 15 * e * L, 0.36, 1);
+      trait.material.opacity = 0.7 * e * e * L;
+    };
+  } else if (genre === "brume") {
+    // la brume du Phare (Mère Brume, sa gardienne, est faite de brouillard) : des bancs bas qui glissent sur l'eau avec le
+    // vent, s'étirent, s'effacent et reviennent ailleurs ; deux écharpes restent accrochées au Rocher. « rayon » : jusqu'où ;
+    // « nb » : combien ; « haut » : leur hauteur ; « cap » : où va le vent (radians de Blender ; sans lui, vers l'est).
+    // La nuit, la teinte les assombrit, et les lumières du phare les rallument quand elles passent dessus.
+    g.rotation.y = r.userData.cap || 0;
+    const nb = Math.max(2, Math.min(14, r.userData.nb || 8));
+    const rayon = r.userData.rayon || 8;
+    const haut = r.userData.haut ?? 0.5;
+    const alea = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+    const bancs = [];
+    for (let k = 0; k < nb; k++) {
+      const banc = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xf2f5f7, transparent: true, opacity: 0, depthWrite: false }));
+      g.add(banc);
+      bancs.push(banc);
+    }
+    maj = (s) => {
+      for (let k = 0; k < nb; k++) {
+        const banc = bancs[k];
+        const accroche = k < 2;
+        const duree = accroche ? 21 + k * 6 : 30 + (k % 4) * 6; // le temps d'un passage
+        const tour = s / duree + k * 0.618;
+        const t = tour % 1;
+        const passe = Math.floor(tour) * 7 + k * 13; // à chaque passage, une autre place
+        const fondu = Math.sin(t * Math.PI);
+        if (accroche) {
+          const a = alea(passe) * 6.283 + t * 0.9;
+          const d = 2.9 + alea(passe + 2) * 0.6;
+          banc.position.set(Math.cos(a) * d, 1.2 + alea(passe + 3) * 1.3 + t * 0.3, Math.sin(a) * d);
+          banc.scale.set(3 + alea(passe + 4) * 1.6 + t, 0.7 + alea(passe + 5) * 0.4, 1);
+          banc.material.opacity = 0.34 * fondu;
+        } else {
+          // au large de l'île, d'un côté ou de l'autre (pas en travers des maisons), plus rarement tout contre le rivage
+          const cote = (k + Math.floor(tour)) % 2 ? 1 : -1;
+          const z0 = cote * rayon * (0.5 + alea(passe) * 0.46);
+          const demi = Math.sqrt(Math.max(1, rayon * rayon - z0 * z0)) + 2; // la moitié de la traversée, à cette place
+          const epais = 1.3 + alea(passe + 5) * 0.9;
+          banc.position.set(-demi + t * 2 * demi, haut * 0.5 + epais * 0.18, z0);
+          banc.scale.set((5 + alea(passe + 4) * 4) * (0.8 + 0.4 * t), epais, 1);
+          banc.material.opacity = (0.42 + alea(passe + 6) * 0.16) * fondu;
+        }
+      }
+    };
   } else if (genre === "orage") {
     const nuage = new THREE.Group();
     for (let k = 0; k < 9; k++) {
@@ -2553,6 +2647,8 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       i.haut = Math.max(6.5, boite.max.y + 1.2);
       i.modele = modele;
       fete?.eclairerIle(i, modele); // ses lanternes, ses fenêtres, sa lave : autant de lumières pour la nuit
+      const feu = reperes.find((r) => r.userData.anim === "phare"); // le Phare : ses pinceaux partent du cœur de sa lanterne
+      if (feu && fete) i.lampe = { x: i.x + feu.position.x, y: feu.position.y, z: i.z + feu.position.z, m: "lumiere" };
       modele.visible = i.visible;
       for (const r of reliefs) r.material.uniforms.uGris.value = i.visible ? 0 : 0.6;
     }).catch((e) => { i.modele = false; erreurs.push(`${i.id} : ${e.message}`); });
@@ -2812,12 +2908,29 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const courbe = new THREE.CatmullRomCurve3(pts, true, "centripetal");
       const L = courbe.getLength();
       const off = R(), ph = R() * 6.28;
+      // sa place sur la boucle. La boucle peut couper une île (seuls ses points sont choisis en mer) : le marchand la
+      // contourne, sa route s'écarte en douceur (de [0 ; 1,5 R] vers [R ; 1,5 R]). Une île « niveau 5 » est large et
+      // haute : sans cela, on voyait passer sa voile à travers le Phare.
+      const place = (u) => {
+        const p = courbe.getPointAt(u);
+        for (const i of iles.values()) {
+          if (!i.groupe.visible) continue;
+          const Ri = Math.max(i.r, i.rMer || 0) + 2.4;
+          const dx = p.x - i.x, dz = p.z - i.z;
+          const d = Math.hypot(dx, dz);
+          if (d >= Ri * 1.5) continue;
+          const d2 = Ri + d / 3;
+          if (d < 0.01) p.x = i.x + d2;
+          else { p.x = i.x + (dx / d) * d2; p.z = i.z + (dz / d) * d2; }
+        }
+        return p;
+      };
       vie.push((s) => {
         const u = (off + (s * 1.5) / L) % 1;
-        const p = courbe.getPointAt(u);
-        const t = courbe.getTangentAt(u);
+        const p = place(u);
+        const q = place((u + 0.7 / L) % 1); // un peu plus loin sur sa route : là où il regarde
         g.position.set(p.x, Math.sin(s * 1.2 + ph) * 0.08, p.z);
-        g.rotation.y = cap(t.x, t.z);
+        g.rotation.y = cap(q.x - p.x, q.z - p.z);
         g.rotation.x = Math.sin(s * 0.9 + ph) * 0.05;
       });
     }
