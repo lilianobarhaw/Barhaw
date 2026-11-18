@@ -802,13 +802,20 @@ def tube(points, rayons, n=6, bouts=True):
     P = [np.asarray(p, np.float64) for p in points]
     R = [rayons] * len(P) if isinstance(rayons, (int, float)) else list(rayons)
     v, f = [], []
+    avant = None
     for i, p in enumerate(P):
         d = (P[min(i + 1, len(P) - 1)] - P[max(i - 1, 0)])
         d = d / (np.linalg.norm(d) or 1)
-        a = np.cross(d, [0, 0, 1.0])
-        if np.linalg.norm(a) < 0.1:
-            a = np.cross(d, [1.0, 0, 0])
+        # le repère de l'anneau suit celui d'avant, redressé sur la nouvelle direction. Recalculé à chaque point, il
+        # sautait d'un axe de secours à l'autre quand un tube presque vertical se penchait (le pied des cocotiers) :
+        # deux anneaux tournés de 140° l'un par rapport à l'autre, donc un tronc étranglé.
+        a = None if avant is None else avant - d * float(avant @ d)
+        if a is None or np.linalg.norm(a) < 1e-6:
+            a = np.cross(d, [0, 0, 1.0])
+            if np.linalg.norm(a) < 0.1:
+                a = np.cross(d, [1.0, 0, 0])
         a = a / np.linalg.norm(a)
+        avant = a
         b = np.cross(d, a)
         for k in range(n):
             an = k * 2 * PI / n
