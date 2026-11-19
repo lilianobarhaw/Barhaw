@@ -36,7 +36,7 @@ N.matiere("fonte", N.tx_uni, 0.5, 0.4, rugueux=0.5, metal=0.5, c=0x34363a, grain
 
 def rivage(th):
     sud = math.exp(-(((th + PI / 2 + PI) % (2 * PI) - PI) / 0.55) ** 2)
-    return 6.5 + 0.35 * math.sin(2 * th + 1.4) + 0.25 * math.sin(3 * th + 0.3) + 0.18 * math.sin(5 * th + 2.4) + 0.45 * sud
+    return 5.9 + 0.3 * math.sin(2 * th + 1.4) + 0.22 * math.sin(3 * th + 0.3) + 0.15 * math.sin(5 * th + 2.4) + 0.55 * sud
 
 
 _COTE = np.array([(math.cos(a) * rivage(a), math.sin(a) * rivage(a)) for a in np.linspace(-PI, PI, 720, endpoint=False)])
@@ -55,7 +55,7 @@ def vers(angle, dedans):
 
 def r_plat(a):
     sud = math.exp(-(((a + PI / 2 + PI) % (2 * PI) - PI) / 0.35) ** 2)
-    return 3.75 + 0.18 * math.sin(3 * a + 1.1) + 0.1 * math.sin(5 * a + 0.2) - 0.2 * sud
+    return 3.95 + 0.16 * math.sin(3 * a + 1.1) + 0.1 * math.sin(5 * a + 0.2) - 0.25 * sud
 
 
 def rampe(y):
@@ -370,6 +370,17 @@ def _mailles(graine, leger):
         pts_ch.append((jb[0] + (rc_[0] - jb[0]) * t, jb[1] + (rc_[1] - jb[1]) * t, 0.55 - 0.5 * 4 * t * (1 - t)))
     for k in range(16):
         L.ajouter(*N.poutre(pts_ch[k], pts_ch[k + 1], 0.07 if k % 2 else 0.035, 0.035 if k % 2 else 0.07), "fonte")
+
+    for k in range(10 if leger else 22):
+        x, y = vers(rng.random() * 360, 0.15 + rng.random() * 1.1)
+        if abs(math.degrees(math.atan2(y, x)) + 90) > 28 and libre(x, y, 0.2, False) and terrain(x, y) > 0.05:
+            A.rocher(L, rng, x, y, terrain(x, y) - 0.06, 0.16 + 0.2 * rng.random(), "roche")
+            SOL.append(("rocher", "un rocher", Vf.rond(x, y, 0.18)))
+    for k, (g, cap) in enumerate(((-140, 0.6), (-35, 2.4), (150, 4.0))[: 1 if leger else 3]):
+        x, y = vers(g, 0.35)
+        if libre(x, y, 0.4, False):
+            P.barque(L, rng, x, y, cap, 0.7)
+            SOL.append(("decor", "une barque tirée au sec", Vf.rectangle(x, y, 0.75, 0.32, cap)))
 
     etape("l'enceinte")
     emprises.append(("le donjon", donjon(L, V, U, lots, rng, 0.0, 0.85, Z_P)))
