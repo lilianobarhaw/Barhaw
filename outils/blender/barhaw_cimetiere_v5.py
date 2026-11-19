@@ -220,7 +220,7 @@ def nef(L, V, U, rng, x, y, cap):
     échelle appuyée. Renvoie (son emprise, le haut du tuyau, le pas de sa porte)."""
     lg, larg, creux = 3.0, 1.5, 0.75
     z = sol(x, y)
-    mur = 0.35  # la coque repose sur un muret de galets de cette hauteur
+    mur = 0.2  # la coque repose sur un muret de galets ronds de cette hauteur
     M = T(x, y, z + mur + 0.12) @ Rz(cap) @ Rx(PI)  # la coque à l'envers : sa quille en haut
     W = N.Maille("nef")
     P.coque(W, np.eye(4), lg, larg, creux, "bois_gris", 9, pont=None, franc=0.12, dedans="bois_gris_sombre")
@@ -233,7 +233,15 @@ def nef(L, V, U, rng, x, y, cap):
     for i in range(1, 9, 2):  # des membrures qui dépassent du bordé arraché
         xm = -lg / 2 + lg * i / 9
         L.ajouter(*N.tube([(xm, -larg * 0.52, mur + 0.1), (xm, -larg * 0.43, mur + 0.12 + creux * 0.3), (xm, -larg * 0.2, mur + 0.12 + creux * 0.62)], 0.025, 4, bouts=True), "bois_gris_sombre", Mh)
-    L.ajouter(*N.polygone(Vf.rectangle(0, 0, lg * 0.9, larg * 0.95, 0.0), -0.1, mur + 0.02), "pierre_grise", Mh)
+    # le muret : des galets ronds tout le long du bord de la coque (plus de bloc de pierre), sauf devant la porte
+    L.ajouter(*N.polygone([(math.cos(t) * lg * 0.43, math.sin(t) * larg * 0.41) for t in np.linspace(0, 2 * PI, 20, endpoint=False)], -0.1, mur + 0.02), "pierre_grise", Mh)
+    for k in range(40):  # serrés, de toutes les tailles, pas tous alignés (un vrai muret de pierres sèches)
+        t = 2 * PI * (k + 0.4 * rng.random()) / 40
+        if math.cos(t) < -0.85:
+            continue
+        r_g = 0.08 + 0.07 * rng.random()
+        e = 0.45 + 0.05 * rng.random()
+        L.ajouter(*N.sphere(r_g, 7, 5, 0.6 + 0.25 * rng.random()), "pierre_grise", Mh @ T(math.cos(t) * lg * e, math.sin(t) * larg * e, r_g * 0.55) @ Rz(rng.random() * PI))
     # la porte, une fenêtre (allumée la nuit) et la lanterne, dans le tableau arrière (la poupe : -x local)
     L.ajouter(*N.quad((-lg / 2 - 0.012, 0.13, 0.12), (-lg / 2 - 0.012, -0.13, 0.12), (-lg / 2 - 0.012, -0.13, 0.6), (-lg / 2 - 0.012, 0.13, 0.6)), "porte", Mh)
     Mt = Mh @ T(-lg / 2 - 0.012, 0, 0) @ Rz(-PI / 2)
