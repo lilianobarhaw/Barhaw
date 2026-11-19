@@ -1,8 +1,8 @@
 # L'Île des Géants Endormis, « niveau 5 » : l'île est un géant couché, endormi depuis si longtemps que l'herbe l'a couvert.
 # (Son histoire, dans le bot : « Des collines en forme de géants couchés. Parlez doucement : ils ronflent. »)
 # L'idée : le relief de l'île EST le géant, couché sur le dos (la tête à l'ouest, les pieds à l'est) : la tête et son
-# visage tourné vers le ciel (les paupières closes, les sourcils de buissons, le nez de roche, la bouche entrouverte d'où
-# sort son souffle), la forêt de sa chevelure, le cou, la poitrine, le ventre où un hameau s'est installé autour du
+# visage tourné vers le ciel, qui se lit de profil (le front, le nez, la bouche entrouverte d'où sort son souffle, le
+# menton ; les paupières closes, les sourcils de buissons), le tout couvert de mousse, la forêt de sa chevelure, le cou, la poitrine, le ventre où un hameau s'est installé autour du
 # Nombril (une mare), les bras le long du corps et leurs mains aux doigts de roche, les genoux relevés (un moulin sur
 # l'un), les pieds dont les orteils pointent vers le ciel. Au nord-est, la main d'un autre géant sort de la mer.
 # La vie : le berger et ses moutons sur la poitrine, les gens du hameau, le moulin, le souffle du géant (des bouffées
