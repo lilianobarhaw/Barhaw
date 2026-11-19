@@ -142,7 +142,7 @@ def tx_sol_geants(taille=2048, graine=931):
     herbe = N.mel(herbe, mousse, N.lisse(0.55, 0.75, b1) * 0.6)
     coul = N.mel(sable, herbe, N.lisse(0.28, 0.42, h + (b3 - 0.5) * 0.08))
     roche = N.mel(N.hexa(0x7f7a6e), N.hexa(0xaaa291), np.clip(0.2 + 0.7 * b3 + 0.3 * (b2 - 0.5), 0, 1)) * (0.85 + 0.3 * (fin - 0.5))[..., None]
-    coul = N.mel(coul, roche, N.lisse(0.9, 1.5, pente + (b3 - 0.5) * 0.4) * N.lisse(0.3, 0.45, h))
+    coul = N.mel(coul, roche, N.lisse(1.3, 2.1, pente + (b3 - 0.5) * 0.5) * N.lisse(0.3, 0.45, h) * 0.85)  # la roche perce seulement sur les flancs les plus raides
     gx_, gy_ = N.grille(n)
     X, Y = (gx_ * 2 - 1) * R_SOL, (gy_ * 2 - 1) * R_SOL
     for sy in (-1, 1):  # le pli des paupières closes : un trait sombre en arc
