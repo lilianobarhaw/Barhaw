@@ -361,9 +361,9 @@ def _mailles(graine, leger):
         L.ajouter(*N.poutre((q[0], q[1], Z_P - 0.05), (piv[0] - math.sin(ab) * s * 0.28, piv[1] + math.cos(ab) * s * 0.28, piv[2] + 0.06), 0.09), "acier_noir")
     L.ajouter(*N.poutre((piv[0] - math.sin(ab) * 0.32, piv[1] + math.cos(ab) * 0.32, piv[2] + 0.06), (piv[0] + math.sin(ab) * 0.32, piv[1] - math.cos(ab) * 0.32, piv[2] + 0.06), 0.1), "acier_noir")
     Bal2 = N.Maille("balancier")
-    Bal2.ajouter(*N.boite(0.05, 0.05, 1.45), "laiton", T(0, 0, -1.45))
-    Bal2.ajouter(*N.cylindre(0.32, 0.32, 0.07, 18), "laiton", T(0, 0, -1.55) @ Rz(ab) @ Ry(PI / 2) @ T(0, 0, -0.035))
-    Bal2.ajouter(*N.sphere(0.08, 8, 6), "acier_noir", T(0, 0, -1.55))
+    Bal2.ajouter(*N.boite(0.05, 0.05, 1.0), "laiton", T(0, 0, -1.0))  # la lentille bat bien au-dessus de la grève
+    Bal2.ajouter(*N.cylindre(0.3, 0.3, 0.07, 18), "laiton", T(0, 0, -1.1) @ Rz(ab) @ Ry(PI / 2) @ T(0, 0, -0.035))
+    Bal2.ajouter(*N.sphere(0.08, 8, 6), "acier_noir", T(0, 0, -1.1))
     lots["animes"].append((Bal2, piv, {"anim": "balance", "axe": [math.cos(ab), math.sin(ab), 0.0], "ampl": 0.32, "vitesse": 1.6}))
     SOL.append(("decor", "la potence du balancier", Vf.rond(math.cos(ab) * (rb - 0.25), math.sin(ab) * (rb - 0.25), 0.4)))
     # les tuyaux de cuivre : le long du bord du plateau, puis ils plongent dans la falaise ; trois évents qui fument
