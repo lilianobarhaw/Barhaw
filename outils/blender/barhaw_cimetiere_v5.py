@@ -226,6 +226,13 @@ def nef(L, V, U, rng, x, y, cap):
     P.coque(W, np.eye(4), lg, larg, creux, "bois_gris", 9, pont=None, franc=0.12, dedans="bois_gris_sombre")
     A.fondre(L, griser(W), M)
     Mh = T(x, y, z) @ Rz(cap)
+    # la quille, en l'air, qui file d'un bout à l'autre ; l'étrave qui redescend jusqu'au sol (on reconnaît la coque)
+    quille = [(-lg / 2 + lg * i / 9, 0.0, mur + 0.12 + creux * (0.75 if 0 < i < 9 else 0.3) + 0.05) for i in range(10)]
+    quille += [(lg / 2 + 0.14, 0.0, mur + 0.2), (lg / 2 + 0.18, 0.0, -0.05)]
+    L.ajouter(*N.tube(quille, 0.06, 5, bouts=True), "bois_gris_sombre", Mh)
+    for i in range(1, 9, 2):  # des membrures qui dépassent du bordé arraché
+        xm = -lg / 2 + lg * i / 9
+        L.ajouter(*N.tube([(xm, -larg * 0.52, mur + 0.1), (xm, -larg * 0.43, mur + 0.12 + creux * 0.3), (xm, -larg * 0.2, mur + 0.12 + creux * 0.62)], 0.025, 4, bouts=True), "bois_gris_sombre", Mh)
     L.ajouter(*N.polygone(Vf.rectangle(0, 0, lg * 0.9, larg * 0.95, 0.0), -0.1, mur + 0.02), "pierre_grise", Mh)
     # la porte, une fenêtre (allumée la nuit) et la lanterne, dans le tableau arrière (la poupe : -x local)
     L.ajouter(*N.quad((-lg / 2 - 0.012, 0.13, 0.12), (-lg / 2 - 0.012, -0.13, 0.12), (-lg / 2 - 0.012, -0.13, 0.6), (-lg / 2 - 0.012, 0.13, 0.6)), "porte", Mh)
