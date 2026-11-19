@@ -27,8 +27,8 @@ NOMBRIL = (-0.45, 0.0)
 PISTES = []
 # le corps : (genre, données, hauteur, forme) ; « bosse » : centre, rayons ; « membre » : deux bouts, rayon
 CORPS = [  # (le dernier nombre : la part du rayon qui reste à plat sur le dessus)
-    ("bosse", (-4.9, 0.0, 1.35, 1.2), 2.05, 0.25),  # la tête (le plus haut : on la reconnaît de loin)
-    ("bosse", (-3.75, 0.0, 0.55, 0.7), 1.05, 0.2),  # le cou
+    ("bosse", (-4.95, 0.0, 1.5, 1.3), 1.5, 0.25),  # la tête : un crâne rond, le visage tourné vers le ciel
+    ("bosse", (-3.7, 0.0, 0.55, 0.7), 0.8, 0.2),  # le cou
     ("bosse", (-2.55, 0.0, 1.35, 1.95), 1.6, 0.35),  # la poitrine
     ("bosse", (-0.55, 0.0, 1.7, 1.85), 1.45, 0.45),  # le ventre (le hameau)
     ("membre", ((-3.1, 1.95), (-1.5, 2.35)), 0.75, 0.6),  # les bras
@@ -47,18 +47,43 @@ CORPS = [  # (le dernier nombre : la part du rayon qui reste à plat sur le dess
     ("bosse", (5.45, -1.05, 0.48, 0.5), 1.35, 0.2),
 ]
 PLAT = {"membre": 0.3}  # les membres : un dos rond, à plat sur un tiers de leur rayon
-# le visage (en haut de la tête) : des retouches au relief
-VISAGE = [
-    ((-5.32, 0.42, 0.26, 0.2), 0.14),  # les paupières
-    ((-5.32, -0.42, 0.26, 0.2), 0.14),
-    ((-5.55, 0.45, 0.14, 0.32), 0.1),  # les arcades
-    ((-5.55, -0.45, 0.14, 0.32), 0.1),
-    ((-4.98, 0.0, 0.36, 0.2), 0.6),  # le nez
-    ((-4.55, 0.0, 0.16, 0.32), -0.22),  # la bouche entrouverte
-    ((-4.3, 0.0, 0.24, 0.42), 0.16),  # le menton
+# le visage (en haut de la tête, couché sur le dos : le front vers l'ouest, le menton vers le cou) ; vu du sud, son profil
+# se lit d'un coup d'œil : le front, le creux à la racine du nez, l'arête qui monte jusqu'au bout du nez, les lèvres, le menton
+NEZ = [(-5.32, 0.0, 0.17), (-5.22, 0.08, 0.18), (-5.0, 0.26, 0.2), (-4.84, 0.42, 0.25), (-4.76, 0.38, 0.29), (-4.7, 0.18, 0.3), (-4.64, 0.0, 0.27)]  # (x, hauteur, demi-largeur)
+TRAITS = [
+    ((-5.6, 0.0, 0.34, 0.75), 0.42),  # le front bombé
+    ((-5.3, 0.0, 0.1, 0.22), -0.1),  # le creux à la racine du nez
+    ((-5.36, 0.36, 0.13, 0.28), 0.12),  # les arcades
+    ((-5.36, -0.36, 0.13, 0.28), 0.12),
+    ((-5.16, 0.36, 0.17, 0.2), -0.12),  # les orbites
+    ((-5.16, -0.36, 0.17, 0.2), -0.12),
+    ((-5.15, 0.36, 0.13, 0.15), 0.08),  # les paupières closes
+    ((-5.15, -0.36, 0.13, 0.15), 0.08),
+    ((-4.85, 0.44, 0.22, 0.24), 0.06),  # les pommettes
+    ((-4.85, -0.44, 0.22, 0.24), 0.06),
+    ((-4.55, 0.0, 0.12, 0.32), 0.08),  # la lèvre du haut
+    ((-4.46, 0.0, 0.06, 0.24), -0.08),  # la bouche entrouverte (il ronfle)
+    ((-4.36, 0.0, 0.12, 0.3), 0.08),  # la lèvre du bas
+    ((-4.14, 0.0, 0.3, 0.45), 0.42),  # le menton
 ]
-TETE = (-4.9, 0.0)
-H_TETE = 2.05
+BOUCHE = (-4.46, 0.0)
+NARINES = (-4.69, 0.12)
+VISAGE = (-6.1, -3.6, -1.05, 1.05)  # le cadre du maillage fin
+
+
+def nez(x, y):
+    if not NEZ[0][0] < x < NEZ[-1][0]:
+        return 0.0
+    for (xa, ha, la), (xb, hb, lb) in zip(NEZ, NEZ[1:]):
+        if xa <= x <= xb:
+            t = (x - xa) / (xb - xa)
+            h, l_ = ha + (hb - ha) * t, la + (lb - la) * t
+            return h * (1 - K.lisse(0.1, 1.0, abs(y) / l_)) if abs(y) < l_ else 0.0
+    return 0.0
+
+
+TETE = (-4.95, 0.0)
+H_TETE = 1.5
 
 
 def rivage(th):
@@ -98,6 +123,9 @@ def _membre(x, y, a, b, H, r):
 
 
 def _smax(a, b, k=0.35):
+    k = min(k, 2 * min(a, b))  # (près du bord d'une bosse, le raccord s'efface : pas de marche autour)
+    if k <= 0:
+        return max(a, b)
     h = max(k - abs(a - b), 0.0) / k
     return max(a, b) + h * h * k / 4
 
@@ -109,8 +137,9 @@ def corps(x, y):
         v = _bosse(x, y, *dn, H, f) if genre == "bosse" else _membre(x, y, dn[0], dn[1], H, f)  # (f : le plat, ou le rayon du membre)
         if v > 0:
             h = _smax(h, v)
-    if math.hypot(x - TETE[0], y - TETE[1]) < 1.5:
-        for (cx, cy, rx, ry), dz in VISAGE:
+    if VISAGE[0] < x < VISAGE[1] and VISAGE[2] < y < VISAGE[3]:
+        h += nez(x, y)
+        for (cx, cy, rx, ry), dz in TRAITS:
             h += _bosse(x, y, cx, cy, rx, ry, dz, 0.0)
     return h
 
@@ -142,12 +171,21 @@ def tx_sol_geants(taille=2048, graine=931):
     herbe = N.mel(herbe, mousse, N.lisse(0.55, 0.75, b1) * 0.6)
     coul = N.mel(sable, herbe, N.lisse(0.28, 0.42, h + (b3 - 0.5) * 0.08))
     roche = N.mel(N.hexa(0x7f7a6e), N.hexa(0xaaa291), np.clip(0.2 + 0.7 * b3 + 0.3 * (b2 - 0.5), 0, 1)) * (0.85 + 0.3 * (fin - 0.5))[..., None]
-    coul = N.mel(coul, roche, N.lisse(1.3, 2.1, pente + (b3 - 0.5) * 0.5) * N.lisse(0.3, 0.45, h) * 0.85)  # la roche perce seulement sur les flancs les plus raides
     gx_, gy_ = N.grille(n)
     X, Y = (gx_ * 2 - 1) * R_SOL, (gy_ * 2 - 1) * R_SOL
-    for sy in (-1, 1):  # le pli des paupières closes : un trait sombre en arc
-        d = np.abs(np.hypot((X + 5.25) / 0.26, (Y - sy * 0.42) / 0.2) - 1.0)
-        coul = N.mel(coul, N.hexa(0x2f3a28), N.lisse(0.12, 0.0, d) * ((X > -5.32) & (np.abs(Y - sy * 0.42) < 0.2)))
+    crane = N.lisse(1.0, 0.8, np.hypot((X - TETE[0]) / 1.5, (Y - TETE[1]) / 1.3)) * (1 - N.lisse(0.35, 0.2, np.hypot((X + 4.85) / 0.4, Y / 0.3)))
+    coul = N.mel(coul, mousse * 0.92, crane * 0.75)  # la tête : une mousse épaisse, plus sombre (seul le bout du nez reste en roche)
+    sur_lui = N.lisse(0.2, 0.55, K.agrandir(K.champ(corps, R_SOL, 260), n))  # le corps du géant (pas le sol autour)
+    raide = N.lisse(1.3, 2.1, pente + (b3 - 0.5) * 0.5) * N.lisse(0.3, 0.45, h)
+    coul = N.mel(coul, mousse * 0.86, raide * sur_lui * 0.8)  # ses flancs : de la mousse, comme une couverture
+    roc_nu = np.maximum(1 - sur_lui, N.lisse(0.62, 0.74, b2))  # par endroits seulement, la roche du géant perce la mousse
+    coul = N.mel(coul, roche, raide * 0.85 * (1 - 0.85 * crane) * roc_nu)  # la roche perce seulement sur les flancs les plus raides
+    for sy in (-1, 1):  # le pli des paupières closes : un trait sombre en arc, vers le menton
+        d = np.abs(np.hypot((X + 5.2) / 0.15, (Y - sy * 0.36) / 0.16) - 1.0)
+        coul = N.mel(coul, N.hexa(0x2f3a28), N.lisse(0.16, 0.0, d) * ((X > -5.2) & (np.abs(Y - sy * 0.36) < 0.16)))
+    coul = N.mel(coul, N.hexa(0x3a2e24), N.lisse(1.0, 0.0, np.hypot((X - BOUCHE[0]) / 0.04, Y / 0.22)) * 0.8)  # la fente de la bouche
+    for sy in (-1, 1):  # les narines
+        coul = N.mel(coul, N.hexa(0x2a241c), N.lisse(1.0, 0.3, np.hypot((X - NARINES[0]) / 0.06, (Y - sy * NARINES[1]) / 0.045)) * 0.85)
     terre = N.mel(N.hexa(0xa58e68), N.hexa(0xc2aa7e), np.clip(0.2 + 0.7 * b3, 0, 1)) * (0.92 + 0.16 * (grain - 0.5))[..., None]
     coul = N.mel(coul, terre, N.lisse(0.22, 0.13, piste + (fin - 0.5) * 0.05) * N.lisse(0.3, 0.4, h))
     fleurs = N.lisse(0.93, 0.96, N.bruit(n, 250, 250, graine + 7, 1)) * N.lisse(0.5, 0.7, h) * (1 - N.lisse(0.8, 1.2, pente))
@@ -257,33 +295,63 @@ def _mailles(graine, leger):
             uvs.append(((xs[i] + R) / (2 * R), (xs[j] + R) / (2 * R)))
         return rang[(i, j)]
 
+    pas, fin = 2 * R / n, 3
+    i0, i1 = int((VISAGE[0] + R) / pas), int(math.ceil((VISAGE[1] + R) / pas))
+    j0, j1 = int((VISAGE[2] + R) / pas), int(math.ceil((VISAGE[3] + R) / pas))
+    na, nb = (i1 - i0) * fin, (j1 - j0) * fin
+    rang_fin = {}
+
+    def sommet_fin(a, b):
+        """Un point du maillage fin ; sur son bord, il suit exactement l'arête du gros maillage (pas de fente), puis le
+        relief vrai reprend en une case."""
+        if a % fin == 0 and b % fin == 0:
+            return sommet(i0 + a // fin, j0 + b // fin)
+        if (a, b) not in rang_fin:
+            x, y = xs[i0] + a * pas / fin, xs[j0] + b * pas / fin
+            ci, cj = i0 + min(a // fin, i1 - i0 - 1), j0 + min(b // fin, j1 - j0 - 1)
+            u, v = (x - xs[ci]) / pas, (y - xs[cj]) / pas
+            bil = (H_[cj][ci] * (1 - u) + H_[cj][ci + 1] * u) * (1 - v) + (H_[cj + 1][ci] * (1 - u) + H_[cj + 1][ci + 1] * u) * v
+            w = min(1.0, min(a, na - a, b, nb - b) / fin)
+            rang_fin[(a, b)] = len(sommets)
+            sommets.append((x, y, w * terrain(x, y) + (1 - w) * bil))
+            uvs.append(((x + R) / (2 * R), (y + R) / (2 * R)))
+        return rang_fin[(a, b)]
+
     debut_sol = len(L.f)
     for j in range(n):
         for i in range(n):
-            if max(H_[j][i], H_[j][i + 1], H_[j + 1][i + 1], H_[j + 1][i]) < -0.25:
+            if max(H_[j][i], H_[j][i + 1], H_[j + 1][i + 1], H_[j + 1][i]) < -0.25 or (i0 <= i < i1 and j0 <= j < j1):
                 continue
             faces.append((sommet(i, j), sommet(i + 1, j), sommet(i + 1, j + 1), sommet(i, j + 1)))
+    for b_ in range(nb):
+        for a_ in range(na):
+            faces.append((sommet_fin(a_, b_), sommet_fin(a_ + 1, b_), sommet_fin(a_ + 1, b_ + 1), sommet_fin(a_, b_ + 1)))
     L.ajouter(sommets, faces, "sol_geants", uv=uvs)
     L.regrouper(debut_sol, None, 4, 0.75)
 
     etape("le visage")
     # --- le nez de roche, les sourcils de buissons, la lèvre ; la chevelure : une forêt autour de la tête ---
-    zn = terrain(-4.98, 0.0)
-    roc(L, rng, -4.98, 0.0, zn - 0.18, 0.36, 0.8, n=9)
-    for s in (-1, 1):  # les narines
-        L.ajouter(*N.sphere(0.07, 6, 4, 0.6), "tissu_sombre", T(-4.82, s * 0.1, terrain(-4.82, s * 0.1) + 0.02))
-        for k in range(5):  # les sourcils
-            t = k / 4
-            x, y = -5.6 + 0.08 * math.sin(t * PI), s * (0.25 + 0.42 * t)
-            A.buisson(L, rng, x, y, terrain(x, y) - 0.05, 0.13 + 0.03 * math.sin(t * PI), None)
-    SOL.append(("decor", "le visage", Vf.rectangle(-5.0, 0.0, 1.5, 1.4, 0.0)))
-    for k in range(12 if leger else 26):  # la chevelure
-        a = math.radians(100 + 160 * k / (12 if leger else 26))
-        d = 1.25 + 0.55 * ((k * 7) % 5) / 4
-        x, y = TETE[0] + math.cos(a) * d, TETE[1] + math.sin(a) * d
-        if terrain(x, y) > 0.3 and libre(x, y, 0.3, 0.3):
+    for s in (-1, 1):
+        for k in range(3):  # les sourcils, en buissons sur les arcades
+            t = k / 2
+            x, y = -5.38 - 0.05 * math.sin(t * PI), s * (0.2 + 0.34 * t)
+            A.buisson(L, rng, x, y, terrain(x, y) - 0.07, 0.12 + 0.02 * math.sin(t * PI), None)
+    SOL.append(("decor", "le visage", Vf.rectangle(-4.95, 0.0, 1.95, 1.4, 0.0)))
+    n_ch = 0
+    for k in range(16 if leger else 34):  # la chevelure : un bois derrière le front, sans rien devant le profil
+        x, y = -7.1 + 1.05 * rng.random(), -1.45 + 2.9 * rng.random()
+        if n_ch < (6 if leger else 11) and (x < -6.35 or abs(y) < 0.9) and terrain(x, y) > 0.22 and libre(x, y, 0.3, 0.2):
+            n_ch += 1
             A.petit_arbre(L, rng, x, y, terrain(x, y), 1.0 + 0.5 * rng.random(), 0.5)
             SOL.append(("arbre", "un arbre de la chevelure", Vf.rond(x, y, 0.22)))
+
+    for k in range(14 if leger else 30):  # les mèches : des buissons bas tout autour du crâne
+        an = math.radians(118 + 124 * rng.random())
+        d = 0.95 + 0.5 * rng.random()
+        x, y = TETE[0] + math.cos(an) * d * 1.16, TETE[1] + math.sin(an) * d
+        if terrain(x, y) > 0.45 and libre(x, y, 0.13, 0.4):
+            A.buisson(L, rng, x, y, terrain(x, y) - 0.05, 0.13 + 0.07 * rng.random(), None)
+            SOL.append(("buisson", "une mèche", Vf.rond(x, y, 0.12)))
 
     etape("les mains, les pieds")
     # --- les doigts de roche des deux mains, les orteils des deux pieds ; la main de l'autre géant, dans la mer ---
@@ -380,7 +448,7 @@ def _mailles(graine, leger):
             SOL.append(("rocher", "un rocher", Vf.rond(x, y, 0.16)))
     for k in range(6 if leger else 12):
         x, y = vers(rng.random() * 360, 1.0 + rng.random() * 1.0)
-        if corps(x, y) < 0.15 and libre(x, y, 0.35, 0.3):
+        if corps(x, y) < 0.15 and not -6.6 < x < -3.3 and libre(x, y, 0.35, 0.3):  # (rien devant le visage)
             A.petit_arbre(L, rng, x, y, terrain(x, y), 1.0 + 0.4 * rng.random(), 0.5)
             SOL.append(("arbre", "un arbre", Vf.rond(x, y, 0.22)))
 
@@ -416,8 +484,8 @@ def _mailles(graine, leger):
         else:
             lots["copies"].append((deja[t_], pts[0], extras))
     # le souffle du géant : des bouffées lentes au-dessus de sa bouche ; et la fumée des cheminées
-    bouche = (-4.55, 0.0, terrain(-4.55, 0.0) + 0.15)
-    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": list(bouche) + [-4.8, 0.08, terrain(-4.8, 0.08) + 0.2], "grosseur": 0.75, "monte": 0.7}))
+    bouche = (BOUCHE[0], BOUCHE[1], terrain(*BOUCHE) + 0.1)
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": list(bouche) + [NARINES[0], NARINES[1], terrain(*NARINES) + 0.1], "grosseur": 0.75, "monte": 0.7}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in P.CHEMINEES for c in p], "grosseur": 0.35}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.6, "genre": 2}))
     lots["reperes"].append(((-1.0, 0.0, 3.5), {"anim": "oiseaux", "nb": 3 if leger else 5, "rayon": 4.5}))
