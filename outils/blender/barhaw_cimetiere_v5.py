@@ -112,7 +112,7 @@ def tx_sol_cimetiere(taille=2048, graine=821):
     algues = N.lisse(0.62, 0.7, b3) * N.lisse(0.22, 0.12, np.abs(h - 0.12))
     coul = N.mel(coul, N.hexa(0x3e4a32), algues * 0.7)
     clair = N.mel(N.hexa(0xb3ada0), N.hexa(0xcbc5b8), np.clip(g1, 0, 1))
-    coul = N.mel(coul, clair, N.lisse(0.26, 0.16, piste + (fin - 0.5) * 0.06) * N.lisse(0.16, 0.24, h))
+    coul = N.mel(coul, clair, N.lisse(0.2, 0.1, piste + (fin - 0.5) * 0.08) * N.lisse(0.16, 0.24, h) * 0.55)
     relief = np.clip(0.5 + 0.35 * (g1 - 0.5) + 0.15 * (fin - 0.5), 0, 1)
     return np.clip(coul, 0, 1).astype(np.float32), relief.astype(np.float32)
 
@@ -274,6 +274,7 @@ def navire_gris(L, U, x, y, cap, leger=False):
         q = M @ np.array((lx_, ly_, franc + 0.5, 1.0))
         L.ajouter(*N.cylindre(0.05, 0.0, 0.05, 6), "fer", T(q[0], q[1], q[2] + 0.12))
         U.ajouter(*N.cylindre(0.042, 0.042, 0.14, 6), "spectre", T(q[0], q[1], q[2] - 0.02))
+        U.ajouter(*N.sphere(0.03, 10, 7), "spectre", T(q[0], q[1], q[2] + 0.05))  # (caché dedans : le site garde ses lumières, même au téléphone)
     for k in range(10 if not leger else 5):  # la chaîne de l'ancre, qui plonge
         t = k / 9
         q = M @ np.array((lg / 2 - 0.3 + 0.6 * t, 0.35 + 0.1 * t, franc - 0.05 - 0.45 * t, 1.0))
@@ -518,14 +519,14 @@ def _mailles(graine, leger):
     lots["animes"].append((Bq, trajet_passeur[0], {"anim": "marche", "chemin": [float(c) for p in trajet_passeur for c in p], "vitesse": 0.16, "phase": 0.2, "saut": 0.0, "pause": 5.0, "roulis": 0.05}))
     # les feux follets : des lueurs vertes au-dessus des chenaux
     hasard = random.Random(5)
-    for k in range(6 if leger else 12):
+    for k in range(4 if leger else 8):
         ch = CHENAUX[k % len(CHENAUX)]
         t = hasard.random()
         i = min(len(ch) - 2, int(t * (len(ch) - 1)))
         u = t * (len(ch) - 1) - i
         x = ch[i][0] + (ch[i + 1][0] - ch[i][0]) * u + (hasard.random() - 0.5) * 0.5
         y = ch[i][1] + (ch[i + 1][1] - ch[i][1]) * u + (hasard.random() - 0.5) * 0.5
-        U.ajouter(*N.sphere(0.05 + 0.03 * hasard.random(), 6, 4), "spectre", T(x, y, 0.35 + 0.6 * hasard.random()))
+        U.ajouter(*N.sphere(0.05 + 0.03 * hasard.random(), 4, 3), "spectre", T(x, y, 0.35 + 0.6 * hasard.random()))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in P.CHEMINEES for c in p], "grosseur": 0.4}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "brume", "nb": 8 if leger else 12, "rayon": 8.5, "haut": 0.5}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.6, "genre": 2}))
