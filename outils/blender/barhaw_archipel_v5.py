@@ -508,6 +508,13 @@ def _mailles(graine, leger):
         rr = R_BASSIN + 0.05 + rng.random() * 0.12
         x, y = BASSIN[0] + math.cos(a) * rr, BASSIN[1] + math.sin(a) * rr
         A.rocher(L, rng, x, y, ZE - 0.05, 0.12 + rng.random() * 0.1, "roche")
+    for k in range(8 if leger else 18):  # et sur le rebord du cratère (ils cachent ses dents)
+        a = k * 2 * PI / (8 if leger else 18) + rng.random() * 0.25
+        if abs(math.degrees(a) - 270) < 14:  # le belvédère, au bout du chemin
+            continue
+        rr = R_BASSIN + 0.22 + rng.random() * 0.12
+        x, y = BASSIN[0] + math.cos(a) * rr, BASSIN[1] + math.sin(a) * rr
+        A.rocher(L, rng, x, y, terrain(x, y) - 0.12, 0.17 + rng.random() * 0.12, "roche_claire")
 
     etape("le village")
     # --- le débarcadère et sa bannière, la barque, les maisons du Pied autour de la place, le puits, les lanternes ---
@@ -521,6 +528,17 @@ def _mailles(graine, leger):
     ponts.append(quai)
     P.banniere(lots, quai_mer[0] + 0.34, quai_mer[1] + 0.25, -0.3, 1.75, "rose", math.radians(100))
     P.barque(L, rng, quai_mer[0] - 0.55, quai_mer[1] + 0.9, math.radians(80), 0.75)
+    for k, (x, y, cap) in enumerate(((2.15, -5.55, 1.2), (-2.05, -5.45, 1.9))[: 1 if leger else 2]):
+        if libre(x, y, 0.4, -0.2):
+            P.barque(L, rng, x, y, cap, 0.7)
+            SOL.append(("decor", "une barque tirée au sec", Vf.rectangle(x, y, 0.75, 0.32, cap)))
+    xf_, yf_ = -2.9, -4.75
+    if not leger and libre(xf_, yf_, 0.45, 0.0):
+        zf_ = sol(xf_, yf_)
+        for s_ in (-1, 1):
+            L.ajouter(*N.cylindre(0.02, 0.016, 0.62, 5, haut=False), "planches_sombres", T(xf_ + s_ * 0.38, yf_, zf_ - 0.05))
+        L.ajouter([(xf_ - 0.38, yf_, zf_ + 0.55), (xf_ + 0.38, yf_, zf_ + 0.55), (xf_ + 0.36, yf_ + 0.02, zf_ + 0.12), (xf_ - 0.36, yf_ + 0.02, zf_ + 0.12)], [(0, 1, 2, 3), (3, 2, 1, 0)], "filet")
+        SOL.append(("decor", "le filet qui sèche", Vf.rectangle(xf_, yf_, 0.85, 0.12, 0.0)))
     maisons = [(-1.45, -4.35, 0.12), (1.5, -4.5, -0.18), (-2.15, -2.35, 0.42), (2.0, -3.3, -0.5), (1.45, -5.55, 0.08), (-1.2, -5.6, -0.1)]
     for k, (x, y, cap) in enumerate(maisons[: 4 if leger else 6]):
         if libre(x, y, 0.55):
@@ -656,6 +674,13 @@ def _mailles(graine, leger):
                 b = j * 1.6 + k
                 L.ajouter(*N.sphere(0.04, 5, 3), "fruits", T(x + math.cos(b) * 0.3, y + math.sin(b) * 0.3, zz + 0.72 + 0.1 * (j % 2)))
             poser_ilot("vergers", "un pommier", Vf.rond(x, y, 0.2))
+            if k == 0:  # une échelle appuyée contre lui
+                for s_ in (-0.07, 0.07):
+                    L.ajouter(*N.poutre((x + 0.38, y + s_, zz), (x + 0.12, y + s_, zz + 0.62), 0.018), "planches_claires")
+                for j in range(5):
+                    t = (j + 0.6) / 5.6
+                    L.ajouter(*N.poutre((x + 0.38 - 0.26 * t, y - 0.07, zz + 0.62 * t), (x + 0.38 - 0.26 * t, y + 0.07, zz + 0.62 * t), 0.012), "planches_claires")
+                poser_ilot("vergers", "l'échelle", Vf.rond(x + 0.3, y, 0.1))
     fin_g = (pa[0] - math.cos(cap_pont) * 0.38, pa[1] - math.sin(cap_pont) * 0.38)  # tout droit dans l'axe du pont
     EN_L_AIR.append(("le cueilleur", [(vx + 0.35, vy - 0.3, dessus_v(vx + 0.35, vy - 0.3) + 0.01)] + [pt for pt in trajet_pont[::-1]] + [(fin_g[0], fin_g[1], dessus_g(*fin_g) + 0.01)], False, None))
 
