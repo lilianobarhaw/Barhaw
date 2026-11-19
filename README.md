@@ -27,6 +27,9 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `js/course-3d.js`, `js/three-r170.module.min.js` | La course de Chopper en 3D (chargée seulement à l'approche des jeux) et three.js, la bibliothèque 3D (licence MIT) |
 | `img/` | Chopper (ta photo), les icônes, l'aperçu des liens (`og-barhaw.png`, ta pp dans une case de manga : c'est l'image qui s'affiche quand on colle le lien du site sur Discord ou ailleurs) |
 | `vercel.json` | Adresses propres, en-têtes de sécurité, accès bloqué à `/lib`, `/README.md`, `/package.json` |
+| `manifest.webmanifest`, `sw.js`, `hors-ligne.html` | L'appli (PWA) : sa fiche (nom, icône, plein écran, raccourcis), le programme en coulisse (la page « Pas de connexion » quand le réseau manque) et cette page ; voir « L'appli Barhaw » plus bas |
+| `appli/` | Ce que l'appli ajoute au site, à part de `site.js` : `appli-tot.js` (le mode appli dès le premier affichage), `appli.js` (l'invitation à installer, la barre du bas avant la VF, le bandeau « Pas de réseau »), `appli.css`, `hors-ligne.js` |
+| `img/appli/`, `outils/appli/` | L'icône de l'appli « Le cri » (dessin inventé), les icônes des raccourcis et les écrans de démarrage de l'iPhone ; le script qui les fabrique (`fabriquer_icones.py`) et le dessin source (`icone-barhaw.svg`) |
 
 ## Mise en ligne
 
@@ -165,6 +168,22 @@ Réglages dans l'adresse : `?commu=<id>` (un autre équipage de la flotte ; sans
 ## L'escale : quand le bot fait une pause
 
 Si le bot ne répond pas (maintenance de l'hébergeur, redémarrage), le site passe en « escale » : un bandeau « Escale au port ! Le navire fait une pause pour prendre des provisions… » (qu'on peut replier), une carte d'escale en haut de chaque partie qui dépend du bot (Ma chaîne, Potes, YouTube, Chopper, Cartes, Jeux, Chasse, Faille, Tournoi), et GRAND LINE à quai avec ses provisions qu'on charge. Les actions renvoient le même message (`api/chopper.js`). La page redemande au bot toutes les 20 s et dit « ⛵ Le navire est reparti ! » dès qu'il revient ; les événements prévus restent affichés.
+
+## L'appli Barhaw (PWA) : le site sur l'écran d'accueil
+
+Pas de store : on installe Barhaw depuis le site, et il s'ouvre en plein écran avec son icône, comme une appli.
+
+- **Installer** : sur Android et sur PC (Chrome, Edge), le bouton « Installer l'appli » en bas de page ouvre la vraie fenêtre d'installation. Sur iPhone, il montre un guide en 2 gestes : Partager, puis « Sur l'écran d'accueil » (dans Safari ; depuis l'appli Discord ou Instagram, il faut d'abord ouvrir le lien dans Safari). Sur téléphone, une invitation arrive aussi toute seule au bout de 20 s, ou dès qu'on a bien descendu dans la page. Jamais dans l'appli elle-même ; fermée, elle ne revient plus (le bouton du bas de page reste) ; ignorée, elle repart au bout de 25 s et revient au plus 3 fois.
+- **L'icône** : « Le cri », une bulle de manga qui crie avec le B de Barhaw, sur le dégradé du site. C'est un dessin inventé (`outils/appli/icone-barhaw.svg`) ; l'iPhone affiche `img/appli/apple-touch-icon.png` (l'ancienne icône de l'iPhone, Chopper, n'est plus utilisée ; l'icône de l'onglet du navigateur ne change pas). Pour refaire les images : `python3 outils/appli/fabriquer_icones.py` (avec rsvg-convert et Pillow).
+- **Dans l'appli** : plein écran, la barre d'état sombre comme l'en-tête, rien sous l'encoche ni sous la barre du bas de l'iPhone. Un écran de démarrage (l'icône sur le fond prune) pour chaque taille d'iPhone, du 8 et du SE aux derniers modèles. Sur Android, un appui long sur l'icône donne des raccourcis : Ma chaîne, GRAND LINE, Les jeux, Le Discord.
+- **La barre du bas, avant la VF 1.0** : dans l'appli, sur téléphone : Accueil, Live, GRAND LINE, Jeux et Menu (le menu complet, qui remplace le burger de l'en-tête). La partie où l'on est s'allume, et un point rose dit ce qui est en direct (ton live, un match du tournoi, le BOSS LIVE, un pote, une game de la Faille). Dès que la VF 1.0 s'ouvre (la date, le bot, ou ton aperçu), elle laisse la place à la barre de la VF.
+- **Sans réseau** : si une page du site ne peut pas s'ouvrir, la page « Pas de connexion » s'affiche (un petit voilier dans le brouillard), et se recharge toute seule dès que le réseau revient. Si le réseau coupe pendant la visite : un bandeau « Pas de réseau » au lieu de « Escale au port » ; l'escale ne s'affiche que si c'est vraiment le bot qui ne répond pas (le site, lui, répond).
+- **Ce que le programme en coulisse (`sw.js`) ne touche jamais** : `/api` (la connexion Discord, les données du bot, les jeux…), `/obs` (une page « Pas de connexion » ne doit jamais apparaître dans un live), les fichiers du site (il n'en garde aucune copie : chaque visite reçoit la dernière version) et les autres sites. Il garde seulement la page « Pas de connexion » et son script. Pour changer cette page : la modifier, puis changer `VERSION` en haut de `sw.js`.
+- **Au doigt, pour tout le monde sur téléphone** : les petits liens (« Y aller », le bas de page) et la croix de l'escale se touchent plus facilement, sans que rien ne bouge ; le champ pour parler à Chopper ne fait plus zoomer l'iPhone ; le menu complet commence en haut quand il est plus haut que l'écran (Accueil et Events étaient coupés au-dessus, impossibles à atteindre).
+- **Pour voir l'allure de l'appli dans un navigateur** : ajouter `?appli=oui` à l'adresse (`?appli=non` pour revenir).
+- **La connexion Discord dans l'appli** : sur Android, l'appli partage la connexion de Chrome. Sur iPhone, l'appli a ses propres cookies : il faut se connecter une fois avec Discord dans l'appli (la page de Discord s'ouvre par-dessus, puis on revient dans l'appli).
+- **Si un jour le programme en coulisse pose problème** : copier `outils/appli/sw-arret.js` à la place de `sw.js` et mettre en ligne. À leur visite suivante, les navigateurs le désinscrivent et effacent ce qu'il gardait : le site redevient comme avant l'appli.
+- **Les notifications** (un pote lance son live, un event commence, la VF) : prévues ensuite, avec le bot.
 
 ## La fluidité (téléphone et PC)
 

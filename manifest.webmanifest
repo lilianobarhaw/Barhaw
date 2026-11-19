@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Barhaw",
+  "short_name": "Barhaw",
+  "description": "La commu de LilianoBarhaw : les lives, les events, GRAND LINE, les jeux et le Discord.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#12070f",
+  "theme_color": "#12070f",
+  "categories": ["entertainment", "games", "social"],
+  "icons": [
+    { "src": "/img/appli/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/appli/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/appli/icone-masque-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/img/appli/icone-masque-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ma chaîne", "short_name": "Live", "url": "/#chaine", "icons": [{ "src": "/img/appli/raccourci-live.png", "sizes": "96x96", "type": "image/png" }] },
+    { "name": "GRAND LINE", "url": "/#grandline", "icons": [{ "src": "/img/appli/raccourci-grandline.png", "sizes": "96x96", "type": "image/png" }] },
+    { "name": "Les jeux", "short_name": "Jeux", "url": "/#jeux", "icons": [{ "src": "/img/appli/raccourci-jeux.png", "sizes": "96x96", "type": "image/png" }] },
+    { "name": "Le Discord", "short_name": "Discord", "url": "/#discord", "icons": [{ "src": "/img/appli/raccourci-discord.png", "sizes": "96x96", "type": "image/png" }] }
+  ]
+}

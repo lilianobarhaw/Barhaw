@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pas de connexion · Barhaw</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#12070f">
+<!-- La page « Pas de connexion » de l'appli : gardée dans le téléphone par sw.js, montrée quand une page du site
+     ne peut pas s'ouvrir faute de réseau. Tout est dedans (pas d'image, pas de police à télécharger). -->
+<style>
+  :root { color-scheme: dark; --vide: #12070f; --rose: #ff4f9a; --rose-clair: #ff8fcb; --violet: #9b4dff; --ombre: #6f22c9; --papier: #fff2f8; --encre: #12050d; --blanc: #fff0f7; --brume: #e3c1d9; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--vide); }
+  body {
+    min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) calc(20px + env(safe-area-inset-left, 0px));
+    color: var(--blanc); font: 500 16.5px/1.6 "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; text-align: center;
+    background-image: radial-gradient(700px 460px at 85% -10%, rgba(255, 79, 154, 0.22), transparent 62%), radial-gradient(640px 520px at -10% 70%, rgba(155, 77, 255, 0.18), transparent 60%);
+  }
+  main { width: min(440px, 100%); display: grid; justify-items: center; gap: 14px; }
+  .scene { width: min(320px, 92%); height: auto; overflow: visible; }
+  .brume { animation: derive 9s ease-in-out infinite alternate; }
+  .brume.b2 { animation-duration: 12s; animation-delay: -4s; }
+  .navire { transform-origin: 160px 175px; animation: tangage 3.2s ease-in-out infinite; }
+  .points circle { animation: point 1.4s ease-in-out infinite; }
+  .points circle:nth-child(2) { animation-delay: 0.2s; } .points circle:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes derive { from { transform: translateX(-26px); } to { transform: translateX(26px); } }
+  @keyframes tangage { 0%, 100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(3deg) translateY(3px); } }
+  @keyframes point { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+  .sfx { margin: 0; font: 900 30px/1 "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif; color: var(--rose); letter-spacing: 0.06em; rotate: -6deg; text-shadow: 3px 3px 0 var(--encre); -webkit-text-stroke: 1px var(--encre); }
+  h1 { margin: 0; font: 900 clamp(30px, 8vw, 40px)/1.1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: -0.01em; }
+  p { margin: 0; color: var(--brume); }
+  .bouton {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 52px; margin-top: 8px; padding: 12px 30px; border-radius: 16px;
+    border: 2.5px solid var(--encre); background: linear-gradient(100deg, #ff8fcb 0%, #ff4f9a 42%, #9b4dff 100%); color: #fff;
+    font: 800 17px/1.2 "M PLUS Rounded 1c", system-ui, -apple-system, "Segoe UI", sans-serif; text-decoration: none; cursor: pointer;
+    box-shadow: 4px 5px 0 var(--ombre); -webkit-tap-highlight-color: transparent; transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .bouton:active { transform: translate(3px, 4px); box-shadow: 1px 1px 0 var(--ombre); }
+  .bouton:focus-visible { outline: 3px solid var(--papier); outline-offset: 3px; }
+  .bouton.cherche { opacity: 0.85; }
+  .petit { font-size: 14px; color: #a7809f; }
+  @media (prefers-reduced-motion: reduce) { .brume, .navire, .points circle { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <svg class="scene" viewBox="0 0 320 230" role="img" aria-label="Un petit voilier perdu dans le brouillard, qui attend le réseau">
+    <defs>
+      <filter id="flou" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+      <linearGradient id="lune" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8fcb"/><stop offset="1" stop-color="#ff4f9a"/></linearGradient>
+    </defs>
+    <circle cx="160" cy="118" r="104" fill="#ff4f9a" opacity="0.08"/>
+    <circle cx="246" cy="62" r="30" fill="url(#lune)" stroke="#12050d" stroke-width="3.5"/>
+    <circle cx="236" cy="53" r="6" fill="#ffc2de" opacity="0.85"/>
+    <g fill="#fff2f8" stroke="#12050d" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M30 70c1.5 6 1.5 6 7.5 7.5-6 1.5-6 1.5-7.5 7.5-1.5-6-1.5-6-7.5-7.5 6-1.5 6-1.5 7.5-7.5z"/>
+      <path d="M292 112c1 4 1 4 5 5-4 1-4 1-5 5-1-4-1-4-5-5 4-1 4-1 5-5z"/>
+      <path d="M196 22c1 4 1 4 5 5-4 1-4 1-5 5-1-4-1-4-5-5 4-1 4-1 5-5z"/>
+    </g>
+    <!-- le brouillard, derrière le navire -->
+    <ellipse class="brume" cx="92" cy="128" rx="70" ry="13" fill="#e3c1d9" opacity="0.3" filter="url(#flou)"/>
+    <!-- la bulle : le navire attend, plus rien ne passe -->
+    <g transform="translate(34 14)">
+      <path d="M10 4h82a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H70l6 14-18-14H10A10 10 0 0 1 0 38V14A10 10 0 0 1 10 4z" fill="#fff2f8" stroke="#12050d" stroke-width="3.5" stroke-linejoin="round"/>
+      <g class="points" fill="#12050d"><circle cx="31" cy="26" r="5.5"/><circle cx="51" cy="26" r="5.5"/><circle cx="71" cy="26" r="5.5"/></g>
+    </g>
+    <g class="navire">
+      <rect x="157" y="44" width="7" height="114" rx="2.5" fill="#12050d"/>
+      <path d="M164 46l28 8-28 9z" fill="#9b4dff" stroke="#12050d" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M165 70c36 19 58 52 62 88h-62z" fill="#fff2f8" stroke="#12050d" stroke-width="4.5" stroke-linejoin="round"/>
+      <path d="M156 78c-22 25-38 50-46 80h46z" fill="#fff2f8" stroke="#12050d" stroke-width="4.5" stroke-linejoin="round"/>
+      <path d="M184 104h14c7 0 10 4 10 8.5 0 3.5-2 5.5-4.5 6.5 3.5 1 6 4 6 8 0 5-4.5 9-11.5 9h-14z M192 110.5v6.5h4.5c2 0 3-1.4 3-3.2 0-1.9-1-3.3-3-3.3z M192 123v7h5.5c2.2 0 3.4-1.5 3.4-3.5s-1.2-3.5-3.4-3.5z" fill="#ff4f9a" fill-rule="evenodd" stroke="#12050d" stroke-width="2.6" stroke-linejoin="round"/>
+      <path d="M92 158h136c-4 18-17 30-35 33h-66c-18-3-31-15-35-33z" fill="#4b1a63" stroke="#12050d" stroke-width="4.5" stroke-linejoin="round"/>
+      <path d="M101 168h118" stroke="#ff4f9a" stroke-width="5" stroke-linecap="round"/>
+      <g fill="#ff8fcb" stroke="#12050d" stroke-width="2.4"><circle cx="134" cy="179" r="4.2"/><circle cx="160" cy="179" r="4.2"/><circle cx="186" cy="179" r="4.2"/></g>
+    </g>
+    <path d="M-10 196c20-10 40-10 60 0s40 10 60 0 40-10 60 0 40 10 60 0 40-10 60 0 40 10 60 0V240H-10z" fill="#9b4dff" stroke="#12050d" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-10 214c20-8 40-8 60 0s40 8 60 0 40-8 60 0 40 8 60 0 40-8 60 0 40 8 60 0V240H-10z" fill="#6f22c9" stroke="#12050d" stroke-width="4" stroke-linejoin="round"/>
+    <!-- le brouillard, devant -->
+    <ellipse class="brume b2" cx="212" cy="176" rx="84" ry="12" fill="#f3dcec" opacity="0.34" filter="url(#flou)"/>
+    <ellipse class="brume" cx="70" cy="186" rx="60" ry="10" fill="#d1a6ff" opacity="0.3" filter="url(#flou)"/>
+  </svg>
+  <p class="sfx" aria-hidden="true">プツッ</p>
+  <h1>Pas de connexion</h1>
+  <p>Ton <span id="appareil">téléphone</span> n'a plus de réseau. Dès qu'il revient, Barhaw se recharge tout seul.</p>
+  <a class="bouton" id="reessayer" href="">Réessayer</a>
+  <p class="petit" id="astuce">Vérifie le Wi-Fi ou les données mobiles.</p>
+</main>
+<script src="/appli/hors-ligne.js"></script>
+</body>
+</html>

@@ -7,11 +7,33 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#ff4f9a">
 <link rel="icon" href="/img/favicon-32.png" type="image/png">
+<!-- l'appli Barhaw (PWA) : sa fiche, son icône et ses écrans de démarrage sur iPhone (voir le README, partie « L'appli ») -->
+<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Barhaw">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="/img/appli/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/img/appli/demarrage-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/img/appli/demarrage-750x1334.png">
+<script src="/appli/appli-tot.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
 <link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/appli/appli.css">
 <script src="/site.js" defer></script>
+<script src="/appli/appli.js" defer></script>
 </head>
 <body class="mentions">
 <canvas id="ciel" aria-hidden="true"></canvas>
@@ -55,6 +77,9 @@
 
     <h3>Les cookies</h3>
     <p>Deux cookies, seulement s'ils servent : <code>barhaw_state</code> (10 minutes, pendant la connexion avec Discord, pour la sécuriser) et <code>barhaw_session</code> (ta connexion, 30 jours au plus). Ils sont indispensables à la connexion, il n'y en a pas d'autres.</p>
+
+    <h3>L'appli</h3>
+    <p>Si tu installes Barhaw sur ton écran d'accueil, ton appareil garde seulement la page « Pas de connexion » (et son petit script) pour l'afficher quand le réseau manque : rien sur toi. Ton navigateur retient aussi, sur cet appareil seulement (stockage local, pas un cookie), si tu as déjà vu ou fermé l'invitation à installer l'appli et si elle est installée, pour ne pas te la reproposer. Pour tout effacer : supprime l'appli de ton écran d'accueil, ou efface les données du site dans ton navigateur.</p>
 
     <h3>Les polices</h3>
     <p>Les polices du site (Dela Gothic One et M PLUS Rounded 1c, sous licence SIL Open Font License) sont chargées depuis Google Fonts. Pour te les envoyer, Google reçoit ton adresse IP, comme pour n'importe quel site qui les utilise ; elles ne posent aucun cookie.</p>
