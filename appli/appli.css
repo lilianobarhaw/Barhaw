@@ -1,0 +1,135 @@
+/* L'appli Barhaw (la PWA) : ce que l'appli ajoute au site (voir appli/appli.js), rangé à part de site.css.
+   html.appli : la page est ouverte depuis l'icône de l'écran d'accueil (ou avec ?appli=oui, pour essayer).
+   html.appli-avec-barre : la barre du bas de l'appli, avant la VF 1.0 (ensuite, c'est celle de la VF). */
+
+/* ---------- dans l'appli : tout l'écran, rien sous l'encoche, la barre d'état ni la barre du bas de l'iPhone ---------- */
+html.appli { --entete: calc(74px + env(safe-area-inset-top, 0px)); }
+html.appli .entete {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(clamp(18px, 4vw, 48px), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(18px, 4vw, 48px), env(safe-area-inset-right, 0px));
+}
+html.appli body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+@media (max-width: 560px) { html.appli .musique-zone { top: calc(15px + env(safe-area-inset-top, 0px)); } }
+@media (max-width: 900px) { html.appli.v4 .musique-zone { top: calc(15px + env(safe-area-inset-top, 0px)); } }
+
+/* ---------- la barre du bas de l'appli (avant la VF 1.0), comme celle de la VF ---------- */
+html.appli-avec-barre { --barre: calc(64px + env(safe-area-inset-bottom, 0px)); }
+html.appli-avec-barre body { padding-bottom: var(--barre); }
+.appli-barre {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 46; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: var(--barre); padding: 0 max(4px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(4px, env(safe-area-inset-left, 0px));
+  background: rgba(18, 7, 15, 0.96); border-top: 2.5px solid var(--encre); box-shadow: 0 -4px 0 rgba(111, 34, 201, 0.55);
+  -webkit-user-select: none; user-select: none;
+}
+.appli-barre > a, .appli-barre > button {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; height: 64px; padding: 6px 2px 5px;
+  border: 0; border-radius: 0; background: none; color: var(--brume); font-family: var(--fort); font-weight: 800; font-size: clamp(10.5px, 3vw, 11.5px); line-height: 1.1;
+  text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; transition: color 0.2s, background 0.2s;
+}
+.appli-barre-dessin { display: grid; place-items: center; }
+.appli-barre .appli-picto { width: 26px; height: 26px; transition: transform 0.25s var(--rebond), color 0.2s; }
+.appli-barre-nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; }
+.appli-barre > [aria-current="true"], .appli-barre > [aria-expanded="true"] { color: var(--blanc); background: linear-gradient(0deg, rgba(255, 79, 154, 0.25), transparent); }
+.appli-barre > [aria-current="true"] .appli-picto { color: #ff8fcb; transform: translateY(-1px) scale(1.06); }
+.appli-barre > :active .appli-picto { transform: scale(0.86); }
+.appli-barre > :focus-visible { outline: 3px solid var(--violet-clair); outline-offset: -4px; border-radius: 12px; }
+.appli-point { position: absolute; top: 8px; left: calc(50% + 9px); width: 11px; height: 11px; border-radius: 50%; background: var(--rose); border: 2px solid var(--encre); box-shadow: 0 0 0 3px rgba(255, 79, 154, 0.3); animation: appli-battre 1.6s ease-in-out infinite; }
+.appli-point[hidden] { display: none; }
+@keyframes appli-battre { 0%, 100% { scale: 1; } 50% { scale: 1.25; } }
+
+/* le menu complet s'ouvre depuis la barre (« Menu ») : plus besoin du burger dans l'en-tête */
+@media (max-width: 1320px) { html.appli-avec-barre .entete .burger { display: none; } }
+@media (max-width: 560px) { html.appli-avec-barre .musique-zone { right: max(18px, env(safe-area-inset-right, 0px)); } }
+
+/* ce qui se pose en bas de l'écran passe au-dessus de la barre */
+html.appli-avec-barre .flottant-live, html.appli-avec-barre .pote-live { bottom: calc(var(--barre) + 12px); }
+html.appli-avec-barre.mode-live .pote-live { bottom: calc(var(--barre) + 76px); }
+html.appli-avec-barre .escale-retour, html.appli-avec-barre .bl-alerte { bottom: calc(var(--barre) + 14px); }
+html.appli-avec-barre .nav { padding-bottom: calc(var(--barre) + 30px); }
+@media (min-width: 561px) { html.appli-avec-barre .musique-zone { bottom: calc(var(--barre) + 12px); } }
+
+/* ---------- le menu complet sur téléphone (avant la VF) ----------
+   Plus haut que l'écran, il était centré et ses premiers liens (Accueil, Events) restaient coupés au-dessus, impossibles
+   à atteindre : maintenant il commence en haut quand il déborde, et reste centré quand il tient. */
+@media (max-width: 1320px) {
+  .nav:not(.vf) { justify-content: flex-start; }
+  .nav:not(.vf)::before, .nav:not(.vf)::after { content: ""; flex: none; }
+  .nav:not(.vf)::before { margin-top: auto; }
+  .nav:not(.vf)::after { margin-bottom: auto; }
+}
+
+/* ---------- l'invitation à installer l'appli (et le bouton du bas de page) ---------- */
+.appli-invite {
+  position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 43; max-width: 520px; margin: 0 auto;
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 14px; align-items: start; padding: 14px 50px 14px 14px; border-radius: 18px;
+  background: var(--papier); color: var(--encre); border: 2.5px solid var(--encre); box-shadow: 5px 6px 0 var(--ombre);
+  animation: appli-monter 0.45s var(--rebond) both;
+}
+html.v4 .appli-invite, html.appli-avec-barre .appli-invite { bottom: calc(var(--barre, 0px) + 12px); }
+.appli-invite.part { animation: appli-descendre 0.26s ease-in both; }
+.appli-invite-icone { width: 56px; height: 56px; border-radius: 14px; border: 2px solid var(--encre); box-shadow: 2px 3px 0 var(--rose); }
+.appli-invite-texte { min-width: 0; }
+.appli-invite-texte p { margin: 0; font-size: 14.5px; line-height: 1.45; color: #3b1f33; }
+.appli-invite-texte .appli-invite-titre { margin-bottom: 2px; font-family: var(--titre); font-size: 18px; line-height: 1.2; color: var(--encre); }
+.appli-etapes { margin: 8px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.55; color: #3b1f33; }
+.appli-etapes b { color: var(--encre); }
+.appli-etape-note { list-style: none; margin: 4px 0 0 -20px; font-size: 12.5px; line-height: 1.4; color: #6b4a5f; }
+.appli-invite-texte .appli-invite-guide { margin-top: 6px; font-size: 13.5px; color: #6b4a5f; }
+.appli-picto-texte { display: inline-block; width: 1.3em; height: 1.3em; vertical-align: -0.32em; color: #0a66d8; }
+.appli-installer {
+  grid-column: 2; justify-self: start; min-height: 44px; margin-top: 8px; padding: 10px 24px; border-radius: 14px; border: 2.5px solid var(--encre);
+  background: var(--degrade); color: #fff; font-family: var(--fort); font-weight: 800; font-size: 15.5px; cursor: pointer; box-shadow: 3px 4px 0 var(--ombre);
+  -webkit-tap-highlight-color: transparent; transition: transform 0.12s, box-shadow 0.12s;
+}
+.appli-installer:active { transform: translate(2px, 3px); box-shadow: 1px 1px 0 var(--ombre); }
+.appli-invite-fermer { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--encre); cursor: pointer; }
+.appli-invite-fermer .appli-picto, .appli-reseau-fermer .appli-picto { width: 20px; height: 20px; }
+.appli-invite button:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+@keyframes appli-monter { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes appli-descendre { to { opacity: 0; transform: translateY(24px); } }
+
+.appli-pied {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; border-radius: 99px; border: 2px solid var(--ligne); background: var(--nuit); color: var(--blanc);
+  font-family: var(--fort); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: border-color 0.25s;
+}
+.appli-pied:hover { border-color: var(--rose); }
+.appli-pied[hidden] { display: none; }
+.appli-pied img { width: 22px; height: 22px; border-radius: 6px; }
+
+/* ---------- le réseau coupé pendant la visite : « Pas de réseau » à la place de l'escale ---------- */
+.appli-reseau {
+  position: fixed; left: 50%; top: calc(var(--entete) + 10px); z-index: 39; translate: -50% 0; width: min(860px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 12px; padding: 10px 50px 10px 12px; border-radius: 16px;
+  background: var(--papier); color: var(--encre); border: 2.5px solid var(--encre); box-shadow: 5px 6px 0 var(--ombre); animation: appli-tomber 0.45s var(--rebond) both;
+}
+.appli-reseau p { margin: 0; font-size: 14px; line-height: 1.4; color: #3b1f33; }
+.appli-reseau strong { font-family: var(--titre); font-weight: 400; color: var(--rose-fonce); margin-right: 4px; }
+.appli-reseau-dessin { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--encre); color: #ff8fcb; }
+.appli-reseau-dessin .appli-picto { width: 24px; height: 24px; }
+.appli-reseau-fermer { position: absolute; right: 3px; top: 50%; translate: 0 -50%; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--encre); cursor: pointer; }
+html.sans-reseau #escale, html.reseau-revenu #escale, html.reseau-revenu .escale-retour { display: none !important; }
+@keyframes appli-tomber { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+
+/* la petite bulle qui s'en va toute seule (« Le réseau est revenu ! ») */
+.appli-bulle {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 60; translate: -50% 0; max-width: calc(100vw - 32px); padding: 12px 22px;
+  border-radius: 16px; background: var(--rose); color: #fff; border: 2.5px solid var(--encre); box-shadow: 4px 4px 0 var(--encre);
+  font-family: var(--titre); font-size: 16px; line-height: 1.3; text-align: center; animation: appli-monter 0.5s var(--rebond) both;
+}
+html.v4 .appli-bulle, html.appli-avec-barre .appli-bulle { bottom: calc(var(--barre, 0px) + 14px); }
+
+/* ---------- au doigt (téléphones, tablettes) : des zones à toucher plus grandes, sans rien déplacer ---------- */
+@media (pointer: coarse) {
+  html { -webkit-tap-highlight-color: rgba(255, 79, 154, 0.18); }
+  .evenement .lien { padding-block: 12px; margin-top: -6px; margin-bottom: -12px; }
+  .pied-liens a { padding: 12px 4px; margin: -12px -4px; }
+  .escale-fermer::before { content: ""; position: absolute; inset: -9px; }
+}
+/* sur iPhone, un champ en dessous de 16 px fait zoomer toute la page quand on tape dedans */
+@supports (-webkit-touch-callout: none) { .parler input { font-size: 16px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .appli-invite, .appli-invite.part, .appli-reseau, .appli-bulle, .appli-point { animation: none; }
+  .appli-barre .appli-picto { transition: none; }
+}
