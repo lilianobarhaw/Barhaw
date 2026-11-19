@@ -368,6 +368,11 @@ def _mailles(graine, leger):
     ponts.append(quai)
     P.banniere(lots, quai_mer[0] + 0.34, quai_mer[1] + 0.25, -0.3, 1.75, "rose", math.radians(100))
     P.barque(L, rng, quai_mer[0] - 0.55, quai_mer[1] + 0.9, math.radians(80), 0.75)
+    P.lampadaire(L, U, quai_mer[0] + 0.18, quai_mer[1] + 0.15, ZQ)  # la lanterne du bout du débarcadère
+    for x, y in [(-1.6, 0.66), (-3.1, 0.78), (1.55, 1.18), (2.6, -3.05)][: 2 if leger else 4]:  # des lanternes le long des sentiers
+        if libre(x, y, 0.06, 0.3):
+            P.lampadaire(L, U, x, y, terrain(x, y), 0.55)
+            SOL.append(("rocher", "une lanterne", Vf.rond(x, y, 0.06)))
     for k in range(12 if leger else 26):
         x, y = vers(rng.random() * 360, 0.15 + rng.random() * 0.8)
         if libre(x, y, 0.2, 0.05):
