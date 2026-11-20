@@ -65,10 +65,14 @@ TRAITS = [
     ((-4.46, 0.0, 0.06, 0.24), -0.08),  # la bouche entrouverte (il ronfle)
     ((-4.36, 0.0, 0.12, 0.3), 0.08),  # la lèvre du bas
     ((-4.14, 0.0, 0.3, 0.45), 0.42),  # le menton
+    ((-5.0, 1.32, 0.44, 0.23), 0.58),  # les oreilles, de chaque côté de la tête (vues d'en haut, elles dessinent la tête)
+    ((-5.0, -1.32, 0.44, 0.23), 0.58),
+    ((-4.97, 1.36, 0.24, 0.1), -0.26),  # le creux de l'oreille
+    ((-4.97, -1.36, 0.24, 0.1), -0.26),
 ]
 BOUCHE = (-4.46, 0.0)
 NARINES = (-4.69, 0.12)
-VISAGE = (-6.1, -3.6, -1.05, 1.05)  # le cadre du maillage fin
+VISAGE = (-6.1, -3.6, -1.6, 1.6)  # le cadre du maillage fin (le visage et les oreilles)
 
 
 def nez(x, y):
@@ -173,7 +177,7 @@ def tx_sol_geants(taille=2048, graine=931):
     roche = N.mel(N.hexa(0x7f7a6e), N.hexa(0xaaa291), np.clip(0.2 + 0.7 * b3 + 0.3 * (b2 - 0.5), 0, 1)) * (0.85 + 0.3 * (fin - 0.5))[..., None]
     gx_, gy_ = N.grille(n)
     X, Y = (gx_ * 2 - 1) * R_SOL, (gy_ * 2 - 1) * R_SOL
-    crane = N.lisse(1.0, 0.8, np.hypot((X - TETE[0]) / 1.5, (Y - TETE[1]) / 1.3)) * (1 - N.lisse(0.35, 0.2, np.hypot((X + 4.85) / 0.4, Y / 0.3)))
+    crane = N.lisse(1.0, 0.8, np.hypot((X - TETE[0]) / 1.5, (Y - TETE[1]) / 1.55)) * (1 - N.lisse(0.35, 0.2, np.hypot((X + 4.85) / 0.4, Y / 0.3)))
     coul = N.mel(coul, mousse * 0.92, crane * 0.75)  # la tête : une mousse épaisse, plus sombre (seul le bout du nez reste en roche)
     sur_lui = N.lisse(0.2, 0.55, K.agrandir(K.champ(corps, R_SOL, 260), n))  # le corps du géant (pas le sol autour)
     raide = N.lisse(1.3, 2.1, pente + (b3 - 0.5) * 0.5) * N.lisse(0.3, 0.45, h)
