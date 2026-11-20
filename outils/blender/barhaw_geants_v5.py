@@ -184,10 +184,15 @@ def tx_sol_geants(taille=2048, graine=931):
     coul = N.mel(coul, mousse * 0.86, raide * sur_lui * 0.8)  # ses flancs : de la mousse, comme une couverture
     roc_nu = np.maximum(1 - sur_lui, N.lisse(0.62, 0.74, b2))  # par endroits seulement, la roche du géant perce la mousse
     coul = N.mel(coul, roche, raide * 0.85 * (1 - 0.85 * crane) * roc_nu)  # la roche perce seulement sur les flancs les plus raides
-    for sy in (-1, 1):  # le pli des paupières closes : un trait sombre en arc, vers le menton
-        d = np.abs(np.hypot((X + 5.2) / 0.15, (Y - sy * 0.36) / 0.16) - 1.0)
-        coul = N.mel(coul, N.hexa(0x2f3a28), N.lisse(0.16, 0.0, d) * ((X > -5.2) & (np.abs(Y - sy * 0.36) < 0.16)))
-    coul = N.mel(coul, N.hexa(0x3a2e24), N.lisse(1.0, 0.0, np.hypot((X - BOUCHE[0]) / 0.04, Y / 0.22)) * 0.8)  # la fente de la bouche
+    for sy in (-1, 1):  # les yeux clos : l'orbite dans l'ombre, le pli de la paupière en arc vers le menton, les cils
+        coul = N.mel(coul, N.hexa(0x33402a), N.lisse(1.0, 0.45, np.hypot((X + 5.16) / 0.24, (Y - sy * 0.36) / 0.26)) * 0.4)
+        rho = np.hypot((X + 5.2) / 0.15, (Y - sy * 0.36) / 0.16)
+        phi = np.arctan2((Y - sy * 0.36) / 0.16, (X + 5.2) / 0.15)
+        bas = (X > -5.2) & (np.abs(Y - sy * 0.36) < 0.17)
+        coul = N.mel(coul, N.hexa(0x222a1c), N.lisse(0.3, 0.0, np.abs(rho - 1.0)) * bas)
+        cils = (rho > 1.0) & (rho < 1.42) & (np.cos(phi) > 0.25) & (np.abs(np.sin(7 * phi)) < 0.22)
+        coul = N.mel(coul, N.hexa(0x222a1c), cils * 0.9)
+    coul = N.mel(coul, N.hexa(0x2a2018), N.lisse(1.0, 0.0, np.hypot((X - BOUCHE[0]) / 0.05, Y / 0.27)) * 0.9)  # la fente de la bouche
     for sy in (-1, 1):  # les narines
         coul = N.mel(coul, N.hexa(0x2a241c), N.lisse(1.0, 0.3, np.hypot((X - NARINES[0]) / 0.06, (Y - sy * NARINES[1]) / 0.045)) * 0.85)
     terre = N.mel(N.hexa(0xa58e68), N.hexa(0xc2aa7e), np.clip(0.2 + 0.7 * b3, 0, 1)) * (0.92 + 0.16 * (grain - 0.5))[..., None]
