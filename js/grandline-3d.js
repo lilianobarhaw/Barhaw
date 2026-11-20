@@ -2894,18 +2894,18 @@ function effetRepere(r) {
     const lisse = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     maj = (s) => {
       const L = lampesAllumees;
-      // les Z : trois par souffle, à 0,7 s l'un de l'autre ; chacun vit 4,6 s
+      // les Z : trois par souffle, à 0,9 s l'un de l'autre (ils montent en file, sans se chevaucher) ; chacun vit 4,6 s
       const n = Math.floor(s / cadence);
       for (let j = 0; j < 9; j++) {
         const cycle = n - Math.floor(j / 3), rang = j % 3;
-        const t = s - cycle * cadence - rang * 0.7;
+        const t = s - cycle * cadence - rang * 0.9;
         const z = zeds[j];
         z.visible = cycle >= 0 && t >= 0 && t < 4.6;
         if (!z.visible) continue;
         const fort = cycle % 3 === 2 ? 1.3 : 1; // il ronfle
         const p = t / 4.6;
-        z.position.set(-0.35 * p - 0.15 * rang + Math.sin(t * 2.2 + j) * 0.12, 0.25 + p * 2.1 + rang * 0.18, -0.12 * p);
-        const taille = (0.34 + rang * 0.16) * fort * (0.7 + 0.5 * p);
+        z.position.set(-0.25 - 0.9 * p + Math.sin(t * 2.2 + j) * 0.1, 0.3 + p * 3.0, -0.15 * p);
+        const taille = (0.26 + rang * 0.1) * fort * (0.75 + 0.6 * p);
         z.scale.set(taille, taille, 1);
         z.material.rotation = Math.sin(t * 1.7 + j) * 0.25 - 0.15;
         z.material.opacity = lisse(0, 0.35, t) * (1 - lisse(3.0, 4.6, t)) * (0.92 + 0.08 * L);
