@@ -4198,6 +4198,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // Avant, il se posait sur l'île (au Marché Flottant, sur la ronde des sampans). « part » : la part du chemin qu'il peut
   // prendre, pour que deux îles proches gardent un bout de route entre elles (0,42 d'île à île ; 0,8 jusqu'au carrefour).
   const RAYON_N5 = { ambre: 8.0, arbre: 7.8, archipel: 8.0, braise: 7.8, champignons: 7.6, cimetiere: 8.6, cristal: 8.5, engloutie: 7.9, forteresse: 8.4, geants: 8.6, givre: 7.8, horloge: 8.4, lucioles: 7.8, marais: 8.6, marche: 7.5, moussaillons: 8.4, phare: 8.5, recif: 7.7, tonnerre: 8.5, tresor: 8.6, vents: 8.1 };
+  const MAITRES_V5 = new Set(["marais"]); // les maîtres des îles déjà refaits au niveau 5 (maitre-<île>-v5.glb)
   const EVENEMENT_N5 = { fantome: 6.5, maitre: 5.5, bouteille: 1.8 }; // la demi-taille de ce qui surgit à côté du navire
   const LARGE_N5 = 2.8; // la demi-largeur du galion (vergues comprises), et un peu d'eau
   const rivage = (de, vers, part = 0.42) => {
@@ -4476,9 +4477,10 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       let sortie = 0;
       let parties = [], tourne = 0, angle = null, cherche = null; // le monstre : ce qui sort de l'eau, et de combien il se tourne
       // niveau 5 : le monstre refait (monstre-v5.glb, la même taille) ; s'il manque, celui d'avant
-      const nomModele = type === "maitre" && /^[a-z]{2,20}$/.test(String(ev.ile || "")) ? `maitre-${ev.ile}` : ilesV5.length ? "monstre-v5" : "monstre";
+      // (un maître refait au niveau 5 : maitre-<île>-v5.glb, s'il est dans MAITRES_V5)
+      const nomModele = type === "maitre" && /^[a-z]{2,20}$/.test(String(ev.ile || "")) ? `maitre-${ev.ile}${ilesV5.length && MAITRES_V5.has(ev.ile) ? "-v5" : ""}` : ilesV5.length ? "monstre-v5" : "monstre";
       if (type === "maitre") g.userData.decalage = v3(7, -2);
-      (nomModele === "monstre-v5" ? creature(nomModele, 0.06).catch(() => creature("monstre", 0.06)) : creature(nomModele, 0.06)).then((c) => {
+      (/-v5$/.test(nomModele) ? creature(nomModele, 0.06).catch(() => creature(nomModele.replace(/-v5$/, ""), 0.06)) : creature(nomModele, 0.06)).then((c) => {
         if (detruit) return;
         for (const o of dessines) { g.remove(o); o.traverse((x) => x.geometry?.dispose?.()); }
         // ce qui sort de l'eau (la tête, les tentacules) ; l'écume reste à la surface
