@@ -28,7 +28,7 @@
   if (P.get("fond") === "oui") document.body.classList.add("fond");
 
   // les îles qui ont leur carte postale (img/obs/<id>.webp, tirée de la nouvelle carte) ; les autres montrent leur maquette
-  const CARTES = new Set(["moussaillons", "recif", "braise", "givre", "lucioles", "champignons", "engloutie", "vents", "marche", "arbre", "ambre", "phare", "tonnerre", "tresor", "marais", "cristal", "archipel", "cimetiere", "horloge"]);
+  const CARTES = new Set(["moussaillons", "recif", "braise", "givre", "lucioles", "champignons", "engloutie", "vents", "marche", "arbre", "ambre", "phare", "tonnerre", "tresor", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants"]);
   const BOSS = new Set(["morghast", "voraxia", "krakor"]);
   const SONS = { cloche: "/son/cloche.m4a", taiko: "/son/taiko.m4a", victoire: "/son/victoire.m4a", carte: "/son/carte.m4a", pop: "/son/pop.m4a" };
 
