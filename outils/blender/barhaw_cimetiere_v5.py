@@ -111,8 +111,8 @@ def tx_sol_cimetiere(taille=2048, graine=821):
     coul = N.mel(coul, herbe, N.lisse(0.55, 0.72, b1 + (h - 0.3) * 0.8) * N.lisse(0.25, 0.35, h) * 0.85)
     algues = N.lisse(0.62, 0.7, b3) * N.lisse(0.22, 0.12, np.abs(h - 0.12))
     coul = N.mel(coul, N.hexa(0x3e4a32), algues * 0.7)
-    clair = N.mel(N.hexa(0xb3ada0), N.hexa(0xcbc5b8), np.clip(g1, 0, 1))
-    coul = N.mel(coul, clair, N.lisse(0.2, 0.1, piste + (fin - 0.5) * 0.08) * N.lisse(0.16, 0.24, h) * 0.55)
+    clair = N.mel(N.hexa(0xa39d91), N.hexa(0xb7b1a5), np.clip(g1, 0, 1))
+    coul = N.mel(coul, clair, N.lisse(0.2, 0.1, piste + (fin - 0.5) * 0.08) * N.lisse(0.16, 0.24, h) * 0.38)
     relief = np.clip(0.5 + 0.35 * (g1 - 0.5) + 0.15 * (fin - 0.5), 0, 1)
     return np.clip(coul, 0, 1).astype(np.float32), relief.astype(np.float32)
 
@@ -241,7 +241,7 @@ def nef(L, V, U, rng, x, y, cap):
             continue
         r_g = 0.08 + 0.07 * rng.random()
         e = 0.45 + 0.05 * rng.random()
-        L.ajouter(*N.sphere(r_g, 7, 5, 0.6 + 0.25 * rng.random()), "pierre_grise", Mh @ T(math.cos(t) * lg * e, math.sin(t) * larg * e, r_g * 0.55) @ Rz(rng.random() * PI))
+        L.ajouter(*N.sphere(r_g, 6, 4, 0.6 + 0.25 * rng.random()), "pierre_grise", Mh @ T(math.cos(t) * lg * e, math.sin(t) * larg * e, r_g * 0.55) @ Rz(rng.random() * PI))
     # la porte, une fenêtre (allumée la nuit) et la lanterne, dans le tableau arrière (la poupe : -x local)
     L.ajouter(*N.quad((-lg / 2 - 0.012, 0.13, 0.12), (-lg / 2 - 0.012, -0.13, 0.12), (-lg / 2 - 0.012, -0.13, 0.6), (-lg / 2 - 0.012, 0.13, 0.6)), "porte", Mh)
     Mt = Mh @ T(-lg / 2 - 0.012, 0, 0) @ Rz(-PI / 2)
@@ -500,6 +500,81 @@ def _mailles(graine, leger):
             else:
                 L.ajouter(*N.poutre((x - 0.3, y, zz + 0.02), (x + 0.3, y + 0.1, zz + 0.04), 0.06, 0.025), "bois_gris")
             SOL.append(("rocher", "une épave rendue par la mer", Vf.rond(x, y, 0.12)))
+
+    etape("le coin du gardien")
+    # --- au milieu de la grève : le feu du gardien (sa marmite, son banc), le canot qu'il répare sur deux tréteaux ---
+    rng2 = random.Random(graine + 77)  # (à part : le reste de l'île ne bouge pas)
+    feu = (0.15, 1.0)
+    if libre(feu[0], feu[1], 0.32):
+        zf = sol(*feu)
+        for k in range(8):
+            a = k * 2 * PI / 8
+            L.ajouter(*N.sphere(0.06, 5, 3, 0.8), "pierre_grise", T(feu[0] + math.cos(a) * 0.19, feu[1] + math.sin(a) * 0.19, zf + 0.02))
+        for k in range(3):
+            a = k * PI / 3 + 0.3
+            L.ajouter(*N.poutre((feu[0] - math.cos(a) * 0.14, feu[1] - math.sin(a) * 0.14, zf + 0.04), (feu[0] + math.cos(a) * 0.14, feu[1] + math.sin(a) * 0.14, zf + 0.08), 0.032), "bois_gris_sombre")
+        U.ajouter(*N.sphere(0.06, 6, 4, 1.5), "feu", T(feu[0], feu[1], zf + 0.12))
+        for k in range(3):  # le trépied de fer et la marmite pendue
+            a = k * 2 * PI / 3 + 0.5
+            L.ajouter(*N.poutre((feu[0] + math.cos(a) * 0.27, feu[1] + math.sin(a) * 0.27, zf), (feu[0], feu[1], zf + 0.6), 0.014), "fer")
+        L.ajouter(*N.cylindre(0.004, 0.004, 0.18, 3, haut=False), "fer", T(feu[0], feu[1], zf + 0.41))
+        L.ajouter(*N.cylindre(0.1, 0.085, 0.12, 10, haut=False, bas=True), "fer", T(feu[0], feu[1], zf + 0.29))
+        P.CHEMINEES.append((feu[0], feu[1], zf + 0.48))  # (sa fumée monte avec celle de la Nef)
+        SOL.append(("decor", "le feu du gardien", Vf.rond(feu[0], feu[1], 0.32)))
+        xb_, yb_ = feu[0] + 0.06, feu[1] - 0.58  # son banc : une bûche sur deux pierres
+        if libre(xb_, yb_, 0.3):
+            zb_ = sol(xb_, yb_)
+            for sx in (-1, 1):
+                L.ajouter(*N.sphere(0.075, 5, 3, 0.9), "pierre_grise", T(xb_ + sx * 0.24, yb_, zb_ + 0.03))
+            L.ajouter(*N.cylindre(0.065, 0.065, 0.66, 7), "bois_gris", T(xb_ - 0.33, yb_, zb_ + 0.15) @ Ry(PI / 2))
+            SOL.append(("decor", "le banc du gardien", Vf.rectangle(xb_, yb_, 0.7, 0.2, 0.0)))
+    canot, cap_c = (-0.35, -0.55), math.radians(-25)
+    if libre(canot[0], canot[1], 0.55):
+        zc = sol(*canot)
+        Mc = T(canot[0], canot[1], zc) @ Rz(cap_c)
+        for xt in (-0.36, 0.36):  # les deux tréteaux
+            L.ajouter(*N.poutre((xt, -0.24, 0.39), (xt, 0.24, 0.39), 0.03), "bois_gris_sombre", Mc)
+            for sy in (-1, 1):
+                for sx in (-1, 1):
+                    L.ajouter(*N.poutre((xt + sx * 0.08, sy * 0.3, -0.02), (xt, sy * 0.2, 0.38), 0.018), "bois_gris_sombre", Mc)
+        Cn = N.Maille("canot")
+        P.barque(Cn, rng2, 0.0, 0.0, 0.0, 1.3)
+        Cn.mats = ["bois_gris" if m in ("planches", "peint_bleu", "peint_rouge", "planches_claires") else m for m in Cn.mats]
+        A.fondre(L, griser(Cn), Mc @ T(0, 0, 0.49) @ Rx(PI))  # retourné : la quille en haut
+        P.caisse(L, Mc @ T(0.25, -0.62, 0.0) @ Rz(0.5), 0.17, "bois_gris")  # ses outils
+        P.tonneau(L, Mc @ T(-0.62, -0.5, 0.0), 0.07, 0.16)  # le pot de goudron
+        SOL.append(("decor", "le canot sur ses tréteaux", Vf.rectangle(canot[0], canot[1], 1.45, 0.75, cap_c)))
+        SOL.append(("decor", "les outils du gardien", Vf.rectangle(*(np.array(canot) + [math.cos(cap_c) * 0.25 + math.sin(cap_c) * 0.62, math.sin(cap_c) * 0.25 - math.cos(cap_c) * 0.62]), 0.25, 0.25, cap_c + 0.5)))
+        SOL.append(("decor", "le pot de goudron", Vf.rond(*(np.array(canot) + [math.cos(cap_c) * -0.62 + math.sin(cap_c) * 0.5, math.sin(cap_c) * -0.62 - math.cos(cap_c) * 0.5]), 0.09)))
+    # la cloche du passeur, au bout du ponton côté terre : on la sonne, et il vient vous chercher en barque
+    xc_, yc_ = quai_terre[0] - 0.65, quai_terre[1] + 0.45
+    if libre(xc_, yc_, 0.3):
+        zc_ = sol(xc_, yc_)
+        for sy in (-1, 1):
+            L.ajouter(*N.cylindre(0.035, 0.03, 1.0, 6, haut=True), "bois_gris_sombre", T(xc_, yc_ + sy * 0.2, zc_ - 0.05))
+        L.ajouter(*N.poutre((xc_, yc_ - 0.27, zc_ + 0.93), (xc_, yc_ + 0.27, zc_ + 0.93), 0.035), "bois_gris_sombre")
+        C = N.Maille("cloche")
+        C.ajouter(*N.cylindre(0.008, 0.008, 0.06, 4), "fer", T(0, 0, -0.06))
+        C.ajouter(*N.cylindre(0.12, 0.065, 0.18, 12, haut=True), "cuivre", T(0, 0, -0.24))
+        C.ajouter(*N.cylindre(0.125, 0.125, 0.02, 12, haut=False), "cuivre", T(0, 0, -0.26))
+        C.ajouter(*N.sphere(0.03, 6, 4), "fer", T(0, 0, -0.27))
+        lots["animes"].append((C, (xc_, yc_, zc_ + 0.9), {"anim": "balance", "axe": [0.0, 1.0, 0.0], "ampl": 0.12, "vitesse": 0.8}))
+        SOL.append(("decor", "la cloche du passeur", Vf.rectangle(xc_, yc_, 0.55, 0.2, PI / 2)))
+    # des touffes d'herbe morte et des galets sur la grève du milieu
+    for k in range(12 if leger else 26):
+        x, y = -1.6 + 3.3 * rng2.random(), -2.6 + 5.4 * rng2.random()
+        if libre(x, y, 0.1, 0.3):
+            zt = sol(x, y)
+            nb = 5 if leger else 7
+            for j in range(nb):
+                a = j * 2 * PI / nb + rng2.random() * 0.6
+                L.ajouter(*N.cylindre(0.014, 0.0, 0.13 + 0.09 * rng2.random(), 3, haut=False), "herbe_morte", T(x, y, zt - 0.01) @ Rz(a) @ Ry(0.3 + 0.25 * rng2.random()))
+            SOL.append(("buisson", "une touffe d'herbe morte", Vf.rond(x, y, 0.09)))
+    for k in range(5 if leger else 10):
+        x, y = -1.6 + 3.3 * rng2.random(), -2.6 + 5.4 * rng2.random()
+        if libre(x, y, 0.14, 0.3):
+            A.rocher(L, rng2, x, y, sol(x, y) - 0.05, 0.08 + 0.07 * rng2.random(), "pierre_grise")
+            SOL.append(("rocher", "un galet", Vf.rond(x, y, 0.12)))
 
     etape("le Navire Gris")
     emprises.append(("le Navire Gris", navire_gris(L, U, NAVIRE_GRIS[0], NAVIRE_GRIS[1], CAP_GRIS, leger)))
