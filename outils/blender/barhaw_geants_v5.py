@@ -513,6 +513,7 @@ def _mailles(graine, leger):
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in P.CHEMINEES for c in p], "grosseur": 0.35}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.6, "genre": 2}))
     lots["reperes"].append(((-1.0, 0.0, 3.5), {"anim": "oiseaux", "nb": 3 if leger else 5, "rayon": 4.5}))
+    lots["reperes"].append(((-4.95, 0.1, 2.35), {"anim": "sommeil", "cadence": 8}))  # le site : les « Z » et les bulles de ses rêves
 
     etape("sur l'eau")
     Rv = N.Maille("rivage")

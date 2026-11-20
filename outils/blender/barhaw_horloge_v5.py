@@ -211,6 +211,36 @@ def marches(L, x, y0, y1, larg, nb):
         L.ajouter(*N.boite(larg, y1 + 0.03 - nez, dessus - pied), "pierres_claires", T(x, (nez + y1 + 0.03) / 2, pied))
 
 
+def donnees_heures(leger=False):
+    """Le repère « heures » du site (js/grandline-3d.js) : l'île sonne les heures de Paris. La cloche, le perchoir du coucou
+    (au sud de la chambre des cloches), les évents, les douze index de laiton (des quadrilatères posés sur l'herbe, avec leur heure)
+    et la lunette (le jonc du bord) : la nuit, le cadran s'allume ; et le cercle des heures, autour de l'île, sur la mer."""
+    zt = sol(*TOUR)
+    index, heure = [], []
+    for k in range(12):
+        if k == 6:
+            continue
+        ang = PI / 2 - k * PI / 6
+        rp = r_plat(ang)
+        u, v = (math.cos(ang), math.sin(ang)), (-math.sin(ang), math.cos(ang))
+        for dec, hw in (((-0.1, 0.042), (0.1, 0.042)) if k == 0 else ((0.0, 0.07 if k in (3, 9) else 0.048),)):
+            for r_, w_ in ((rp - 0.97, -hw), (rp - 0.33, -hw), (rp - 0.33, hw), (rp - 0.97, hw)):
+                x = u[0] * r_ + v[0] * (dec + w_)
+                y = u[1] * r_ + v[1] * (dec + w_)
+                index += [round(x, 3), round(y, 3), round(sol(x, y) + 0.014, 3)]
+            heure.append(k)
+    ouverture = math.degrees(math.asin(min(0.99, (DEMI_RAMPE + 0.04) / r_plat(-PI / 2))))
+    angles = [g for g in range(-90 + 6, 270, 6) if abs(g + 90) > ouverture and abs(g - 270) > ouverture]
+    angles = [math.radians(g) for g in [-90 + ouverture] + angles + [270 - ouverture]]
+    lunette = [round(c, 3) for a in angles for c in (math.cos(a) * r_plat(a), math.sin(a) * r_plat(a), Z_P + 0.1)]
+    events = []
+    for d0 in (-60, 100, 205)[: 2 if leger else 3]:
+        a0 = math.radians(d0)
+        events += [round(math.cos(a0) * (r_plat(a0) - 0.45), 3), round(math.sin(a0) * (r_plat(a0) - 0.45), 3), round(Z_P + 0.62, 3)]
+    return {"anim": "heures", "cloche": [TOUR[0], TOUR[1], round(zt + 4.67, 3)], "coucou": [TOUR[0], round(TOUR[1] - 0.62, 3), round(zt + 4.42, 3)],
+            "events": events, "index": index, "heure": heure, "lunette": lunette, "rayon": 8.0, "haut": 2.3}
+
+
 def tour_horloge(L, V, U, lots, rng, x, y, z):
     """La Tour de l'Horloge : un fût de pierre claire, des cordons sombres, quatre cadrans (ceux du sud et de l'est donnent
     la vraie heure de Paris), la chambre des cloches et sa cloche qui se balance, la flèche d'ardoise, la girouette."""
@@ -455,6 +485,7 @@ def _mailles(graine, leger):
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in P.CHEMINEES + events for c in p], "grosseur": 0.4}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.4, "genre": 2}))
     lots["reperes"].append(((0.0, 0.0, Z_P + 2.0), {"anim": "oiseaux", "nb": 3 if leger else 5, "rayon": 4.0}))
+    lots["reperes"].append(((TOUR[0], TOUR[1], sol(*TOUR)), donnees_heures(leger)))  # l'heure qui sonne, le cadran lumineux, le cercle des heures (le site)
 
     etape("sur l'eau")
     Rv = N.Maille("rivage")
