@@ -457,6 +457,9 @@ def _mailles(graine, leger):
         SOL.append(("decor", "la grande ancre", Vf.rond(xa_, ya_, 0.5)))
 
     etape("les épaves")
+    cote_gris = CAP_GRIS - PI / 2  # le flanc du large
+    trajet_passeur = [(quai_mer[0] + 0.6, quai_mer[1] + 0.4, 0.0), (1.8, -8.6, 0.0), (4.0, -8.4, 0.0), (NAVIRE_GRIS[0] + math.cos(cote_gris) * 0.9, NAVIRE_GRIS[1] + math.sin(cote_gris) * 0.9, 0.0)]
+    au_large = lambda x, y, r: K.distance_au_trajet(x, y, trajet_passeur) > r and math.hypot(x - NAVIRE_GRIS[0], y - NAVIRE_GRIS[1]) > 2.6  # (ni sur la route du passeur, ni contre le Navire Gris)
     # --- les épaves de la grève : deux coques couchées, la carcasse, la proue dressée, des mâts brisés dans les chenaux ---
     for (x, y, cap, lg_, roule) in ((-4.6, -2.3, 0.5, 3.4, 0.5), (3.7, 3.4, 2.4, 3.0, -0.48), (-4.7, 0.7, 1.9, 2.6, 0.4), (2.7, -3.5, 0.9, 2.6, -0.45), (-2.6, -4.4, 2.8, 2.4, 0.5), (2.2, 5.5, 0.2, 2.6, 0.42))[: 3 if leger else 6]:
         if libre(x, y, 0.8, 0.0):
@@ -473,11 +476,12 @@ def _mailles(graine, leger):
     mats_ = [(-5.2, 3.0, 0.4), (-3.6, 3.6, 2.2), (5.4, -0.3, 1.2), (4.2, -1.3, 3.0), (-0.7, 6.0, 0.9), (2.2, -6.6, 2.0), (-3.2, -6.0, 1.4)]
     mats_ += [(math.cos(a) * d, math.sin(a) * d, a * 3.1) for a, d in ((0.3, 8.6), (1.2, 8.9), (2.0, 8.4), (2.7, 9.0), (3.5, 8.7), (4.3, 9.1), (5.6, 8.8))]
     for k, (x, y, cap) in enumerate(mats_[: 6 if leger else 14]):
-        mat_brise(L, x, y, min(sol(x, y), -0.05), cap, 1.2 + 0.5 * (k % 3) / 2, 0.25 + 0.15 * (k % 2))
+        if au_large(x, y, 0.9):
+            mat_brise(L, x, y, min(sol(x, y), -0.05), cap, 1.2 + 0.5 * (k % 3) / 2, 0.25 + 0.15 * (k % 2))
     # à moitié coulées, tout autour de l'île : des coques dont on ne voit que le flanc et le plat-bord
-    for k, (a, d, cap, roule) in enumerate(((0.7, 8.3, 2.0, 0.9), (1.75, 8.6, 0.4, -0.8), (2.45, 8.4, 3.9, 0.7), (3.3, 8.8, 1.1, -0.9), (4.0, 8.1, 5.6, 0.8), (5.05, 8.7, 2.6, -0.75))[: 3 if leger else 6]):
+    for k, (a, d, cap, roule) in enumerate(((0.7, 8.3, 2.0, 0.9), (1.75, 8.6, 0.4, -0.8), (2.45, 8.4, 3.9, 0.7), (3.3, 8.8, 1.1, -0.9), (4.0, 8.1, 5.6, 0.8), (4.45, 8.6, 2.6, -0.75))[: 3 if leger else 6]):
         x, y = math.cos(a) * d, math.sin(a) * d
-        if math.hypot(x - NAVIRE_GRIS[0], y - NAVIRE_GRIS[1]) > 2.6:
+        if au_large(x, y, 2.0):
             epave_couchee(L, rng, x, y, -0.18, cap, 2.6 + 0.4 * (k % 2), 0.95, roule * 0.65, True)
     for k in range(5 if leger else 9):  # des arbres morts
         x, y = vers(rng.random() * 360, 1.6 + rng.random() * 2.2)
@@ -604,8 +608,6 @@ def _mailles(graine, leger):
     P.barque(Bq, rng, 0.0, 0.0, 0.0, 0.8)
     P.passant(Bq, rng, -0.05, 0.0, angle=0.0, z=-0.02)
     Bq.mats = ["bois_gris" if m in ("planches", "peint_bleu", "peint_rouge", "planches_claires") else m for m in Bq.mats]
-    cote_gris = CAP_GRIS - PI / 2  # le flanc du large
-    trajet_passeur = [(quai_mer[0] + 0.6, quai_mer[1] + 0.4, 0.0), (1.8, -8.6, 0.0), (4.0, -8.4, 0.0), (NAVIRE_GRIS[0] + math.cos(cote_gris) * 0.9, NAVIRE_GRIS[1] + math.sin(cote_gris) * 0.9, 0.0)]
     lots["animes"].append((Bq, trajet_passeur[0], {"anim": "marche", "chemin": [float(c) for p in trajet_passeur for c in p], "vitesse": 0.16, "phase": 0.2, "saut": 0.0, "pause": 5.0, "roulis": 0.05}))
     # les feux follets : des lueurs vertes au-dessus des chenaux
     hasard = random.Random(5)
