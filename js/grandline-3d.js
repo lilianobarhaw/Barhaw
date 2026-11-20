@@ -1857,6 +1857,7 @@ function dessinReve(x, l, nom) {
 // Blender y mettra à la prochaine cuisson : outils/blender/barhaw_horloge_v5.py, donnees_heures). « ici » : sa place
 // (x, y, z de Blender) ; le reste, ses données (des points de Blender, comme pour les autres repères)
 const REPERES_SITE = {
+  cristal: [{ anim: "prismes", ici: [0.0, 0.0, 0.0], cap: 0.8921, taches: [1.481,3.436,1.013,1.3,0.52,-2.2,0.049,1.017,1.13,0.495,-3.951,3.051,0.442,1.05,0.475,-4.982,-2.209,0.453,1.19,0.51,-1.604,-4.616,0.442,1.12,0.493,3.52,-2.941,0.45,1.19,0.51] }],
   engloutie: [{ anim: "noyee", ici: [0.0, 0.0, 0.0], mer: 0.02, points: [2.41,0.97,1.97,2.52,-1.86,2.22,-2.23,0.9,-3.14,-1.02,-1.81,-2.01,2.23,-2.01,2.3,-0.7] }],
   marche: [{ anim: "lanternes", ici: [0.0, 0.0, 0.0], departs: [-1.68,0.92,1.0,2.05,0.92,0.52,-2.0,-0.3,0.21,1.8,-0.3,0.21,-3.219,-3.553,0.21,0.192,-4.25,0.21,3.264,-3.354,0.21,0.3,2.4,0.21], chenaux: [-1.35,-0.85,-1.4,-2.0,-1.45,-3.2,-1.7,-4.6,-2.0,-5.8,1.15,-0.9,1.27,-2.0,1.62,-3.2,1.95,-4.4,2.3,-5.6], par: 5, vent: [0.5, 0.3], mer: 0.02, nb: 10 }],
   moussaillons: [{ anim: "cerfsvolants", ici: [0.0, 0.0, 0.0], vent: [0.3, 1.0], ancres: [0.92, -5.23, 0.23, -5.45, -4.57, 0.25, 4.72, -2.2, 0.2] }],
@@ -3308,6 +3309,47 @@ function effetRepere(r) {
         w.flaque.position.set(q.x, eau + 0.012, q.z);
         w.flaque.scale.setScalar(0.5 * fl);
         w.flaque.material.opacity = vu * 0.3;
+      }
+    };
+  } else if (genre === "prismes") {
+    // le Jardin de Cristal, le jour : le soleil traverse les cristaux et pose sur le sol, de l'autre côté, des taches
+    // d'arc-en-ciel qui frémissent (la lumière passe, les facettes tournent un peu). La nuit, elles s'en vont (les cristaux
+    // s'allument). « taches » : x, y, z, longueur, largeur (Blender) ; « cap » : vers où va la lumière (radians, Blender).
+    const d = r.userData;
+    const alea = (n) => { const v = Math.sin(n * 127.1 + 11.7) * 43758.5453; return v - Math.floor(v); };
+    const spectre = toile(128, 64, (x, l, h) => {
+      const img = x.createImageData(l, h);
+      for (let j = 0; j < h; j++) for (let i = 0; i < l; i++) {
+        const u = (i + 0.5) / l, v = (j + 0.5) / h;
+        const e = (u - 0.5) ** 2 / 0.25 + (v - 0.5) ** 2 / 0.25; // l'ellipse (le plan est étiré ensuite)
+        const a = Math.max(0, 1 - e) ** 1.6;
+        const c = new THREE.Color().setHSL((0.78 * (1 - u) + 0.02) % 1, 1.0, 0.58); // du violet au rouge, le long du rayon
+        const k = (j * l + i) * 4;
+        img.data[k] = c.r * 255; img.data[k + 1] = c.g * 255; img.data[k + 2] = c.b * 255; img.data[k + 3] = a * 255;
+      }
+      x.putImageData(img, 0, 0);
+    });
+    const taches = [];
+    const t = Array.isArray(d.taches) ? d.taches : [];
+    for (let k = 0; k + 4 < t.length; k += 5) {
+      const pivot = new THREE.Group();
+      pivot.position.set(t[k] - r.position.x, t[k + 2] - r.position.y, -t[k + 1] - r.position.z);
+      pivot.rotation.y = d.cap ?? 0.89;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: spectre, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      m.rotation.x = -Math.PI / 2;
+      m.scale.set(t[k + 3], t[k + 4], 1);
+      pivot.add(m);
+      g.add(pivot);
+      taches.push({ m, l: t[k + 3], w: t[k + 4], ph: alea(k + 3) * 6.28, v: 0.5 + alea(k + 7) * 0.5 });
+    }
+    maj = (s) => {
+      const jour = 1 - lampesAllumees;
+      for (const u of taches) {
+        const f = 0.75 + 0.25 * Math.sin(s * u.v + u.ph) * Math.sin(s * u.v * 1.7 + u.ph * 2);
+        u.m.visible = jour > 0.02;
+        u.m.material.opacity = 0.8 * jour * f;
+        u.m.scale.set(u.l * (0.96 + 0.06 * f), u.w * (0.94 + 0.08 * f), 1);
+        u.m.position.x = Math.sin(s * u.v * 0.6 + u.ph) * 0.03; // la tache glisse un peu le long du rayon
       }
     };
   } else if (genre === "orage") {
