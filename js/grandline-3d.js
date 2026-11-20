@@ -1623,6 +1623,34 @@ function secondesParis() {
   }
   return heureLue;
 }
+// l'Île-Horloge sonne les heures de Paris (de 1 à 12 coups) et un petit carillon aux quarts d'heure. Ce que l'on sait de
+// la sonnerie en cours : f, sa force (0 : rien) ; n, le nombre de coups ; k, ceux déjà sonnés ; dk, le temps depuis le
+// dernier (s) ; t, depuis le début ; fin, sa durée ; quart ; phase, celle de la cloche (son sinus vaut ±1 à chaque coup).
+// Pour les essais : window.__sonnerie = h (1 à 12) la fait sonner tout de suite (une fois par nouvelle valeur).
+const SONNE = { debut: 2.2, ecart: 1.8 }; // le coucou sort, puis un coup toutes les 1,8 s
+let sonnerieVue = -1, sonnerieLue = null, essaiH, essaiT0 = 0;
+function sonnerieParis() {
+  const ms = performance.now();
+  if (sonnerieLue && ms - sonnerieVue < 8) return sonnerieLue; // une fois par image suffit
+  sonnerieVue = ms;
+  let t, n, quart = false;
+  const essai = typeof window === "undefined" ? undefined : window.__sonnerie;
+  if (essai !== essaiH) { essaiH = essai; essaiT0 = ms / 1000; }
+  if (essaiH) {
+    t = ms / 1000 - essaiT0;
+    n = Math.max(1, Math.min(12, Math.round(Number(essaiH)) || 12));
+  } else {
+    const p = secondesParis() + Math.min(0.999, (Date.now() - heureVue) / 1000);
+    quart = Math.floor(p / 900) % 4 !== 0;
+    t = p % 900;
+    n = quart ? 1 : Math.floor(p / 3600) % 12 || 12;
+  }
+  const fin = SONNE.debut + (n - 1) * SONNE.ecart + 3;
+  const f = t >= 0 && t < fin ? Math.min(1, t / 0.8) * Math.min(1, (fin - t) / 2.5) * (quart ? 0.45 : 1) : 0;
+  const k = t < SONNE.debut || t >= fin ? 0 : Math.min(n, Math.floor((t - SONNE.debut) / SONNE.ecart) + 1); // (0 en dehors de la sonnerie)
+  sonnerieLue = { f, n, k, dk: k ? t - SONNE.debut - (k - 1) * SONNE.ecart : 99, t, fin, quart, phase: Math.PI / 2 + Math.PI * (t - SONNE.debut) / SONNE.ecart };
+  return sonnerieLue;
+}
 // la houle de la mer, la même que dans son shader : ce qui flotte près d'une île (barques, canots) monte et descend avec elle
 const houleMer = (x, z, s) => Math.sin(x * 0.33 + s * 0.9) * 0.09 + Math.sin(z * 0.41 - s * 1.1) * 0.07;
 function niveauMer(o, s) {
@@ -1650,6 +1678,16 @@ function animateurs(bouge, vent = () => 1) {
     const ph = u.phase || 0;
     const ampl = u.ampl ?? 0.3;
     const v = u.vitesse ?? 1;
+    if (u.anim === "tourne" && u.sonne) {
+      // un engrenage de l'Île-Horloge : il file quand l'heure sonne (l'angle s'additionne, pour ne pas sauter)
+      let angle = 0, avant = null;
+      return (s) => {
+        const dt = avant === null ? 0 : Math.min(0.1, Math.max(0, s - avant));
+        avant = s;
+        angle += dt * v * (1 + 3.5 * sonnerieParis().f);
+        o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, angle));
+      };
+    }
     if (u.anim === "tourne") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, s * v)); };
     // la vie des îles (niveau 5) : un passant, une charrette, une barque qui suit son chemin (points x, y, z de Blender, à plat
     // dans « chemin ») ; aller-retour, ou en rond avec « boucle » ; « saut » : le petit pas sautillant ; « roulis » : sur l'eau ;
@@ -1701,6 +1739,11 @@ function animateurs(bouge, vent = () => 1) {
       const tour = u.tour || 3600;
       return () => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, -(secondesParis() % tour) / tour * Math.PI * 2)); };
     }
+    if (u.anim === "balance" && u.sonne === "cloche") return (s) => { // la cloche de l'Île-Horloge : à toute volée, un coup à chaque bout
+      const so = sonnerieParis();
+      o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, Math.sin(s * v + ph) * ampl * (1 - so.f) + Math.sin(so.phase) * 0.75 * so.f));
+    };
+    if (u.anim === "balance" && u.sonne) return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, Math.sin(s * v + ph) * ampl * (1 + 0.8 * sonnerieParis().f))); };
     if (u.anim === "balance") return (s) => { o.quaternion.copy(q0).multiply(q.setFromAxisAngle(axe, Math.sin(s * v + ph) * ampl)); };
     if (u.anim === "flotte") return (s) => {
       o.position.y = p0.y + (u.mer ? niveauMer(o, s) : 0) + Math.sin(s * 1.3 + ph) * ampl;
@@ -1758,6 +1801,12 @@ function points(nb, couleur, taille, place) {
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   return new THREE.Points(geo, new THREE.PointsMaterial({ color: couleur, size: taille, map: pastille(), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
 }
+// des repères d'effets que le site ajoute à une île déjà cuite, tant que son modèle n'a pas le sien (le même que celui que
+// Blender y mettra à la prochaine cuisson : outils/blender/barhaw_horloge_v5.py, donnees_heures). « ici » : sa place
+// (x, y, z de Blender) ; le reste, ses données (des points de Blender, comme pour les autres repères)
+const REPERES_SITE = {
+  horloge: [{ anim: "heures", ici: [0.0,0.7,1.468], cloche: [0.0,0.7,6.138], coucou: [0.0,0.08,5.888], events: [1.981,-3.432,2.07,-0.669,3.793,2.07], rayon: 8.0, haut: 2.3, heure: [0,0,1,2,3,4,5,7,8,9,10,11], index: [0.142,3.327,1.449,0.142,3.967,1.455,0.058,3.967,1.454,0.058,3.327,1.448,-0.058,3.327,1.448,-0.058,3.967,1.454,-0.142,3.967,1.455,-0.142,3.327,1.449,1.838,3.087,1.481,2.158,3.641,1.48,2.074,3.689,1.479,1.754,3.135,1.482,3.196,1.79,1.454,3.751,2.11,1.46,3.703,2.193,1.461,3.148,1.873,1.455,3.775,-0.07,1.461,4.415,-0.07,1.471,4.415,0.07,1.471,3.775,0.07,1.461,2.84,-1.695,1.472,3.395,-2.015,1.469,3.443,-1.932,1.469,2.888,-1.612,1.472,1.68,-3.005,1.473,2.0,-3.56,1.471,2.083,-3.512,1.47,1.763,-2.957,1.473,-1.794,-3.011,1.474,-2.114,-3.565,1.47,-2.031,-3.613,1.471,-1.711,-3.059,1.475,-3.052,-1.707,1.453,-3.606,-2.027,1.453,-3.558,-2.11,1.452,-3.004,-1.79,1.453,-3.385,0.07,1.455,-4.025,0.07,1.462,-4.025,-0.07,1.462,-3.385,-0.07,1.455,-3.312,1.968,1.452,-3.866,2.288,1.453,-3.914,2.205,1.452,-3.36,1.885,1.452,-1.786,3.189,1.466,-2.106,3.743,1.466,-2.189,3.695,1.466,-1.869,3.141,1.466], lunette: [0.464,-4.463,1.55,0.469,-4.463,1.55,0.939,-4.418,1.55,1.397,-4.299,1.55,1.824,-4.096,1.55,2.206,-3.821,1.55,2.543,-3.5,1.55,2.845,-3.16,1.55,3.13,-2.818,1.55,3.414,-2.481,1.55,3.704,-2.139,1.55,3.994,-1.778,1.55,4.267,-1.386,1.55,4.498,-0.956,1.55,4.663,-0.49,1.55,4.745,0.0,1.55,4.738,0.498,1.55,4.646,0.988,1.55,4.484,1.457,1.55,4.268,1.9,1.55,4.012,2.317,1.55,3.727,2.708,1.55,3.414,3.074,1.55,3.07,3.41,1.55,2.693,3.706,1.55,2.281,3.951,1.55,1.841,4.134,1.55,1.382,4.252,1.55,0.916,4.309,1.55,0.454,4.318,1.55,0.0,4.297,1.55,-0.448,4.262,1.55,-0.898,4.223,1.55,-1.357,4.176,1.55,-1.83,4.11,1.55,-2.312,4.005,1.55,-2.788,3.838,1.55,-3.236,3.594,1.55,-3.629,3.268,1.55,-3.947,2.867,1.55,-4.176,2.411,1.55,-4.319,1.923,1.55,-4.388,1.426,1.55,-4.404,0.936,1.55,-4.388,0.461,1.55,-4.355,0.0,1.55,-4.313,-0.453,1.55,-4.255,-0.904,1.55,-4.171,-1.355,1.55,-4.046,-1.801,1.55,-3.868,-2.233,1.55,-3.634,-2.64,1.55,-3.345,-3.012,1.55,-3.011,-3.344,1.55,-2.639,-3.632,1.55,-2.237,-3.875,1.55,-1.813,-4.072,1.55,-1.372,-4.223,1.55,-0.921,-4.332,1.55,-0.463,-4.407,1.55,-0.458,-4.407,1.55] }],
+};
 function effetRepere(r) {
   const g = new THREE.Group();
   g.position.copy(r.position);
@@ -2513,6 +2562,247 @@ function effetRepere(r) {
         flammes[k].material.opacity = Math.min(1, 0.1 + 0.07 * veille + (0.3 + 0.12 * veille) * L + flambe * 0.7);
       }
     };
+  } else if (genre === "heures") {
+    // l'Île-Horloge sonne les heures de Paris (voir sonnerieParis). À l'heure pile, le coucou de laiton (un oiseau à clé de
+    // remontoir) sort au sud de la chambre des cloches et salue à chaque coup ; la cloche s'emballe, les engrenages filent, le
+    // balancier bat plus fort (animateurs : « sonne ») ; à chaque coup (toutes les 1,8 s), une onde dorée part de la cloche,
+    // passe au-dessus de l'île et s'étale sur la mer, les évents crachent leur vapeur, l'index de l'heure s'allume et son
+    // chiffre, sur le cercle des heures, s'illumine. Aux quarts : un seul coup, léger, sans le coucou. La nuit, le cadran est
+    // lumineux comme une montre : les douze index de l'herbe, la lunette du bord, les cadrans de la tour. Le cercle des
+    // heures : douze chiffres romains dorés qui flottent autour de l'île et tournent lentement (un tour en 6 minutes).
+    // Ce qui luit est dans le calque (après la teinte de la nuit) : la tour y est refaite sans couleur, pour cacher ce qui
+    // est derrière elle.
+    const d = r.userData;
+    const ici = (t, k) => new THREE.Vector3(t[k] - r.position.x, t[k + 2] - r.position.y, -t[k + 1] - r.position.z);
+    const liste = (t) => { const o = []; if (Array.isArray(t)) for (let k = 0; k + 2 < t.length; k += 3) o.push(ici(t, k)); return o; };
+    const calque = new THREE.Group();
+    g.userData.calque = calque;
+    const mer = 0.06 - r.position.y;
+    const cloche = Array.isArray(d.cloche) ? ici(d.cloche, 0) : new THREE.Vector3(0, 4.7, 0);
+    const events = liste(d.events);
+    const rayon = d.rayon || 8;
+    const haut = d.haut ?? 2.3;
+    const lisse = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const alea = (n) => { const x = Math.sin(n * 127.1 + 11.7) * 43758.5453; return x - Math.floor(x); };
+    // --- la profondeur, dans le calque : on la remet à zéro, puis la tour (sans couleur) la remplit ---
+    const efface = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0), new THREE.Vector3(0.001, 0, 0)]), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, depthTest: false }));
+    efface.frustumCulled = false;
+    efface.renderOrder = -20;
+    efface.onBeforeRender = (renderer) => renderer.clearDepth();
+    calque.add(efface);
+    const cache = new THREE.MeshBasicMaterial({ colorWrite: false });
+    const bloc = (geo, x, y, z) => { const m = new THREE.Mesh(geo, cache); m.position.set(x, y, z); m.renderOrder = -10; calque.add(m); return m; };
+    bloc(new THREE.BoxGeometry(1.2, 4.2, 1.2), 0, 2.2, 0); // le fût
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) bloc(new THREE.BoxGeometry(0.22, 0.8, 0.22), sx * 0.49, 4.45, sz * 0.49); // les piliers de la chambre des cloches
+    bloc(new THREE.BoxGeometry(1.34, 0.1, 1.34), 0, 4.9, 0);
+    bloc(new THREE.ConeGeometry(0.68 * Math.SQRT2, 1.9, 4), 0, 5.9, 0).rotation.y = Math.PI / 4; // la flèche
+    // --- le cadran lumineux : les index de l'herbe (une matière par heure : ils s'allument un à un), la lunette, les cadrans ---
+    const lueur = (c, plus = {}) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, ...plus });
+    const index = new Map(); // heure (0 : XII) → [cœur, halo]
+    const q = Array.isArray(d.index) ? d.index : [];
+    const hs = Array.isArray(d.heure) ? d.heure : [];
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+    for (let j = 0; j * 12 + 11 < q.length; j++) {
+      const h = hs[j] ?? 0;
+      if (!index.has(h)) index.set(h, [lueur(0xb6ffd9), lueur(0x7dffc0)]);
+      const c = [0, 1, 2, 3].map((m) => ici(q, j * 12 + m * 3));
+      const [coeur, halo] = index.get(h);
+      calque.add(new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([c[0], c[1], c[2], c[0], c[2], c[3]]), coeur));
+      e1.subVectors(c[1], c[0]).normalize().multiplyScalar(0.07);
+      e2.subVectors(c[3], c[0]).normalize().multiplyScalar(0.07);
+      const l = [c[0].clone().sub(e1).sub(e2), c[1].clone().add(e1).sub(e2), c[2].clone().add(e1).add(e2), c[3].clone().sub(e1).add(e2)];
+      for (const p of l) p.y += 0.004;
+      calque.add(new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([l[0], l[1], l[2], l[0], l[2], l[3]]), halo));
+    }
+    const ptsLunette = liste(d.lunette);
+    const matLunette = lueur(0xffc867);
+    if (ptsLunette.length > 1) calque.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ptsLunette), ptsLunette.length * 3, 0.06, 6, false), matLunette));
+    const matCadran = lueur(0xfff0c4);
+    for (let k = 0; k < 4; k++) { // les quatre cadrans de la tour (le centre à 3,24 au-dessus du pied, à 0,6 du milieu)
+      const a = k * Math.PI / 2;
+      const disque = new THREE.Mesh(new THREE.CircleGeometry(0.47, 24), matCadran);
+      disque.position.set(Math.sin(a) * 0.63, 3.24, Math.cos(a) * 0.63);
+      disque.rotation.y = a;
+      calque.add(disque);
+    }
+    // --- le cercle des heures : douze chiffres romains dorés, chacun avec son halo (la nuit) ---
+    const ROMAINS = ["XII", "I", "II", "III", "IIII", "V", "VI", "VII", "VIII", "IX", "X", "XI"]; // (IIII : comme sur les vieux cadrans)
+    const chiffres = ROMAINS.map((txt, k) => {
+      const l = 40 + txt.length * 62;
+      const tex = toile(l, 128, (x, L, H) => {
+        x.font = 'bold 104px Georgia, "Times New Roman", serif';
+        x.textAlign = "center";
+        x.textBaseline = "middle";
+        x.lineJoin = "round";
+        x.lineWidth = 12;
+        x.strokeStyle = "rgba(58, 34, 10, 0.9)";
+        x.strokeText(txt, L / 2, H / 2 + 6);
+        const dg = x.createLinearGradient(0, 18, 0, 112);
+        dg.addColorStop(0, "#fff4c2");
+        dg.addColorStop(0.45, "#e9bf55");
+        dg.addColorStop(1, "#a8731f");
+        x.fillStyle = dg;
+        x.fillText(txt, L / 2, H / 2 + 6);
+      });
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xffc95c, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+      s.renderOrder = 2;
+      h.renderOrder = 1;
+      calque.add(h, s);
+      return { s, h, l: l / 128 };
+    });
+    // --- le coucou : il attend dans la chambre des cloches, et sort au sud sur son perchoir (dans la scène : la nuit le teinte) ---
+    const pc = Array.isArray(d.coucou) ? ici(d.coucou, 0) : new THREE.Vector3(0, 4.12, 0.62);
+    const mat = (c) => new THREE.MeshBasicMaterial({ color: c });
+    const LAITON = mat(0xd0a64c), LAITON2 = mat(0x9b7631), BOIS = mat(0x4b2e1b), BEC = mat(0xd5652a), NOIR = mat(0x15110c), CLE = mat(0xead083);
+    const niche = new THREE.Group();
+    niche.position.copy(pc);
+    niche.scale.setScalar(2.4); // (l'oiseau est dessiné à 15 cm : à cette taille, on le voit de loin)
+    g.add(niche);
+    const oiseau = new THREE.Group(); // il regarde vers +z (le sud, le large)
+    const perchoir = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.016, 0.3), BOIS);
+    perchoir.position.set(0, -0.075, -0.06);
+    const corps = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 9), LAITON);
+    corps.scale.set(0.9, 0.82, 1.3);
+    const tete = new THREE.Group();
+    tete.position.set(0, 0.062, 0.07);
+    const crane = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), LAITON);
+    const haut_ = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 6), BEC);
+    haut_.rotation.x = Math.PI / 2;
+    haut_.position.set(0, 0.006, 0.066);
+    const bas_ = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.04, 6), BEC);
+    const machoire = new THREE.Group();
+    machoire.position.set(0, -0.008, 0.042);
+    bas_.rotation.x = Math.PI / 2;
+    bas_.position.z = 0.02;
+    machoire.add(bas_);
+    const yeux = [-1, 1].map((sx) => { const o = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 4), NOIR); o.position.set(sx * 0.03, 0.014, 0.034); return o; });
+    const crete = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.01, 8), LAITON2); // un petit rouage sur la tête
+    crete.rotation.z = Math.PI / 2;
+    crete.position.set(0, 0.05, -0.004);
+    tete.add(crane, haut_, machoire, crete, ...yeux);
+    const queue = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.1), LAITON2);
+    queue.position.set(0, 0.02, -0.12);
+    queue.rotation.x = 0.45;
+    const ailes = [-1, 1].map((sx) => {
+      const a = new THREE.Group();
+      a.position.set(sx * 0.058, 0.012, 0.0);
+      const plume = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.05, 0.11), LAITON2);
+      plume.position.set(0, -0.004, -0.02);
+      a.add(plume);
+      a.userData.sx = sx;
+      return a;
+    });
+    const cle = new THREE.Group(); // la clé de remontoir, dans son dos
+    cle.position.set(0, 0.03, -0.075);
+    const tige = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 5), CLE);
+    tige.rotation.x = Math.PI / 2;
+    tige.position.z = -0.02;
+    const anneau = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.007, 5, 10), CLE);
+    anneau.position.z = -0.05;
+    anneau.rotation.y = Math.PI / 2;
+    cle.add(tige, anneau);
+    oiseau.add(perchoir, corps, tete, queue, cle, ...ailes);
+    oiseau.visible = false;
+    niche.add(oiseau);
+    // --- les ondes dorées (au calque) et les bouffées de vapeur (dans la scène) : des réserves que l'on recycle ---
+    const ondes = Array.from({ length: 6 }, () => {
+      const o = new THREE.Mesh(new THREE.RingGeometry(0.93, 1, 96), lueur(0xffd27a, { side: THREE.DoubleSide }));
+      o.rotation.x = -Math.PI / 2;
+      o.visible = false;
+      o.userData = { t0: -99, force: 0 };
+      calque.add(o);
+      return o;
+    });
+    const bouffees = Array.from({ length: Math.max(6, events.length * 5) }, () => {
+      const b = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xf3efe6, transparent: true, opacity: 0, depthWrite: false }));
+      b.visible = false;
+      b.userData = { t0: -99, ou: new THREE.Vector3(), vx: 0, vz: 0, force: 0 };
+      g.add(b);
+      return b;
+    });
+    let nO = 0, nB = 0, kVu = 0;
+    const coup = (s, so) => {
+      const o = ondes[nO++ % ondes.length];
+      o.userData.t0 = s;
+      o.userData.force = so.quart ? 0.55 : 1;
+      for (let e = 0; e < events.length; e++) {
+        for (let j = 0; j < (so.quart ? 1 : 2); j++) {
+          const b = bouffees[nB++ % bouffees.length];
+          const a = alea(nB * 3.1) * 6.283;
+          b.userData.t0 = s + j * 0.18;
+          b.userData.ou.copy(events[e]);
+          b.userData.vx = Math.cos(a) * 0.35;
+          b.userData.vz = Math.sin(a) * 0.35;
+          b.userData.force = so.quart ? 0.6 : 1;
+        }
+      }
+    };
+    maj = (s) => {
+      const L = lampesAllumees;
+      const so = sonnerieParis();
+      // les coups : une onde et de la vapeur pour chacun (si l'on arrive en pleine sonnerie : seulement le dernier)
+      if (so.k < kVu) kVu = so.k; // une autre sonnerie, ou la fin de celle-ci
+      if (so.k > kVu) { coup(s, so); kVu = so.k; }
+      for (const o of ondes) {
+        const p = (s - o.userData.t0) / 3.4;
+        o.visible = p >= 0 && p < 1;
+        if (!o.visible) continue;
+        const rr = 0.6 + 9.6 * (1 - (1 - p) * (1 - p));
+        o.scale.set(rr, rr, 1);
+        o.position.set(cloche.x, cloche.y + (mer - cloche.y) * lisse(0.32, 0.68, p), cloche.z);
+        o.material.opacity = Math.pow(1 - p, 1.5) * o.userData.force * (0.5 + 0.4 * L);
+      }
+      for (const b of bouffees) {
+        const p = (s - b.userData.t0) / 2.3;
+        b.visible = p >= 0 && p < 1;
+        if (!b.visible) continue;
+        const u = b.userData;
+        b.position.set(u.ou.x + u.vx * p, u.ou.y + 0.1 + p * 1.5, u.ou.z + u.vz * p);
+        b.scale.setScalar(0.28 + 1.0 * p);
+        b.material.opacity = 0.78 * Math.pow(1 - p, 1.3) * u.force * Math.min(1, p * 8);
+      }
+      // le cadran lumineux : il respire la nuit ; à chaque coup, l'index de l'heure s'allume (un à un, autour du cadran)
+      for (const [h, [coeur, halo]] of index) {
+        const m = h || 12; // le coup qui l'allume (XII : le douzième)
+        const allume = so.k >= m && !so.quart ? so.f * (0.55 + 0.45 * Math.exp(-(so.t - SONNE.debut - (m - 1) * SONNE.ecart) * 1.2)) : 0;
+        const v = Math.min(1, L * (0.6 + 0.12 * Math.sin(s * 1.1 + h)) + allume * 0.9);
+        coeur.opacity = v;
+        halo.opacity = v * 0.38;
+      }
+      matLunette.opacity = Math.min(0.6, L * 0.26 + so.f * 0.14);
+      matCadran.opacity = L * 0.36;
+      // le cercle des heures : il tourne dans le sens des aiguilles (vu d'en haut) et flotte sur la mer
+      const rot = -s * Math.PI * 2 / 360;
+      const heureLa = Math.floor(secondesParis() / 3600) % 12; // l'heure qu'il est (0 : XII)
+      for (let k = 0; k < 12; k++) {
+        const c = chiffres[k];
+        const a = Math.PI / 2 - k * Math.PI / 6 + rot;
+        const x = Math.cos(a) * rayon, y = Math.sin(a) * rayon;
+        c.s.position.set(x - r.position.x, haut + Math.sin(s * 0.8 + k * 1.7) * 0.16 - r.position.y, -y - r.position.z);
+        c.h.position.copy(c.s.position);
+        const m = k || 12;
+        const eclat = so.k >= m && !so.quart ? so.f * Math.exp(-(so.t - SONNE.debut - (m - 1) * SONNE.ecart) * 0.9) : 0;
+        const ici_ = k === heureLa ? 1 : 0;
+        const t_ = 0.82 * (1 + 0.12 * ici_ + 0.35 * eclat);
+        c.s.scale.set(t_ * c.l, t_, 1);
+        c.s.material.opacity = 0.9 + 0.1 * L;
+        c.h.scale.setScalar(t_ * (1.9 + 0.6 * eclat));
+        c.h.material.opacity = Math.min(1, L * (0.32 + 0.2 * ici_) + eclat * 0.75);
+      }
+      // le coucou : il glisse sur son perchoir, salue à chaque coup (le bec, les ailes), la clé tourne dans son dos
+      const sort = so.quart ? 0 : lisse(0.2, 1.3, so.t) * (1 - lisse(so.fin - 1.5, so.fin - 0.5, so.t));
+      oiseau.visible = sort > 0.01;
+      if (oiseau.visible) {
+        const salut = so.k ? Math.exp(-so.dk * 4.5) : 0;
+        oiseau.position.set(0, 0.055 + salut * 0.02, -0.12 + sort * 0.22);
+        oiseau.rotation.x = salut * 0.42;
+        machoire.rotation.x = salut * 0.6;
+        tete.rotation.x = -salut * 0.25;
+        for (const a of ailes) a.rotation.z = a.userData.sx * salut * (0.7 + 0.3 * Math.sin(so.dk * 26));
+        cle.rotation.z = so.t * 5;
+      }
+    };
   } else if (genre === "orage") {
     const nuage = new THREE.Group();
     for (let k = 0; k < 9; k++) {
@@ -2877,6 +3167,22 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         modele.userData.rMer = i.rMer;
         uniformsMer.uRive.value[i.indexMer] = mer5?.genre ?? 0;
         if (uniformsMer.uIles.value[i.indexMer].z > 0) uniformsMer.uIles.value[i.indexMer].z = i.rMer;
+      }
+      for (const d of REPERES_SITE[i.id] || []) {
+        if (reperes.some((r) => r.userData.anim === d.anim)) continue; // le modèle a déjà le sien
+        const r = new THREE.Object3D();
+        r.position.set(d.ici[0], d.ici[2], -d.ici[1]);
+        r.userData = { ...d, role: "repere" };
+        modele.add(r);
+        reperes.push(r);
+      }
+      // l'Île-Horloge : la cloche (en haut de la tour), les engrenages et le balancier (dans les falaises) suivent la sonnerie
+      if (reperes.some((r) => r.userData.anim === "heures")) {
+        for (const o of bouge) {
+          const u = o.userData;
+          if (u.anim === "balance") u.sonne ??= o.position.y > 4 ? "cloche" : "balancier";
+          else if (u.anim === "tourne" && o.position.y < 4) u.sonne ??= "engrenage";
+        }
       }
       const anims = animateurs(bouge);
       for (const r of reperes) {
