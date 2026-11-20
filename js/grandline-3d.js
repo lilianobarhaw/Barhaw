@@ -1857,6 +1857,7 @@ function dessinReve(x, l, nom) {
 // Blender y mettra à la prochaine cuisson : outils/blender/barhaw_horloge_v5.py, donnees_heures). « ici » : sa place
 // (x, y, z de Blender) ; le reste, ses données (des points de Blender, comme pour les autres repères)
 const REPERES_SITE = {
+  forteresse: [{ anim: "garde", ici: [0.0, 0.85, 3.75], donjon: [0.0, 0.85, 3.75], canons: [1.524,-2.319,2.22,-1.73,1.735,-2.166,2.22,-0.155,0.131,2.772,2.22,0.783,-0.131,2.772,2.22,-3.925,-1.735,-2.166,2.22,-2.987,-1.524,-2.319,2.22,-1.412] }],
   geants: [{ anim: "sommeil", ici: [-4.95, 0.1, 2.35], cadence: 8 }],
   horloge: [{ anim: "heures", ici: [0.0,0.7,1.468], cloche: [0.0,0.7,6.138], coucou: [0.0,0.08,5.888], events: [1.981,-3.432,2.07,-0.669,3.793,2.07], rayon: 8.0, haut: 2.3, heure: [0,0,1,2,3,4,5,7,8,9,10,11], index: [0.142,3.327,1.449,0.142,3.967,1.455,0.058,3.967,1.454,0.058,3.327,1.448,-0.058,3.327,1.448,-0.058,3.967,1.454,-0.142,3.967,1.455,-0.142,3.327,1.449,1.838,3.087,1.481,2.158,3.641,1.48,2.074,3.689,1.479,1.754,3.135,1.482,3.196,1.79,1.454,3.751,2.11,1.46,3.703,2.193,1.461,3.148,1.873,1.455,3.775,-0.07,1.461,4.415,-0.07,1.471,4.415,0.07,1.471,3.775,0.07,1.461,2.84,-1.695,1.472,3.395,-2.015,1.469,3.443,-1.932,1.469,2.888,-1.612,1.472,1.68,-3.005,1.473,2.0,-3.56,1.471,2.083,-3.512,1.47,1.763,-2.957,1.473,-1.794,-3.011,1.474,-2.114,-3.565,1.47,-2.031,-3.613,1.471,-1.711,-3.059,1.475,-3.052,-1.707,1.453,-3.606,-2.027,1.453,-3.558,-2.11,1.452,-3.004,-1.79,1.453,-3.385,0.07,1.455,-4.025,0.07,1.462,-4.025,-0.07,1.462,-3.385,-0.07,1.455,-3.312,1.968,1.452,-3.866,2.288,1.453,-3.914,2.205,1.452,-3.36,1.885,1.452,-1.786,3.189,1.466,-2.106,3.743,1.466,-2.189,3.695,1.466,-1.869,3.141,1.466], lunette: [0.464,-4.463,1.55,0.469,-4.463,1.55,0.939,-4.418,1.55,1.397,-4.299,1.55,1.824,-4.096,1.55,2.206,-3.821,1.55,2.543,-3.5,1.55,2.845,-3.16,1.55,3.13,-2.818,1.55,3.414,-2.481,1.55,3.704,-2.139,1.55,3.994,-1.778,1.55,4.267,-1.386,1.55,4.498,-0.956,1.55,4.663,-0.49,1.55,4.745,0.0,1.55,4.738,0.498,1.55,4.646,0.988,1.55,4.484,1.457,1.55,4.268,1.9,1.55,4.012,2.317,1.55,3.727,2.708,1.55,3.414,3.074,1.55,3.07,3.41,1.55,2.693,3.706,1.55,2.281,3.951,1.55,1.841,4.134,1.55,1.382,4.252,1.55,0.916,4.309,1.55,0.454,4.318,1.55,0.0,4.297,1.55,-0.448,4.262,1.55,-0.898,4.223,1.55,-1.357,4.176,1.55,-1.83,4.11,1.55,-2.312,4.005,1.55,-2.788,3.838,1.55,-3.236,3.594,1.55,-3.629,3.268,1.55,-3.947,2.867,1.55,-4.176,2.411,1.55,-4.319,1.923,1.55,-4.388,1.426,1.55,-4.404,0.936,1.55,-4.388,0.461,1.55,-4.355,0.0,1.55,-4.313,-0.453,1.55,-4.255,-0.904,1.55,-4.171,-1.355,1.55,-4.046,-1.801,1.55,-3.868,-2.233,1.55,-3.634,-2.64,1.55,-3.345,-3.012,1.55,-3.011,-3.344,1.55,-2.639,-3.632,1.55,-2.237,-3.875,1.55,-1.813,-4.072,1.55,-1.372,-4.223,1.55,-0.921,-4.332,1.55,-0.463,-4.407,1.55,-0.458,-4.407,1.55] }],
 };
@@ -2928,6 +2929,96 @@ function effetRepere(r) {
         b.scale.set(taille, taille, 1);
         b.material.opacity = lisse(0, 0.8, t) * (1 - eclate) * (0.75 + 0.25 * L);
       }
+    };
+  } else if (genre === "garde") {
+    // la Forteresse : à chaque heure de Paris, elle répond à l'Île-Horloge par une salve, un coup de canon par heure, au
+    // rythme de sa cloche (voir sonnerieParis), tiré tour à tour par les canons des bastions : l'éclair à la gueule, la
+    // fumée, puis la gerbe d'eau là où le boulet tombe, au large. La nuit, deux projecteurs balaient la mer depuis le donjon.
+    const d = r.userData;
+    const ici = (t, k) => new THREE.Vector3(t[k] - r.position.x, t[k + 2] - r.position.y, -t[k + 1] - r.position.z);
+    const lisse = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const alea = (n) => { const x = Math.sin(n * 127.1 + 11.7) * 43758.5453; return x - Math.floor(x); };
+    const calque = new THREE.Group();
+    g.userData.calque = calque;
+    const mer = 0.05 - r.position.y;
+    const c = Array.isArray(d.canons) ? d.canons : [];
+    const canons = [];
+    for (let k = 0; k + 3 < c.length; k += 4) {
+      const dir = new THREE.Vector3(Math.cos(c[k + 3]), 0, -Math.sin(c[k + 3]));
+      canons.push({ gueule: ici(c, k).addScaledVector(dir, 0.36).add(new THREE.Vector3(0, 0.15, 0)), dir });
+    }
+    const lueur = (couleur) => new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: couleur, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+    const tirs = Array.from({ length: 4 }, () => {
+      const eclair = lueur(0xffb04a);
+      const fumees = Array.from({ length: 4 }, () => { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xe8e4dc, transparent: true, opacity: 0, depthWrite: false })); g.add(f); return f; });
+      const gerbe = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xf2fbff, transparent: true, opacity: 0, depthWrite: false }));
+      const rond = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+      rond.rotation.x = -Math.PI / 2;
+      calque.add(eclair);
+      g.add(gerbe, rond);
+      return { eclair, fumees, gerbe, rond, t0: -99, canon: null, chute: new THREE.Vector3() };
+    });
+    // les projecteurs : deux cônes de lumière, dos à dos, qui tournent lentement (la nuit seulement)
+    const pivot = new THREE.Group();
+    if (Array.isArray(d.donjon)) pivot.position.copy(ici(d.donjon, 0));
+    for (const sens of [1, -1]) {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(1.5, 9, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff0b8, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+      cone.rotation.z = sens * (Math.PI / 2 - 0.12); // couché, la lumière un peu vers la mer
+      cone.position.set(sens * 4.5, -0.55, 0);
+      pivot.add(cone);
+    }
+    calque.add(pivot);
+    let nT = 0, kVu = 0;
+    maj = (s) => {
+      const L = lampesAllumees;
+      const so = sonnerieParis();
+      if (so.k < kVu) kVu = so.k;
+      if (so.k > kVu && !so.quart && canons.length) {
+        const t = tirs[nT++ % tirs.length];
+        t.t0 = s;
+        t.canon = canons[(so.k - 1) % canons.length];
+        t.chute.copy(t.canon.gueule).addScaledVector(t.canon.dir, 4.2 + alea(so.k * 7.3) * 2.2);
+        t.chute.y = mer;
+        kVu = so.k;
+      }
+      for (const t of tirs) {
+        const a = s - t.t0;
+        const vu = t.canon && a >= 0 && a < 4.5;
+        t.eclair.visible = vu && a < 0.45;
+        if (t.eclair.visible) {
+          t.eclair.position.copy(t.canon.gueule).addScaledVector(t.canon.dir, 0.15);
+          t.eclair.scale.setScalar(0.8 + 2.4 * Math.sin(Math.min(1, a / 0.45) * Math.PI));
+          t.eclair.material.opacity = 1 - a / 0.45;
+        }
+        t.fumees.forEach((f, j) => {
+          const b = a - j * 0.07;
+          f.visible = vu && b >= 0 && b < 3.2;
+          if (!f.visible) return;
+          const p = b / 3.2;
+          f.position.copy(t.canon.gueule).addScaledVector(t.canon.dir, 0.3 + 0.9 * Math.sqrt(p) + j * 0.14);
+          f.position.y += p * 0.7 + j * 0.06;
+          f.scale.setScalar(0.4 + 1.1 * p + j * 0.08);
+          f.material.opacity = 0.85 * Math.pow(1 - p, 1.3) * Math.min(1, b * 10);
+        });
+        const e = a - 1.1; // le boulet est tombé
+        t.gerbe.visible = vu && e >= 0 && e < 1.3;
+        if (t.gerbe.visible) {
+          const h = Math.sin(Math.min(1, e / 1.3) * Math.PI);
+          t.gerbe.position.set(t.chute.x, mer + 0.45 * h, t.chute.z);
+          t.gerbe.scale.set(0.6 + 0.3 * h, 0.3 + 1.6 * h, 1);
+          t.gerbe.material.opacity = 0.9 * (1 - e / 1.3);
+        }
+        t.rond.visible = vu && e >= 0 && e < 2.5;
+        if (t.rond.visible) {
+          const p = e / 2.5;
+          t.rond.position.copy(t.chute);
+          t.rond.scale.setScalar(0.3 + 2.2 * p);
+          t.rond.material.opacity = 0.7 * (1 - p);
+        }
+      }
+      pivot.rotation.y = s * 0.16;
+      pivot.visible = L > 0.02;
+      for (const cone of pivot.children) cone.material.opacity = 0.11 * L;
     };
   } else if (genre === "orage") {
     const nuage = new THREE.Group();
