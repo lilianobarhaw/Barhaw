@@ -2950,7 +2950,7 @@ function effetRepere(r) {
     const lueur = (couleur) => new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: couleur, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
     const tirs = Array.from({ length: 4 }, () => {
       const eclair = lueur(0xffb04a);
-      const fumees = Array.from({ length: 3 }, () => { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xd9d4ca, transparent: true, opacity: 0, depthWrite: false })); g.add(f); return f; });
+      const fumees = Array.from({ length: 4 }, () => { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xe8e4dc, transparent: true, opacity: 0, depthWrite: false })); g.add(f); return f; });
       const gerbe = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xf2fbff, transparent: true, opacity: 0, depthWrite: false }));
       const rond = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
       rond.rotation.x = -Math.PI / 2;
@@ -2983,36 +2983,36 @@ function effetRepere(r) {
       }
       for (const t of tirs) {
         const a = s - t.t0;
-        const vu = t.canon && a >= 0 && a < 4;
-        t.eclair.visible = vu && a < 0.35;
+        const vu = t.canon && a >= 0 && a < 4.5;
+        t.eclair.visible = vu && a < 0.45;
         if (t.eclair.visible) {
-          t.eclair.position.copy(t.canon.gueule).addScaledVector(t.canon.dir, 0.12);
-          t.eclair.scale.setScalar(0.5 + 1.4 * Math.sin(Math.min(1, a / 0.35) * Math.PI));
-          t.eclair.material.opacity = 1 - a / 0.35;
+          t.eclair.position.copy(t.canon.gueule).addScaledVector(t.canon.dir, 0.15);
+          t.eclair.scale.setScalar(0.8 + 2.4 * Math.sin(Math.min(1, a / 0.45) * Math.PI));
+          t.eclair.material.opacity = 1 - a / 0.45;
         }
         t.fumees.forEach((f, j) => {
-          const b = a - j * 0.08;
-          f.visible = vu && b >= 0 && b < 2.6;
+          const b = a - j * 0.07;
+          f.visible = vu && b >= 0 && b < 3.2;
           if (!f.visible) return;
-          const p = b / 2.6;
-          f.position.copy(t.canon.gueule).addScaledVector(t.canon.dir, 0.25 + 0.6 * Math.sqrt(p) + j * 0.12);
-          f.position.y += p * 0.5 + j * 0.05;
-          f.scale.setScalar(0.25 + 0.75 * p + j * 0.05);
-          f.material.opacity = 0.75 * Math.pow(1 - p, 1.4) * Math.min(1, b * 10);
+          const p = b / 3.2;
+          f.position.copy(t.canon.gueule).addScaledVector(t.canon.dir, 0.3 + 0.9 * Math.sqrt(p) + j * 0.14);
+          f.position.y += p * 0.7 + j * 0.06;
+          f.scale.setScalar(0.4 + 1.1 * p + j * 0.08);
+          f.material.opacity = 0.85 * Math.pow(1 - p, 1.3) * Math.min(1, b * 10);
         });
         const e = a - 1.1; // le boulet est tombé
         t.gerbe.visible = vu && e >= 0 && e < 1.3;
         if (t.gerbe.visible) {
           const h = Math.sin(Math.min(1, e / 1.3) * Math.PI);
           t.gerbe.position.set(t.chute.x, mer + 0.45 * h, t.chute.z);
-          t.gerbe.scale.set(0.45 + 0.2 * h, 0.2 + 1.1 * h, 1);
+          t.gerbe.scale.set(0.6 + 0.3 * h, 0.3 + 1.6 * h, 1);
           t.gerbe.material.opacity = 0.9 * (1 - e / 1.3);
         }
         t.rond.visible = vu && e >= 0 && e < 2.5;
         if (t.rond.visible) {
           const p = e / 2.5;
           t.rond.position.copy(t.chute);
-          t.rond.scale.setScalar(0.2 + 1.6 * p);
+          t.rond.scale.setScalar(0.3 + 2.2 * p);
           t.rond.material.opacity = 0.7 * (1 - p);
         }
       }
