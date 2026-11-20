@@ -550,6 +550,21 @@ def _mailles(graine, leger):
         SOL.append(("decor", "le canot sur ses tréteaux", Vf.rectangle(canot[0], canot[1], 1.45, 0.75, cap_c)))
         SOL.append(("decor", "les outils du gardien", Vf.rectangle(*(np.array(canot) + [math.cos(cap_c) * 0.25 + math.sin(cap_c) * 0.62, math.sin(cap_c) * 0.25 - math.cos(cap_c) * 0.62]), 0.25, 0.25, cap_c + 0.5)))
         SOL.append(("decor", "le pot de goudron", Vf.rond(*(np.array(canot) + [math.cos(cap_c) * -0.62 + math.sin(cap_c) * 0.5, math.sin(cap_c) * -0.62 - math.cos(cap_c) * 0.5]), 0.09)))
+    # ce que la mer a rendu, que le gardien a tiré au sec : des tonneaux, des caisses, un rouleau de cordage, des rames
+    tas = (1.0, -3.3)
+    if libre(tas[0], tas[1], 0.5):
+        zt_ = sol(*tas)
+        Mt_ = T(tas[0], tas[1], zt_) @ Rz(0.4)
+        P.tonneau(L, Mt_ @ T(-0.22, 0.12, -0.02), 0.09, 0.22)
+        P.tonneau(L, Mt_ @ T(-0.02, 0.24, 0.06) @ Rx(PI / 2) @ T(0, 0, -0.11), 0.09, 0.22)  # couché
+        P.caisse(L, Mt_ @ T(0.2, -0.08, -0.03) @ Rz(0.3), 0.22, "bois_gris")
+        P.caisse(L, Mt_ @ T(0.22, -0.06, 0.18) @ Rz(0.9), 0.16, "bois_gris")
+        L.ajouter(*N.tube([(-0.05 + math.cos(t) * 0.13, -0.24 + math.sin(t) * 0.13, 0.04) for t in np.linspace(0, 2 * PI, 13)], 0.035, 5, bouts=False), "corde", Mt_)
+        L.ajouter(*N.tube([(-0.05 + math.cos(t) * 0.08, -0.24 + math.sin(t) * 0.08, 0.1) for t in np.linspace(0, 2 * PI, 11)], 0.03, 5, bouts=False), "corde", Mt_)
+        for k, dx in enumerate((0.38, 0.46)):  # deux rames appuyées
+            L.ajouter(*N.poutre((dx, 0.3, 0.0), (dx - 0.1, 0.05 + 0.05 * k, 0.75), 0.022), "bois_gris", Mt_)
+            L.ajouter(*N.boite(0.035, 0.11, 0.24), "bois_gris", Mt_ @ T(dx - 0.01, 0.27, 0.12) @ Rx(-0.3))
+        SOL.append(("decor", "ce que la mer a rendu", Vf.rond(tas[0], tas[1], 0.5)))
     # la cloche du passeur, au bout du ponton côté terre : on la sonne, et il vient vous chercher en barque
     xc_, yc_ = quai_terre[0] - 0.65, quai_terre[1] + 0.45
     if libre(xc_, yc_, 0.3):
