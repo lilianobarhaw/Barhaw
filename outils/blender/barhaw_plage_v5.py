@@ -450,6 +450,7 @@ def _mailles(graine, leger):
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(feu[0]), float(feu[1]), float(fz + 0.45)], "grosseur": 0.5}))
     lots["reperes"].append(((0.5, 0.0, 4.2), {"anim": "oiseaux", "nb": 3 if leger else 6, "rayon": 5.2, "envergure": 0.13}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.4, "genre": 2}))  # pour la mer du site : une île naturelle, son lagon
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "cerfsvolants", "vent": [0.3, 1.0], "ancres": [0.92, -5.23, 0.23, -5.45, -4.57, 0.25, 4.72, -2.2, 0.2]}))  # le site : les cerfs-volants des mousses
     # --- sur l'eau (dessiné par le site) : le ressac tout le long du rivage, le reflet du ponton et du canot ---
     Rv = N.Maille("rivage")
     cote = [(_COTE[i % 720][0], _COTE[i % 720][1]) for i in range(0, 724, 4)]
