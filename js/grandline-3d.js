@@ -4474,13 +4474,18 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       let corps = null;
       let anims = [];
       let sortie = 0;
-      const nomModele = type === "maitre" && /^[a-z]{2,20}$/.test(String(ev.ile || "")) ? `maitre-${ev.ile}` : "monstre";
+      let parties = [], tourne = 0, angle = null, cherche = null; // le monstre : ce qui sort de l'eau, et de combien il se tourne
+      // niveau 5 : le monstre refait (monstre-v5.glb, la même taille) ; s'il manque, celui d'avant
+      const nomModele = type === "maitre" && /^[a-z]{2,20}$/.test(String(ev.ile || "")) ? `maitre-${ev.ile}` : ilesV5.length ? "monstre-v5" : "monstre";
       if (type === "maitre") g.userData.decalage = v3(7, -2);
-      creature(nomModele, 0.06).then((c) => {
+      (nomModele === "monstre-v5" ? creature(nomModele, 0.06).catch(() => creature("monstre", 0.06)) : creature(nomModele, 0.06)).then((c) => {
         if (detruit) return;
         for (const o of dessines) { g.remove(o); o.traverse((x) => x.geometry?.dispose?.()); }
         // ce qui sort de l'eau (la tête, les tentacules) ; l'écume reste à la surface
         corps = new THREE.Group();
+        // le monstre (pas un maître) : ce qui sort de l'eau, et où (la tête, chaque tentacule, l'écume), pour ne pas le faire
+        // sortir d'une île niveau 5
+        if (type === "monstre") parties = [...c.modele.children].map((o) => [o, o.position.x, o.position.z, /tete/.test(o.name || "") ? 4.5 : 1.2]);
         for (const o of [...c.modele.children]) if (!o.userData.effet) corps.add(o);
         c.modele.add(corps);
         corps.position.y = -16;
@@ -4490,6 +4495,23 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       }).catch((e) => { erreurs.push(`${nomModele} : ${e.message}`); });
       maj = (s, dt) => {
         if (!corps) return majDessin(s, dt);
+        // au niveau 5, il se tourne autour du navire (jusqu'à 80° de chaque côté : sa tête reste derrière) pour que sa tête
+        // et le plus de tentacules possible sortent de l'eau libre ; ce qui tomberait encore dans une île ne sort pas
+        if (parties.length && ilesV5.length) {
+          const dans = (x, z, marge) => ilesV5.some((id) => { const i = iles.get(id); return i && RAYON_N5[id] && Math.hypot(x - i.x, z - i.z) < RAYON_N5[id] + marge; });
+          const au = (x, z, a) => [g.position.x + x * Math.cos(a) + z * Math.sin(a), g.position.z - x * Math.sin(a) + z * Math.cos(a)];
+          const gene = (a) => parties.reduce((n, [, x, z, r]) => n + (dans(...au(x, z, a), r) ? (r > 4 ? 100 : 1) : 0), 0);
+          if (s > (cherche ?? 0)) {
+            cherche = s + 2;
+            let mieux = tourne, note = gene(tourne);
+            for (const a of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4]) { const n = gene(a); if (n < note) { note = n; mieux = a; } }
+            tourne = mieux;
+            if (angle === null) angle = tourne;
+          }
+          angle += (tourne - angle) * Math.min(1, dt * 1.2);
+          g.rotation.y = angle;
+          for (const [o, x, z, r] of parties) o.visible = !dans(...au(x, z, angle), r);
+        }
         sortie = Math.min(1, sortie + dt / 2.6);
         corps.position.y = -16 * Math.pow(1 - sortie, 3);
         for (const a of anims) a(s, dt);
