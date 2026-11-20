@@ -355,21 +355,43 @@ def _mailles(graine, leger):
     A.fondre(L, W, T(quai_mer[0] + 0.8, quai_mer[1] + 0.4, 0.0) @ Rz(PI / 2))
     A.fondre(V, Wv, T(quai_mer[0] + 0.8, quai_mer[1] + 0.4, 0.0) @ Rz(PI / 2))
     # la jetée de pierre à l'ouest et sa tour ; la chaîne tendue jusqu'au rocher de l'est
-    ja, jb = vers(-116, -0.2), vers(-110, -2.9)  # (la chaîne ferme le port au large du brick)
+    ja, jb = vers(-116, -0.2), vers(-110, -3.4)  # (la chaîne ferme le port au large du brick, sans le toucher)
     L.ajouter(*N.polygone(Vf.rectangle((ja[0] + jb[0]) / 2, (ja[1] + jb[1]) / 2, math.dist(ja, jb), 0.42, math.atan2(jb[1] - ja[1], jb[0] - ja[0])), -0.6, Z_B + 0.05), "pierre_fort")
     L.ajouter(*N.cylindre(0.32, 0.36, Z_B + 1.25, 12, haut=True), "pierre_fort", T(jb[0], jb[1], -0.6))
     v, f = N.toit_pointe(0.36, 0.42, 12, 0.04, 0.0)
     L.ajouter(v, f, "tuiles_rouges", T(jb[0], jb[1], Z_B + 0.68))
     U.ajouter(*N.sphere(0.07, 8, 6), "lumiere", T(jb[0], jb[1], Z_B + 0.55))  # le fanal
-    rc_ = vers(-70, -2.9)
+    rc_ = vers(-70, -3.4)
     A.rocher(L, rng, rc_[0], rc_[1], -0.3, 0.45, "roche")
     L.ajouter(*N.cylindre(0.12, 0.12, 0.85, 8), "fonte", T(rc_[0], rc_[1], -0.2))
-    pts_ch = []
-    for k in range(17):
-        t = k / 16
-        pts_ch.append((jb[0] + (rc_[0] - jb[0]) * t, jb[1] + (rc_[1] - jb[1]) * t, 0.55 - 0.5 * 4 * t * (1 - t)))
-    for k in range(16):
-        L.ajouter(*N.poutre(pts_ch[k], pts_ch[k + 1], 0.07 if k % 2 else 0.035, 0.035 if k % 2 else 0.07), "fonte")
+    # sur la jetée : un parapet du côté du large, des bittes d'amarrage
+    dj = np.array(jb) - np.array(ja)
+    lj = float(np.linalg.norm(dj))
+    gauche = np.array((-dj[1], dj[0])) / lj  # (vers le port)
+    cp = (np.array(ja) + np.array(jb)) / 2 - gauche * 0.16
+    L.ajouter(*N.polygone(Vf.rectangle(cp[0], cp[1], lj - 0.3, 0.1, math.atan2(dj[1], dj[0])), Z_B + 0.04, Z_B + 0.24), "pierre_fort")
+    for t in (0.3, 0.55, 0.8):
+        q = np.array(ja) + dj * t + gauche * 0.1
+        L.ajouter(*N.cylindre(0.05, 0.045, 0.16, 8, haut=True), "fonte", T(q[0], q[1], Z_B + 0.04))
+        L.ajouter(*N.cylindre(0.065, 0.065, 0.03, 8, haut=True), "fonte", T(q[0], q[1], Z_B + 0.2))
+    # la grosse chaîne : de vrais maillons, un sur deux à plat, qui pendent entre la tour et le rocher
+    pts_ch = [np.array((jb[0] + (rc_[0] - jb[0]) * t, jb[1] + (rc_[1] - jb[1]) * t, 0.55 - 0.5 * 4 * t * (1 - t))) for t in np.linspace(0, 1, 201)]
+    cum = [0.0]
+    for a_, b_ in zip(pts_ch, pts_ch[1:]):
+        cum.append(cum[-1] + float(np.linalg.norm(b_ - a_)))
+    pas_m, lm, wm, rm = (0.28, 0.34, 0.2, 0.028) if leger else (0.19, 0.24, 0.14, 0.022)
+    nm = int(cum[-1] / pas_m)
+    for k in range(nm):
+        s_ = (k + 0.5) * cum[-1] / nm
+        i = min(len(cum) - 2, max(0, int(np.searchsorted(cum, s_)) - 1))
+        u = (s_ - cum[i]) / max(1e-9, cum[i + 1] - cum[i])
+        c = pts_ch[i] + (pts_ch[i + 1] - pts_ch[i]) * u
+        d = (pts_ch[i + 1] - pts_ch[i]) / max(1e-9, cum[i + 1] - cum[i])
+        h_ = np.cross(d, (0.0, 0.0, 1.0))
+        h_ = h_ / np.linalg.norm(h_)
+        nrm = np.cross(h_, d) if k % 2 else h_
+        boucle = [tuple(c + d * (lm / 2 - rm) * math.cos(th) + nrm * (wm / 2 - rm) * math.sin(th)) for th in np.linspace(0, 2 * PI, 9)]
+        L.ajouter(*N.tube(boucle, rm, 4, bouts=False), "fonte")
 
     for k in range(10 if leger else 22):
         x, y = vers(rng.random() * 360, 0.15 + rng.random() * 1.1)
