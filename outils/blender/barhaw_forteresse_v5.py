@@ -477,6 +477,16 @@ def _mailles(graine, leger):
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in P.CHEMINEES for c in p], "grosseur": 0.4}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.4, "genre": 2}))
     lots["reperes"].append(((0.0, 0.0, Z_P + 2.2), {"anim": "oiseaux", "nb": 3 if leger else 5, "rayon": 4.2}))
+    # le site : la salve de l'heure (un coup de canon par heure, tiré tour à tour par les canons présents aussi au téléphone)
+    # et les projecteurs du donjon, la nuit
+    canons_, pts_ = [], trace()
+    for i in range(len(pts_)):
+        a_, b_ = np.array(pts_[i]), np.array(pts_[(i + 1) % len(pts_)])
+        cap_ = math.atan2(b_[1] - a_[1], b_[0] - a_[0])
+        if i % 5 in (1, 2) and i % 10 in (1, 2):
+            q_ = (a_ + b_) / 2
+            canons_ += [round(float(q_[0] - math.sin(cap_) * 0.28), 3), round(float(q_[1] + math.cos(cap_) * 0.28), 3), round(Z_P + H_MUR, 3), round(cap_ - PI / 2, 3)]
+    lots["reperes"].append(((0.0, 0.85, Z_P + 2.25), {"anim": "garde", "donjon": [0.0, 0.85, Z_P + 2.25], "canons": canons_}))
 
     etape("sur l'eau")
     Rv = N.Maille("rivage")
