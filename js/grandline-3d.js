@@ -1801,10 +1801,63 @@ function points(nb, couleur, taille, place) {
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   return new THREE.Points(geo, new THREE.PointsMaterial({ color: couleur, size: taille, map: pastille(), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
 }
+// les rêves du géant endormi (l'Île des Géants) : une bulle de savon, et dedans ce dont il rêve, dessiné en doré
+function dessinReve(x, l, nom) {
+  const c = l / 2;
+  const bulle = x.createRadialGradient(c * 0.8, c * 0.75, c * 0.1, c, c, c * 0.98);
+  bulle.addColorStop(0, "rgba(255, 255, 255, 0.10)");
+  bulle.addColorStop(0.78, "rgba(200, 230, 255, 0.16)");
+  bulle.addColorStop(0.93, "rgba(214, 236, 255, 0.75)");
+  bulle.addColorStop(1, "rgba(214, 236, 255, 0)");
+  x.fillStyle = bulle;
+  x.beginPath(); x.arc(c, c, c * 0.98, 0, Math.PI * 2); x.fill();
+  x.fillStyle = "rgba(255, 255, 255, 0.85)"; // le reflet
+  x.beginPath(); x.ellipse(c * 0.62, c * 0.55, c * 0.16, c * 0.08, -0.6, 0, Math.PI * 2); x.fill();
+  x.save();
+  x.translate(c, c * 1.04);
+  x.fillStyle = "#ffd76a";
+  x.strokeStyle = "#9a6a12";
+  x.lineWidth = l * 0.025;
+  x.lineJoin = "round";
+  const s = l * 0.3;
+  x.beginPath();
+  if (nom === "etoile") {
+    for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? s * 0.42 : s; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    x.closePath();
+  } else if (nom === "lune") {
+    x.arc(0, 0, s * 0.9, Math.PI * 0.35, Math.PI * 1.65);
+    x.arc(s * 0.38, -s * 0.05, s * 0.72, Math.PI * 1.45, Math.PI * 0.55, true);
+    x.closePath();
+  } else if (nom === "poisson") {
+    x.ellipse(-s * 0.1, 0, s * 0.7, s * 0.42, 0, 0, Math.PI * 2);
+    x.moveTo(s * 0.5, 0); x.lineTo(s * 1.0, -s * 0.45); x.lineTo(s * 1.0, s * 0.45); x.closePath();
+  } else if (nom === "navire") {
+    x.moveTo(-s, s * 0.25); x.lineTo(s, s * 0.25); x.lineTo(s * 0.7, s * 0.7); x.lineTo(-s * 0.7, s * 0.7); x.closePath();
+    x.moveTo(-s * 0.05, s * 0.2); x.lineTo(-s * 0.05, -s * 0.95); x.lineTo(s * 0.75, s * 0.05); x.closePath();
+    x.moveTo(-s * 0.15, -s * 0.75); x.lineTo(-s * 0.15, s * 0.05); x.lineTo(-s * 0.8, s * 0.05); x.closePath();
+  } else if (nom === "baleine") {
+    x.ellipse(-s * 0.15, s * 0.15, s * 0.75, s * 0.48, 0, 0, Math.PI * 2);
+    x.moveTo(s * 0.5, s * 0.1); x.lineTo(s * 1.0, -s * 0.35); x.lineTo(s * 0.95, s * 0.3); x.closePath();
+  } else {
+    x.arc(-s * 0.45, s * 0.15, s * 0.42, 0, Math.PI * 2); x.arc(s * 0.05, -s * 0.15, s * 0.55, 0, Math.PI * 2); x.arc(s * 0.55, s * 0.15, s * 0.4, 0, Math.PI * 2);
+  }
+  x.fill();
+  x.stroke();
+  if (nom === "poisson" || nom === "baleine") { // l'œil
+    x.fillStyle = "#3b2a10";
+    x.beginPath(); x.arc(-s * 0.55, -s * (nom === "baleine" ? 0.05 : 0.08), l * 0.022, 0, Math.PI * 2); x.fill();
+  }
+  if (nom === "baleine") { // le jet d'eau
+    x.strokeStyle = "#cfeaff"; x.lineWidth = l * 0.03;
+    x.beginPath(); x.moveTo(-s * 0.35, -s * 0.4); x.quadraticCurveTo(-s * 0.55, -s * 0.85, -s * 0.8, -s * 0.8); x.moveTo(-s * 0.35, -s * 0.4); x.quadraticCurveTo(-s * 0.15, -s * 0.85, s * 0.1, -s * 0.8); x.stroke();
+  }
+  x.restore();
+}
 // des repères d'effets que le site ajoute à une île déjà cuite, tant que son modèle n'a pas le sien (le même que celui que
 // Blender y mettra à la prochaine cuisson : outils/blender/barhaw_horloge_v5.py, donnees_heures). « ici » : sa place
 // (x, y, z de Blender) ; le reste, ses données (des points de Blender, comme pour les autres repères)
 const REPERES_SITE = {
+  geants: [{ anim: "sommeil", ici: [-4.95, 0.1, 2.35], cadence: 8 }],
   horloge: [{ anim: "heures", ici: [0.0,0.7,1.468], cloche: [0.0,0.7,6.138], coucou: [0.0,0.08,5.888], events: [1.981,-3.432,2.07,-0.669,3.793,2.07], rayon: 8.0, haut: 2.3, heure: [0,0,1,2,3,4,5,7,8,9,10,11], index: [0.142,3.327,1.449,0.142,3.967,1.455,0.058,3.967,1.454,0.058,3.327,1.448,-0.058,3.327,1.448,-0.058,3.967,1.454,-0.142,3.967,1.455,-0.142,3.327,1.449,1.838,3.087,1.481,2.158,3.641,1.48,2.074,3.689,1.479,1.754,3.135,1.482,3.196,1.79,1.454,3.751,2.11,1.46,3.703,2.193,1.461,3.148,1.873,1.455,3.775,-0.07,1.461,4.415,-0.07,1.471,4.415,0.07,1.471,3.775,0.07,1.461,2.84,-1.695,1.472,3.395,-2.015,1.469,3.443,-1.932,1.469,2.888,-1.612,1.472,1.68,-3.005,1.473,2.0,-3.56,1.471,2.083,-3.512,1.47,1.763,-2.957,1.473,-1.794,-3.011,1.474,-2.114,-3.565,1.47,-2.031,-3.613,1.471,-1.711,-3.059,1.475,-3.052,-1.707,1.453,-3.606,-2.027,1.453,-3.558,-2.11,1.452,-3.004,-1.79,1.453,-3.385,0.07,1.455,-4.025,0.07,1.462,-4.025,-0.07,1.462,-3.385,-0.07,1.455,-3.312,1.968,1.452,-3.866,2.288,1.453,-3.914,2.205,1.452,-3.36,1.885,1.452,-1.786,3.189,1.466,-2.106,3.743,1.466,-2.189,3.695,1.466,-1.869,3.141,1.466], lunette: [0.464,-4.463,1.55,0.469,-4.463,1.55,0.939,-4.418,1.55,1.397,-4.299,1.55,1.824,-4.096,1.55,2.206,-3.821,1.55,2.543,-3.5,1.55,2.845,-3.16,1.55,3.13,-2.818,1.55,3.414,-2.481,1.55,3.704,-2.139,1.55,3.994,-1.778,1.55,4.267,-1.386,1.55,4.498,-0.956,1.55,4.663,-0.49,1.55,4.745,0.0,1.55,4.738,0.498,1.55,4.646,0.988,1.55,4.484,1.457,1.55,4.268,1.9,1.55,4.012,2.317,1.55,3.727,2.708,1.55,3.414,3.074,1.55,3.07,3.41,1.55,2.693,3.706,1.55,2.281,3.951,1.55,1.841,4.134,1.55,1.382,4.252,1.55,0.916,4.309,1.55,0.454,4.318,1.55,0.0,4.297,1.55,-0.448,4.262,1.55,-0.898,4.223,1.55,-1.357,4.176,1.55,-1.83,4.11,1.55,-2.312,4.005,1.55,-2.788,3.838,1.55,-3.236,3.594,1.55,-3.629,3.268,1.55,-3.947,2.867,1.55,-4.176,2.411,1.55,-4.319,1.923,1.55,-4.388,1.426,1.55,-4.404,0.936,1.55,-4.388,0.461,1.55,-4.355,0.0,1.55,-4.313,-0.453,1.55,-4.255,-0.904,1.55,-4.171,-1.355,1.55,-4.046,-1.801,1.55,-3.868,-2.233,1.55,-3.634,-2.64,1.55,-3.345,-3.012,1.55,-3.011,-3.344,1.55,-2.639,-3.632,1.55,-2.237,-3.875,1.55,-1.813,-4.072,1.55,-1.372,-4.223,1.55,-0.921,-4.332,1.55,-0.463,-4.407,1.55,-0.458,-4.407,1.55] }],
 };
 function effetRepere(r) {
@@ -2801,6 +2854,79 @@ function effetRepere(r) {
         tete.rotation.x = -salut * 0.25;
         for (const a of ailes) a.rotation.z = a.userData.sx * salut * (0.7 + 0.3 * Math.sin(so.dk * 26));
         cle.rotation.z = so.t * 5;
+      }
+    };
+  } else if (genre === "sommeil") {
+    // l'Île des Géants : le géant dort à poings fermés. Toutes les « cadence » secondes, trois « Z » montent de son visage
+    // et s'envolent (le dernier plus gros), un peu plus fort une fois sur trois (il ronfle) ; et il rêve : de temps en temps
+    // une bulle monte de son front, avec dedans ce dont il rêve (une étoile, la lune, un poisson, un navire, une baleine,
+    // un nuage), et elle éclate tout en haut. Dans le calque : la nuit, ils restent clairs.
+    const d = r.userData;
+    const cadence = Math.max(4, d.cadence || 8);
+    const calque = new THREE.Group();
+    g.userData.calque = calque;
+    const alea = (n) => { const x = Math.sin(n * 127.1 + 11.7) * 43758.5453; return x - Math.floor(x); };
+    const lettre = toile(128, 128, (x, l) => {
+      x.font = 'bold 108px "Trebuchet MS", Verdana, sans-serif';
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.lineJoin = "round";
+      x.lineWidth = 16;
+      x.strokeStyle = "rgba(38, 66, 112, 0.9)";
+      x.strokeText("Z", l / 2, l / 2 + 4);
+      x.fillStyle = "#f5f9ff";
+      x.fillText("Z", l / 2, l / 2 + 4);
+    });
+    const zeds = Array.from({ length: 9 }, () => {
+      const z = new THREE.Sprite(new THREE.SpriteMaterial({ map: lettre, transparent: true, opacity: 0, depthWrite: false, depthTest: false }));
+      z.visible = false;
+      calque.add(z);
+      return z;
+    });
+    const REVES = ["etoile", "lune", "poisson", "navire", "baleine", "nuage"];
+    const images = REVES.map((nom) => toile(128, 128, (x, l) => dessinReve(x, l, nom)));
+    const bulles = Array.from({ length: 3 }, () => {
+      const b = new THREE.Sprite(new THREE.SpriteMaterial({ map: images[0], transparent: true, opacity: 0, depthWrite: false, depthTest: false }));
+      b.visible = false;
+      calque.add(b);
+      return b;
+    });
+    const lisse = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    maj = (s) => {
+      const L = lampesAllumees;
+      // les Z : trois par souffle, à 0,9 s l'un de l'autre (ils montent en file, sans se chevaucher) ; chacun vit 4,6 s
+      const n = Math.floor(s / cadence);
+      for (let j = 0; j < 9; j++) {
+        const cycle = n - Math.floor(j / 3), rang = j % 3;
+        const t = s - cycle * cadence - rang * 0.9;
+        const z = zeds[j];
+        z.visible = cycle >= 0 && t >= 0 && t < 4.6;
+        if (!z.visible) continue;
+        const fort = cycle % 3 === 2 ? 1.3 : 1; // il ronfle
+        const p = t / 4.6;
+        z.position.set(-0.25 - 0.9 * p + Math.sin(t * 2.2 + j) * 0.1, 0.3 + p * 3.0, -0.15 * p);
+        const taille = (0.26 + rang * 0.1) * fort * (0.75 + 0.6 * p);
+        z.scale.set(taille, taille, 1);
+        z.material.rotation = Math.sin(t * 1.7 + j) * 0.25 - 0.15;
+        z.material.opacity = lisse(0, 0.35, t) * (1 - lisse(3.0, 4.6, t)) * (0.92 + 0.08 * L);
+      }
+      // les rêves : une bulle toutes les 1,6 × cadence, qui vit 7 s
+      const per = cadence * 1.6;
+      const m = Math.floor(s / per);
+      for (let j = 0; j < bulles.length; j++) {
+        const num = m - j;
+        const t = s - num * per - per * 0.4;
+        const b = bulles[j];
+        b.visible = num >= 0 && t >= 0 && t < 7;
+        if (!b.visible) continue;
+        const reve = images[Math.floor(alea(num * 3.7) * images.length) % images.length];
+        if (b.material.map !== reve) { b.material.map = reve; b.material.needsUpdate = true; }
+        const p = t / 7;
+        const eclate = lisse(6.5, 7, t);
+        b.position.set(0.3 + Math.sin(t * 0.9 + num) * 0.25, 0.6 + p * 3.0, 0.25 + Math.cos(t * 0.7 + num) * 0.15);
+        const taille = (0.75 + 0.35 * lisse(0, 1.5, t)) * (1 + eclate * 0.5);
+        b.scale.set(taille, taille, 1);
+        b.material.opacity = lisse(0, 0.8, t) * (1 - eclate) * (0.75 + 0.25 * L);
       }
     };
   } else if (genre === "orage") {
