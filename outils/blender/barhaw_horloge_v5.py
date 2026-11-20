@@ -110,6 +110,24 @@ def tx_sol_horloge(taille=2048, graine=911):
     pave = N.mel(pave, N.hexa(0x5b5247), N.lisse(0.12, 0.0, dj)[..., None] * 0.75)
     pavé = np.maximum(N.lisse(R_PLACE + 0.1, R_PLACE - 0.05, rr), N.lisse(0.3, 0.2, piste)) * N.lisse(Z_P - 0.25, Z_P - 0.1, h)
     coul = N.mel(coul, pave, pavé)
+    # les douze heures : des index de laiton dans l'herbe, au bord du plateau, comme sur le cadran d'une montre (XII au
+    # nord, doublé ; III et IX plus larges ; pas de VI : c'est le haut de l'escalier)
+    for k in range(12):
+        if k == 6:
+            continue
+        ang = PI / 2 - k * PI / 6
+        rp_ = r_plat(ang)
+        rad = X * math.cos(ang) + Y * math.sin(ang)
+        perp = np.abs(-X * math.sin(ang) + Y * math.cos(ang))
+        long_ = N.lisse(rp_ - 1.0, rp_ - 0.96, rad) * N.lisse(rp_ - 0.3, rp_ - 0.34, rad)
+        if k == 0:
+            larg_ = np.maximum(N.lisse(0.06, 0.045, np.abs(perp - 0.1)), 0)
+        else:
+            w_ = 0.085 if k in (3, 9) else 0.06
+            larg_ = N.lisse(w_, w_ - 0.015, perp)
+        index = long_ * larg_ * N.lisse(Z_P - 0.1, Z_P, h)
+        coul = N.mel(coul, N.hexa(0x5e4a22), N.lisse(0.0, 0.25, index) * 0.7)  # le liseré sombre
+        coul = N.mel(coul, N.mel(N.hexa(0xb48c3a), N.hexa(0xd9b65e), np.clip(fin, 0, 1)), N.lisse(0.35, 0.8, index))
     trefle = N.lisse(0.93, 0.97, N.bruit(n, 240, 240, graine + 7, 1)) * N.lisse(Z_P - 0.1, Z_P, h) * (1 - pavé)
     coul = N.mel(coul, N.hexa(0xf2efe2), trefle * 0.6)
     relief = np.clip(0.5 + 0.2 * (b3 - 0.5) + 0.15 * (fin - 0.5) - 0.3 * N.lisse(0.12, 0.0, dj) * pavé, 0, 1)
