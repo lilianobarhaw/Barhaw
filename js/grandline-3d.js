@@ -3876,13 +3876,16 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     scene.add(p);
     return p;
   }
-  if (ilesV4.length) lireV4("vie-mer.glb").then((glb) => {
+  // au niveau 5, la mer qui vit est refaite (vie-mer-v5.glb : peaux, coques bordées, cargaisons, cuites dans un atlas,
+  // mêmes noms et mêmes tailles) ; sinon, ou si elle manque, celle de la V4
+  if (ilesV4.length) (ilesV5.length ? lireV4("vie-mer-v5.glb").catch(() => lireV4("vie-mer.glb")) : lireV4("vie-mer.glb")).then((glb) => {
     if (detruit) return;
     const base = sceneGLB(glb);
     const sortes = new Map();
     for (const o of base.children) { const k = String(o.name).split("_")[0]; if (!sortes.has(k)) sortes.set(k, []); sortes.get(k).push(o); }
     const faire = (k, ech = 1) => {
       const modele = new THREE.Group();
+      modele.userData.atlas = base.userData.atlas; // niveau 5 : habiller() y prend l'image cuite
       for (const o of sortes.get(k) || []) modele.add(o.clone(true));
       const { bouge } = habiller(modele, { relief: () => null, contour: 0.03, cuit: true });
       const g = new THREE.Group();
@@ -4188,7 +4191,80 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   }
   const vider = (g) => { for (const c of [...g.children]) { g.remove(c); c.dispose?.(); } };
   // le bord d'une île plutôt que son centre (la route s'arrête au rivage)
-  const rivage = (de, vers) => { const i = iles.get(de); const d = vers.clone().sub(pos(de)).normalize(); return pos(de).add(d.multiplyScalar(i ? i.r * 1.05 : 0)); };
+  // l'escale : le navire s'arrête au bord de l'île. Une île « niveau 5 » est plus grande que son dessin d'avant (son
+  // rayon de mer : le repère « mer » de son module Blender), et le galion fait 8,6 de coque : il s'arrête au large de la
+  // vraie côte et se met de flanc, le long d'elle, comme à quai (voir aQuai) ; il ne lui faut alors que sa demi-largeur.
+  // Avant, il se posait sur l'île (au Marché Flottant, sur la ronde des sampans). « part » : la part du chemin qu'il peut
+  // prendre, pour que deux îles proches gardent un bout de route entre elles (0,42 d'île à île ; 0,8 jusqu'au carrefour).
+  const RAYON_N5 = { ambre: 8.0, arbre: 7.8, archipel: 8.0, braise: 7.8, champignons: 7.6, cimetiere: 8.6, cristal: 8.5, engloutie: 7.9, forteresse: 8.4, geants: 8.6, givre: 7.8, horloge: 8.4, lucioles: 7.8, marais: 8.6, marche: 7.5, moussaillons: 8.4, phare: 8.5, recif: 7.7, tonnerre: 8.5, tresor: 8.6, vents: 8.1 };
+  const LARGE_N5 = 2.8; // la demi-largeur du galion (vergues comprises), et un peu d'eau
+  const rivage = (de, vers, part = 0.42) => {
+    const i = iles.get(de);
+    const d = vers.clone().sub(pos(de));
+    const loin = d.length();
+    d.normalize();
+    if (!i) return pos(de);
+    const r5 = ilesV5.includes(de) && RAYON_N5[de] ? RAYON_N5[de] + LARGE_N5 : 0;
+    return pos(de).add(d.multiplyScalar(Math.max(i.r * 1.05, Math.min(r5, loin * part))));
+  };
+  // le carrefour, à mi-chemin des îles suivantes ; un peu plus loin quand l'île de départ est grande (niveau 5), pour que
+  // le navire ait la place de partir de sa côte
+  const carrefour = (de, tout) => {
+    const loin = pos(de).distanceTo(tout) || 1;
+    const r5 = ilesV5.includes(de) && RAYON_N5[de] ? RAYON_N5[de] + LARGE_N5 : 0;
+    return pos(de).lerp(tout, Math.min(0.7, Math.max(0.5, (r5 + 4) / loin)));
+  };
+  // près d'une île « niveau 5 » : laquelle, à quelle distance de sa côte, et dans quel sens on s'en éloigne
+  const pres5 = (x, z) => {
+    let mieux = null;
+    for (const id of ilesV5) {
+      const i = iles.get(id);
+      if (!i || !RAYON_N5[id]) continue;
+      const dx = x - i.x, dz = z - i.z, l = Math.hypot(dx, dz) || 1, d = l - RAYON_N5[id];
+      if (d < LARGE_N5 + 6 && (!mieux || d < mieux.d)) mieux = { d, ux: dx / l, uz: dz / l };
+    }
+    return mieux;
+  };
+  // à quai : tout près de la côte, le navire se tourne de flanc, le long d'elle (du côté le plus proche de son cap), puis
+  // se remet dans le sens de la route en s'éloignant
+  const ecartAngle = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  // pendant un défi, le navire file en ligne droite vers l'arène (et en revient) : s'il croise une île niveau 5, il en fait
+  // le tour le long de la côte, du côté où il passait déjà, au lieu de passer dessus. L'arc est suivi du même pas d'un
+  // bout à l'autre (de l'entrée à la sortie du cercle), sans à-coup ; le côté choisi tient jusqu'à la sortie.
+  const contourner = (q) => {
+    const aller = q.m >= (q.mAvant ?? 0) ? 1 : -1;
+    q.mAvant = q.m;
+    if (!(q.m > 0.001) || !ilesV5.length) return;
+    const lx = q.ax - q.rx, lz = q.az - q.rz, L = Math.hypot(lx, lz);
+    if (L < 0.5) return;
+    const ux = lx / L, uz = lz / L, nx = -uz, nz = ux;
+    q.cotes ??= {};
+    for (const id of ilesV5) {
+      const i = iles.get(id);
+      if (!i || !RAYON_N5[id]) continue;
+      const R = RAYON_N5[id] + LARGE_N5;
+      const cx = q.x - i.x, cz = q.z - i.z, t = cx * ux + cz * uz, d = cx * nx + cz * nz;
+      const c = Math.sqrt(Math.max(0, R * R - d * d)); // la ligne droite traverse le cercle de -c à c
+      if (c < 0.05 || Math.abs(t) >= c) { delete q.cotes[id]; continue; }
+      const sens = (q.cotes[id] ??= d < 0 ? -1 : 1);
+      const a0 = Math.atan2(Math.abs(d), c), a = Math.PI - a0 - ((t + c) / (2 * c)) * (Math.PI - 2 * a0);
+      const ca = Math.cos(a), sa = Math.sin(a);
+      q.x = i.x + R * (ca * ux + sa * sens * nx);
+      q.z = i.z + R * (ca * uz + sa * sens * nz);
+      // son cap suit la côte, dans le sens où il va
+      const tx = (sa * ux - ca * sens * nx) * aller, tz = (sa * uz - ca * sens * nz) * aller;
+      q.cap += ecartAngle(cap(tx, tz), cap(ux * aller, uz * aller)) * Math.min(1, (c - Math.abs(t)) / (0.5 * R));
+    }
+  };
+
+  const aQuai = (x, z, capRoute) => {
+    const q5 = pres5(x, z);
+    if (!q5) return capRoute;
+    const t = cap(-q5.uz, q5.ux), t2 = t + Math.PI;
+    const long = Math.abs(ecartAngle(t, capRoute)) < Math.abs(ecartAngle(t2, capRoute)) ? t : t2;
+    const k = 1 - Math.min(1, Math.max(0, (q5.d - LARGE_N5 - 0.4) / 5));
+    return capRoute + ecartAngle(long, capRoute) * k * k * (3 - 2 * k);
+  };
   function construireRoute(d) {
     vider(route);
     const etapes = d.route; // [[{ id, etat }], …] : la première, c'est le port
@@ -4203,10 +4279,10 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
         if (etapes[k].length > 1) {
           // un carrefour : la route se sépare à mi-chemin
           const tout = etapes[k].reduce((m, x) => m.add(pos(x.id)), v3(0, 0)).multiplyScalar(1 / etapes[k].length);
-          const f = pos(s).lerp(tout, 0.5);
-          const c1 = courbe(rivage(s, f), f, k % 2 ? 1 : -1, 0.08);
+          const f = carrefour(s, tout);
+          const c1 = courbe(rivage(s, f, 0.8), f, k % 2 ? 1 : -1, 0.08);
           vers.forEach((x, n) => {
-            const c2 = courbe(f, rivage(x.id, f), n ? -1 : 1, 0.14);
+            const c2 = courbe(f, rivage(x.id, f, 0.8), n ? -1 : 1, 0.14);
             if (courante) {
               etape.carrefour = f;
               if (d.vote) { etape.chemins = [c1]; etape.plages = [[0, 0.5]]; poserLeLong(route, c2, tiret, matTiret, 1.8); }
@@ -4255,10 +4331,10 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     const vers = etapes[k].filter((x) => x.etat !== "ecartee");
     if (etapes[k].length > 1) {
       const tout = etapes[k].reduce((m, x) => m.add(pos(x.id)), v3(0, 0)).multiplyScalar(1 / etapes[k].length);
-      const f = pos(s0).lerp(tout, 0.5);
-      const c1 = courbe(rivage(s0, f), f, k % 2 ? 1 : -1, 0.08);
+      const f = carrefour(s0, tout);
+      const c1 = courbe(rivage(s0, f, 0.8), f, k % 2 ? 1 : -1, 0.08);
       if (d.vote || !vers.length) return { chemins: [c1], plages: [[0, 0.5]] };
-      const c2 = courbe(f, rivage(vers[vers.length - 1].id, f), vers.length > 1 ? -1 : 1, 0.14);
+      const c2 = courbe(f, rivage(vers[vers.length - 1].id, f, 0.8), vers.length > 1 ? -1 : 1, 0.14);
       return { chemins: [c1, c2], plages: [[0, 0.5], [0.5, 1]] };
     }
     const b = etapes[k][0].id;
@@ -4775,8 +4851,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const { pos: p, dir } = surRoute(progres);
       // pendant un défi, le navire quitte sa route pour l'arène : la fête dit où il est vraiment
       const q = fete.pose(donnees.flotte?.id || "moi", p, dir, dt);
+      contourner(q);
       porteur.position.set(q.x, 0, q.z);
-      porteur.rotation.y = q.cap;
+      porteur.rotation.y = q.m > 0.001 ? q.cap : aQuai(q.x, q.z, q.cap);
       coupCanon = q.roulis;
     }
     const houle = evenement?.type === "tempete" ? 2.4 : 1;
@@ -4791,9 +4868,14 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       const { pos: p, dir } = surChemins(f.etape, f.progres);
       // deux navires au même endroit (au port, au départ) : on les décale un peu
       const ecart = p.distanceTo(porteur.position) < 6 ? f.decal * 5.5 : 0;
-      const q = fete.pose(id, pRoute.set(p.x - dir.z * ecart, 0, p.z + dir.x * ecart), dir, dt);
+      // à quai près d'une île niveau 5, les navires sont de flanc : le suivant se met au large du premier (à couple)
+      const quai = ecart ? pres5(p.x, p.z) : null;
+      if (quai && quai.d < LARGE_N5 + 3) pRoute.set(p.x + quai.ux * ecart * 0.62, 0, p.z + quai.uz * ecart * 0.62);
+      else pRoute.set(p.x - dir.z * ecart, 0, p.z + dir.x * ecart);
+      const q = fete.pose(id, pRoute, dir, dt);
+      contourner(q);
       f.porteur.position.set(q.x, 0, q.z);
-      f.porteur.rotation.y = q.cap;
+      f.porteur.rotation.y = q.m > 0.001 ? q.cap : aQuai(q.x, q.z, q.cap);
       if (f.navire) {
         f.navire.position.y = 0.05 + Math.sin(s * 1.6 + f.decal) * 0.14;
         f.navire.rotation.x = Math.sin(s * 1.2 + f.decal) * 0.05 + q.roulis;
@@ -4954,6 +5036,6 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // l'ambiance : { phase: "jour" | "aube" | "crepuscule" | "nuit", nuit: 0…1, or: 0…1 } (site.js la donne, à l'heure de Paris)
   const reglerAmbiance = (a) => fete.ambiance(a);
   const feter = (n) => fete.feter(porteur.position.x, porteur.position.z, n || 7, { large: 18 });
-  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, ambiance: reglerAmbiance, feter, saut: () => fete.saut(), mode: () => mode, etat: () => ({ fete: fete.etat(), leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), niveau5: [...iles.values()].filter((i) => i.modele && i.niveau === 5).map((i) => i.id), vitres: Math.round((matVitre?.opacity || 0) * 100) / 100, vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
+  return { voirIle, maj, taille, vue, zoomer, demarrer, arreter, tropLent, detruire, ambiance: reglerAmbiance, feter, saut: () => fete.saut(), mode: () => mode, etat: () => ({ fete: fete.etat(), leger, progres, progresVoulu, mode, navire: porteur.position.clone(), camera: camera.position.clone(), modeles: [...iles.values()].filter((i) => i.modele).map((i) => i.id), niveau5: [...iles.values()].filter((i) => i.modele && i.niveau === 5).map((i) => i.id), iles5: ilesV5.filter((id) => iles.get(id) && RAYON_N5[id]).map((id) => [id, Math.round(iles.get(id).x * 100) / 100, Math.round(iles.get(id).z * 100) / 100, RAYON_N5[id] + LARGE_N5]), vitres: Math.round((matVitre?.opacity || 0) * 100) / 100, vie: vie.length, pluies: pluies.length, navireBlender: Boolean(navire.userData.blender), erreurs, images, creatures: [...glbCreatures.keys()], mouettes: mouettes.length, evenementModele: Boolean(evenement?.groupe.userData.modele?.()), flotte: [...flotte].map(([id, f]) => ({ id, blender: Boolean(f.navire), x: f.porteur.position.x, z: f.porteur.position.z })) }) };
 }
 export { lireGLB, sceneGLB, habiller, animateurs, themeNavire, creerTrainee, pastille, toile };
