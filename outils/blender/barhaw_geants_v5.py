@@ -24,13 +24,14 @@ T, Rz, Rx, Ry = N.T, N.Rz, N.Rx, N.Ry
 R_SOL = 10.0
 ZQ = 0.42
 NOMBRIL = (-0.45, 0.0)
+R_RONDE = 0.42  # le sentier qui fait le tour de la mare du Nombril
 PISTES = []
 # le corps : (genre, données, hauteur, forme) ; « bosse » : centre, rayons ; « membre » : deux bouts, rayon
 CORPS = [  # (le dernier nombre : la part du rayon qui reste à plat sur le dessus)
     ("bosse", (-4.95, 0.0, 1.5, 1.3), 1.5, 0.25),  # la tête : un crâne rond, le visage tourné vers le ciel
     ("bosse", (-3.7, 0.0, 0.55, 0.7), 0.8, 0.2),  # le cou
     ("bosse", (-2.55, 0.0, 1.35, 1.95), 1.6, 0.35),  # la poitrine
-    ("bosse", (-0.55, 0.0, 1.7, 1.85), 1.45, 0.45),  # le ventre (le hameau)
+    ("bosse", (-0.55, 0.0, 1.8, 1.95), 1.45, 0.5),  # le ventre : bien rond, un replat sur le dessus pour le hameau
     ("membre", ((-3.1, 1.95), (-1.5, 2.35)), 0.75, 0.6),  # les bras
     ("membre", ((-3.1, -1.95), (-1.5, -2.35)), 0.75, 0.6),
     ("membre", ((-1.5, 2.35), (0.35, 2.6)), 0.6, 0.52),  # les avant-bras
@@ -153,7 +154,9 @@ def terrain(x, y):
     if d < 0:
         return max(-1.5, 0.45 * d)
     h = 0.36 * K.lisse(0.0, 0.9, d) + (K.bruit2(x * 0.8, y * 0.8, 31) - 0.5) * 0.08 * K.lisse(0.4, 1.4, d)
-    return h + corps(x, y) * K.lisse(0.15, 1.0, d) + (K.bruit2(x * 1.6, y * 1.6, 32) - 0.5) * 0.06 * min(1.0, corps(x, y))
+    h += corps(x, y) * K.lisse(0.15, 1.0, d) + (K.bruit2(x * 1.6, y * 1.6, 32) - 0.5) * 0.06 * min(1.0, corps(x, y))
+    dn = math.hypot(x - NOMBRIL[0], y - NOMBRIL[1])
+    return h - 0.08 * (1 - K.lisse(0.16, 0.34, dn)) if dn < 0.34 else h  # le creux du Nombril, où l'eau de pluie fait une mare
 
 
 sol = terrain
@@ -224,11 +227,11 @@ def doigt(L, a, b, r, nb=3, mat="roche_geant"):
         L.ajouter(*N.sphere(r * (1.05 - 0.12 * k), 7, 5), mat, T(*pts[k]))
 
 
-def maisonnette(L, V, rng, x, y, z, cap, lx=0.8, ly=0.62, hm=0.46, ht=0.36, mur="crepi_ocre", toit="chaume"):
+def maisonnette(L, V, rng, x, y, z, cap, lx=0.8, ly=0.62, hm=0.46, ht=0.36, mur="crepi_ocre", toit="chaume", socle=0.3):
     """Une maison du hameau : un soubassement de pierre, des murs crépis, un toit de chaume, une porte, des fenêtres
     (allumées la nuit), une cheminée."""
     M = T(x, y, z) @ Rz(cap)
-    L.ajouter(*N.boite(lx + 0.04, ly + 0.04, 0.3, haut=False), "pierres", M @ T(0, 0, -0.24))
+    L.ajouter(*N.boite(lx + 0.04, ly + 0.04, socle, haut=False), "pierres", M @ T(0, 0, 0.06 - socle))  # (plus haut au bord du replat : il descend dans la pente)
     L.ajouter(*N.boite(lx, ly, hm - 0.06, haut=False), mur, M @ T(0, 0, 0.06))
     L.ajouter(*N.pignons(lx, ly, ht), mur, M @ T(0, 0, hm))
     v, f = N.toit_pignon(lx, ly, ht, 0.12, 0.07)
@@ -279,9 +282,10 @@ def _mailles(graine, leger):
 
     quai_mer, quai_terre = vers(-90, -1.5), vers(-90, 0.7)
     montee = [quai_terre, (0.9, -4.05), (1.9, -3.75), (2.4, -3.45)]  # le long de la grève, jusqu'à la main
-    ronde = [(NOMBRIL[0] + math.cos(a) * 0.62, NOMBRIL[1] + math.sin(a) * 0.62) for a in np.arange(0, 2 * PI - 0.01, PI / 6)]
-    vers_poitrine = [(NOMBRIL[0] - 0.62, NOMBRIL[1] + 0.05), (-1.6, 0.3), (-2.5, 0.35), (-3.15, 0.25)]
-    vers_genou = [(NOMBRIL[0] + 0.6, NOMBRIL[1] + 0.2), (0.55, 0.62), (1.5, 0.85), (2.35, 0.93)]
+    # (le tour de la mare, serré : les maisons du hameau tiennent sur le replat du ventre, autour)
+    ronde = [(NOMBRIL[0] + math.cos(a) * R_RONDE, NOMBRIL[1] + math.sin(a) * R_RONDE) for a in np.arange(0, 2 * PI - 0.01, PI / 8)]
+    vers_poitrine = [(NOMBRIL[0] - R_RONDE, NOMBRIL[1]), (-1.6, 0.3), (-1.7, 0.5), (-2.2, 0.8), (-2.5, 0.35), (-3.15, 0.25)]  # (un lacet pour monter sur la poitrine)
+    vers_genou = [(NOMBRIL[0] + R_RONDE * math.cos(PI / 6), NOMBRIL[1] + R_RONDE * math.sin(PI / 6)), (0.55, 0.62), (1.5, 0.85), (2.35, 0.93)]
     PISTES[:] = [[(x, y, 0.0) for x, y in pts] for pts in (montee, ronde + ronde[:1], vers_poitrine, vers_genou)]
     couloirs = [(pts, 0.13) for pts in PISTES]
     loin = lambda x, y, r: all(K.distance_au_trajet(x, y, pts) > r + rc + 0.05 for pts, rc in couloirs)
@@ -394,18 +398,26 @@ def _mailles(graine, leger):
     etape("le hameau du Ventre")
     # --- le hameau autour du Nombril (une mare), le puits, des lanternes ; le moulin du Genou ---
     zn = terrain(*NOMBRIL)
-    L.ajouter(*N.cylindre(0.33, 0.33, 0.02, 16, bas=False), "eau_bassin", T(NOMBRIL[0], NOMBRIL[1], zn - 0.02))
-    for k in range(10):
-        a = k * 2 * PI / 10
-        roc(L, rng, NOMBRIL[0] + math.cos(a) * 0.37, NOMBRIL[1] + math.sin(a) * 0.37, zn - 0.04, 0.07, 0.7, "pierres_claires", 5)
-    SOL.append(("decor", "le Nombril", Vf.rond(NOMBRIL[0], NOMBRIL[1], 0.45, 12)))
-    for k, (x, y, cap) in enumerate(((-1.4, -1.05, 0.3), (0.5, -1.12, -0.25), (-1.45, 1.05, 2.9), (0.45, 1.15, 3.4), (-0.45, 1.42, 3.1), (-0.5, -1.45, 0.05))[: 3 if leger else 6]):
-        if libre(x, y, 0.6, 0.7):
-            SOL.append(("decor", f"une maison ({x:.1f}, {y:.1f})", maisonnette(L, V, rng, x, y, terrain(x, y), cap, mur=("crepi_ocre", "crepi_blanc", "crepi_rose")[k % 3])))
-    for x, y in [(NOMBRIL[0] + math.cos(math.radians(g)) * 0.95, NOMBRIL[1] + math.sin(math.radians(g)) * 0.95) for g in (40, 140, 220, 320, 270)][: 2 if leger else 4]:
-        if libre(x, y, 0.06, 0.8):
+    L.ajouter(*N.cylindre(0.28, 0.28, 0.02, 16, bas=False), "eau_bassin", T(NOMBRIL[0], NOMBRIL[1], zn + 0.004))  # (le bord sous l'herbe)
+    for k in range(12):
+        a = k * 2 * PI / 12 + rng.uniform(-0.12, 0.12)
+        px, py = NOMBRIL[0] + math.cos(a) * 0.29, NOMBRIL[1] + math.sin(a) * 0.29
+        roc(L, rng, px, py, terrain(px, py) - 0.015, rng.uniform(0.038, 0.05), 0.7, "pierres_claires", 5)
+    SOL.append(("decor", "le Nombril", Vf.rond(NOMBRIL[0], NOMBRIL[1], 0.33, 12)))
+    # les maisons, posées sur le replat du ventre, la porte vers la mare (pas sur la pente : elles ne glissent pas)
+    # (trois seulement : les deux sentiers, vers la poitrine et vers le genou, laissent la place de trois maisons autour)
+    for k, (g, lx, ly, r) in enumerate(((105, 0.62, 0.5, 0.86), (225, 0.6, 0.5, 0.86), (288, 0.58, 0.48, 0.845))):
+        a = math.radians(g)
+        x, y = NOMBRIL[0] + math.cos(a) * r, NOMBRIL[1] + math.sin(a) * r
+        if libre(x, y, 0.22, 0.7):
+            SOL.append(("decor", f"une maison ({x:.1f}, {y:.1f})", maisonnette(L, V, rng, x, y, terrain(x, y), a - PI / 2, lx, ly, 0.52, 0.32, mur=("crepi_ocre", "crepi_blanc", "crepi_rose")[k % 3], socle=0.62)))
+    poses = 0
+    for g, r in ((160, 0.72), (265, 0.7), (345, 0.68), (60, 0.72), (200, 0.74)):
+        x, y = NOMBRIL[0] + math.cos(math.radians(g)) * r, NOMBRIL[1] + math.sin(math.radians(g)) * r
+        if poses < (2 if leger else 4) and libre(x, y, 0.06, 0.8):
             P.lampadaire(L, U, x, y, terrain(x, y))
             SOL.append(("rocher", "une lanterne", Vf.rond(x, y, 0.06)))
+            poses += 1
     gx, gy = 3.05, 1.0
     if libre(gx, gy, 0.35, 1.0):
         SOL.append(("decor", "le moulin du Genou", moulin(L, lots, gx, gy, terrain(gx, gy), math.radians(30))))
@@ -423,6 +435,9 @@ def _mailles(graine, leger):
         P.passant(L, rng, bx + 0.25, by + 0.1, angle=PI + 0.3, z=terrain(bx + 0.25, by + 0.1))
         SOL.append(("passant", "le berger", Vf.rond(bx + 0.25, by + 0.1, 0.065)))
         P.lampadaire(L, U, bx - 0.3, by + 0.05, terrain(bx - 0.3, by + 0.05), 0.45)
+    hx, hy = -2.7, -0.22  # la cabane du berger, en pierres sèches, la porte tournée vers son feu
+    if not leger and libre(hx, hy, 0.3, 1.0):
+        SOL.append(("decor", "la cabane du berger", maisonnette(L, V, rng, hx, hy, terrain(hx, hy), 0.44, 0.5, 0.42, 0.42, 0.28, mur="pierres", socle=0.4)))
     moutons, hasard = 0, random.Random(41)
     for _ in range(200):
         if moutons >= (6 if leger else 14):
@@ -462,7 +477,7 @@ def _mailles(graine, leger):
             SOL.append(("arbre", "un arbre", Vf.rond(x, y, 0.22)))
 
     etape("la vie")
-    for k, (x, y, cap) in enumerate(((-0.95, -0.45, 0.4), (0.1, 0.5, 2.5), (1.1, -0.3, 3.4))[: 2 if leger else 3]):
+    for k, (x, y, cap) in enumerate(((NOMBRIL[0] + 0.68, NOMBRIL[1] - 0.2, 2.9), (-2.35, -0.05, 3.3), (1.1, -0.3, 3.4))[: 2 if leger else 3]):
         if libre(x, y, 0.07, 0.8):
             P.passant(L, rng, x, y, angle=cap, z=terrain(x, y))
             SOL.append(("passant", "un habitant", Vf.rond(x, y, 0.065)))
@@ -517,5 +532,5 @@ def verifier(lots=None, leger=False):
 
 def construire(rendu=True, cuire=True, exporter=True, taille=None, echantillons=48, leger=False, alleger=True):
     lots = mailles(leger=leger)
-    rendus = [("geants-v5", (1.0, -30.0, 17.0), (0.0, 0.0, 1.2), 50), ("geants-v5-visage", (-8.5, -4.5, 5.5), (-4.9, 0.0, 2.2), 40)] if rendu else []
+    rendus = [("geants-v5", (1.0, -30.0, 17.0), (0.0, 0.0, 1.2), 50), ("geants-v5-visage", (-8.5, -4.5, 5.5), (-4.9, 0.0, 2.2), 40), ("geants-v5-hameau", (2.6, -5.2, 5.0), (-0.6, 0.0, 1.85), 55)] if rendu else []
     return K.construire("ile-geants-v5", lots, verifier(lots), rendus, cuire, exporter, taille or (2048 if leger else 3072), echantillons, leger, alleger, atlas="geants")
