@@ -3764,7 +3764,8 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // les créatures (le monstre, la mouette, la bouteille) : chaque fichier se lit une fois, chaque copie est neuve
   const glbCreatures = new Map();
   function creature(nom, contour) {
-    if (!glbCreatures.has(nom)) glbCreatures.set(nom, lireGLB(`${modeles}${nom}.glb`));
+    // niveau 5 (<nom>-v5.glb et son atlas) : la version légère au téléphone, comme les îles
+    if (!glbCreatures.has(nom)) glbCreatures.set(nom, /-v5$/.test(nom) ? lireV4(`${nom}.glb`) : lireGLB(`${modeles}${nom}.glb`));
     return glbCreatures.get(nom).then((glb) => {
       const modele = sceneGLB(glb);
       const { bouge, reperes } = habiller(modele, { relief: () => null, contour, cuit: glb.cuit });
@@ -4197,6 +4198,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // Avant, il se posait sur l'île (au Marché Flottant, sur la ronde des sampans). « part » : la part du chemin qu'il peut
   // prendre, pour que deux îles proches gardent un bout de route entre elles (0,42 d'île à île ; 0,8 jusqu'au carrefour).
   const RAYON_N5 = { ambre: 8.0, arbre: 7.8, archipel: 8.0, braise: 7.8, champignons: 7.6, cimetiere: 8.6, cristal: 8.5, engloutie: 7.9, forteresse: 8.4, geants: 8.6, givre: 7.8, horloge: 8.4, lucioles: 7.8, marais: 8.6, marche: 7.5, moussaillons: 8.4, phare: 8.5, recif: 7.7, tonnerre: 8.5, tresor: 8.6, vents: 8.1 };
+  const EVENEMENT_N5 = { fantome: 6.5, maitre: 5.5, bouteille: 1.8 }; // la demi-taille de ce qui surgit à côté du navire
   const LARGE_N5 = 2.8; // la demi-largeur du galion (vergues comprises), et un peu d'eau
   const rivage = (de, vers, part = 0.42) => {
     const i = iles.get(de);
@@ -4508,7 +4510,8 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       let corps = null;
       let anims = [];
       let sortie = 0;
-      creature("fantome", 0.03).then((c) => {
+      // niveau 5 : le vaisseau refait (fantome-v5.glb, la même taille) ; s'il manque, celui d'avant
+      (ilesV5.length ? creature("fantome-v5", 0.03).catch(() => creature("fantome", 0.03)) : creature("fantome", 0.03)).then((c) => {
         if (detruit) return;
         corps = c.modele;
         corps.scale.setScalar(1.5);
@@ -4921,7 +4924,24 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
     }
     if (evenement) {
       const decal = evenement.groupe.userData.decalage || v3(0, 0);
-      evenement.groupe.position.set(porteur.position.x + decal.x, 0, porteur.position.z + decal.z);
+      // ce qui surgit à côté du navire (le vaisseau fantôme, un maître, la bouteille) ne se pose pas sur une île niveau 5 :
+      // il tourne autour du navire (à la même distance, pour ne pas lui rentrer dedans) jusqu'à trouver de l'eau libre,
+      // au plus près de sa place d'avant ; il y glisse en douceur (à son apparition, il y est tout de suite)
+      const taille = decal.x || decal.z ? EVENEMENT_N5[evenement.type] || 0 : 0;
+      const ou = (a) => { const c = Math.cos(a), sn = Math.sin(a); return [porteur.position.x + decal.x * c - decal.z * sn, porteur.position.z + decal.x * sn + decal.z * c]; };
+      const libre = ([x, z]) => ilesV5.every((id) => { const i = iles.get(id); return !i || !RAYON_N5[id] || Math.hypot(x - i.x, z - i.z) >= RAYON_N5[id] + taille; });
+      const u = evenement.groupe.userData;
+      if (taille && !libre(ou(u.cible ?? 0))) {
+        const avant = u.cible ?? 0;
+        for (let k = 1; k <= 18; k++) {
+          const a = [avant + (k * Math.PI) / 18, avant - (k * Math.PI) / 18].find((b) => libre(ou(b)));
+          if (a !== undefined) { u.cible = a; break; }
+        }
+      }
+      if (u.angle === undefined) u.angle = u.cible ?? 0;
+      u.angle += ((u.cible ?? 0) - u.angle) * Math.min(1, dt * 1.5);
+      const [ex, ez] = ou(u.angle);
+      evenement.groupe.position.set(ex, 0, ez);
       evenement.maj(s, dt);
     }
     // la mer qui vit (V4)
