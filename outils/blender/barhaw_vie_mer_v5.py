@@ -68,12 +68,15 @@ class Sorte:
 # ---------------------------------------------------------------------------------------------------------------------
 def fuseau(L, sections, dos, ventre=None, n=14, seuil=-0.3, M=None):
     """Un corps fuselé le long de X : sections (x, demi-largeur, demi-hauteur, z du centre), d'un bout à l'autre ; les
-    bouts se ferment en pointe. Le ventre (les faces tournées vers le bas) prend une autre matière."""
+    bouts se ferment en pointe. Le ventre (les faces tournées vers le bas) prend une autre matière. Le motif est déroulé
+    d'un seul tenant (le tour de chaque anneau, la longueur du corps) : pas de coutures en damier sur la peau, et une
+    seule carte dans l'atlas pour le dos, une pour le ventre (la couture est cachée dessous)."""
     n = N._cotes(n)
+    ang = lambda k: -PI / 2 + k * 2 * PI / n  # k = 0 : sous le ventre
     v = []
     for x, ry, rz, zc in sections:
         for k in range(n):
-            a = k * 2 * PI / n
+            a = ang(k)
             v.append((x, math.cos(a) * ry, zc + math.sin(a) * rz))
     nb = len(sections)
     x0, x1 = sections[0][0], sections[-1][0]
@@ -81,22 +84,36 @@ def fuseau(L, sections, dos, ventre=None, n=14, seuil=-0.3, M=None):
     v.append((x0 - sens * 0.02, 0, sections[0][3]))
     v.append((x1 + sens * 0.02, 0, sections[-1][3]))
     a0, a1 = len(v) - 2, len(v) - 1
-    haut, bas = [], []
+    long = [0.0]
+    for j in range(1, nb):
+        long.append(long[-1] + math.hypot(sections[j][0] - sections[j - 1][0], sections[j][3] - sections[j - 1][3]))
+    pas = [PI * (1.5 * (ry + rz) - math.sqrt(ry * rz)) / n for _, ry, rz, _ in sections]  # le tour de l'ellipse, divisé
+    haut, bas = N.Faces(), N.Faces()
+    haut.deroule, bas.deroule = [], []
 
-    def ranger(face, ks):
-        s = sum(math.sin(k * 2 * PI / n) for k in ks) / len(ks)
-        (bas if ventre and s < seuil else haut).append(face)
+    def ranger(face, ks, dr):
+        s = sum(math.sin(ang(k)) for k in ks) / len(ks)
+        if ventre and s < seuil:
+            bas.append(face)
+            bas.deroule.append(None if dr is None else [(u - (n * pj if ks[0] >= n // 2 else 0), w) for (u, w), pj in dr])
+        else:
+            haut.append(face)
+            haut.deroule.append(None if dr is None else [(u, w) for (u, w), _ in dr])
 
     for j in range(nb - 1):
+        pj, pk, vj, vk = pas[j], pas[j + 1], long[j], long[j + 1]
         for k in range(n):
             a, b = j * n + k, j * n + (k + 1) % n
-            f = (a, b, b + n, a + n) if sens > 0 else (a, a + n, b + n, b)  # tournées vers dehors (la cuisson part de la face)
-            ranger(f, (k, (k + 1) % n))
+            if sens > 0:
+                f, dr = (a, b, b + n, a + n), [((k * pj, vj), pj), (((k + 1) * pj, vj), pj), (((k + 1) * pk, vk), pk), ((k * pk, vk), pk)]
+            else:
+                f, dr = (a, a + n, b + n, b), [((k * pj, vj), pj), ((k * pk, vk), pk), (((k + 1) * pk, vk), pk), (((k + 1) * pj, vj), pj)]
+            ranger(f, (k, (k + 1) % n), dr)
     for k in range(n):
         k2 = (k + 1) % n
-        ranger((a0, k2, k) if sens > 0 else (a0, k, k2), (k, k2))
+        ranger((a0, k2, k) if sens > 0 else (a0, k, k2), (k, k2), None)
         e = (nb - 1) * n
-        ranger((a1, e + k, e + k2) if sens > 0 else (a1, e + k2, e + k), (k, k2))
+        ranger((a1, e + k, e + k2) if sens > 0 else (a1, e + k2, e + k), (k, k2), None)
     L.ajouter(v, haut, dos, M, doux=True)
     if bas:
         L.ajouter(v, bas, ventre, M, doux=True)
@@ -120,7 +137,10 @@ def surface(sections, x, a):
 
 def plaque(L, pts, ep, dessus, dessous=None, cote=None, M=None, bombe=0.0):
     """Une nageoire, une aile : un contour (x, y) plat, d'épaisseur ep (plus mince au bord), triangulé depuis son centre.
-    bombe : le centre bombé vers le haut."""
+    bombe : le centre bombé vers le haut. Le contour peut tourner dans un sens ou dans l'autre : on le remet dans le
+    sens inverse des aiguilles (sinon le dessus regarde vers le bas, et la cuisson le voit de l'intérieur : noir)."""
+    if sum(pts[k][0] * pts[(k + 1) % len(pts)][1] - pts[(k + 1) % len(pts)][0] * pts[k][1] for k in range(len(pts))) < 0:
+        pts = pts[::-1]
     cx = sum(p[0] for p in pts) / len(pts)
     cy = sum(p[1] for p in pts) / len(pts)
     n = len(pts)
