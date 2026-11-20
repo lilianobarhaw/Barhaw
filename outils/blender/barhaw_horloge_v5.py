@@ -163,6 +163,24 @@ def falaise(L, pas_deg=6):
         L.ajouter([pt(a1, -0.12, Z_P + 0.06), pt(a1, 0.02, Z_P + 0.06), pt(a2, 0.02, Z_P + 0.06), pt(a2, -0.12, Z_P + 0.06)], [(0, 1, 2, 3)], "pierres")  # la margelle
     for a in (angles[0], angles[-1]):  # les joues de l'escalier
         L.ajouter([pt(a, 0.02, Z_P + 0.06), pt(a, 0.3, Z_B - 0.1), pt(a, -0.6, Z_B - 0.1), pt(a, -0.6, Z_P + 0.06)], [(0, 1, 2, 3), (3, 2, 1, 0)], "falaise_horloge")
+    # la lunette : un jonc de laiton tout le long du bord, comme le cercle d'une montre (l'île est une montre posée sur la mer)
+    L.ajouter(*N.tube([pt(a, 0.0, Z_P + 0.1) for a in angles], 0.055, 6, bouts=True), "laiton")
+
+
+def couronne(L, a):
+    """La couronne de remontoir : sortie de la falaise du nord, comme celle d'une montre de gousset ; une tige, puis le
+    bouton de laiton strié."""
+    rp = r_plat(a)
+    M = T(math.cos(a) * rp, math.sin(a) * rp, (Z_P + Z_B) / 2 + 0.08) @ Rz(a) @ Ry(PI / 2)  # z local : vers le large
+    L.ajouter(*N.cylindre(0.13, 0.13, 0.5, 10), "laiton", M @ T(0, 0, 0.0))
+    L.ajouter(*N.cylindre(0.2, 0.2, 0.06, 14), "laiton", M @ T(0, 0, 0.42))
+    L.ajouter(*N.cylindre(0.4, 0.4, 0.34, 24, haut=False, bas=True), "laiton", M @ T(0, 0, 0.48))
+    for k in range(24):  # les stries
+        b = k * 2 * PI / 24
+        L.ajouter(*N.boite(0.05, 0.05, 0.34), "laiton", M @ T(math.cos(b) * 0.41, math.sin(b) * 0.41, 0.48) @ Rz(b))
+    v, f = N.sphere(0.4, 16, 6, 0.35)
+    L.ajouter(v, [q for q in f if all(v[i][2] >= -1e-6 for i in q)], "laiton", M @ T(0, 0, 0.82), doux=True)
+    return Vf.rond(math.cos(a) * (rp + 0.6), math.sin(a) * (rp + 0.6), 0.5)
 
 
 def marches(L, x, y0, y1, larg, nb):
@@ -352,6 +370,7 @@ def _mailles(graine, leger):
             a2 = math.atan2(c2[1], c2[0])
             engrenage(lots, c2, a, r2, -1 if k % 2 else 1, max(8, int(r2 * 14)), 0.14, "cuivre")
             L.ajouter(*N.cylindre(0.06, 0.06, 0.5, 8), "acier_noir", T(c2[0] - math.cos(a) * 0.42, c2[1] - math.sin(a) * 0.42, c2[2]) @ Rz(a) @ Ry(PI / 2))
+    SOL.append(("decor", "la couronne de remontoir", couronne(L, math.radians(106))))
     # le grand balancier : pendu à une potence au bord du plateau, il bat la mesure au-dessus de la grève de l'est
     ab = math.radians(-2)
     rb = r_plat(ab)
