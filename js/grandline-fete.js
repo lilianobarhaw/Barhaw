@@ -764,7 +764,11 @@ export function creerFete(ctx) {
           p.x = i.x + (r1 - 0.5) * i.r * 1.2 + u * 13 + Math.sin(s * 0.4 + k) * 0.9;
           p.z = i.z + (r2 - 0.5) * i.r * 1.2 - u * 4 + Math.cos(s * 0.33 + k) * 0.9;
           p.y = 1.5 + u * 30;
-          p.f = f * fondu;
+          // tout près de l'œil (on a zoomé sur l'île et elle monte vers lui), elle s'efface : sinon, une lanterne grande
+          // comme une maison passe devant l'île. On compare sa distance à l'œil à celle de l'île.
+          const dl = Math.hypot(camera.position.x - p.x, camera.position.y - p.y, camera.position.z - p.z);
+          const di = Math.hypot(camera.position.x - i.x, camera.position.y, camera.position.z - i.z) || 1;
+          p.f = f * fondu * lisse(0.25, 0.45, dl / di);
           volantes.poser(k, p.x, p.y, p.z, r3 * 6.28, 2.1 * Math.max(0.001, p.f), Math.sin(s * 0.8 + k) * 0.08, 0);
         }
         volantes.fin(nC);

@@ -417,6 +417,13 @@ def _mailles(graine, leger):
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "fumees", "points": [float(c) for p in fumees for c in p], "grosseur": 0.4}))
     lots["reperes"].append(((0.0, 0.0, 6.2), {"anim": "oiseaux", "nb": 4 if leger else 7, "rayon": 5.4, "envergure": 0.14}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 7.5, "genre": 2}))
+    # la nuit, le marché lâche ses lanternes (le site les dessine : grandline-3d.js, « lanternes ») : les grandes partent de
+    # la terrasse du château arrière, de la proue, du quai, du bout des trois bras et du ponton du nord, et montent dans le
+    # vent ; les petites descendent sur l'eau des deux chenaux du sud, entre les bateaux amarrés, vers le large
+    departs = [(bx - 1.68, by, ZD + 0.58), (bx + 2.05, by, ZD + 0.1), (-2.0, -0.3, ZP + 0.04), (1.8, -0.3, ZP + 0.04)]
+    departs += [(*le_long(k, 1.0, recul=0.15)[:2], ZP + 0.04) for k in (1, 2, 3)] + [(0.3, 2.4, ZP + 0.04)]
+    chenaux = [[(-1.35, -0.85), (-1.4, -2.0), (-1.45, -3.2), (-1.7, -4.6), (-2.0, -5.8)], [(1.15, -0.9), (1.27, -2.0), (1.62, -3.2), (1.95, -4.4), (2.3, -5.6)]]
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "lanternes", "departs": [round(float(c), 3) for p in departs for c in p], "chenaux": [float(c) for ch in chenaux for p in ch for c in p], "par": 5, "vent": [0.5, 0.3], "mer": 0.02, "nb": 7 if leger else 10}))
     for nom, e in coques[1:]:  # une amarre par bateau : de sa proue au ponton le plus proche
         ex, ey = (e[0][0] + e[1][0] + e[2][0] + e[3][0]) / 4, (e[0][1] + e[1][1] + e[2][1] + e[3][1]) / 4
         proue = max(((e[k][0] + e[(k + 1) % 4][0]) / 2, (e[k][1] + e[(k + 1) % 4][1]) / 2) for k in range(4)) if nom == "un caboteur" else ((e[1][0] + e[2][0]) / 2, (e[1][1] + e[2][1]) / 2)

@@ -1857,6 +1857,11 @@ function dessinReve(x, l, nom) {
 // Blender y mettra à la prochaine cuisson : outils/blender/barhaw_horloge_v5.py, donnees_heures). « ici » : sa place
 // (x, y, z de Blender) ; le reste, ses données (des points de Blender, comme pour les autres repères)
 const REPERES_SITE = {
+  cristal: [{ anim: "prismes", ici: [0.0, 0.0, 0.0], cap: 0.8921, taches: [1.481,3.436,1.013,1.3,0.52,-2.2,0.049,1.017,1.13,0.495,-3.951,3.051,0.442,1.05,0.475,-4.982,-2.209,0.453,1.19,0.51,-1.604,-4.616,0.442,1.12,0.493,3.52,-2.941,0.45,1.19,0.51] }],
+  engloutie: [{ anim: "noyee", ici: [0.0, 0.0, 0.0], mer: 0.02, points: [2.41,0.97,1.97,2.52,-1.86,2.22,-2.23,0.9,-3.14,-1.02,-1.81,-2.01,2.23,-2.01,2.3,-0.7] }],
+  marche: [{ anim: "lanternes", ici: [0.0, 0.0, 0.0], departs: [-1.68,0.92,1.0,2.05,0.92,0.52,-2.0,-0.3,0.21,1.8,-0.3,0.21,-3.219,-3.553,0.21,0.192,-4.25,0.21,3.264,-3.354,0.21,0.3,2.4,0.21], chenaux: [-1.35,-0.85,-1.4,-2.0,-1.45,-3.2,-1.7,-4.6,-2.0,-5.8,1.15,-0.9,1.27,-2.0,1.62,-3.2,1.95,-4.4,2.3,-5.6], par: 5, vent: [0.5, 0.3], mer: 0.02, nb: 10 }],
+  moussaillons: [{ anim: "cerfsvolants", ici: [0.0, 0.0, 0.0], vent: [0.3, 1.0], ancres: [0.92, -5.23, 0.23, -5.45, -4.57, 0.25, 4.72, -2.2, 0.2] }],
+  recif: [{ anim: "meduses", ici: [0.0, 0.0, 0.0], nb: 7, rayon: 2.6, mer: 0.03 }],
   forteresse: [{ anim: "garde", ici: [0.0, 0.85, 3.75], donjon: [0.0, 0.85, 3.75], canons: [1.524,-2.319,2.22,-1.73,1.735,-2.166,2.22,-0.155,0.131,2.772,2.22,0.783,-0.131,2.772,2.22,-3.925,-1.735,-2.166,2.22,-2.987,-1.524,-2.319,2.22,-1.412] }],
   geants: [{ anim: "sommeil", ici: [-4.95, 0.1, 2.35], cadence: 8 }],
   horloge: [{ anim: "heures", ici: [0.0,0.7,1.468], cloche: [0.0,0.7,6.138], coucou: [0.0,0.08,5.888], events: [1.981,-3.432,2.07,-0.669,3.793,2.07], rayon: 8.0, haut: 2.3, heure: [0,0,1,2,3,4,5,7,8,9,10,11], index: [0.142,3.327,1.449,0.142,3.967,1.455,0.058,3.967,1.454,0.058,3.327,1.448,-0.058,3.327,1.448,-0.058,3.967,1.454,-0.142,3.967,1.455,-0.142,3.327,1.449,1.838,3.087,1.481,2.158,3.641,1.48,2.074,3.689,1.479,1.754,3.135,1.482,3.196,1.79,1.454,3.751,2.11,1.46,3.703,2.193,1.461,3.148,1.873,1.455,3.775,-0.07,1.461,4.415,-0.07,1.471,4.415,0.07,1.471,3.775,0.07,1.461,2.84,-1.695,1.472,3.395,-2.015,1.469,3.443,-1.932,1.469,2.888,-1.612,1.472,1.68,-3.005,1.473,2.0,-3.56,1.471,2.083,-3.512,1.47,1.763,-2.957,1.473,-1.794,-3.011,1.474,-2.114,-3.565,1.47,-2.031,-3.613,1.471,-1.711,-3.059,1.475,-3.052,-1.707,1.453,-3.606,-2.027,1.453,-3.558,-2.11,1.452,-3.004,-1.79,1.453,-3.385,0.07,1.455,-4.025,0.07,1.462,-4.025,-0.07,1.462,-3.385,-0.07,1.455,-3.312,1.968,1.452,-3.866,2.288,1.453,-3.914,2.205,1.452,-3.36,1.885,1.452,-1.786,3.189,1.466,-2.106,3.743,1.466,-2.189,3.695,1.466,-1.869,3.141,1.466], lunette: [0.464,-4.463,1.55,0.469,-4.463,1.55,0.939,-4.418,1.55,1.397,-4.299,1.55,1.824,-4.096,1.55,2.206,-3.821,1.55,2.543,-3.5,1.55,2.845,-3.16,1.55,3.13,-2.818,1.55,3.414,-2.481,1.55,3.704,-2.139,1.55,3.994,-1.778,1.55,4.267,-1.386,1.55,4.498,-0.956,1.55,4.663,-0.49,1.55,4.745,0.0,1.55,4.738,0.498,1.55,4.646,0.988,1.55,4.484,1.457,1.55,4.268,1.9,1.55,4.012,2.317,1.55,3.727,2.708,1.55,3.414,3.074,1.55,3.07,3.41,1.55,2.693,3.706,1.55,2.281,3.951,1.55,1.841,4.134,1.55,1.382,4.252,1.55,0.916,4.309,1.55,0.454,4.318,1.55,0.0,4.297,1.55,-0.448,4.262,1.55,-0.898,4.223,1.55,-1.357,4.176,1.55,-1.83,4.11,1.55,-2.312,4.005,1.55,-2.788,3.838,1.55,-3.236,3.594,1.55,-3.629,3.268,1.55,-3.947,2.867,1.55,-4.176,2.411,1.55,-4.319,1.923,1.55,-4.388,1.426,1.55,-4.404,0.936,1.55,-4.388,0.461,1.55,-4.355,0.0,1.55,-4.313,-0.453,1.55,-4.255,-0.904,1.55,-4.171,-1.355,1.55,-4.046,-1.801,1.55,-3.868,-2.233,1.55,-3.634,-2.64,1.55,-3.345,-3.012,1.55,-3.011,-3.344,1.55,-2.639,-3.632,1.55,-2.237,-3.875,1.55,-1.813,-4.072,1.55,-1.372,-4.223,1.55,-0.921,-4.332,1.55,-0.463,-4.407,1.55,-0.458,-4.407,1.55] }],
@@ -3019,6 +3024,333 @@ function effetRepere(r) {
       pivot.rotation.y = s * 0.16;
       pivot.visible = L > 0.02;
       for (const cone of pivot.children) cone.material.opacity = 0.11 * L;
+    };
+  } else if (genre === "cerfsvolants") {
+    // la Plage des Moussaillons : les mousses font voler leurs cerfs-volants au-dessus de la plage, la ficelle nouée à un
+    // piquet dans le sable ; ils dansent dans le vent (un huit lent), leur queue de nœuds ondule, la ficelle pend un peu.
+    const d = r.userData;
+    const ici = (t, k) => new THREE.Vector3(t[k] - r.position.x, t[k + 2] - r.position.y, -t[k + 1] - r.position.z);
+    const ancres = [];
+    if (Array.isArray(d.ancres)) for (let k = 0; k + 2 < d.ancres.length; k += 3) ancres.push(ici(d.ancres, k));
+    const vent = new THREE.Vector3(d.vent?.[0] ?? 0.3, 0, -(d.vent?.[1] ?? 1)).normalize(); // (x, y de Blender)
+    const HAUT = new THREE.Vector3(0, 1, 0);
+    const COULEURS = [[0xe8463a, 0xffd23f], [0x2f7fd8, 0xf6f2e6], [0x37b36b, 0xff8f2e], [0x9b59d0, 0xffe066]];
+    const bois = new THREE.MeshBasicMaterial({ color: 0x6b4a2b });
+    const trait = new THREE.LineBasicMaterial({ color: 0x3a2a1c });
+    const fil = new THREE.LineBasicMaterial({ color: 0xf1ead8, transparent: true, opacity: 0.85 });
+    const tri = (a, b, c, couleur) => new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([a, b, c]), new THREE.MeshBasicMaterial({ color: couleur, side: THREE.DoubleSide }));
+    const cerfs = ancres.map((a, k) => {
+      const [c1, c2] = COULEURS[k % COULEURS.length];
+      const piquet = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.3, 6), bois);
+      piquet.position.copy(a).add(new THREE.Vector3(0, 0.15, 0));
+      const cerf = new THREE.Group();
+      const H = new THREE.Vector3(0, 0.65, 0), B = new THREE.Vector3(0, -0.72, 0), G = new THREE.Vector3(-0.42, 0.13, 0), D = new THREE.Vector3(0.42, 0.13, 0); // (1,3 fois la taille d'un vrai : on le voit de loin)
+      cerf.add(tri(H, G, B, c1), tri(H, B, D, c2));
+      cerf.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([H, B, G, D]), trait));
+      const noeuds = Array.from({ length: 6 }, (_, j) => {
+        const n = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.08), new THREE.MeshBasicMaterial({ color: j % 2 ? c1 : c2, side: THREE.DoubleSide }));
+        g.add(n);
+        return n;
+      });
+      const pos = new Float32Array(10 * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const ficelle = new THREE.Line(geo, fil);
+      ficelle.frustumCulled = false;
+      g.add(piquet, cerf, ficelle);
+      return { a: piquet.position.clone().add(new THREE.Vector3(0, 0.15, 0)), cerf, noeuds, geo, pos, ph: k * 2.1, L: 3.3 + 0.4 * k };
+    });
+    const dir = new THREE.Vector3(), p = new THREE.Vector3(), x = new THREE.Vector3(), y = new THREE.Vector3(), z = new THREE.Vector3(), m = new THREE.Matrix4(), bas = new THREE.Vector3();
+    maj = (s) => {
+      for (const c of cerfs) {
+        const el = 0.85 + 0.1 * Math.sin(0.6 * s + c.ph) + 0.08 * Math.sin(0.84 * s + 2 * c.ph);
+        const az = 0.35 * Math.sin(0.42 * s + c.ph);
+        dir.copy(vent).applyAxisAngle(HAUT, az);
+        p.copy(c.a).addScaledVector(dir, c.L * Math.cos(el)).addScaledVector(HAUT, c.L * Math.sin(el));
+        c.cerf.position.copy(p);
+        // la face tournée vers le piquet, le nez vers le ciel ; il penche dans ses virages
+        z.subVectors(c.a, p).normalize().addScaledVector(HAUT, 0.9).normalize();
+        x.crossVectors(HAUT, z).normalize();
+        y.crossVectors(z, x);
+        m.makeBasis(x, y, z);
+        c.cerf.quaternion.setFromRotationMatrix(m);
+        c.cerf.rotateZ(-az * 0.9);
+        // la ficelle : du piquet au cerf-volant, avec un peu de mou
+        for (let j = 0; j < 10; j++) {
+          const u = j / 9;
+          c.pos[j * 3] = c.a.x + (p.x - c.a.x) * u;
+          c.pos[j * 3 + 1] = c.a.y + (p.y - c.a.y) * u - 0.35 * 4 * u * (1 - u);
+          c.pos[j * 3 + 2] = c.a.z + (p.z - c.a.z) * u;
+        }
+        c.geo.attributes.position.needsUpdate = true;
+        // la queue : des nœuds qui pendent sous le cerf-volant et ondulent
+        bas.set(0, -0.72, 0).applyQuaternion(c.cerf.quaternion).add(p);
+        c.noeuds.forEach((n, j) => {
+          const t = j + 1;
+          n.position.copy(bas).addScaledVector(HAUT, -0.17 * t).addScaledVector(dir, 0.07 * t).addScaledVector(x, Math.sin(s * 4.2 - t * 0.9 + c.ph) * 0.05 * t);
+          n.quaternion.copy(c.cerf.quaternion);
+          n.rotateZ(Math.sin(s * 4.2 - t * 0.9) * 0.6);
+        });
+      }
+    };
+  } else if (genre === "meduses") {
+    // le Récif des Murmures : des méduses flottent dans le lagon, leurs cloches translucides battent doucement et elles
+    // tournent lentement autour du lagon ; la nuit, elles s'allument (bleu et rose, dans le calque) : c'est le murmure du récif.
+    const d = r.userData;
+    const nb = Math.max(1, Math.min(12, d.nb || 7));
+    const rayon = d.rayon || 2.6;
+    const eau = (d.mer ?? 0.03) - r.position.y;
+    const calque = new THREE.Group();
+    g.userData.calque = calque;
+    const alea = (n) => { const v = Math.sin(n * 127.1 + 11.7) * 43758.5453; return v - Math.floor(v); };
+    const TEINTES = [0x8fd8ff, 0xff9ad5, 0xb6a8ff];
+    const meduses = Array.from({ length: nb }, (_, k) => {
+      const c = TEINTES[k % TEINTES.length];
+      const cloche = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.55, depthWrite: false }));
+      const coeur = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }));
+      coeur.position.y = 0.05;
+      cloche.add(coeur);
+      const lueur = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: c, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+      g.add(cloche);
+      calque.add(lueur);
+      return { cloche, lueur, r: rayon * (0.35 + 0.65 * alea(k * 3 + 1)), a0: alea(k * 3 + 2) * Math.PI * 2, v: (0.03 + 0.04 * alea(k * 3 + 3)) * (k % 2 ? 1 : -1), ph: alea(k * 7) * 6.28 };
+    });
+    maj = (s) => {
+      const L = lampesAllumees;
+      for (const m of meduses) {
+        const a = m.a0 + s * m.v;
+        const x = Math.cos(a) * m.r - r.position.x, z = -Math.sin(a) * m.r - r.position.z;
+        const bat = Math.sin(s * 2.1 + m.ph);
+        m.cloche.position.set(x + Math.sin(s * 0.3 + m.ph) * 0.15, eau + 0.02 + 0.02 * bat, z);
+        m.cloche.scale.set(1 - 0.08 * bat, 1 + 0.2 * bat, 1 - 0.08 * bat);
+        m.lueur.position.set(m.cloche.position.x, eau + 0.12, m.cloche.position.z);
+        m.lueur.scale.setScalar(0.9 + 0.25 * bat);
+        m.lueur.material.opacity = L * (0.55 + 0.25 * bat);
+      }
+    };
+  } else if (genre === "noyee") {
+    // la Cité Engloutie : la ville respire encore sous le lagon. Des bulles remontent des rues noyées et crèvent à la
+    // surface (un petit rond sur l'eau) ; la nuit, les fenêtres de la cité s'allument sous l'eau (des lueurs vertes et
+    // dorées qui battent lentement, dans le calque). « points » : les endroits du lagon (x, y de Blender).
+    const d = r.userData;
+    const eau = (d.mer ?? 0.02) - r.position.y;
+    const pts = [];
+    if (Array.isArray(d.points)) for (let k = 0; k + 1 < d.points.length; k += 2) pts.push(new THREE.Vector3(d.points[k] - r.position.x, eau, -d.points[k + 1] - r.position.z));
+    const calque = new THREE.Group();
+    g.userData.calque = calque;
+    const alea = (n) => { const v = Math.sin(n * 127.1 + 11.7) * 43758.5453; return v - Math.floor(v); };
+    const bulles = pts.flatMap((p, k) => Array.from({ length: 2 }, (_, j) => {
+      const b = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: 0xeaffff, transparent: true, opacity: 0, depthWrite: false }));
+      const rond = new THREE.Mesh(new THREE.RingGeometry(0.75, 1, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+      rond.rotation.x = -Math.PI / 2;
+      g.add(b, rond);
+      return { b, rond, p, per: 2.2 + alea(k * 5 + j) * 2.4, ph: alea(k * 9 + j * 3) * 10, dx: (alea(k * 11 + j) - 0.5) * 0.3, dz: (alea(k * 13 + j) - 0.5) * 0.3 };
+    }));
+    const COUL = [0x6dffd8, 0xffd27a];
+    const fenetres = pts.map((p, k) => {
+      const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: COUL[k % 2], transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+      f.position.set(p.x + (alea(k * 17) - 0.5) * 0.4, eau + 0.02, p.z + (alea(k * 19) - 0.5) * 0.4);
+      calque.add(f);
+      return { f, ph: alea(k * 23) * 6.28 };
+    });
+    maj = (s) => {
+      const L = lampesAllumees;
+      for (const u of bulles) {
+        const t = ((s + u.ph) % u.per) / u.per; // une bulle par période : elle monte (0 → 0,7), puis crève
+        const x = u.p.x + u.dx, z = u.p.z + u.dz;
+        u.b.visible = t < 0.78;
+        if (u.b.visible) {
+          u.b.position.set(x, eau - 0.06 + Math.min(1, t / 0.7) * 0.1, z);
+          u.b.scale.setScalar(0.07 + 0.09 * Math.min(1, t / 0.7) + (t > 0.7 ? (t - 0.7) * 2 : 0));
+          u.b.material.opacity = t > 0.7 ? 0.8 * (1 - (t - 0.7) / 0.08) : 0.8 * Math.min(1, t * 6);
+        }
+        const tr = (t - 0.72) / 0.28;
+        u.rond.visible = tr >= 0 && tr <= 1;
+        if (u.rond.visible) {
+          u.rond.position.set(x, eau + 0.01, z);
+          u.rond.scale.setScalar(0.06 + 0.32 * tr);
+          u.rond.material.opacity = 0.55 * (1 - tr);
+        }
+      }
+      for (const w of fenetres) {
+        w.f.scale.setScalar(0.6 + 0.15 * Math.sin(s * 0.9 + w.ph));
+        w.f.material.opacity = L * (0.42 + 0.22 * Math.sin(s * 0.7 + w.ph));
+      }
+    };
+  } else if (genre === "lanternes") {
+    // le Marché Flottant, la nuit : le marché lâche ses lanternes. Des lanternes de papier partent du pont de la Grande
+    // Barge, du bout des pontons et du quai : elles se gonflent, montent en se balançant, dérivent avec le vent et
+    // s'éteignent tout en haut. Sur l'eau des deux chenaux du sud, de petites lanternes posées sur l'eau descendent vers le
+    // large, chacune dans sa flaque de lumière. Rien le jour (tout suit lampesAllumees). Dans le calque, pour rester vives :
+    // la profondeur de l'île y est gardée, le mât et la halle les cachent. « departs » : d'où partent les grandes (x, y, z
+    // de Blender) ; « chenaux » : les chemins des petites (« par » points x, y chacun) ; « vent » : vers où tout dérive.
+    const d = r.userData;
+    const ici = (x, y, z) => new THREE.Vector3(x - r.position.x, z - r.position.y, -y - r.position.z);
+    const calque = new THREE.Group();
+    g.userData.calque = calque;
+    const alea = (n) => { const v = Math.sin(n * 127.1 + 11.7) * 43758.5453; return v - Math.floor(v); };
+    const lisse = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const departs = [];
+    if (Array.isArray(d.departs)) for (let k = 0; k + 2 < d.departs.length; k += 3) departs.push(ici(d.departs[k], d.departs[k + 1], d.departs[k + 2]));
+    if (!departs.length) departs.push(ici(0, 0, 0.5));
+    const eau = (d.mer ?? 0.02) - r.position.y;
+    const par = d.par || 5;
+    const chenaux = [];
+    if (Array.isArray(d.chenaux)) for (let k = 0; k + 2 * par <= d.chenaux.length; k += 2 * par) {
+      const pts = [];
+      for (let j = 0; j < par; j++) pts.push(ici(d.chenaux[k + 2 * j], d.chenaux[k + 2 * j + 1], 0).setY(eau));
+      chenaux.push(new THREE.CatmullRomCurve3(pts));
+    }
+    const vent = new THREE.Vector3(d.vent?.[0] ?? 0.5, 0, -(d.vent?.[1] ?? 0.3));
+    const papier = toile(64, 96, (x, l, h) => {
+      const corps = new Path2D(); // plus large en haut, le haut bombé ; le papier est clair en bas, où brûle la mèche
+      corps.moveTo(l * 0.18, h * 0.1);
+      corps.quadraticCurveTo(l * 0.5, h * 0.0, l * 0.82, h * 0.1);
+      corps.lineTo(l * 0.7, h * 0.84);
+      corps.quadraticCurveTo(l * 0.5, h * 0.9, l * 0.3, h * 0.84);
+      corps.closePath();
+      const gr = x.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0, "#e2702a");
+      gr.addColorStop(0.45, "#ffae48");
+      gr.addColorStop(0.86, "#fff0b8");
+      x.fillStyle = gr;
+      x.fill(corps);
+      x.save();
+      x.clip(corps);
+      const lu = x.createRadialGradient(l * 0.5, h * 0.74, 0, l * 0.5, h * 0.74, l * 0.38);
+      lu.addColorStop(0, "rgba(255,255,236,0.95)");
+      lu.addColorStop(1, "rgba(255,228,160,0)");
+      x.fillStyle = lu;
+      x.fillRect(0, 0, l, h);
+      x.strokeStyle = "rgba(120,50,15,0.35)"; // les côtes de bambou
+      x.lineWidth = 1.5;
+      for (const u of [0.25, 0.5, 0.75]) {
+        x.beginPath();
+        x.moveTo(l * (0.18 + 0.64 * u), h * 0.06);
+        x.lineTo(l * (0.3 + 0.4 * u), h * 0.86);
+        x.stroke();
+      }
+      x.restore();
+      x.strokeStyle = "rgba(90,40,10,0.8)"; // l'anneau du bas
+      x.lineWidth = 2.5;
+      x.beginPath();
+      x.moveTo(l * 0.3, h * 0.85);
+      x.quadraticCurveTo(l * 0.5, h * 0.91, l * 0.7, h * 0.85);
+      x.stroke();
+      const fl = x.createRadialGradient(l * 0.5, h * 0.9, 0, l * 0.5, h * 0.9, l * 0.13); // la mèche
+      fl.addColorStop(0, "rgba(255,255,220,1)");
+      fl.addColorStop(1, "rgba(255,180,60,0)");
+      x.fillStyle = fl;
+      x.fillRect(l * 0.3, h * 0.78, l * 0.4, h * 0.22);
+    });
+    const TEINTES = [0xffffff, 0xffd6be, 0xfff0c8, 0xffc4ae];
+    // tout près de l'œil (quand on zoome et qu'une lanterne monte vers lui), elle s'efface : on compare sa distance à l'œil
+    // à celle de l'île (un rapport : la taille de l'île dans la scène n'y fait rien). L'opacité voulue est dans userData.vu.
+    const centre = new THREE.Vector3();
+    const loinDeLoeil = (o) => {
+      o.userData.vu = 0;
+      o.onBeforeRender = (rd, sc, cam) => {
+        const m = o.matrixWorld.elements;
+        centre.setFromMatrixPosition(g.matrixWorld);
+        const dl = Math.hypot(cam.position.x - m[12], cam.position.y - m[13], cam.position.z - m[14]);
+        o.material.opacity = o.userData.vu * lisse(0.3, 0.5, dl / (cam.position.distanceTo(centre) || 1));
+      };
+    };
+    const lanterne = (k, chaud) => {
+      const corps = new THREE.Sprite(new THREE.SpriteMaterial({ map: papier, color: TEINTES[k % 4], transparent: true, opacity: 0, depthWrite: false }));
+      const lueur = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: chaud, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+      loinDeLoeil(corps);
+      loinDeLoeil(lueur);
+      calque.add(lueur, corps);
+      return { corps, lueur };
+    };
+    const ciel = Array.from({ length: d.nb || 10 }, (_, k) => ({ ...lanterne(k, 0xff9a3c), k, per: 26 + alea(k * 7 + 1) * 10, ph: alea(k * 3 + 2) * 40, sens: alea(k * 5 + 3) * 6.28, haut: 3.2 + alea(k * 11) * 1.3 }));
+    const petites = chenaux.flatMap((ch, i) => Array.from({ length: 3 }, (_, j) => {
+      const flaque = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: pastille(), color: 0xff8a30, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+      flaque.rotation.x = -Math.PI / 2;
+      calque.add(flaque);
+      return { ...lanterne(i + j + 1, 0xffa44a), flaque, ch, k: i * 3 + j, per: 70 + alea(i * 13 + j) * 20, ph: j / 3 + alea(i * 7 + j * 5) * 0.1 };
+    }));
+    maj = (s) => {
+      const L = lampesAllumees;
+      calque.visible = L > 0.01;
+      if (!calque.visible) return;
+      for (const u of ciel) {
+        const c = (s + u.ph) / u.per, n = Math.floor(c), t = c - n;
+        const p = departs[(u.k + n * 3) % departs.length]; // à chaque tour, un autre départ
+        const gonfle = Math.min(1, t / 0.05); // posée, elle se gonfle ; puis elle monte, de plus en plus vite
+        const vol = Math.max(0, (t - 0.05) / 0.95);
+        const bal = Math.sin(s * 0.9 + u.sens) * 0.12 * Math.min(1, vol * 4);
+        const x = p.x + vent.x * vol * 3 + Math.cos(u.sens) * bal;
+        const z = p.z + vent.z * vol * 3 + Math.sin(u.sens) * bal;
+        const y = p.y + 0.11 + Math.pow(vol, 1.25) * u.haut;
+        const vu = L * Math.min(1, t / 0.03) * (1 - lisse(0.62, 1, t));
+        const fl = 0.85 + 0.15 * Math.sin(s * 11 + u.k) * Math.sin(s * 6.7 + u.k * 2);
+        const loin = 1 - 0.4 * vol; // elle s'éloigne dans le ciel
+        u.corps.position.set(x, y, z);
+        u.corps.scale.set(0.2 * (0.75 + 0.25 * gonfle) * loin, 0.27 * (0.55 + 0.45 * gonfle) * loin, 1);
+        u.corps.userData.vu = vu;
+        u.lueur.position.set(x, y - 0.03 * loin, z);
+        u.lueur.scale.setScalar(0.7 * fl * loin);
+        u.lueur.userData.vu = vu * 0.55 * fl;
+      }
+      for (const w of petites) {
+        const t = (s / w.per + w.ph) % 1;
+        const q = w.ch.getPointAt(t);
+        const vu = L * lisse(0, 0.06, t) * (1 - lisse(0.85, 1, t));
+        const y = eau + 0.07 + Math.sin(s * 1.4 + w.k * 2.1) * 0.012;
+        const fl = 0.85 + 0.15 * Math.sin(s * 9 + w.k * 3) * Math.sin(s * 5.3 + w.k);
+        w.corps.position.set(q.x, y, q.z);
+        w.corps.scale.set(0.1, 0.13, 1);
+        w.corps.userData.vu = vu;
+        w.lueur.position.set(q.x, y, q.z);
+        w.lueur.scale.setScalar(0.26 * fl);
+        w.lueur.userData.vu = vu * 0.5 * fl;
+        w.flaque.position.set(q.x, eau + 0.012, q.z);
+        w.flaque.scale.setScalar(0.5 * fl);
+        w.flaque.material.opacity = vu * 0.3;
+      }
+    };
+  } else if (genre === "prismes") {
+    // le Jardin de Cristal, le jour : le soleil traverse les cristaux et pose sur le sol, de l'autre côté, des taches
+    // d'arc-en-ciel qui frémissent (la lumière passe, les facettes tournent un peu). La nuit, elles s'en vont (les cristaux
+    // s'allument). « taches » : x, y, z, longueur, largeur (Blender) ; « cap » : vers où va la lumière (radians, Blender).
+    const d = r.userData;
+    const alea = (n) => { const v = Math.sin(n * 127.1 + 11.7) * 43758.5453; return v - Math.floor(v); };
+    const spectre = toile(128, 64, (x, l, h) => {
+      const img = x.createImageData(l, h);
+      for (let j = 0; j < h; j++) for (let i = 0; i < l; i++) {
+        const u = (i + 0.5) / l, v = (j + 0.5) / h;
+        const e = (u - 0.5) ** 2 / 0.25 + (v - 0.5) ** 2 / 0.25; // l'ellipse (le plan est étiré ensuite)
+        const a = Math.max(0, 1 - e) ** 1.6;
+        const c = new THREE.Color().setHSL((0.78 * (1 - u) + 0.02) % 1, 1.0, 0.58); // du violet au rouge, le long du rayon
+        const k = (j * l + i) * 4;
+        img.data[k] = c.r * 255; img.data[k + 1] = c.g * 255; img.data[k + 2] = c.b * 255; img.data[k + 3] = a * 255;
+      }
+      x.putImageData(img, 0, 0);
+    });
+    const taches = [];
+    const t = Array.isArray(d.taches) ? d.taches : [];
+    for (let k = 0; k + 4 < t.length; k += 5) {
+      const pivot = new THREE.Group();
+      pivot.position.set(t[k] - r.position.x, t[k + 2] - r.position.y, -t[k + 1] - r.position.z);
+      pivot.rotation.y = d.cap ?? 0.89;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: spectre, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      m.rotation.x = -Math.PI / 2;
+      m.scale.set(t[k + 3], t[k + 4], 1);
+      pivot.add(m);
+      g.add(pivot);
+      taches.push({ m, l: t[k + 3], w: t[k + 4], ph: alea(k + 3) * 6.28, v: 0.5 + alea(k + 7) * 0.5 });
+    }
+    maj = (s) => {
+      const jour = 1 - lampesAllumees;
+      for (const u of taches) {
+        const f = 0.75 + 0.25 * Math.sin(s * u.v + u.ph) * Math.sin(s * u.v * 1.7 + u.ph * 2);
+        u.m.visible = jour > 0.02;
+        u.m.material.opacity = 0.8 * jour * f;
+        u.m.scale.set(u.l * (0.96 + 0.06 * f), u.w * (0.94 + 0.08 * f), 1);
+        u.m.position.x = Math.sin(s * u.v * 0.6 + u.ph) * 0.03; // la tache glisse un peu le long du rayon
+      }
     };
   } else if (genre === "orage") {
     const nuage = new THREE.Group();

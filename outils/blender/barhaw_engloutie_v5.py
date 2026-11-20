@@ -648,6 +648,7 @@ def _mailles(graine, leger):
         lots["libres"].append((banc_de_poissons(rng, 4 if leger else 6), tour[0], {"anim": "marche", "chemin": [float(c) for q in tour for c in q], "boucle": 1, "vitesse": vit, "saut": 0.0, "phase": 0.4 * k}))
     lots["reperes"].append(((0.0, 0.0, 4.6), {"anim": "oiseaux", "nb": 3 if leger else 6, "rayon": 5.2, "envergure": 0.13}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 7.9, "genre": 2}))
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "noyee", "mer": 0.02, "points": [2.41, 0.97, 1.97, 2.52, -1.86, 2.22, -2.23, 0.9, -3.14, -1.02, -1.81, -2.01, 2.23, -2.01, 2.3, -0.7]}))  # le site : les bulles et les fenêtres noyées
 
     # --- sur l'eau (dessiné par le site) : le ressac sur les deux rives de l'anneau, l'ombre de ce qui sort de l'eau ---
     large, lagon = _cotes()

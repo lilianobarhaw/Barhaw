@@ -450,6 +450,7 @@ def _mailles(graine, leger):
             lots["copies"].append((premiere, pts[0], extras))
     lots["reperes"].append(((0.0, 0.0, 4.0), {"anim": "oiseaux", "nb": 3 if leger else 6, "rayon": 5.0, "envergure": 0.13}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 7.7, "genre": 2}))  # pour la mer du site : une île naturelle, son lagon
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "meduses", "nb": 7, "rayon": 2.6, "mer": 0.03}))  # le site : les méduses du lagon
 
     # --- sur l'eau (dessiné par le site) : le ressac sur les deux rives, l'ombre de la cabane, de la passerelle, de la pirogue ---
     Rv = N.Maille("rivage")

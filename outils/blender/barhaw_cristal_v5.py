@@ -410,6 +410,7 @@ def _mailles(graine, leger):
     zp = sol(PITON[0], PITON[1] + 0.3)
     bouquet(L, U, rng, PITON[0], PITON[1] + 0.3, zp, 5.4, 0.5, ("cristal_violet", "cristal_blanc", "cristal_rose", "cristal_violet", "cristal_turquoise"), 5 if leger else 9)
     SOL.append(("decor", "la Grande Aiguille", Vf.rond(PITON[0], PITON[1] + 0.3, 0.95, 12)))
+    prismes = [(PITON[0], PITON[1] + 0.3, 5.4, 0.34)]  # (x, y, hauteur, où la lumière la traverse) : pour les taches d'arc-en-ciel
 
     etape("les bouquets")
     # --- les bouquets : aux quatre coins de la terrasse, sur la pelouse basse, au bord de l'eau ---
@@ -419,6 +420,7 @@ def _mailles(graine, leger):
         if libre(x, y, r * (1.3 if k < 4 else 2.2)):
             bouquet(L, U, rng, x, y, sol(x, y), h, r, tuple(CRISTAUX[(k + j) % 4] for j in range(3)), 4 if leger else 6, True, 0.4 if k < 4 else 1.0)
             SOL.append(("decor", "un bouquet de cristaux", Vf.rond(x, y, r * (1.3 if k < 4 else 2.0))))
+            prismes.append((x, y, h, 0.35))
 
     for k, g in enumerate((40, 128, 190, 232, 310)[: 2 if leger else 5]):  # quelques cristaux les pieds dans l'eau
         x, y = vers(g, -0.25)
@@ -492,6 +494,19 @@ def _mailles(graine, leger):
             lots["copies"].append((deja[t_], pts[0], extras))
     lots["reperes"].append(((float(PITON[0]), float(PITON[1] + 0.3), float(zp + 3.6)), {"anim": "etincelles"}))
     lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "mer", "rayon": 8.5, "genre": 2}))
+    # le jour, le soleil de la cuisson (N.soleil_et_ciel : du sud-ouest, assez bas) traverse les cristaux : de l'autre côté,
+    # une tache d'arc-en-ciel sur le sol, là où il est à peu près plat et à terre (le site la dessine : grandline-3d.js, « prismes »)
+    pr_n = math.hypot(0.5, 0.62)
+    pr_u, pr_pente = (0.5 / pr_n, 0.62 / pr_n), pr_n / 0.62
+    pr_taches = []
+    for x, y, h, t_ in prismes:
+        cx, cy = x + pr_u[0] * pr_pente * t_ * h, y + pr_u[1] * pr_pente * t_ * h
+        lg_, lr_ = min(1.3, 0.75 + 0.2 * h), 0.4 + 0.05 * min(h, 2.4)
+        pts = [(cx + pr_u[0] * a * lg_ / 2 - pr_u[1] * b * lr_ / 2, cy + pr_u[1] * a * lg_ / 2 + pr_u[0] * b * lr_ / 2) for a in (-1, 0, 1) for b in (-1, 0, 1)]
+        hs = [sol(*q) for q in pts]
+        if max(hs) - min(hs) < 0.06 and min(bord(*q) for q in pts) > 0.3:
+            pr_taches += [round(cx, 3), round(cy, 3), round(max(hs) + 0.03, 3), round(lg_, 3), round(lr_, 3)]
+    lots["reperes"].append(((0.0, 0.0, 0.0), {"anim": "prismes", "cap": round(math.atan2(pr_u[1], pr_u[0]), 4), "taches": pr_taches}))
 
     etape("sur l'eau")
     Rv = N.Maille("rivage")
