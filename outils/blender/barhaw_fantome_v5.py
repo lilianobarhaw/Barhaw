@@ -215,7 +215,7 @@ def fantome(K, rng):
         p = flanc(larg, x, 0.0 if s < 0 else PI)
         F.ajouter(*N.cylindre(0.14, 0.0, 0.55, 6), "spectre", T(p[0], p[1] * 0.97, p[2] + 0.03))
         F.ajouter(*N.cylindre(0.08, 0.0, 0.35, 5), "spectre", T(p[0] + 0.08, p[1] * 0.97, p[2] + 0.05))
-    W = K.anim("follets", (0, 0, 0), anim="tourne", axe=[0, 1, 0], vitesse=0.5)
+    W = K.anim("follets", (0, 0, 0), anim="tourne", axe=[0, 0, 1], vitesse=0.5)  # (les axes des extras sont ceux de Blender : Z vers le haut)
     for k in range(6):
         a = k * 2 * PI / 6
         c = np.array((math.cos(a) * 5.0, math.sin(a) * 3.0, 2.0 + (k % 3) * 0.8))
