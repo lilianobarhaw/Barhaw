@@ -398,6 +398,23 @@ def _mailles(graine, leger):
         if abs(math.degrees(math.atan2(y, x)) + 90) > 28 and libre(x, y, 0.2, False) and terrain(x, y) > 0.05:
             A.rocher(L, rng, x, y, terrain(x, y) - 0.06, 0.16 + 0.2 * rng.random(), "roche")
             SOL.append(("rocher", "un rocher", Vf.rond(x, y, 0.18)))
+    # la falaise n'est pas un mur lisse : des contreforts de roche dans la paroi, un éboulis de gros blocs au pied
+    rng2 = random.Random(graine + 55)  # (à part : le reste de l'île ne bouge pas)
+    for k in range(14 if leger else 32):
+        g = rng2.random() * 360
+        if abs(((g + 90 + 180) % 360) - 180) < 30:
+            continue  # (l'escalier et le quai, au sud)
+        a = math.radians(g)
+        rp_ = r_plat(a)
+        if k % 2 == 0:  # un contrefort, à mi-hauteur dans la paroi
+            r_ = 0.32 + 0.16 * rng2.random()
+            A.rocher(L, rng2, math.cos(a) * (rp_ + 0.12), math.sin(a) * (rp_ + 0.12), Z_B + (Z_P - Z_B) * (0.35 + 0.3 * rng2.random()), r_, "roche")
+        else:  # un bloc tombé au pied
+            r_ = 0.3 + 0.25 * rng2.random()
+            x, y = math.cos(a) * (rp_ + 0.45 + r_ * 0.5), math.sin(a) * (rp_ + 0.45 + r_ * 0.5)
+            if libre(x, y, r_ * 0.85, False):
+                A.rocher(L, rng2, x, y, terrain(x, y) - 0.12, r_, "roche")
+                SOL.append(("rocher", "un bloc tombé de la falaise", Vf.rond(x, y, r_ * 0.85)))
     for k, (g, cap) in enumerate(((-140, 0.6), (-35, 2.4), (150, 4.0))[: 1 if leger else 3]):
         x, y = vers(g, 0.35)
         if libre(x, y, 0.4, False):
