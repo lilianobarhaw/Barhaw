@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Barhaw</title>
-<meta name="description" content="La commu de LilianoBarhaw : les lives, les events (Osiris RP, TOURNOI BARHAW, live de 12 h), les potes, les vidéos, le Discord, et Chopper, la mascotte qu'on fait vivre ensemble.">
+<meta name="description" content="La commu de LilianoBarhaw : les lives, les events, GRAND LINE, les potes, les vidéos, le Discord, et Chopper, la mascotte qu'on fait vivre ensemble.">
 <meta name="theme-color" content="#ff4f9a">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Barhaw · la commu de LilianoBarhaw">
@@ -61,7 +61,7 @@
     <a href="#evenements" data-lien="evenements">Events</a>
     <a href="#grandline" data-lien="grandline">GRAND LINE <span class="compteur compteur-v3" id="pastille-grandline" title="Ouvre avec la V3, samedi 31 octobre à 21 h">V3</span></a>
       <a href="#boss-live" data-lien="boss-live">BOSS LIVE <span class="compteur compteur-boss" id="pastille-boss" hidden>⚔️</span></a>
-    <a href="#tournoi" data-lien="tournoi">Tournoi <span class="pastille-live" id="pastille-tournoi" hidden>Live</span></a>
+    <a href="#tournoi" data-lien="tournoi" hidden>Tournoi <span class="pastille-live" id="pastille-tournoi" hidden>Live</span></a>
     <a href="#chaine" data-lien="chaine">Ma chaîne <span class="pastille-live" id="pastille-live" hidden>Live</span></a>
     <a href="#bahriot" data-lien="bahriot" class="vf-seul">Semaine Bahriot <span class="pastille-live" id="pastille-bahriot" hidden>Live</span></a>
     <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
@@ -146,7 +146,7 @@
     <div class="entete-section">
       <p class="surtitre revele">Au programme</p>
       <h2 class="titre-section revele" id="titre-evenements">Les prochains <span class="degrade">events.</span><img class="titre-objet" src="/img/objets/lanterne.webp" alt="" width="99" height="160" loading="lazy" decoding="async"></h2>
-      <p class="sous revele">Lives, tournoi, Osiris : tout ce qui arrive, dans l'ordre.</p>
+      <p class="sous revele">Les lives et les events : tout ce qui arrive, dans l'ordre.</p>
     </div>
     <div class="prochain revele" id="prochain"></div>
     <ol class="frise" id="evenements-liste"></ol>
@@ -236,7 +236,9 @@
     </div>
   </section>
 
-  <section id="tournoi" data-section aria-labelledby="titre-tournoi">
+  <!-- Le TOURNOI BARHAW est reporté (21/11/2026) : sa partie reste ici, cachée. Pour la remettre : enlever « hidden » ici et sur
+       le lien « Tournoi » du menu, et remettre "tournoi" dans les liens de la rubrique Live (RUBRIQUES_VF, site.js). -->
+  <section id="tournoi" data-section aria-labelledby="titre-tournoi" hidden>
     <span class="kanji" aria-hidden="true">大会</span>
     <div class="entete-section">
       <p class="surtitre revele">Valorant · 2e édition</p>
@@ -468,7 +470,7 @@
       <li class="carte revele"><span class="symbole" aria-hidden="true">◆</span><strong>Des jeux en vocal</strong><span>Blind test, loup-garou, Questions pour un champion : le bot anime, vous jouez.</span></li>
       <li class="carte revele"><span class="symbole" aria-hidden="true">✦</span><strong>BarhawBot</strong><span>L'IA du serveur, qui répond à tout… en te chambrant un peu.</span></li>
       <li class="carte revele"><span class="symbole" aria-hidden="true">✧</span><strong>Chopper</strong><span>La mascotte : chaque message le nourrit, chaque vocal lui remonte le moral.</span></li>
-      <li class="carte revele"><span class="symbole" aria-hidden="true">◇</span><strong>Le TOURNOI BARHAW</strong><span>Les infos, les équipes et les résultats du tournoi Valorant.</span></li>
+      <li class="carte revele"><span class="symbole" aria-hidden="true">◇</span><strong>GRAND LINE</strong><span>Chaque message et chaque vocal font avancer le navire de la commu, d'île en île.</span></li>
       <li class="carte revele"><span class="symbole" aria-hidden="true">○</span><strong>Ton propre vocal</strong><span>Un salon vocal à toi en un clic, que tu règles comme tu veux.</span></li>
     </ul>
   </section>
@@ -483,7 +485,7 @@
     <a href="https://osiriswl.vercel.app" target="_blank" rel="noopener">Osiris RP</a>
     <a href="/mentions">Mentions</a>
   </p>
-  <p class="pied-petit">© 2026 · La commu de LilianoBarhaw. Chopper est un personnage de One Piece (© Eiichiro Oda, Shueisha, Toei Animation), utilisé ici par un fan, sans lien officiel. Le TOURNOI BARHAW et La Faille des potes ont été créés dans le cadre de la politique « Legal Jibber Jabber » de Riot Games, avec des éléments appartenant à Riot Games. Riot Games ne soutient ni ne parraine ce projet.</p>
+  <p class="pied-petit">© 2026 · La commu de LilianoBarhaw. Chopper est un personnage de One Piece (© Eiichiro Oda, Shueisha, Toei Animation), utilisé ici par un fan, sans lien officiel. La Faille des potes et Valorant des potes ont été créés dans le cadre de la politique « Legal Jibber Jabber » de Riot Games, avec des éléments appartenant à Riot Games. Riot Games ne soutient ni ne parraine ce projet.</p>
 </footer>
   <a class="bl-alerte" id="bl-alerte" href="#boss-live" hidden>⚔️ <b>BOSS LIVE</b> <span id="bl-alerte-texte">Le boss attaque !</span></a>
 </body>
