@@ -2,7 +2,8 @@
 // Ce module ne fait que dessiner : le moteur du jeu (la vitesse, les collisions, le score) est dans site.js.
 // La mer est un plan qui suit le navire (ses vagues et ses motifs sont calculés en coordonnées du monde), le ciel une
 // sphère qui suit la caméra. Les pièces (rochers, bras du monstre, tourbillon, tonneaux, bouteille, esprit du vent)
-// viennent de Blender (modeles/grandline/traversee-v4.glb) ; en attendant (ou sans elles), des formes simples.
+// viennent de Blender (modeles/grandline/traversee-v4.glb ; niveau5, la VF 1.0 : traversee-v5.glb, textures et lumière
+// cuites dans un atlas, l'ancien s'il manque) ; en attendant (ou sans elles), des formes simples.
 // Le monde : X vers l'avant (la distance, en mètres), Z sur le côté (la droite de l'écran), Y vers le haut.
 import * as THREE from "./three-r170.module.min.js";
 import { lireGLB, sceneGLB, habiller, animateurs, themeNavire, creerTrainee, pastille, toile } from "./grandline-3d.js";
@@ -122,7 +123,7 @@ function materiauBulle() {
   });
 }
 
-export function creerTraversee3D(canvas, { navire = {}, modeles = "/modeles/grandline/", reduit = false } = {}) {
+export function creerTraversee3D(canvas, { navire = {}, modeles = "/modeles/grandline/", reduit = false, niveau5 = false } = {}) {
   const leger = (() => { try { return matchMedia("(max-width: 760px), (pointer: coarse)").matches || (navigator.deviceMemory || 8) <= 4; } catch { return false; } })();
   const ratio = Math.min(leger ? 1.25 : 1.5, window.devicePixelRatio || 1);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: ratio < 1.5, alpha: false, powerPreference: "high-performance" });
@@ -261,7 +262,7 @@ export function creerTraversee3D(canvas, { navire = {}, modeles = "/modeles/gran
   // ---------- les pièces de Blender ----------
   const sortes = new Map(); // préfixe du nom (aiguille, tentacule…) → les nœuds du modèle
   let glbPieces = null;
-  const pretPieces = lireV4("traversee-v4.glb").then((glb) => {
+  const pretPieces = (niveau5 ? lireV4("traversee-v5.glb").catch(() => lireV4("traversee-v4.glb")) : lireV4("traversee-v4.glb")).then((glb) => {
     if (detruit) return;
     glbPieces = glb;
     const base = sceneGLB(glb);
@@ -289,6 +290,7 @@ export function creerTraversee3D(canvas, { navire = {}, modeles = "/modeles/gran
     const noeuds = sortes.get(modele);
     if (noeuds?.length) {
       const m = new THREE.Group();
+      m.userData.atlas = glbPieces?.atlas || null; // niveau 5 : habiller() y prend l'image cuite (traversee-v5)
       for (const o of noeuds) m.add(o.clone(true));
       const { bouge } = habiller(m, { relief: () => null, contour: 0.035, cuit: glbPieces?.cuit });
       anims = animateurs(bouge);

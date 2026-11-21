@@ -6591,7 +6591,7 @@
         const { creerTraversee3D } = await import("/js/traversee-3d.js");
         if (tv.etat === "ferme" || $("tv-toile") !== toile) return;
         const c = commuTraversee();
-        const rendu = creerTraversee3D(toile, { navire: c ? { couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), modele: modeleNavire(c) || "navire-v4.glb", trainee: traineeCommu(c) } : { modele: "navire-v4.glb" }, reduit: reduit.matches });
+        const rendu = creerTraversee3D(toile, { navire: c ? { couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), modele: modeleNavireGL(c) || "navire-v4.glb", trainee: traineeCommu(c) } : { modele: "navire-v4.glb" }, reduit: reduit.matches, niveau5: niveau5() }); // la VF 1.0 : le navire et les pièces du niveau 5
         tailleTV(rendu);
         if (choix !== "oui" && rendu.tropLent()) { rendu.detruire(); throw new Error("trop lent"); }
         toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); passerTV2D(); });
