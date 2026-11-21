@@ -8,7 +8,8 @@
 // Les données sont celles du site (/api/public, /api/bosslive) : rien de plus que ce que tout le monde y voit déjà, et aucun
 // pseudo n'est affiché. La page ne garde que l'heure de ce qu'elle a déjà annoncé (dans le navigateur d'OBS), pour ne pas
 // le redire quand on la recharge. Avant l'ouverture de la VF, les îles gardent leur image d'avant (img/iles) : les cartes
-// postales de la nouvelle carte (img/obs) ne se montrent qu'après, comme sur le site.
+// postales de la nouvelle carte (img/obs) ne se montrent qu'après, comme sur le site (une île sans carte postale prend alors
+// son image du niveau 5, img/iles/<id>-v5.webp ; un boss, img/boss/<id>-v5.webp).
 // Réglages dans l'adresse : ?commu=<id> (l'équipage suivi ; sans rien : barhaw) · ?place=haut|milieu|bas · ?son=non ·
 // ?rappel=<minutes> (le rappel du vote : 15 sans rien, 0 pour aucun) · ?fond=oui (un fond sombre, pour régler la page dans
 // un onglet) · ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|bientot|compte|sortie|tout (des alertes d'exemple
@@ -70,12 +71,13 @@
   const fr = (n) => Math.round(Number(n) || 0).toLocaleString("fr-FR");
   const titre = (texte) => el("div", `al-titre${texte.length > 18 ? " long" : ""}`, texte);
   const nomIle = (ile) => `${ile?.emoji ? `${ile.emoji} ` : ""}${ile?.nom || "une île inconnue"}`;
-  const adresseIle = (id) => (vf() && CARTES.has(id) ? `/img/obs/${id}.webp` : `/img/iles/${id}.webp`);
+  const maquetteIle = (id) => `/img/iles/${id}${vf() ? "-v5" : ""}.webp`; // l'image de l'île (au niveau 5 une fois la VF ouverte)
+  const adresseIle = (id) => (vf() && CARTES.has(id) ? `/img/obs/${id}.webp` : maquetteIle(id));
   function imageIle(ile, classe) {
     const id = propre(ile?.id);
     const cadre = el("div", classe);
     if (!id) { cadre.hidden = true; return cadre; }
-    const maquette = `/img/iles/${id}.webp`;
+    const maquette = maquetteIle(id);
     const i = el("img");
     i.alt = "";
     i.decoding = "async";
@@ -94,7 +96,7 @@
     const i = el("img", classe);
     i.alt = "";
     i.addEventListener("error", () => { i.hidden = true; });
-    i.src = `/img/boss/${BOSS.has(id) ? id : "morghast"}.webp`;
+    i.src = `/img/boss/${BOSS.has(id) ? id : "morghast"}${vf() ? "-v5" : ""}.webp`;
     return i;
   }
   const jauge = (part, classe = "") => { const j = el("div", `jauge${classe ? ` ${classe}` : ""}`, el("i")); j.firstChild.style.width = `${(Math.max(0, Math.min(1, part)) * 100).toFixed(1)}%`; return j; };
