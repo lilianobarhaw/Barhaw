@@ -475,6 +475,8 @@ export function creerFete(ctx) {
     arene.gagnant = defi?.phase === "victoire" && (defi.gagnant === moi || flotte.has(defi.gagnant)) ? String(defi.gagnant) : "";
     if (arene.gagnant && arene.feteFaite !== `${defi.id}:${arene.gagnant}`) { arene.feteFaite = `${defi.id}:${arene.gagnant}`; arene.salve = temps + 1.2; }
   }
+  // le rayon d'une île : jusqu'à sa côte (une île du niveau 5 est plus large que l'ancien rayon i.r)
+  const rayonIle = (i) => Math.max(i.r, i.rMer || 0);
   // la place de l'arène : en pleine mer, loin des îles et du bord de la carte, au plus près des navires qui s'affrontent
   function placerArene() {
     let cx = 0, cz = 0, n = 0;
@@ -485,7 +487,7 @@ export function creerFete(ctx) {
     let mieux = null;
     for (let x = -(MER_X - 38); x <= MER_X - 38; x += 3) for (let z = -(MER_Z - 36); z <= MER_Z - 32; z += 3) {
       let place = 99;
-      for (const i of iles.values()) place = Math.min(place, Math.hypot(x - i.x, z - i.z) - i.r);
+      for (const i of iles.values()) place = Math.min(place, Math.hypot(x - i.x, z - i.z) - rayonIle(i));
       if (place < 9) continue;
       const note = Math.min(place, RAYON_ARENE + 5) * 6 - Math.hypot(x - cx, z - cz);
       if (!mieux || note > mieux.note) mieux = { x, z, note };
@@ -635,7 +637,7 @@ export function creerFete(ctx) {
         const x = borne(centre.x + Math.cos(b.a) * rr, -MER_X + 9, MER_X - 9), z = borne(centre.z + Math.sin(b.a) * rr, -MER_Z + 9, MER_Z - 9);
         // près d'une île, elle plonge et passe dessous
         let pres = false;
-        for (const i of iles.values()) if (i.groupe.visible && Math.hypot(x - i.x, z - i.z) < i.r + 7) { pres = true; break; }
+        for (const i of iles.values()) if (i.groupe.visible && Math.hypot(x - i.x, z - i.z) < rayonIle(i) + 7) { pres = true; break; }
         b.pres = pres;
         b.fond += ((pres ? 1 : 0) - b.fond) * Math.min(1, dt * 1.2);
         let y = -1.25 * E + Math.sin(s * 0.7) * 0.12 - b.fond * 9, tangage = 0, roulis = 0;
@@ -740,6 +742,8 @@ export function creerFete(ctx) {
       const carrees = instancier("lanterne", nF), fleurs = instancier("lotus", nF), volantes = instancier("celeste", nC);
       const semis = Array.from({ length: Math.max(nF, nC) }, () => [R(), R(), R(), R()]);
       const pos = Array.from({ length: nF + nC }, () => ({ x: 0, y: 0, z: 0, f: 0 }));
+      // à la taille de la vue : pleine de loin (la carte entière), jusqu'à 2,5 fois moins quand l'œil est tout près de l'île
+      const vue = (i) => borne(Math.hypot(camera.position.x - i.x, camera.position.y, camera.position.z - i.z) / 55, 0.4, 1);
       vieFete.push((s) => {
         const f = lisse(0.12, 0.5, Math.max(amb.nuit, amb.or * 0.95));
         const ou = escales();
@@ -749,10 +753,10 @@ export function creerFete(ctx) {
         let a = 0, b = 0;
         for (let k = 0; k < nF; k++) {
           const i = ou[k % ou.length], [r1, r2, r3] = semis[k];
-          const an = r1 * 6.28 + s * 0.022 * (k % 2 ? 1 : -1), r = i.r + 2.6 + r2 * 8 + Math.sin(s * 0.11 + k) * 0.8;
+          const an = r1 * 6.28 + s * 0.022 * (k % 2 ? 1 : -1), r = rayonIle(i) + 2.6 + r2 * 8 + Math.sin(s * 0.11 + k) * 0.8;
           const p = pos[k];
           p.x = i.x + Math.cos(an) * r; p.z = i.z + Math.sin(an) * r; p.y = 0.14 + Math.sin(s * 1.3 + k) * 0.05; p.f = f;
-          (k % 3 ? carrees : fleurs).poser(k % 3 ? a++ : b++, p.x, p.y, p.z, s * 0.2 * (r3 - 0.5) + k, 1.75 * f, Math.sin(s * 1.1 + k) * 0.06, Math.cos(s * 0.9 + k) * 0.06);
+          (k % 3 ? carrees : fleurs).poser(k % 3 ? a++ : b++, p.x, p.y, p.z, s * 0.2 * (r3 - 0.5) + k, 1.75 * f * vue(i), Math.sin(s * 1.1 + k) * 0.06, Math.cos(s * 0.9 + k) * 0.06);
         }
         carrees.fin(a);
         fleurs.fin(b);
@@ -769,7 +773,7 @@ export function creerFete(ctx) {
           const dl = Math.hypot(camera.position.x - p.x, camera.position.y - p.y, camera.position.z - p.z);
           const di = Math.hypot(camera.position.x - i.x, camera.position.y, camera.position.z - i.z) || 1;
           p.f = f * fondu * lisse(0.25, 0.45, dl / di);
-          volantes.poser(k, p.x, p.y, p.z, r3 * 6.28, 2.1 * Math.max(0.001, p.f), Math.sin(s * 0.8 + k) * 0.08, 0);
+          volantes.poser(k, p.x, p.y, p.z, r3 * 6.28, 2.1 * Math.max(0.001, p.f) * vue(i), Math.sin(s * 0.8 + k) * 0.08, 0);
         }
         volantes.fin(nC);
       });
