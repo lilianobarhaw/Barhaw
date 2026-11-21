@@ -1546,7 +1546,7 @@ function matiereToile5(nom, theme) {
   return m;
 }
 // habiller un modèle : les matières du site, les contours ; renvoie ce qui bouge et les reliefs
-function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit = false, ile = false }) {
+function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit = false, ile = false, lave5 = true }) {
   const reliefs = [];
   const bouge = [];
   const reperes = [];
@@ -1572,8 +1572,8 @@ function habiller(racine, { relief, contour = 0.045, theme = THEME_BARHAW, cuit 
         else o.material = base;
       } else if (nom === "vitre") {
         o.material = matiereVitre();
-      } else if (nom === "lave" && racine.userData.atlas) {
-        o.material = matiereLave5(); // niveau 5 : une lave qui coule
+      } else if (nom === "lave" && racine.userData.atlas && lave5) {
+        o.material = matiereLave5(); // niveau 5 : une lave qui coule (lave5 : false, celle qui luit, sans couler : les boss)
       } else if (nom === "ecume" || nom === "ombre_eau") {
         o.material = matiereRivage5(nom);
         o.renderOrder = 2;
