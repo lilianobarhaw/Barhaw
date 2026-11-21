@@ -6011,6 +6011,8 @@
     if (salleVoulue() && !SALLE.ouverte && v4Ouverte()) ouvrirSalleGL();
     const b3 = $("gl-ouvrir-3d");
     if (b3) b3.hidden = !v4Ouverte() || SALLE.ouverte || carteGL?.type !== "2d";
+    const bg = $("gl-generique");
+    if (bg) bg.hidden = !v4Ouverte();
     const sousSalle = $("gl-salle-sous");
     if (sousSalle) sousSalle.textContent = flotteActive() ? commuRegardee()?.nom || "" : g?.cible ? `Cap sur ${g.cible.nom}` : "";
     // « Terre en vue ! » : une nouvelle île pendant la visite (ou il y a moins de 2 h, une fois par visite), navire par navire
@@ -7777,7 +7779,73 @@
   }
   blDemarrer();
 
+  // le générique de GRAND LINE (VF 1.0) : 45 s, à la première entrée dans GRAND LINE (une fois), puis à la demande
+  // (« ▶ Le générique ») ; la vidéo en 720p, ou en 480p sur un petit écran ; le son si les sons du site sont allumés
+  // (ou si on l'a demandé), sinon muet avec un bouton pour l'allumer (un navigateur refuse le son sans un clic)
+  function generiqueGL(demande = false) {
+    if (document.querySelector(".cine")) return;
+    if (!demande) {
+      if (reduit.matches || navigator.connection?.saveData) return;
+      try { if (localStorage.getItem("barhaw-generique-vf") === "vu") return; localStorage.setItem("barhaw-generique-vf", "vu"); } catch { return; }
+    }
+    const t = Math.min(innerWidth, screen?.width || innerWidth) < 700 ? "480" : "720";
+    const v = el("video", { class: "gen-video", poster: "/videos/generique-gl.jpg", playsinline: "", preload: "auto", width: 1280, height: 720 },
+      el("source", { src: `/videos/generique-gl-${t}.webm`, type: "video/webm" }),
+      el("source", { src: `/videos/generique-gl-${t}.mp4`, type: "video/mp4" }));
+    const son = el("button", { class: "gen-son", type: "button", "aria-pressed": "false" });
+    const retour = document.activeElement;
+    let fini = false;
+    // pendant que le générique passe avec le son, la musique du site et la mer de la carte se font toutes petites
+    let baisse = null;
+    const baisser = (oui) => {
+      if (oui && !baisse) {
+        baisse = { musique: SON.musiqueSite ? SON.musiqueSite.volume : null, maitre: SON.maitre ? SON.maitre.gain.value : null };
+        if (baisse.musique !== null) SON.musiqueSite.volume = baisse.musique * 0.1;
+        if (baisse.maitre !== null) SON.maitre.gain.value = baisse.maitre * 0.15;
+      } else if (!oui && baisse) {
+        if (baisse.musique !== null && SON.musiqueSite) SON.musiqueSite.volume = baisse.musique;
+        if (baisse.maitre !== null && SON.maitre) SON.maitre.gain.value = baisse.maitre;
+        baisse = null;
+      }
+    };
+    const reglerSons = () => baisser(!fini && !v.muted && !v.paused);
+    // Échap ferme le générique (et seulement lui) ; Tab reste sur ses deux boutons
+    const touche = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); fermer(); }
+      else if (e.key === "Tab") { e.preventDefault(); (document.activeElement === passer ? son : passer).focus(); }
+    };
+    const fermer = () => {
+      if (fini) return;
+      fini = true;
+      v.pause();
+      baisser(false);
+      window.removeEventListener("keydown", touche, true);
+      o.classList.add("cine-fin");
+      setTimeout(() => o.remove(), 600);
+      if (retour?.isConnected) retour.focus?.({ preventScroll: true });
+    };
+    const passer = el("button", { class: "gen-passer", type: "button", onclick: fermer, text: "Passer ✕" });
+    const o = el("div", { class: "cine gen", role: "dialog", "aria-modal": "true", "aria-label": "Le générique de GRAND LINE" },
+      el("div", { class: "gen-cadre" }, v), el("div", { class: "gen-boutons" }, son, passer));
+    const avecSon = (oui) => {
+      v.muted = !oui;
+      son.setAttribute("aria-pressed", String(oui));
+      son.textContent = oui ? "🔇 Sans le son" : "🔊 Avec le son";
+    };
+    son.addEventListener("click", () => { avecSon(v.muted); v.play?.()?.catch?.(() => {}); });
+    for (const ev of ["play", "pause", "volumechange"]) v.addEventListener(ev, reglerSons);
+    v.addEventListener("ended", () => setTimeout(fermer, 500));
+    v.querySelector("source:last-child").addEventListener("error", fermer); // aucune des deux vidéos ne passe
+    o.addEventListener("click", (ev) => { if (ev.target === o) fermer(); });
+    window.addEventListener("keydown", touche, true);
+    (document.fullscreenElement || document.body).append(o);
+    passer.focus({ preventScroll: true });
+    avecSon(demande || sonActif());
+    v.play?.()?.catch?.(() => { avecSon(false); v.play?.()?.catch?.(() => fermer()); });
+    setTimeout(() => { if (!fini && v.paused && v.currentTime === 0) fermer(); }, 9000); // rien ne démarre : on ne bloque pas la page
+  }
   function cinematiqueGL() {
+    if (v4Ouverte()) return generiqueGL();
     if (reduit.matches || navigator.connection?.saveData) return;
     try { if (localStorage.getItem("barhaw-cine-gl2") === "vu") return; localStorage.setItem("barhaw-cine-gl2", "vu"); } catch { return; }
     const v = el("video", { class: "cine-video", poster: "/videos/grandline-depart.jpg", playsinline: "", autoplay: "", preload: "auto", width: 960, height: 540 },
@@ -7795,6 +7863,29 @@
     document.body.append(o);
     v.play?.()?.catch?.(() => fermer());
     setTimeout(fermer, 10_000);
+  }
+  // l'entrée aussi quand le haut de la partie passe le milieu de l'écran : sur un téléphone, GRAND LINE est si haute
+  // que 12 % d'elle ne tiennent pas toujours dans l'écran (et le générique ne partait pas)
+  function guetterEntreeGL(s) {
+    if (!("IntersectionObserver" in window)) return;
+    new IntersectionObserver((entrees, io) => {
+      for (const e of entrees) if (e.isIntersecting && !s.dataset.entree) { entreeGL(s); io.disconnect(); }
+    }, { rootMargin: "0px 0px -50% 0px" }).observe(s);
+  }
+  // la VF vient de s'ouvrir sous nos yeux (le 22/12 à 21 h 30, sans recharger) : si on regarde GRAND LINE, le générique
+  // part tout de suite ; si on y est déjà passé, il partira à la prochaine entrée dans GRAND LINE
+  function vfEnDirect() {
+    const s = $("grandline");
+    if (!s?.dataset.entree) return; // pas encore entré : l'entrée normale s'en chargera
+    const r = s.getBoundingClientRect();
+    if (r.top < innerHeight * 0.5 && r.bottom > innerHeight * 0.3) {
+      let essais = 0; // une autre vidéo à l'écran (l'ancienne cinématique) : on attend qu'elle se ferme
+      const lancer = () => (document.querySelector(".cine") && ++essais < 15 ? setTimeout(lancer, 1000) : generiqueGL());
+      setTimeout(lancer, 1200);
+      return;
+    }
+    delete s.dataset.entree;
+    guetterEntreeGL(s);
   }
   function entreeGL(s) {
     s.dataset.entree = "1";
@@ -7831,6 +7922,7 @@
     rendreRamerGL();
     const s = $("grandline");
     if (!s) return;
+    $("gl-generique")?.addEventListener("click", () => generiqueGL(true));
     window.addEventListener("resize", () => tailleCarteGL());
     if ("IntersectionObserver" in window) {
       new IntersectionObserver((entrees) => {
@@ -7846,6 +7938,7 @@
           if (e.isIntersecting && e.intersectionRatio > 0.12 && !s.dataset.entree) entreeGL(s);
         }
       }, { threshold: [0, 0.12, 0.3] }).observe(s);
+      guetterEntreeGL(s);
     } else { glVue = true; if (glOuvert()) preparerCarteGL(); }
     document.addEventListener("visibilitychange", () => {
       if (carteGL?.type !== "3d") return;
@@ -7859,8 +7952,12 @@
   }
 
   // ---------- chargement ----------
+  let vfRendue = null; // la VF au rendu d'avant (null : premier rendu)
   function rendreTout() {
-    document.documentElement.classList.toggle("v4", v4Ouverte());
+    const vf = v4Ouverte();
+    if (vfRendue === false && vf) vfEnDirect();
+    vfRendue = vf;
+    document.documentElement.classList.toggle("v4", vf);
     rendreMenuVF();
     rendreAccueilVF();
     rendreCaritatif();
