@@ -1,7 +1,9 @@
 // BOSS LIVE : les boss en 3D (modèles Blender modeles/boss/<id>.glb : morghast, voraxia, krakor) et leurs effets : aura qui monte,
 // halo qui tourne, éclats en orbite, éclairs, cercle de runes au sol, onde de choc et flash à chaque coup, apparition (il sort
 // du cercle), rage (rouge), mort (il explose), fuite (il s'en va dans le ciel), caméra qui tourne et tremble.
-// creerBoss3D(canvas, { boss }) → { boss, etat("dort"|"combat"|"rage"|"mort"|"fuite"), apparition(), frappe(force), pause(oui), redimensionner(), arreter() }
+// creerBoss3D(canvas, { boss, niveau5 }) → { boss, etat("dort"|"combat"|"rage"|"mort"|"fuite"), apparition(), frappe(force), pause(oui), redimensionner(), arreter() }
+// niveau5 (la VF 1.0) : le boss refait au niveau 5 (modeles/boss/<id>-v5.glb et son atlas .webp, la version légère au
+// téléphone : matières et lumière cuites dans Blender) ; s'il manque, celui d'avant.
 import * as THREE from "./three-r170.module.min.js";
 import { lireGLB, sceneGLB, habiller } from "./grandline-3d.js";
 
@@ -57,10 +59,11 @@ const runes = (couleur) => texture((g, s) => {
   }
 }, 512);
 
-export function creerBoss3D(canvas, { boss: id = "morghast", modeles = "/modeles/boss/" } = {}) {
+export function creerBoss3D(canvas, { boss: id = "morghast", modeles = "/modeles/boss/", niveau5 = false } = {}) {
   if (!BOSS_3D[id]) id = "morghast";
   const C = BOSS_3D[id];
   const modele = `${modeles}${id}.glb`;
+  const modele5 = `${modeles}${id}-v5${petit() ? "-leger" : ""}.glb`;
   const rendu = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 2, alpha: true, powerPreference: "high-performance" });
   rendu.setPixelRatio(Math.min(window.devicePixelRatio || 1, petit() ? 1.25 : 1.75));
   rendu.setClearColor(0x000000, 0);
@@ -167,9 +170,19 @@ export function creerBoss3D(canvas, { boss: id = "morghast", modeles = "/modeles
   }
 
   // le modèle
-  lireGLB(modele).then((d) => {
+  (niveau5 ? lireGLB(modele5).catch(() => lireGLB(modele)) : lireGLB(modele)).then((d) => {
     const racine = sceneGLB(d);
-    habiller(racine, { relief: () => new THREE.MeshLambertMaterial({ color: 0x888888 }), contour: 0.05 });
+    habiller(racine, { relief: () => new THREE.MeshLambertMaterial({ color: 0x888888 }), contour: 0.05, lave5: false });
+    // niveau 5 : l'atlas tel quel (sur la carte, il prend en plus l'ombre des nuages qui passent : pas ici). La carte rend
+    // en linéaire ; cette page encode en sRGB : l'image cuite est donc lue comme du sRGB, pour ressortir telle quelle
+    const atlas = racine.userData.atlas;
+    if (atlas) {
+      const image = atlas.map.clone();
+      image.colorSpace = THREE.SRGBColorSpace;
+      image.needsUpdate = true;
+      const net = new THREE.MeshBasicMaterial({ map: image });
+      racine.traverse((o) => { if (o.isMesh && o.material === atlas) o.material = net; });
+    }
     racine.traverse((o) => {
       const n = (o.name || "").replace(/\.\d+$/, ""); // Blender ajoute .001 quand plusieurs boss sont dans le même fichier
       if (n === "boss_tete") { parties.tete = o; for (const y of yeux) o.add(y); }

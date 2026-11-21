@@ -7547,7 +7547,7 @@
     const toile = $("bl-toile");
     try {
       const { creerBoss3D } = await import("/js/boss-3d.js");
-      BL.rendu = creerBoss3D(toile, { boss: BL.boss || "morghast" });
+      BL.rendu = creerBoss3D(toile, { boss: BL.boss || "morghast", niveau5: niveau5() }); // la VF 1.0 : les boss du niveau 5
       toile.addEventListener("boss-pret", () => $("bl-scene").classList.add("bl-3d"), { once: true });
       if (BL.etat) BL.rendu.etat(BL.etat);
       const c = BL.d?.combat;
