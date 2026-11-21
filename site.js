@@ -1640,8 +1640,21 @@
     const cle = JSON.stringify([donnees?.horsLigne, y?.videos?.map((v) => v.id), y?.shorts?.map((v) => v.id)]);
     if (cle === cleYoutube) return;
     cleYoutube = cle;
+    const carteVideo = (v, court = false) => el("a", { class: `carte video${court ? " short" : ""}`, href: lienSur(v.lien) || "#", ...externe },
+      el("div", { class: "image" }, el("img", { src: lienSur(v.vignette), alt: "", loading: "lazy" })),
+      el("span", { text: v.titre }),
+      v.publie ? el("small", { text: fmtCourt.format(new Date(v.publie)) }) : null,
+    );
     if (!y?.videos?.length) {
-      vider(z, el("p", { class: "vide carte", text: donnees?.horsLigne ? "Les vidéos reviennent dans un instant." : "Les vidéos arrivent bientôt." }));
+      // pas de vidéo longue (par exemple une chaîne qui ne poste que des Shorts) : on montre au moins les Shorts
+      const seulsShorts = (y?.shorts || []).map((v) => carteVideo(v, true));
+      if (!seulsShorts.length) {
+        vider(z, el("p", { class: "vide carte", text: donnees?.horsLigne ? "Les vidéos reviennent dans un instant." : "Les vidéos arrivent bientôt." }));
+        return;
+      }
+      const vuShorts = dejaVu(z);
+      vider(z, el("h3", { class: "sous-titre", text: "Les Shorts" }), el("div", { class: "shorts" }, seulsShorts));
+      apparaitre(seulsShorts, vuShorts);
       return;
     }
     const [derniere, ...autres] = y.videos;
@@ -1654,11 +1667,6 @@
       vider(lecteur, el("iframe", { src: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(derniere.id)}?autoplay=1&rel=0`, title: derniere.titre, allow: "autoplay; encrypted-media; picture-in-picture; fullscreen" }));
     });
     lecteur.append(facade);
-    const carteVideo = (v, court = false) => el("a", { class: `carte video${court ? " short" : ""}`, href: lienSur(v.lien) || "#", ...externe },
-      el("div", { class: "image" }, el("img", { src: lienSur(v.vignette), alt: "", loading: "lazy" })),
-      el("span", { text: v.titre }),
-      v.publie ? el("small", { text: fmtCourt.format(new Date(v.publie)) }) : null,
-    );
     const grand = el("div", { class: "yt-grand" },
       lecteur,
       el("div", { class: "carte yt-infos" },
