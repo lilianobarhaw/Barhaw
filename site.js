@@ -5110,7 +5110,8 @@
   // Le bot dit si c'est ouvert (un admin peut ouvrir plus tôt) ; sans réponse du bot, c'est la date qui compte.
   const GL_OUVERTURE = Date.parse("2026-10-31T20:00:00Z");
   const glOuvert = () => { const g = infosGL(); return Boolean(g?.route && (g.ouvert === true || (g.ouvert === undefined && Date.now() >= GL_OUVERTURE))); };
-  const imageIle = (id) => (/^[a-z]{2,20}$/.test(String(id || "")) ? `/img/iles/${id}.webp` : "");
+  // l'image d'une île (rendue dans Blender) ; au niveau 5, celle de l'île du niveau 5 (img/iles/<id>-v5.webp)
+  const imageIle = (id) => (/^[a-z]{2,20}$/.test(String(id || "")) ? `/img/iles/${id}${niveau5() && window.__niveau5 !== "navire" && ILES_V5.includes(id) ? "-v5" : ""}.webp` : "");
   // ---------- LA FLOTTE (V4) : un navire par commu de potes, sur la même mer, et la course jusqu'au trésor ----------
   // La VF 1.0 (la grande mise à jour, appelée « v4 » dans le code) sort le mardi 22 décembre 2026 à 21 h 30 (heure de Paris),
   // en direct : avant, rien d'elle ne se voit (comme
@@ -6090,7 +6091,8 @@
   }
 
   // « Terre en vue ! » : tout l'écran, comme le début du live, avec l'île atteinte
-  // (en VF, les îles de la V4 ont leur petite vidéo : videos/iles/<id>, un tour de caméra autour de l'île et de son maître)
+  // (en VF, les îles de la V4 ont leur petite vidéo : videos/iles/<id>, un tour de caméra autour de l'île et de son maître ;
+  // au niveau 5, celle de l'île et du maître du niveau 5 : videos/iles/<id>-v5)
   function terreEnVue(e) {
     const cle = `barhaw-terre:${e.commu ? `${e.commu}:` : ""}${e.voyage}-${e.etape}`;
     if (lireSession(cle) === "vu" && !e.force) return;
@@ -6099,7 +6101,7 @@
     if (document.hidden) { document.addEventListener("visibilitychange", () => terreEnVue({ ...e, force: true }), { once: true }); return; }
     if (document.querySelector(".choc-live")) return;
     jouerSon("taiko");
-    const video = videosPermises() && ILES_V4.includes(e.id) ? videoVF(`/videos/iles/${e.id}`, "choc-video") : null;
+    const video = videosPermises() && ILES_V4.includes(e.id) ? videoVF(`/videos/iles/${e.id}${niveau5() ? "-v5" : ""}`, "choc-video") : null;
     const o = el("div", { class: `choc-live choc-terre${video ? " avec-video" : ""}`, "aria-hidden": "true" },
       el("span", { class: "choc-lignes" }),
       el("span", { class: "sfx tremble choc-sfx", text: "ドドン" }),
@@ -7329,8 +7331,9 @@
     BL.intro?.remove();
     try { localStorage.setItem("barhaw-bl-intro", String(c.id)); } catch {}
     const id = BL_NOMS[c.boss] ? c.boss : "morghast";
-    // en VF : il jaillit de la mer (une petite vidéo rendue dans Blender) ; l'impact sonne quand il sort de l'eau
-    const video = videosPermises() ? videoVF(`/videos/boss/${id}`, "bl-intro-video") : null;
+    // en VF : il jaillit de la mer (une petite vidéo rendue dans Blender ; au niveau 5, le boss du niveau 5 : <id>-v5) ;
+    // l'impact sonne quand il sort de l'eau
+    const video = videosPermises() ? videoVF(`/videos/boss/${id}${niveau5() ? "-v5" : ""}`, "bl-intro-video") : null;
     const bande = "⚠ WARNING ⚠ BOSS LIVE ⚠ WARNING ⚠ BOSS LIVE ".repeat(6);
     const fermer = () => { if (!o.isConnected) return; o.classList.add("bl-intro-fin"); setTimeout(() => o.remove(), 500); };
     const go = el("button", { class: "bl-intro-go", type: "button", text: "⚔️ AU COMBAT !", onclick: () => {
@@ -7346,7 +7349,7 @@
       el("div", { class: "bl-intro-bande bl-intro-haut" }, el("span", { text: bande })),
       el("div", { class: "bl-intro-bande bl-intro-bas" }, el("span", { text: bande })),
       el("div", { class: "bl-intro-coeur" },
-        el("div", { class: "bl-intro-visuel" }, el("img", { class: "bl-intro-boss", src: `/img/boss/${id}.webp`, alt: "" }), video),
+        el("div", { class: "bl-intro-visuel" }, el("img", { class: "bl-intro-boss", src: `/img/boss/${id}${niveau5() ? "-v5" : ""}.webp`, alt: "" }), video),
         el("p", { class: "bl-intro-cri", text: "LE BOSS EST LÀ !!!" }),
         el("h2", { class: "bl-intro-nom", text: c.nom }),
         el("p", { class: "bl-intro-titre", text: `${c.titre} · niveau ${c.niveau} · ${blFmt(c.pvMax)} PV` }),
@@ -7415,7 +7418,7 @@
     const boss = BL_NOMS[c?.boss] && (actif || recent) ? c.boss : BL_NOMS[d.prochain?.id] ? d.prochain.id : "morghast";
     if (boss !== BL.boss) {
       BL.boss = boss;
-      $("bl-affiche").src = `/img/boss/${boss}.webp`;
+      $("bl-affiche").src = `/img/boss/${boss}${niveau5() ? "-v5" : ""}.webp`; // au niveau 5 : le boss du niveau 5
       if (BL.rendu && BL.rendu.boss !== boss) { BL.rendu.arreter(); BL.rendu = null; BL.charge = false; scene.classList.remove("bl-3d"); }
     }
     // un nouveau combat : l'alerte pour tout le monde (une fois par combat), le boss qui sort du cercle, la musique au début
