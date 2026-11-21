@@ -15,8 +15,10 @@
   const SECOURS = [
     { id: "live12h", type: "live", titre: "Live 12 h · Chained Together", debut: "2026-12-26T00:00:00+01:00", heure: false, description: "12 heures de live sur Chained Together, duo contre duo : le duo le plus haut au bout des 12 h gagne. Le soir, ouverture officielle d'Osiris.", lien: "https://www.twitch.tv/lilianobarhaw" },
     { id: "osiris-ouverture", type: "osiris", titre: "Osiris · ouverture du site et du Discord", debut: "2026-12-26T21:00:00+01:00", heure: true, description: "Le site et le Discord d'Osiris ouvrent enfin, avec le premier teaser « On vous regarde ».", lien: "https://osiriswl.vercel.app" },
-    { id: "tournoi", type: "tournoi", titre: "TOURNOI BARHAW", debut: "2027-02-04T00:00:00+01:00", heure: false, fin: "2027-02-20T00:00:00+01:00", description: "6 équipes de 3 sur Valorant, 1 000 € de cashprize sur le tournoi, tous les matchs en BO3 et en direct. Finale le samedi 20 février.", lien: "https://www.twitch.tv/lilianobarhaw" },
-    { id: "osiris-casting", type: "osiris", titre: "Osiris · ouverture du casting", debut: "2027-02-20T23:30:00+01:00", heure: true, fin: "2027-03-20T23:59:00+01:00", finHeure: true, description: "Le casting du Programme 01 s'ouvre en direct à la finale du TOURNOI BARHAW. Candidatures jusqu'au 20 mars, 17 ans minimum et un bon micro.", lien: "https://osiriswl.vercel.app/casting" },
+    // reportés le 21/11/2026 (le tournoi n'a pas lieu en février 2027, ni le casting d'Osiris à sa finale) ; pour les remettre :
+    // décommenter, et les rajouter dans le bot avec /evenement ajouter
+    // { id: "tournoi", type: "tournoi", titre: "TOURNOI BARHAW", debut: "2027-02-04T00:00:00+01:00", heure: false, fin: "2027-02-20T00:00:00+01:00", description: "6 équipes de 3 sur Valorant, 1 000 € de cashprize sur le tournoi, tous les matchs en BO3 et en direct. Finale le samedi 20 février.", lien: "https://www.twitch.tv/lilianobarhaw" },
+    // { id: "osiris-casting", type: "osiris", titre: "Osiris · ouverture du casting", debut: "2027-02-20T23:30:00+01:00", heure: true, fin: "2027-03-20T23:59:00+01:00", finHeure: true, description: "Le casting du Programme 01 s'ouvre en direct à la finale du TOURNOI BARHAW. Candidatures jusqu'au 20 mars, 17 ans minimum et un bon micro.", lien: "https://osiriswl.vercel.app/casting" },
     { id: "osiris-selection", type: "osiris", titre: "Osiris · la Sélection", debut: "2027-04-24T21:00:00+02:00", heure: true, description: "Les 35 candidats retenus pour le Programme 01 sont annoncés en direct.", lien: "https://osiriswl.vercel.app" },
     { id: "osiris-programme01", type: "osiris", titre: "Osiris · Programme 01, L'Hiver de Ludendorff", debut: "2027-05-15T20:30:00+02:00", heure: true, fin: "2027-06-26T00:00:00+02:00", description: "35 candidats, 18 soirées, un hiver dont tout le monde ne sortira pas. Les mercredis, vendredis et samedis, de 20 h 30 à 1 h.", lien: "https://osiriswl.vercel.app" },
   ];
@@ -397,7 +399,7 @@
   // les mêmes liens (avec leurs pastilles « Live », compteurs…) sont rangés dans 4 rubriques : un menu déroulant en haut
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
-    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "tournoi", "evenements"] },
+    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "evenements"] },
     { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
@@ -1700,7 +1702,7 @@
         d ? el("div", { class: "chiffres" },
           el("div", {}, el("b", { text: nombre(d.membres) }), el("span", { text: "membres" })),
           d.enLigne ? el("div", { class: "en-ligne" }, el("b", { text: nombre(d.enLigne) }), el("span", { text: "en ligne" })) : null,
-        ) : el("p", { class: "sous", text: "Le serveur de la commu : lives, jeux, Chopper et le tournoi." }),
+        ) : el("p", { class: "sous", text: "Le serveur de la commu : lives, jeux, Chopper et GRAND LINE." }),
       ),
       lien
         ? el("a", { class: "btn btn-plein", href: lien, ...externe, text: "Rejoindre le serveur" })
@@ -2180,6 +2182,7 @@
   }
 
   function rendreTournoi() {
+    if ($("tournoi")?.hidden) return; // le tournoi est reporté : sa partie est cachée (index.html), on ne la remplit pas
     const t = donnees?.tournoi;
     const etat = $("etat-tournoi");
     // sans données du bot : on garde l'en-tête, le teaser et le message, sans cases vides
