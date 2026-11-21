@@ -4198,7 +4198,9 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
   // Avant, il se posait sur l'île (au Marché Flottant, sur la ronde des sampans). « part » : la part du chemin qu'il peut
   // prendre, pour que deux îles proches gardent un bout de route entre elles (0,42 d'île à île ; 0,8 jusqu'au carrefour).
   const RAYON_N5 = { ambre: 8.0, arbre: 7.8, archipel: 8.0, braise: 7.8, champignons: 7.6, cimetiere: 8.6, cristal: 8.5, engloutie: 7.9, forteresse: 8.4, geants: 8.6, givre: 7.8, horloge: 8.4, lucioles: 7.8, marais: 8.6, marche: 7.5, moussaillons: 8.4, phare: 8.5, recif: 7.7, tonnerre: 8.5, tresor: 8.6, vents: 8.1 };
-  const MAITRES_V5 = new Set(["marais"]); // les maîtres des îles déjà refaits au niveau 5 (maitre-<île>-v5.glb)
+  const MAITRES_V5 = new Set(["marais", "phare", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]); // les maîtres refaits au niveau 5 (maitre-<île>-v5.glb)
+  // la demi-taille de chacun sur la carte (ce qui sort de l'eau, à l'échelle 1,35) : il surgit assez loin du navire pour ne pas le toucher
+  const TAILLE_MAITRE5 = { marais: 6.2, phare: 4.4, cristal: 5.2, archipel: 6.4, cimetiere: 4.1, horloge: 8.5, geants: 7.2, forteresse: 6.6 };
   const EVENEMENT_N5 = { fantome: 6.5, maitre: 5.5, bouteille: 1.8 }; // la demi-taille de ce qui surgit à côté du navire
   const LARGE_N5 = 2.8; // la demi-largeur du galion (vergues comprises), et un peu d'eau
   const rivage = (de, vers, part = 0.42) => {
@@ -4480,6 +4482,10 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       // (un maître refait au niveau 5 : maitre-<île>-v5.glb, s'il est dans MAITRES_V5)
       const nomModele = type === "maitre" && /^[a-z]{2,20}$/.test(String(ev.ile || "")) ? `maitre-${ev.ile}${ilesV5.length && MAITRES_V5.has(ev.ile) ? "-v5" : ""}` : ilesV5.length ? "monstre-v5" : "monstre";
       if (type === "maitre") g.userData.decalage = v3(7, -2);
+      if (type === "maitre" && /-v5$/.test(nomModele) && TAILLE_MAITRE5[ev.ile]) { // niveau 5 : à sa taille
+        g.userData.taille5 = TAILLE_MAITRE5[ev.ile];
+        g.userData.decalage.normalize().multiplyScalar(Math.max(Math.hypot(7, 2), LARGE_N5 + g.userData.taille5 * 0.8 + 0.6));
+      }
       (/-v5$/.test(nomModele) ? creature(nomModele, 0.06).catch(() => creature(nomModele.replace(/-v5$/, ""), 0.06)) : creature(nomModele, 0.06)).then((c) => {
         if (detruit) return;
         for (const o of dessines) { g.remove(o); o.traverse((x) => x.geometry?.dispose?.()); }
@@ -4951,7 +4957,7 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       // ce qui surgit à côté du navire (le vaisseau fantôme, un maître, la bouteille) ne se pose pas sur une île niveau 5 :
       // il tourne autour du navire (à la même distance, pour ne pas lui rentrer dedans) jusqu'à trouver de l'eau libre,
       // au plus près de sa place d'avant ; il y glisse en douceur (à son apparition, il y est tout de suite)
-      const taille = decal.x || decal.z ? EVENEMENT_N5[evenement.type] || 0 : 0;
+      const taille = decal.x || decal.z ? evenement.groupe.userData.taille5 || EVENEMENT_N5[evenement.type] || 0 : 0;
       const ou = (a) => { const c = Math.cos(a), sn = Math.sin(a); return [porteur.position.x + decal.x * c - decal.z * sn, porteur.position.z + decal.x * sn + decal.z * c]; };
       const libre = ([x, z]) => ilesV5.every((id) => { const i = iles.get(id); return !i || !RAYON_N5[id] || Math.hypot(x - i.x, z - i.z) >= RAYON_N5[id] + taille; });
       const u = evenement.groupe.userData;
