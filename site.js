@@ -7,7 +7,7 @@
   document.documentElement.classList.remove("sans-js");
 
   const MA_CHAINE = "lilianobarhaw";
-  const TYPES = { osiris: "Osiris", tournoi: "Tournoi", live: "Live", video: "Vidéo", autre: "Event" };
+  const TYPES = { osiris: "Osiris", tournoi: "Tournoi", show: "Show", live: "Live", video: "Vidéo", autre: "Event" };
   const HOTE = location.hostname || "localhost";
   const reduit = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -34,7 +34,7 @@
     "déprimé": { bulle: "…", sfx: "ズーン" },
   };
   // l'onomatopée en coin du prochain event, selon son type
-  const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
+  const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], show: ["ジャーン", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
   // la musique du site : « The World's Number One Oden Store » (bande originale de One Piece), un fichier du site
   const MUSIQUE = "/musique/oden.mp3";
   // les vidéos des events (dossier videos/) : le teaser s'affiche avec l'event qui a cet identifiant (/evenement)
@@ -399,18 +399,18 @@
   // les mêmes liens (avec leurs pastilles « Live », compteurs…) sont rangés dans 4 rubriques : un menu déroulant en haut
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
-    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "evenements"] },
+    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "barhaw-show", "evenements"] },
     { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
-    chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], tournoi: ["trophee", "Le TOURNOI BARHAW"],
+    chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], tournoi: ["trophee", "Le TOURNOI BARHAW"], "barhaw-show": ["micro", "4 équipes, 4 jeux, en février"],
     evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
     faille: ["epees", "Les games de LoL entre potes"], bahriot: ["trophee", "Toute la flotte sur les jeux Riot"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
   };
-  const TAILLES_OBJETS = { camera: 84, bouteille: 203, borne: 100, chopes: 106, casque: 177, trophee: 112, lanterne: 99, panneau: 126, gamelle: 244, coffre: 150, epees: 144, clap: 187, cloche: 159 };
+  const TAILLES_OBJETS = { micro: 92, camera: 84, bouteille: 203, borne: 100, chopes: 106, casque: 177, trophee: 112, lanterne: 99, panneau: 126, gamelle: 244, coffre: 150, epees: 144, clap: 187, cloche: 159 };
   const objetMenu = (nom, classe) => el("img", { class: classe, src: `/img/objets/${nom}.webp`, alt: "", width: Math.round((TAILLES_OBJETS[nom] || 120) / 4), height: 40, loading: "lazy", decoding: "async" });
   const menuVF = { fait: false, places: new Map() };
   function rendreMenuVF() {
@@ -1429,6 +1429,7 @@
         el("h3", { text: e.titre }),
         el("p", { class: "quand", text: periode }),
         e.description ? el("p", { text: e.description }) : null,
+        e.ancre && !passe ? el("a", { class: "lien", href: `#${e.ancre}`, text: "Voir le programme" }) : null,
         lien && !passe ? el("a", { class: "lien", href: lien, ...externe, text: lienEvenement(lien) }) : null,
         VIDEOS[e.id] ? el("button", { class: "lien lien-video", type: "button", onclick: (ev) => visionner(VIDEOS[e.id], ev.currentTarget), text: passe ? "Revoir le teaser" : "Voir le teaser" }) : null,
       ),
@@ -1439,7 +1440,7 @@
   let cleProchain = "";
   function rendreProchain(e) {
     const z = $("prochain");
-    const cle = JSON.stringify(e ? [e.id, e.titre, e.debut, e.enCours, e.description, e.lien, e.type] : null);
+    const cle = JSON.stringify(e ? [e.id, e.titre, e.debut, e.enCours, e.description, e.lien, e.type, e.ancre] : null);
     if (cle === cleProchain) return;
     cleProchain = cle;
     clearInterval(minuteur);
@@ -1472,7 +1473,8 @@
         el("h3", { text: e.titre }),
         el("p", { class: "date", text: dateLongue(e.debut, e.heure) }),
         e.description ? el("p", { text: e.description }) : null,
-        lien ? el("div", { class: "boutons" }, el("a", { class: "btn btn-plein btn-petit", href: lien, ...externe, text: `${lienEvenement(lien)} →` })) : null,
+        e.ancre ? el("div", { class: "boutons" }, el("a", { class: "btn btn-plein btn-petit", href: `#${e.ancre}`, text: "Voir le programme ↓" }))
+          : lien ? el("div", { class: "boutons" }, el("a", { class: "btn btn-plein btn-petit", href: lien, ...externe, text: `${lienEvenement(lien)} →` })) : null,
       ),
       e.enCours ? null : rebours,
       VIDEOS[e.id] ? el("div", { class: "prochain-video" },
@@ -1484,7 +1486,7 @@
   }
 
   function rendreEvenements() {
-    const ev = donnees?.evenements || evenementsSecours();
+    const ev = agendaAvecShow(donnees?.evenements || evenementsSecours());
     const [premier, ...suite] = ev.aVenir || [];
     rendreProchain(premier);
     const liste = $("evenements-liste");
@@ -1506,7 +1508,7 @@
     const live = Boolean(donnees?.chaine?.enLive);
     b.classList.toggle("crie", live);
     if (live) phrases.push("IL EST EN LIIIVE !! Fonce !", "Liliano est en live, viens vite !!", "C'EST MAINTENANT ! Le live a commencé !");
-    const prochain = (donnees?.evenements || evenementsSecours()).aVenir?.[0];
+    const prochain = agendaAvecShow(donnees?.evenements || evenementsSecours()).aVenir?.[0];
     if (prochain) phrases.push(prochain.enCours ? `${prochain.titre} : c'est maintenant !` : `Prochain event : ${prochain.titre}, ${dansCombien(prochain.debut)} !`);
     const ch = donnees?.chopper;
     if (ch?.actif && ch.faim < 40) phrases.push("J'ai faim… Viens me nourrir, plus bas !");
@@ -7977,6 +7979,7 @@
     rendreEntete();
     rendreFideles();
     rendreBahriot();
+    rendreShow();
     rendreMaintenant();
     rendreEvenements();
     bulleAccueil();
@@ -8133,6 +8136,285 @@
       el("p", { class: "note", text: `${nombre(f.relies || 0)} ${(f.relies || 0) > 1 ? "fidèles reliés" : "fidèle relié"} · seuls ceux qui ont relié leur Twitch apparaissent, avec leur pseudo Discord. Twitch ne compte que les viewers connectés au chat (connectés à leur compte, chat ouvert).` }),
     );
   }
+  // ---------- la VF 1.0 : LE BARHAW SHOW (février 2027) ----------
+  // 4 équipes de 5, chacune menée par un streameur qui joue aussi. 4 semaines : chaque semaine, un petit tournoi sur le jeu
+  // d'une des équipes (elle joue « à domicile ») : les demi-finales le vendredi à 21 h, la finale et le match pour la 3e place
+  // le samedi à 21 h. 10, 6, 3 et 1 points selon la place ; au bout du mois, le meilleur total gagne le Show.
+  // Tout le monde peut streamer sa partie. Les résultats et les joueurs viendront du bot (donnees.show : { resultats:
+  // { "1": [1er, 2e, 3e, 4e] (identifiants d'équipe) }, equipes: { kikso: { joueurs: [...] } } }) ; sans eux : le programme,
+  // les équipes (4 joueurs à révéler chacune) et un classement à zéro. L'ordre des semaines et les soirs se changent ici.
+  const SHOW = {
+    titre: "Le Barhaw Show",
+    points: [10, 6, 3, 1],
+    equipes: [
+      { id: "liliano", capitaine: "Liliano", twitch: "lilianobarhaw", c1: "#ff5aae", c2: "#55ccff", vif: "#ff5aae" },
+      { id: "kikso", capitaine: "Kikso", twitch: "kikso06", c1: "#6d2790", c2: "#d9a8ff", vif: "#c98bff" },
+      { id: "veyzo", capitaine: "Veyzo", twitch: "veyzo_off", c1: "#ffc23d", c2: "#c8150f", vif: "#ffc23d" },
+      { id: "moode", capitaine: "Moode", twitch: "m_oo_de", c1: "#2fc4a8", c2: "#1e5fd6", vif: "#3fdcbf" },
+    ],
+    semaines: [
+      { n: 1, equipe: "kikso", jeu: "VALORANT", mode: "5 contre 5", icone: "viseur", du: "2027-02-01", au: "2027-02-07", demies: "2027-02-05T21:00:00+01:00", finale: "2027-02-06T21:00:00+01:00" },
+      { n: 2, equipe: "veyzo", jeu: "Rainbow Six Siege", mode: "5 contre 5", icone: "bouclier", du: "2027-02-08", au: "2027-02-14", demies: "2027-02-12T21:00:00+01:00", finale: "2027-02-13T21:00:00+01:00" },
+      { n: 3, equipe: "moode", jeu: "Fortnite", mode: "Zone Wars, 5 contre 5", icone: "zone", du: "2027-02-15", au: "2027-02-21", demies: "2027-02-19T21:00:00+01:00", finale: "2027-02-20T21:00:00+01:00" },
+      { n: 4, equipe: "liliano", jeu: "League of Legends", mode: "5 contre 5", icone: "epees", du: "2027-02-22", au: "2027-02-28", demies: "2027-02-26T21:00:00+01:00", finale: "2027-02-27T21:00:00+01:00" },
+    ],
+  };
+  const SOIR_SHOW = 4 * 3_600_000; // un soir de match dure environ 4 h
+  const fmtSoir = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" });
+  const fmtMoisLong = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", month: "long" });
+  const jourParis = (t) => new Date(t).toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" }); // « 2027-02-05 »
+  const equipeShow = (id) => SHOW.equipes.find((e) => e.id === id) || SHOW.equipes[0];
+  const placeTexte = (p) => (p === 1 ? "1er" : `${p}e`);
+  const ptsTexte = (n) => `${n} pt${n > 1 ? "s" : ""}`;
+  const soirShow = (t) => `${majuscule(fmtSoir.format(new Date(ms(t))))} · ${heure(ms(t))}`; // « Ven. 5 févr. · 21 h »
+  function periodeShow(w) {
+    const j = (d) => { const n = Number(d.slice(8, 10)); return n === 1 ? "1er" : String(n); };
+    return `du ${j(w.du)} au ${j(w.au)} ${fmtMoisLong.format(new Date(`${w.au}T12:00:00+01:00`))}`;
+  }
+  const styleEquipe = (e) => `--c1:${e.c1};--c2:${e.c2};--sh-vif:${e.vif};--sh-texte:${clair(e.c1) ? "#12050d" : "#fff"}`;
+  const emblemeShow = (e, classe = "") => el("span", { class: `sh-embleme${classe ? ` ${classe}` : ""}`, style: styleEquipe(e), "aria-hidden": "true", text: e.capitaine[0] });
+  // les petites icônes des jeux (dessinées pour le site, pas les logos des jeux)
+  const ICONES_SHOW = {
+    viseur: [["circle", { cx: 12, cy: 12, r: 7 }], ["path", { d: "M12 2v5M12 17v5M2 12h5M17 12h5" }], ["circle", { cx: 12, cy: 12, r: 1.4, class: "plein" }]],
+    bouclier: [["path", { d: "M12 2.5 19.5 5.5V11c0 4.6-3.1 8.4-7.5 10.5C7.6 19.4 4.5 15.6 4.5 11V5.5z" }], ["path", { d: "M12 6.5v11M8 10.5h8" }]],
+    zone: [["circle", { cx: 12, cy: 12, r: 9.5, class: "pointille" }], ["circle", { cx: 13.5, cy: 10.5, r: 4.5 }], ["path", { d: "M13.5 8.5v4M11.5 10.5h4" }]],
+    epees: [["path", { d: "M4 4l11 11M20 4 9 15" }], ["path", { d: "M13 17l4-4M7 13l4 4M15.5 15.5l3.5 3.5M8.5 15.5 5 19" }]],
+  };
+  function iconeShow(nom) {
+    const s = (tag, attrs = {}) => { const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); return e; };
+    const svg = s("svg", { viewBox: "0 0 24 24", class: "sh-icone", "aria-hidden": "true" });
+    for (const [tag, attrs] of ICONES_SHOW[nom] || []) svg.append(s(tag, attrs));
+    return svg;
+  }
+  function enLiveShow(e) {
+    if (e.twitch === MA_CHAINE) return Boolean(donnees?.chaine?.enLive);
+    return Boolean((donnees?.amis || []).find((a) => String(a?.login || "").toLowerCase() === e.twitch)?.enLive);
+  }
+  // où en est le Show : avant (le compte à rebours), en cours (la semaine, un soir de match en direct), fini (le vainqueur)
+  function etatShow() {
+    const t = Date.now();
+    const S = SHOW.semaines;
+    const res = donnees?.show?.resultats && typeof donnees.show.resultats === "object" ? donnees.show.resultats : {};
+    const faite = (w) => Array.isArray(res[w.n]) && res[w.n].length === SHOW.equipes.length && res[w.n].every((id) => SHOW.equipes.some((e) => e.id === id));
+    const faites = S.filter(faite);
+    const jour = jourParis(t);
+    const semaine = S.find((w) => jour >= w.du && jour <= w.au) || null;
+    const soir = S.flatMap((w) => [[w, "demies"], [w, "finale"]]).find(([w, k]) => t >= ms(w[k]) - 1_800_000 && t < ms(w[k]) + SOIR_SHOW && !(k === "finale" && faite(w))) || null;
+    const prochain = S.flatMap((w) => [[w, "demies"], [w, "finale"]]).find(([w, k]) => ms(w[k]) > t) || null;
+    const fin = ms(S.at(-1).finale) + SOIR_SHOW;
+    const phase = faites.length === S.length || t >= fin ? "fini" : jour >= S[0].du ? "en-cours" : "avant";
+    return { t, phase, semaine, soir, prochain, res, faites, faite };
+  }
+  // le classement : les points de chaque semaine jouée, puis le total (à égalité : le plus de victoires)
+  function classementShow(res) {
+    const l = SHOW.equipes.map((e, ordre) => {
+      const parSemaine = SHOW.semaines.map((w) => {
+        const r = Array.isArray(res[w.n]) ? res[w.n] : [];
+        const k = r.indexOf(e.id);
+        return k >= 0 ? { place: k + 1, points: SHOW.points[k] || 0 } : null;
+      });
+      return { e, ordre, parSemaine, total: parSemaine.reduce((a, x) => a + (x?.points || 0), 0), victoires: parSemaine.filter((x) => x?.place === 1).length };
+    });
+    return l.sort((a, b) => b.total - a.total || b.victoires - a.victoires || a.ordre - b.ordre);
+  }
+  // l'agenda : le Barhaw Show y entre avec la VF 1.0 (sauf si le bot l'a déjà, ajouté avec /evenement)
+  function agendaAvecShow(ev) {
+    if (!v4Ouverte() || !ev) return ev;
+    if ([...(ev.aVenir || []), ...(ev.passes || [])].some((e) => /barhaw\s*show/i.test(String(e?.titre || "")))) return ev;
+    const t = Date.now();
+    const debut = ms(SHOW.semaines[0].demies);
+    const fin = ms(`${SHOW.semaines.at(-1).finale.slice(0, 10)}T00:00:00+01:00`);
+    const show = {
+      id: "barhaw-show", type: "show", titre: SHOW.titre, debut, heure: true, fin, ancre: "barhaw-show",
+      description: "4 équipes de 5 menées par Liliano, Kikso, Veyzo et Moode. Un jeu par semaine : VALORANT, Rainbow Six Siege, Fortnite (Zone Wars) et League of Legends. Une seule équipe gagne le Show.",
+    };
+    if (finDe(show) < t) return { ...ev, passes: [show, ...(ev.passes || [])].slice(0, 3) };
+    return { ...ev, aVenir: [...(ev.aVenir || []), { ...show, enCours: debut <= t }].sort((a, b) => ms(a.debut) - ms(b.debut)) };
+  }
+
+  let minuteurShow = null;
+  let cleShow = "";
+  function rendreShow() {
+    const section = $("barhaw-show");
+    if (!section) return;
+    const vf = document.documentElement.classList.contains("v4");
+    const s = etatShow();
+    const pastille = $("pastille-show");
+    if (pastille) pastille.hidden = !(vf && s.soir);
+    if (!vf) { clearInterval(minuteurShow); cleShow = ""; return; }
+    const lives = SHOW.equipes.map(enLiveShow);
+    const joueurs = donnees?.show?.equipes || null;
+    const cle = JSON.stringify([s.phase, s.semaine?.n || 0, s.soir ? `${s.soir[0].n}${s.soir[1]}` : "", s.prochain ? `${s.prochain[0].n}${s.prochain[1]}` : "", s.res, lives, joueurs]);
+    if (cle === cleShow) return;
+    cleShow = cle;
+    afficheShow(s);
+    const zEq = $("show-equipes");
+    const vuEq = dejaVu(zEq);
+    const cartes = equipesShow(s, lives);
+    vider(zEq, cartes);
+    apparaitre(cartes, vuEq);
+    vider($("show-programme"), programmeShow(s));
+    vider($("show-classement"), blocClassementShow(s));
+    vider($("show-regles"), reglesShow());
+    vider($("show-lives"), livesShow(lives));
+  }
+
+  function afficheShow(s) {
+    const z = $("show-affiche");
+    clearInterval(minuteurShow);
+    let statut;
+    let tic = null;
+    if (s.phase === "avant") {
+      const cible = ms(SHOW.semaines[0].demies);
+      const rebours = el("div", { class: "rebours sh-rebours", role: "timer", "aria-label": "Avant le premier match du Barhaw Show" });
+      tic = () => {
+        if (enVeille(rebours)) return;
+        const reste = cible - Date.now();
+        if (reste <= 0) { clearInterval(minuteurShow); cleShow = ""; rendreShow(); return; }
+        const x = Math.floor(reste / 1000);
+        const parts = [[Math.floor(x / 86400), "jours"], [Math.floor((x % 86400) / 3600), "heures"], [Math.floor((x % 3600) / 60), "min"], [x % 60, "sec"]];
+        vider(rebours, parts.map(([v, u]) => el("div", {}, el("b", { text: String(v).padStart(2, "0") }), el("small", { text: u }))));
+      };
+      statut = [el("p", { class: "sh-statut", text: `Premier match : ${dateLongue(cible, true)}` }), rebours];
+    } else if (s.phase === "en-cours") {
+      const w = s.semaine || s.prochain?.[0] || SHOW.semaines[0];
+      const dom = equipeShow(w.equipe);
+      const soir = s.soir;
+      const suite = s.prochain && !soir
+        ? `Prochain soir : ${s.prochain[1] === "demies" ? "les demi-finales" : "la finale"}, ${dateLongue(ms(s.prochain[0][s.prochain[1]]), true)} (${dansCombien(ms(s.prochain[0][s.prochain[1]]))})`
+        : soir ? (soir[1] === "demies" ? "Les demi-finales, ce soir : deux matchs, quatre équipes." : "La finale et le match pour la 3e place, ce soir.") : "";
+      statut = [
+        el("p", { class: "sh-statut" },
+          soir ? el("span", { class: "sh-direct" }, el("i", { class: "sh-point", "aria-hidden": "true" }), "En direct") : null,
+          `Semaine ${w.n} · ${w.jeu}, chez ${dom.capitaine}`),
+        suite ? el("p", { class: "sh-sous", text: suite }) : null,
+      ];
+    } else {
+      const [g, ...reste] = classementShow(s.res);
+      statut = [
+        el("p", { class: "sh-gagnant" }, emblemeShow(g.e, "grand"), el("span", {}, el("small", { text: "Le Barhaw Show est gagné par" }), el("b", { text: `l'équipe de ${g.e.capitaine}` }))),
+        el("p", { class: "sh-sous", text: `${g.total} points sur ${SHOW.points[0] * SHOW.semaines.length}${reste[0] ? `, devant l'équipe de ${reste[0].e.capitaine} (${reste[0].total})` : ""}.` }),
+      ];
+    }
+    vider(z,
+      el("div", { class: "sh-ampoules", "aria-hidden": "true" }),
+      el("div", { class: "sh-projecteurs", "aria-hidden": "true" }, el("i"), el("i")),
+      el("div", { class: "sh-scene" },
+        el("p", { class: "sh-surtitre", text: "Février 2027 · 4 semaines · 4 jeux" }),
+        el("p", { class: "sh-logo", "aria-hidden": "true" }, el("span", { text: "Le Barhaw" }), el("b", { text: "Show" })),
+        el("ul", { class: "sh-capitaines", "aria-label": "Les quatre capitaines" }, SHOW.equipes.map((e) => el("li", { style: styleEquipe(e) },
+          emblemeShow(e, "grand"),
+          el("b", { text: e.capitaine }),
+          el("small", { text: SHOW.semaines.find((w) => w.equipe === e.id)?.jeu || "" })))),
+        el("div", { class: "sh-statut-bloc", "aria-live": "polite" }, statut),
+        el("div", { class: "boutons sh-boutons" },
+          el("a", { class: "btn btn-plein btn-petit", href: "#show-programme", text: "Le programme ↓" }),
+          el("a", { class: "btn btn-contour btn-petit", href: "#show-lives", text: "Où regarder ↓" })),
+      ),
+    );
+    z.classList.toggle("en-direct", Boolean(s.soir));
+    z.classList.toggle("fini", s.phase === "fini");
+    if (tic) { tic(); minuteurShow = setInterval(tic, 1000); } // le compte à rebours, une fois dans la page
+  }
+
+  function equipesShow(s, lives) {
+    return SHOW.equipes.map((e, k) => {
+      const w = SHOW.semaines.find((x) => x.equipe === e.id);
+      const noms = Array.isArray(donnees?.show?.equipes?.[e.id]?.joueurs) ? donnees.show.equipes[e.id].joueurs.filter((n) => typeof n === "string" && n.trim()).slice(0, 4) : [];
+      const joueurs = [
+        el("li", { class: "sh-joueur capitaine" }, el("b", { text: e.capitaine }), el("small", { text: "capitaine" })),
+        ...Array.from({ length: 4 }, (_, i) => (noms[i]
+          ? el("li", { class: "sh-joueur" }, el("b", { text: noms[i] }))
+          : el("li", { class: "sh-joueur scelle", "aria-label": "Joueur à révéler" }, el("span", { "aria-hidden": "true", text: "?" })))),
+      ];
+      const ligne = classementShow(s.res).find((x) => x.e.id === e.id);
+      return el("article", { class: "carte sh-equipe", style: styleEquipe(e), "aria-label": `Équipe ${e.capitaine}` },
+        el("div", { class: "sh-equipe-tete" },
+          emblemeShow(e, "moyen"),
+          el("div", {}, el("small", { class: "sh-equipe-label", text: "Équipe" }), el("h3", { text: e.capitaine }), el("p", {}, iconeShow(w.icone), w.jeu))),
+        el("ul", { class: "sh-joueurs", "aria-label": `Les joueurs de l'équipe ${e.capitaine}` }, joueurs),
+        el("p", { class: "sh-domicile" }, el("b", { text: `Semaine ${w.n}` }), ` : elle joue à domicile, ${periodeShow(w)}.`),
+        el("div", { class: "sh-equipe-bas" },
+          el("a", { class: `sh-chaine${lives[k] ? " allume" : ""}`, href: `https://www.twitch.tv/${e.twitch}`, title: `twitch.tv/${e.twitch}`, ...externe },
+            el("i", { class: "sh-point", "aria-hidden": "true" }), lives[k] ? "En live" : "Sa chaîne Twitch"),
+          s.faites.length ? el("b", { class: "sh-total", text: ptsTexte(ligne.total) }) : null),
+      );
+    });
+  }
+
+  function programmeShow(s) {
+    const lignes = SHOW.semaines.map((w) => {
+      const dom = equipeShow(w.equipe);
+      const r = s.res[w.n];
+      const fini = s.faite(w);
+      const enCours = !fini && s.semaine?.n === w.n;
+      const direct = s.soir && s.soir[0].n === w.n ? s.soir[1] : "";
+      const etat = fini
+        ? el("span", { class: "sh-vainqueur" }, emblemeShow(equipeShow(r[0])), el("span", {}, el("small", { text: "1er" }), el("b", { text: equipeShow(r[0]).capitaine })))
+        : direct ? el("span", { class: "sh-direct" }, el("i", { class: "sh-point", "aria-hidden": "true" }), direct === "demies" ? "Demies en direct" : "Finale en direct")
+          : enCours ? el("span", { class: "tampon", text: "Cette semaine" }) : el("span", { class: "sh-avenir", text: "À venir" });
+      return el("li", { class: `sh-semaine${enCours ? " en-cours" : ""}${fini ? " fini" : ""}`, style: styleEquipe(dom) },
+        el("div", { class: "sh-sem-num" }, el("small", { text: "Semaine" }), el("b", { text: String(w.n) })),
+        el("div", { class: "sh-sem-jeu" }, iconeShow(w.icone), el("div", {}, el("b", { text: w.jeu }), el("small", { text: `${w.mode} · ${periodeShow(w)}` }))),
+        el("div", { class: "sh-sem-dom" }, emblemeShow(dom), el("span", {}, el("small", { text: "à domicile" }), el("b", { text: dom.capitaine }))),
+        el("ul", { class: "sh-soirs" },
+          el("li", { class: direct === "demies" ? "allume" : null }, el("b", { text: soirShow(w.demies) }), el("span", { text: "demi-finales" })),
+          el("li", { class: direct === "finale" ? "allume" : null }, el("b", { text: soirShow(w.finale) }), el("span", { text: "finale et 3e place" }))),
+        el("div", { class: "sh-sem-etat" }, etat),
+      );
+    });
+    return [el("h3", { class: "sh-titre", text: "Le programme du mois" }), el("ol", { class: "sh-programme" }, lignes)];
+  }
+
+  function blocClassementShow(s) {
+    const l = classementShow(s.res);
+    const commence = s.faites.length > 0;
+    const max = Math.max(1, ...l.map((x) => x.total));
+    return [
+      el("h3", { class: "sh-titre", text: "Le classement" }),
+      el("ol", { class: "sh-classement" }, l.map((x, k) => el("li", { class: `sh-ligne${commence && k === 0 ? " en-tete" : ""}`, style: styleEquipe(x.e) },
+        el("span", { class: "sh-rang", text: commence ? String(k + 1) : "·" }),
+        emblemeShow(x.e),
+        el("span", { class: "sh-nom" },
+          el("b", { text: `Équipe ${x.e.capitaine}` }),
+          el("span", { class: "sh-cases" }, x.parSemaine.map((p, i) => el("i", {
+            class: `sh-case${p ? ` p${p.place}` : ""}`,
+            title: `Semaine ${i + 1} (${SHOW.semaines[i].jeu}) : ${p ? `${placeTexte(p.place)}, ${ptsTexte(p.points)}` : "pas encore jouée"}`,
+            text: p ? String(p.points) : "–",
+          })))),
+        el("b", { class: "sh-points", text: ptsTexte(x.total) }),
+        el("span", { class: "sh-barre", "aria-hidden": "true" }, el("i", { style: `width:${commence ? Math.max(3, Math.round((x.total / max) * 100)) : 0}%` })),
+      ))),
+      el("p", { class: "sh-bareme" }, "Chaque semaine : ", el("b", { text: "1er 10 pts" }), " · 2e 6 · 3e 3 · 4e 1.", commence ? "" : " Tout le monde part de 0."),
+    ];
+  }
+
+  function reglesShow() {
+    const regles = [
+      ["5", "4 équipes de 5", "Un streameur capitaine, qui joue aussi, et 4 joueurs."],
+      ["1", "Un jeu par semaine", "Le jeu d'une des équipes : elle joue à domicile, les autres doivent la battre chez elle."],
+      ["2", "Deux soirs", "Le vendredi à 21 h, les demi-finales. Le samedi à 21 h, la finale et le match pour la 3e place."],
+      ["40", "Les points", "10, 6, 3 et 1 selon la place. Au bout du mois, le meilleur total gagne le Show."],
+    ];
+    return [
+      el("h3", { class: "sh-titre", text: "Comment ça marche" }),
+      el("ul", { class: "sh-regles" }, regles.map(([n, t, d]) => el("li", {}, el("b", { class: "sh-chiffre", "aria-hidden": "true", text: n }), el("strong", { text: t }), el("span", { text: d })))),
+    ];
+  }
+
+  function livesShow(lives) {
+    const items = SHOW.equipes.map((e, k) => ({ e, live: lives[k] })).sort((a, b) => Number(b.live) - Number(a.live));
+    return [
+      el("h3", { class: "sh-titre", text: "Où regarder" }),
+      el("p", { class: "sh-sous", text: "Tout le monde peut streamer sa partie : les capitaines, et les joueurs des équipes aussi." }),
+      el("ul", { class: "sh-lives" }, items.map(({ e, live }) => el("li", {},
+        el("a", { class: `sh-live${live ? " allume" : ""}`, href: `https://www.twitch.tv/${e.twitch}`, ...externe, style: styleEquipe(e) },
+          emblemeShow(e),
+          el("span", {}, el("b", { text: e.capitaine }), el("small", { text: live ? "en live maintenant" : `twitch.tv/${e.twitch}` })),
+          el("i", { class: "sh-point", "aria-hidden": "true" }))))),
+    ];
+  }
+
   // ---------- la VF 1.0 : la SEMAINE BAHRIOT (le bot compte : lib/bahriot.js) ----------
   // Une semaine tous les 3 mois où toute la flotte s'affronte sur les jeux Riot. Avant : les dates, le compte à rebours,
   // l'inscription. Pendant : le score des commus (recalculé toutes les 5 minutes) et les lives de la flotte. Après : le

@@ -62,6 +62,7 @@
     <a href="#grandline" data-lien="grandline">GRAND LINE <span class="compteur compteur-v3" id="pastille-grandline" title="Ouvre avec la V3, samedi 31 octobre à 21 h">V3</span></a>
       <a href="#boss-live" data-lien="boss-live">BOSS LIVE <span class="compteur compteur-boss" id="pastille-boss" hidden>⚔️</span></a>
     <a href="#tournoi" data-lien="tournoi" hidden>Tournoi <span class="pastille-live" id="pastille-tournoi" hidden>Live</span></a>
+    <a href="#barhaw-show" data-lien="barhaw-show" class="vf-seul">Barhaw Show <span class="pastille-live" id="pastille-show" hidden>Live</span></a>
     <a href="#chaine" data-lien="chaine">Ma chaîne <span class="pastille-live" id="pastille-live" hidden>Live</span></a>
     <a href="#bahriot" data-lien="bahriot" class="vf-seul">Semaine Bahriot <span class="pastille-live" id="pastille-bahriot" hidden>Live</span></a>
     <a href="#potes" data-lien="potes">Potes <span class="compteur" id="compteur-potes" hidden></span></a>
@@ -234,6 +235,26 @@
       <div class="carte bl-carte revele"><h3>Les plus gros frappeurs</h3><ol class="bl-top" id="bl-top"><li class="bl-vide">Personne pour l'instant.</li></ol><p class="bl-sources" id="bl-sources"></p></div>
       <div class="carte bl-carte revele"><h3>Le combat</h3><ul class="bl-journal" id="bl-journal"><li class="bl-vide">Le boss dort.</li></ul><p class="bl-musique">🎵 Musique du combat : <b>BOSS LIVE</b></p></div>
     </div>
+  </section>
+
+  <!-- ===================== LE BARHAW SHOW (VF 1.0, février 2027) ===================== -->
+  <section id="barhaw-show" class="vf-seul" data-section aria-labelledby="titre-show">
+    <span class="kanji" aria-hidden="true">番組</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Février 2027 · 4 équipes, 4 jeux, 1 mois</p>
+      <h2 class="titre-section revele" id="titre-show">Le Barhaw <span class="degrade">Show.</span><img class="titre-objet" src="/img/objets/micro.webp" alt="" width="92" height="160" loading="lazy" decoding="async"></h2>
+      <p class="sous revele">Quatre streameurs, quatre équipes de cinq. Chaque semaine, un tournoi sur le jeu de l'une d'elles, qui joue à domicile. Au bout du mois, une seule équipe gagne le Show.</p>
+    </div>
+    <div class="show-affiche revele" id="show-affiche"></div>
+    <div class="show-equipes" id="show-equipes"></div>
+    <div class="show-grille">
+      <div class="carte show-programme revele" id="show-programme"></div>
+      <div class="show-cote">
+        <div class="carte show-classement revele" id="show-classement"></div>
+        <div class="carte show-lives revele" id="show-lives"></div>
+      </div>
+    </div>
+    <div class="carte show-regles revele" id="show-regles"></div>
   </section>
 
   <!-- Le TOURNOI BARHAW est reporté (21/11/2026) : sa partie reste ici, cachée. Pour la remettre : enlever « hidden » ici et sur
