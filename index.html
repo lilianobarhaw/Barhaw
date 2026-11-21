@@ -36,9 +36,11 @@
 <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/img/appli/demarrage-1242x2208.png">
 <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/img/appli/demarrage-750x1334.png">
 <script src="/appli/appli-tot.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
+<link rel="preload" href="/polices/v1/dela-gothic-one-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/polices/v1/dela-gothic-one-400-jp.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/polices/v1/m-plus-rounded-1c-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/polices/v1/m-plus-rounded-1c-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/polices/polices.css">
 <link rel="stylesheet" href="/site.css">
 <link rel="stylesheet" href="/appli/appli.css">
 <script src="/site.js" defer></script>
@@ -243,9 +245,10 @@
     <div class="tournoi-une revele" id="tournoi-une"></div>
     <div class="carte teaser revele" id="teaser-tournoi">
       <div class="video-cadre">
-        <video controls preload="none" playsinline poster="/videos/teaser-tournoi.jpg" width="1920" height="1080" aria-label="Le teaser du TOURNOI BARHAW, édition 2">
-          <source src="/videos/teaser-tournoi.mp4" type="video/mp4">
-        </video>
+        <button class="video-facade" type="button" data-video="tournoi" data-titre="Le teaser du TOURNOI BARHAW, édition 2" aria-label="Lancer la vidéo : le teaser du TOURNOI BARHAW, édition 2">
+          <img src="/videos/teaser-tournoi.jpg" alt="" width="1920" height="1080" loading="lazy" decoding="async">
+          <span class="video-facade-bouton" aria-hidden="true"></span>
+        </button>
       </div>
       <div class="teaser-texte">
         <p class="surtitre">Le teaser</p>

@@ -84,6 +84,8 @@
     return e;
   }
   const vider = (e, ...enfants) => { e.replaceChildren(...enfants.flat().filter(Boolean)); return e; };
+  // vrai si l'élément est dans une partie en veille (loin de l'écran, content-visibility) : le mesurer forcerait sa mise en page
+  const enVeille = (e) => typeof e?.checkVisibility === "function" && !e.checkVisibility({ contentVisibilityAuto: true });
   const lienSur = (u) => (/^https:\/\/[^\s<>"]+$/i.test(String(u || "")) ? String(u) : "");
   const nombre = (n) => (Number(n) || 0).toLocaleString("fr-FR");
   const ms = (x) => (typeof x === "number" ? x : Date.parse(x));
@@ -148,17 +150,33 @@
       for (const e of entrees) if (e.isIntersecting) montrer(e.target);
     }, { rootMargin: "0px 0px -6% 0px", threshold: 0.06 })
     : null;
-  // filet de sécurité : un défilement très rapide peut sauter un bloc sans qu'il soit « vu » ; on le montre quand même
+  // filet de sécurité : un défilement très rapide peut sauter un bloc sans qu'il soit « vu » ; on le montre quand même.
+  // On regarde d'abord où est chaque partie : un bloc d'une partie encore sous l'écran n'est pas mesuré (le mesurer
+  // forcerait le navigateur à mettre en page cette partie en veille), un bloc d'une partie déjà passée est montré.
+  // Toutes les mesures d'abord, puis toutes les apparitions : une seule mise en page.
   let verification = 0;
+  function verifierApparitions() {
+    verification = 0;
+    const bas = window.innerHeight;
+    const parties = new Map();
+    const aMontrer = [];
+    for (const e of enAttente) {
+      if (!e.isConnected) { enAttente.delete(e); continue; }
+      const partie = e.closest("[data-section]");
+      let haut;
+      if (partie) {
+        if (!parties.has(partie)) parties.set(partie, partie.getBoundingClientRect());
+        const r = parties.get(partie);
+        if (r.top >= bas) continue;
+        haut = r.bottom > 0 ? e.getBoundingClientRect().top : -1;
+      } else haut = e.getBoundingClientRect().top;
+      if (haut < bas) aMontrer.push(e);
+    }
+    for (const e of aMontrer) montrer(e);
+  }
   window.addEventListener("scroll", () => {
     if (verification || !enAttente.size) return;
-    verification = setTimeout(() => {
-      verification = 0;
-      for (const e of enAttente) {
-        if (!e.isConnected) { enAttente.delete(e); continue; }
-        if (e.getBoundingClientRect().top < window.innerHeight) montrer(e);
-      }
-    }, 250);
+    verification = setTimeout(verifierApparitions, 250);
   }, { passive: true });
 
   // à appeler AVANT de remplacer le contenu : s'il était déjà apparu, le nouveau s'affiche tout de suite (rafraîchissement)
@@ -203,11 +221,17 @@
 
     function taille() {
       const dpr = 1; // un décor doux : la résolution normale suffit, même sur les écrans de téléphone
-      l = window.innerWidth;
-      h = window.innerHeight;
+      const largeur = window.innerWidth;
+      const hauteur = window.innerHeight;
+      if (largeur === l && hauteur === h) return;
+      // sur téléphone, la barre d'adresse qui se cache ou revient change seulement la hauteur : les étincelles restent en place
+      const garder = largeur === l && eclats.length > 0;
+      l = largeur;
+      h = hauteur;
       c.width = Math.round(l * dpr);
       c.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (garder) return;
       const n = Math.max(10, Math.min(30, Math.round((l * h) / 45000)));
       eclats = Array.from({ length: n }, () => ({
         x: Math.random() * l,
@@ -261,15 +285,23 @@
     }
 
     let defile = 0;
+    let minuteur = 0;
     function image(t) {
       boucle = 0;
       if (document.hidden || defile) return;
-      // les étincelles scintillent lentement : 12 images par seconde leur suffisent ; 30 quand un trait de vitesse passe
-      if (t - dernier > (traits.length ? 33 : 80) && !document.body.classList.contains("vision-ouverte")) { const dt = dernier ? Math.min(90, t - dernier) : 16; dernier = t; dessiner(t, dt); }
-      if (!reduit.matches) boucle = requestAnimationFrame(image);
+      if (!document.body.classList.contains("vision-ouverte")) { const dt = dernier ? Math.min(90, t - dernier) : 16; dernier = t; dessiner(t, dt); }
+      if (!reduit.matches) planifier();
+    }
+    // les étincelles scintillent lentement : 12 images par seconde leur suffisent ; 30 quand un trait de vitesse passe.
+    // Entre deux images, une simple minuterie : le navigateur n'est pas réveillé à chaque rafraîchissement de l'écran.
+    function planifier() {
+      clearTimeout(minuteur);
+      minuteur = setTimeout(() => { minuteur = 0; boucle = requestAnimationFrame(image); }, traits.length ? 21 : 68);
     }
     const relancer = () => {
       if (boucle) cancelAnimationFrame(boucle);
+      clearTimeout(minuteur);
+      minuteur = 0;
       dernier = 0;
       boucle = requestAnimationFrame(image);
     };
@@ -283,6 +315,7 @@
     // pendant le défilement, le navigateur a mieux à faire : le fond attend la fin du geste
     window.addEventListener("scroll", () => {
       if (boucle) { cancelAnimationFrame(boucle); boucle = 0; }
+      if (minuteur) { clearTimeout(minuteur); minuteur = 0; }
       clearTimeout(defile);
       defile = setTimeout(() => { defile = 0; if (!document.hidden) relancer(); }, 160);
     }, { passive: true });
@@ -292,6 +325,10 @@
   function animationsHorsVue() {
     if (!("IntersectionObserver" in window)) return;
     const parties = document.querySelectorAll("[data-section], footer");
+    // au départ, toutes les parties sont « hors de vue » (en pause) jusqu'à la première réponse de l'observateur : une partie
+    // mise en page un instant puis mise en veille (content-visibility) gardait sinon ses animations en marche sans qu'on
+    // les voie, et le navigateur recalculait la page 60 fois par seconde
+    for (const p of parties) p.classList.add("hors-vue");
     const io = new IntersectionObserver((entrees) => {
       for (const e of entrees) e.target.classList.toggle("hors-vue", !e.isIntersecting);
     }, { rootMargin: "300px 0px" });
@@ -471,12 +508,22 @@
     if (reduit.matches || navigator.connection?.saveData || /2g$|^3g$/.test(navigator.connection?.effectiveType || "")) return;
     carte.dataset.video = "1";
     const lancer = () => {
-      const v = el("video", { class: "carte-postale-video", muted: true, loop: true, playsinline: true, autoplay: true, preload: "auto", poster: "/img/accueil-vf.webp", "aria-hidden": "true", tabindex: "-1" },
+      // la même image que celle déjà affichée (le téléphone a pu prendre la petite) : rien à retélécharger
+      const image = carte.querySelector(".carte-postale-image");
+      const v = el("video", { class: "carte-postale-video", muted: true, loop: true, playsinline: true, autoplay: true, preload: "auto", poster: image?.currentSrc || "/img/accueil-vf.webp", "aria-hidden": "true", tabindex: "-1" },
         el("source", { src: "/videos/accueil-vf.webm", type: "video/webm" }), el("source", { src: "/videos/accueil-vf.mp4", type: "video/mp4" }));
       v.muted = true;
       v.addEventListener("playing", () => carte.classList.add("joue"), { once: true });
-      carte.querySelector(".carte-postale-image")?.after(v);
+      image?.after(v);
       v.play?.().catch(() => {});
+      // la carte postale ne tourne que quand on la voit : plus bas dans la page, la vidéo se met en pause
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(([e]) => {
+          if (!e) return;
+          if (e.isIntersecting) { if (v.paused) v.play?.().catch(() => {}); }
+          else if (!v.paused) v.pause();
+        }).observe(carte);
+      }
     };
     if (document.readyState === "complete") setTimeout(lancer, 300);
     else window.addEventListener("load", () => setTimeout(lancer, 300), { once: true });
@@ -618,16 +665,24 @@
   function kanjis() {
     const liste = [...document.querySelectorAll(".kanji")];
     if (!liste.length || reduit.matches) return;
+    // sur un petit écran, le kanji ne glisse pas (site.css, max-width 560px) : rien à calculer pendant le défilement
+    const petit = window.matchMedia("(max-width: 560px)");
     let attente = false;
     const maj = () => {
       attente = false;
-      for (const k of liste) {
+      if (petit.matches) return;
+      // toutes les mesures d'abord, puis toutes les écritures : une seule mise en page par image
+      const bas = window.innerHeight;
+      const glisses = liste.map((k) => {
         const r = k.parentElement.getBoundingClientRect();
-        if (r.bottom < -200 || r.top > window.innerHeight + 200) continue;
-        k.style.setProperty("--glisse", `${Math.round(Math.max(-120, Math.min(40, -r.top * 0.14)))}px`);
-      }
+        return r.bottom < -200 || r.top > bas + 200 ? null : `${Math.round(Math.max(-120, Math.min(40, -r.top * 0.14)))}px`;
+      });
+      liste.forEach((k, i) => {
+        if (glisses[i] !== null && k.style.getPropertyValue("--glisse") !== glisses[i]) k.style.setProperty("--glisse", glisses[i]);
+      });
     };
     maj();
+    petit.addEventListener?.("change", maj);
     window.addEventListener("scroll", () => { if (!attente) { attente = true; requestAnimationFrame(maj); } }, { passive: true });
   }
 
@@ -895,6 +950,27 @@
   }
   const agrandir = (m, depuis) => visionneuse(el("img", { src: m.src, alt: "Un mème de Liliano", width: m.l, height: m.h }), "Le mème en grand", depuis);
   const lecteurVideo = (v, extra = {}) => el("video", { src: v.src, poster: v.affiche, controls: true, playsinline: true, preload: "none", width: 1920, height: 1080, "aria-label": v.titre, ...extra });
+  // une vidéo posée dans la page : son image et un gros bouton ▶ ; le vrai lecteur (avec ses commandes) n'arrive qu'au clic.
+  // Un lecteur avec ses commandes fait travailler le navigateur à chaque image, même tout en bas de la page ;
+  // et l'image ne se charge qu'à l'approche (loading="lazy").
+  function brancherFacade(bouton, v, etiquette) {
+    bouton.addEventListener("click", () => {
+      const lecteur = lecteurVideo(v, { autoplay: true, preload: "auto", "aria-label": etiquette || v.titre });
+      bouton.replaceWith(lecteur);
+      lecteur.play?.().catch(() => {});
+      lecteur.focus({ preventScroll: true });
+    }, { once: true });
+    return bouton;
+  }
+  const videoAuClic = (v) => brancherFacade(el("button", { class: "video-facade", type: "button", "aria-label": `Lancer la vidéo : ${v.titre}` },
+    el("img", { src: v.affiche, alt: "", width: 1920, height: 1080, loading: "lazy", decoding: "async" }),
+    el("span", { class: "video-facade-bouton", "aria-hidden": "true" })), v);
+  function facadesFixes() {
+    for (const b of document.querySelectorAll(".video-facade[data-video]")) {
+      const v = VIDEOS[b.dataset.video];
+      if (v) brancherFacade(b, v, b.dataset.titre);
+    }
+  }
   const visionner = (v, depuis) => visionneuse(lecteurVideo(v, { autoplay: true, preload: "auto" }), v.titre, depuis);
 
   function autocollants() {
@@ -916,44 +992,86 @@
       return { place, m, b, r: (Math.random() * 22 - 11).toFixed(1), rx: Math.random(), ry: Math.random() };
     });
 
-    function placer() {
-      const etroit = window.innerWidth <= 900;
-      for (const s of collants) {
-        const { b, m, place } = s;
-        const ratio = m.h / m.l;
-        b.className = `autocollant${b.classList.contains("revele") ? " revele" : ""}${b.classList.contains("vu") ? " vu" : ""}`;
-        b.removeAttribute("style");
-        b.style.setProperty("--r", `${s.r}deg`);
-        if (place.type === "pied") { b.classList.add("au-pied"); b.style.width = `${ratio > 1.15 ? 130 : ratio > 0.8 ? 160 : 220}px`; continue; }
-        if (place.type === "hero") {
-          b.classList.add("au-hero");
-          b.style.width = `${etroit ? (ratio > 1.15 ? 78 : ratio > 0.8 ? 96 : 130) : (ratio > 1.15 ? 120 : ratio > 0.8 ? 150 : 200)}px`;
-          continue;
-        }
-        // dans l'en-tête d'une partie : à droite du titre, là où il y a de la place
+    const flottant = (s) => {
+      const ratio = s.m.h / s.m.l;
+      s.b.classList.add("flottant");
+      s.b.style.width = `${ratio > 1.15 ? 86 : ratio > 0.8 ? 104 : 150}px`;
+    };
+    // ce qui se pose sans rien mesurer ; renvoie faux pour un autocollant d'en-tête sur ordinateur (il faut mesurer le titre)
+    function poserSansMesure(s, etroit) {
+      const { b, m, place } = s;
+      const ratio = m.h / m.l;
+      b.className = `autocollant${b.classList.contains("revele") ? " revele" : ""}${b.classList.contains("vu") ? " vu" : ""}`;
+      b.removeAttribute("style");
+      b.style.setProperty("--r", `${s.r}deg`);
+      if (place.type === "pied") { b.classList.add("au-pied"); b.style.width = `${ratio > 1.15 ? 130 : ratio > 0.8 ? 160 : 220}px`; return true; }
+      if (place.type === "hero") {
+        b.classList.add("au-hero");
+        b.style.width = `${etroit ? (ratio > 1.15 ? 78 : ratio > 0.8 ? 96 : 130) : (ratio > 1.15 ? 120 : ratio > 0.8 ? 150 : 200)}px`;
+        return true;
+      }
+      if (etroit) { flottant(s); return true; }
+      return false;
+    }
+    // dans l'en-tête d'une partie : à droite du titre, là où il y a de la place (toutes les mesures, puis toutes les écritures)
+    function poserAvecMesure(liste) {
+      const mesures = liste.map(({ place }) => {
         const boite = place.parent.getBoundingClientRect();
         const textes = [...place.parent.querySelectorAll(".titre-section, .sous, .surtitre")];
-        const droite = Math.max(0, ...textes.map((e) => bordTexte(e) - boite.left));
+        return { boite, droite: Math.max(0, ...textes.map((e) => bordTexte(e) - boite.left)) };
+      });
+      liste.forEach((s, i) => {
+        const { boite, droite } = mesures[i];
+        const ratio = s.m.h / s.m.l;
         let w = ratio > 1.15 ? 150 : ratio > 0.8 ? 180 : 250;
         const libre = boite.width - droite - 40;
-        if (etroit || libre < 120) {
-          b.classList.add("flottant");
-          b.style.width = `${ratio > 1.15 ? 86 : ratio > 0.8 ? 104 : 150}px`;
-          continue;
-        }
+        if (libre < 120) { flottant(s); return; }
         w = Math.min(w, libre);
         const haut = w * ratio + 12;
-        b.style.width = `${Math.round(w)}px`;
-        b.style.left = `${Math.round(droite + 28 + s.rx * Math.max(0, libre - w))}px`;
-        b.style.top = `${Math.round(-12 + s.ry * Math.max(0, boite.height - haut * 0.75))}px`;
-      }
+        s.b.style.width = `${Math.round(w)}px`;
+        s.b.style.left = `${Math.round(droite + 28 + s.rx * Math.max(0, libre - w))}px`;
+        s.b.style.top = `${Math.round(-12 + s.ry * Math.max(0, boite.height - haut * 0.75))}px`;
+      });
+    }
+    // une partie loin de l'écran est en veille (content-visibility) : la mesurer forcerait sa mise en page.
+    // L'autocollant de son en-tête attend donc qu'elle approche (il est encore invisible d'ici là).
+    const proches = new Set();
+    const aMesurer = new Set();
+    function poserProches() {
+      const liste = [...aMesurer].filter((s) => proches.has(s.place.parent));
+      if (!liste.length) return;
+      for (const s of liste) aMesurer.delete(s);
+      poserAvecMesure(liste);
+    }
+    let largeurPosee = 0;
+    function placer() {
+      const etroit = window.innerWidth <= 900;
+      largeurPosee = window.innerWidth;
+      aMesurer.clear();
+      for (const s of collants) if (!poserSansMesure(s, etroit)) aMesurer.add(s);
+      poserProches();
+    }
+    const veille = "IntersectionObserver" in window
+      ? new IntersectionObserver((entrees) => {
+        for (const e of entrees) {
+          if (e.isIntersecting) proches.add(e.target);
+          else proches.delete(e.target);
+        }
+        poserProches();
+      }, { rootMargin: "40% 0px" })
+      : null;
+    for (const s of collants) {
+      if (s.place.type !== "entete") continue;
+      if (veille) veille.observe(s.place.parent);
+      else proches.add(s.place.parent);
     }
     placer();
     apparaitre(collants.map((s) => s.b));
     let attente = 0;
-    window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(placer, 200); });
-    // les polices arrivent après : les titres changent de largeur, on replace
-    document.fonts?.ready?.then(placer);
+    // sur téléphone, la barre d'adresse qui se cache change la hauteur de la fenêtre : rien à replacer pour si peu
+    window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(() => { if (window.innerWidth !== largeurPosee) placer(); }, 200); });
+    // les polices arrivent après : les titres changent de largeur, on replace (sur téléphone, rien ne dépend des titres)
+    document.fonts?.ready?.then(() => { if (window.innerWidth > 900) placer(); });
   }
 
   // la section en cours est soulignée dans le menu
@@ -1351,7 +1469,7 @@
       ),
       e.enCours ? null : rebours,
       VIDEOS[e.id] ? el("div", { class: "prochain-video" },
-        el("div", { class: "video-cadre" }, lecteurVideo(VIDEOS[e.id])),
+        el("div", { class: "video-cadre" }, videoAuClic(VIDEOS[e.id])),
         el("p", { class: "legende", text: VIDEOS[e.id].titre }),
       ) : null,
     );
@@ -2528,7 +2646,16 @@
     window.addEventListener("keyup", (e) => touche(e, false));
     document.addEventListener("visibilitychange", () => { if (!document.hidden && s.etat === "jeu") demarrerBoucle(); });
     let attente = 0;
-    window.addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(taille, 150); });
+    // la zone suit sa propre taille (le ResizeObserver plus bas) ; la fenêtre ne compte que si l'écran change de densité
+    // (zoom) ou, sans ResizeObserver, de largeur : sur téléphone, la barre d'adresse qui se cache ne refait rien
+    let fenetre = `${window.innerWidth}x${window.devicePixelRatio}`;
+    window.addEventListener("resize", () => {
+      const f = `${window.innerWidth}x${window.devicePixelRatio}`;
+      if (f === fenetre) return;
+      fenetre = f;
+      clearTimeout(attente);
+      attente = setTimeout(() => { if (!enVeille(canvas)) taille(); }, 150);
+    });
     photo.addEventListener("load", () => dessiner(performance.now()));
 
     // la zone de jeu peut changer de taille sans que la fenêtre change (mise en page, polices) : on suit le canvas
@@ -2543,7 +2670,9 @@
         taille();
       }).observe(canvas);
     }
-    taille();
+    // le ResizeObserver ci-dessus le fait dès que le canvas est mis en page (tout de suite s'il est à l'écran, sinon quand
+    // sa partie approche) : le mesurer ici forcerait la mise en page de la partie de Chopper, même loin de l'écran
+    if (!("ResizeObserver" in window)) taille();
     ecranAccueil();
     s.rafraichirAccueil = () => { if (s.etat === "accueil") ecranAccueil(); };
   }
@@ -3797,9 +3926,32 @@
       ecran,
       infosJeux()?.course ? tableauJeu(infosJeux().course, texteCourse) : null,
     );
+    preparerEtDessinerCourse();
+  }
+
+  // le canvas prend sa taille et se dessine quand il est mis en page (le ResizeObserver le prévient, avant l'affichage) :
+  // loin de l'écran, il attend que sa partie arrive, au lieu de forcer la mise en page de toute la partie des jeux
+  let attenteCourse = null;
+  function preparerCourseMaintenant() {
     preparerCanvasCourse();
     brancherCourse3D();
-    dessinerCourse(co.moteur?.m || null);
+    if (co.etat !== "jeu") dessinerCourse(co.moteur?.m || null);
+  }
+  function preparerEtDessinerCourse() {
+    const c = $("co-canvas");
+    if (!c) return;
+    if (!("ResizeObserver" in window)) { preparerCourseMaintenant(); return; }
+    if (attenteCourse?.canvas === c) return;
+    attenteCourse?.suivi.disconnect();
+    const suivi = new ResizeObserver(() => {
+      if ($("co-canvas") !== c) { suivi.disconnect(); return; }
+      if (enVeille(c)) return;
+      suivi.disconnect();
+      attenteCourse = null;
+      preparerCourseMaintenant();
+    });
+    attenteCourse = { canvas: c, suivi };
+    suivi.observe(c);
   }
 
   // le canvas : sa taille réelle suit la largeur du panneau (1,5 × au plus sur les écrans très fins)
@@ -3817,10 +3969,12 @@
     echelleCourse = c.width / CO.L;
     echelleEcran = largeur / CO.L;
   }
+  // la taille du canvas ne suit que la largeur : sur téléphone, la barre d'adresse qui se cache (la hauteur change) ne refait rien
+  let largeurCourse = window.innerWidth;
   window.addEventListener("resize", () => {
-    preparerCanvasCourse();
-    if (course3D()) trois.rendu.taille($("co-scene")?.getBoundingClientRect().width || CO.L);
-    if (co.etat !== "jeu") dessinerCourse(co.moteur?.m || null);
+    if (window.innerWidth === largeurCourse) return;
+    largeurCourse = window.innerWidth;
+    preparerEtDessinerCourse();
   });
 
   // ---------- le dessin ----------
@@ -8308,6 +8462,7 @@
     }
     if (!("IntersectionObserver" in window)) { chaineProche = true; tournoiProche = true; }
     suiviSections();
+    facadesFixes();
     window.matchMedia("(min-width: 901px)").addEventListener?.("change", () => rendreChaine());
     rendreMaintenant();
     rendreEvenements();

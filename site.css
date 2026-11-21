@@ -1400,6 +1400,21 @@ button.case-album:hover { transform: translateY(-4px) rotate(-2deg); }
 /* ---------- les vidéos : teasers des events ---------- */
 .video-cadre { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 16px; background: #000; border: 3px solid var(--encre); box-shadow: 6px 6px 0 var(--ombre); }
 .video-cadre video { width: 100%; height: 100%; display: block; object-fit: cover; background: #000; }
+/* avant le clic : l'image de la vidéo et un gros bouton ▶ (le lecteur n'est créé qu'au clic) */
+.video-facade { position: absolute; inset: 0; display: block; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: #000; cursor: pointer; }
+.video-facade img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.video-facade-bouton {
+  position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
+  background: var(--degrade); border: 3px solid var(--encre); box-shadow: 4px 4px 0 var(--ombre);
+  transition: transform 0.15s var(--doux), box-shadow 0.15s var(--doux);
+}
+.video-facade-bouton::before { content: ""; position: absolute; left: 50%; top: 50%; margin: -15px 0 0 -9px; border-style: solid; border-width: 15px 0 15px 25px; border-color: transparent transparent transparent #fff; }
+.video-facade:hover .video-facade-bouton, .video-facade:focus-visible .video-facade-bouton { transform: translate(-2px, -2px) scale(1.06); box-shadow: 6px 6px 0 var(--ombre); }
+.video-facade:active .video-facade-bouton { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ombre); transition-duration: 0.06s; }
+@media (max-width: 560px) {
+  .video-facade-bouton { width: 62px; height: 62px; margin: -31px 0 0 -31px; }
+  .video-facade-bouton::before { margin: -12px 0 0 -7px; border-width: 12px 0 12px 20px; }
+}
 .teaser { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(20px, 3vw, 36px); align-items: center; padding: clamp(18px, 2.4vw, 28px); }
 .teaser-texte h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: clamp(22px, 2.4vw, 30px); line-height: 1.15; }
 .teaser-texte p:not(.surtitre) { margin: 12px 0 0; color: var(--brume); }
