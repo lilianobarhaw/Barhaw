@@ -1,7 +1,7 @@
 # Les petits objets 3D des titres du site (tous inventés), rendus sur fond transparent : img/objets/<nom>.webp
 #   coffre (Cartes), borne (Jeux), trophee (Tournoi), panneau (Chasse), epees (Faille), lanterne (Events)
 #   VF 1.0 : camera (Ma chaîne), chopes (Potes), clap (YouTube), gamelle (Chopper), bouteille (GRAND LINE),
-#            casque (BOSS LIVE), cloche (Discord)
+#            casque (BOSS LIVE), cloche (Discord), micro (le Barhaw Show)
 import math, bmesh
 from mathutils import Vector
 import barhaw_base as B
@@ -238,8 +238,40 @@ def cloche(L):
         L.ajouter(B.tube(B.courbe((0.2 + math.cos(a) * 1.0, -0.1, 2.0 - k * 0.3), (0.2 + math.cos(a) * 1.5, -0.1, 2.2 - k * 0.45), (0.2 + math.cos(a) * 1.3, -0.1, 2.25 - k * 0.3), 5), 0.035, 4), "jaune")
 
 
+def micro(L):
+    """Le Barhaw Show : un micro de plateau télé, sa bonnette grillagée, son cube aux couleurs du show (étoiles d'or)."""
+    T = B.mat4((0, 0, 0), (0, 0.2, -0.15))  # un peu penché, comme tendu vers le public
+
+    def poser(bm, mat, M=None):
+        L.ajouter(bm, mat, T @ (M if M is not None else B.mat4()))
+
+    # le manche, ses bagues, l'interrupteur
+    poser(B.cyl(0.19, 0.25, 2.0, 20), "noir")
+    for z in (0.22, 0.5):
+        poser(B.tore(0.2 + 0.03 * z, 0.035, 20, 6), "fer", B.mat4((0, 0, z)))
+    poser(B.boite(0.12, 0.08, 0.22), "rouge", B.mat4((0, -0.22, 0.86)))
+    # le cube du show, ses bords, une étoile d'or sur chaque face qu'on voit
+    poser(B.boite(0.92, 0.92, 0.64), "rose", B.mat4((0, 0, 1.28)))
+    for z in (1.28, 1.84):
+        poser(B.boite(0.97, 0.97, 0.08), "prune", B.mat4((0, 0, z)))
+    poser(B.etoile(0.22, 0.1, 0.06, 5, 0.5), "or", B.mat4((0, -0.47, 1.6), (math.pi / 2, 0, 0)))
+    poser(B.etoile(0.22, 0.1, 0.06, 5, 0.5), "or", B.mat4((0.47, 0, 1.6), (math.pi / 2, 0, math.pi / 2)))
+    # le col et la bonnette grillagée
+    poser(B.cyl(0.25, 0.3, 0.18, 20), "or", B.mat4((0, 0, 2.0)))
+    poser(B.cyl(0.3, 0.38, 0.14, 20), "fer", B.mat4((0, 0, 2.16)))
+    cz = 2.72
+    poser(B.sphere(0.56, 22, 14), "gris", B.mat4((0, 0, cz)))
+    for h in (-0.3, 0.0, 0.3):
+        poser(B.tore(math.sqrt(0.565 ** 2 - h ** 2), 0.028, 28, 5), "fer", B.mat4((0, 0, cz + h)))
+    for a in (0.0, math.pi / 2):
+        poser(B.tore(0.565, 0.028, 32, 5), "fer", B.mat4((0, 0, cz), (math.pi / 2, 0, a)))
+    # des étincelles d'or autour de la bonnette : c'est l'heure du show
+    for x, z, r in ((0.95, cz + 0.55, 0.2), (1.12, cz - 0.05, 0.13), (0.55, cz + 0.98, 0.11)):
+        poser(B.etoile(r, r * 0.34, 0.05, 4, 0.5), "or", B.mat4((x, -0.2, z), (math.pi / 2, 0, 0.72)))  # face à la caméra
+
+
 OBJETS = {"coffre": coffre, "borne": borne, "trophee": trophee, "panneau": panneau, "epees": epees, "lanterne": lanterne,
-          "camera": camera, "chopes": chopes, "clap": clap, "gamelle": gamelle, "bouteille": bouteille, "casque": casque, "cloche": cloche}
+          "camera": camera, "chopes": chopes, "clap": clap, "gamelle": gamelle, "bouteille": bouteille, "casque": casque, "cloche": cloche, "micro": micro}
 
 
 def tout(taille=(560, 560), noms=None):
