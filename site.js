@@ -8308,13 +8308,64 @@
           el("small", { text: SHOW.semaines.find((w) => w.equipe === e.id)?.jeu || "" })))),
         el("div", { class: "sh-statut-bloc", "aria-live": "polite" }, statut),
         el("div", { class: "boutons sh-boutons" },
-          el("a", { class: "btn btn-plein btn-petit", href: "#show-programme", text: "Le programme ↓" }),
+          el("button", { class: "btn btn-plein btn-petit", type: "button", onclick: () => lancerTrailerShow(true), text: "▶ Le trailer" }),
+          el("a", { class: "btn btn-contour btn-petit", href: "#show-programme", text: "Le programme ↓" }),
           el("a", { class: "btn btn-contour btn-petit", href: "#show-lives", text: "Où regarder ↓" })),
       ),
     );
     z.classList.toggle("en-direct", Boolean(s.soir));
     z.classList.toggle("fini", s.phase === "fini");
     if (tic) { tic(); minuteurShow = setInterval(tic, 1000); } // le compte à rebours, une fois dans la page
+  }
+
+  // le trailer du Show (1 min 48) : l'image du film et son bouton ; au clic, la vidéo démarre avec le son et ses commandes.
+  // Rien ne se charge avant le clic ; en 480p sur un petit écran ou en économie de données. Pendant qu'il passe avec le son,
+  // la musique du site s'arrête (comme pour toute vidéo) et les autres sons du site se font tout petits.
+  // À la fin, l'image et le bouton reviennent (« le revoir »).
+  function lancerTrailerShow(defiler = false) {
+    const v = $("st-video");
+    const b = $("st-lancer");
+    if (!v || !b) return;
+    if (!v.dataset.pret) {
+      v.dataset.pret = "1";
+      if (Math.min(innerWidth, screen?.width || innerWidth) < 700 || navigator.connection?.saveData) {
+        for (const s of v.querySelectorAll("source")) s.src = s.getAttribute("src").replace("-720.", "-480.");
+        v.load();
+      }
+    }
+    if (defiler) $("show-trailer")?.scrollIntoView({ behavior: reduit.matches ? "auto" : "smooth", block: "center" });
+    b.hidden = true;
+    v.controls = true;
+    v.muted = false;
+    v.play?.()?.catch?.(() => { b.hidden = false; v.controls = false; });
+    v.focus?.({ preventScroll: true });
+  }
+  function suivreTrailerShow() {
+    const v = $("st-video");
+    const b = $("st-lancer");
+    if (!v || !b) return;
+    b.addEventListener("click", () => lancerTrailerShow());
+    let baisse = null;
+    const regler = () => {
+      const oui = !v.paused && !v.ended && !v.muted && v.volume > 0;
+      if (oui && baisse === null && SON.maitre) { baisse = SON.maitre.gain.value; SON.maitre.gain.value = baisse * 0.15; }
+      else if (!oui && baisse !== null) { if (SON.maitre) SON.maitre.gain.value = baisse; baisse = null; }
+    };
+    for (const ev of ["play", "pause", "ended", "volumechange"]) v.addEventListener(ev, regler);
+    v.addEventListener("ended", () => {
+      if (document.fullscreenElement === v) document.exitFullscreen?.()?.catch?.(() => {});
+      v.controls = false;
+      b.hidden = false;
+      const sous = $("st-sous");
+      if (sous) sous.textContent = "1 min 48 · le revoir";
+    });
+    // aucune des deux vidéos ne passe : l'image reste, avec un mot
+    v.querySelector("source:last-child")?.addEventListener("error", () => {
+      v.controls = false;
+      b.hidden = false;
+      const sous = $("st-sous");
+      if (sous) sous.textContent = "La vidéo ne se charge pas, réessaie plus tard";
+    });
   }
 
   function equipesShow(s, lives) {
@@ -8873,6 +8924,7 @@
     suivreChasse();
     suivreFaille();
     suivreGrandLine();
+    suivreTrailerShow();
     // la V4 : la classe v4 dès le départ (selon la date), puis à l'heure pile ; les liens directs vers un navire
     document.documentElement.classList.toggle("v4", v4Ouverte());
     const avantV4 = V4_OUVERTURE - Date.now();
