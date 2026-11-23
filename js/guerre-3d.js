@@ -5,7 +5,7 @@
 // une île, et où sont les îles à l'écran (les étiquettes sont en HTML, dans site.js). Tout est inventé.
 // three.js r170 (licence MIT, © three.js authors) est rangé à côté : la page n'accepte que ses propres scripts.
 import * as THREE from "./three-r170.module.min.js";
-import { lireGLB, sceneGLB, habiller, animateurs, themeNavire, toile, materiauMer, roseDesVents, temps5, eclairage5 } from "./grandline-3d.js";
+import { lireGLB, sceneGLB, habiller, animateurs, themeNavire, toile, pastille, materiauMer, roseDesVents, temps5, eclairage5 } from "./grandline-3d.js";
 
 const W = 236; // la feuille (la même que GRAND LINE)
 const H = 146;
@@ -198,7 +198,7 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
     const boule = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 8), new THREE.MeshLambertMaterial({ color: OR }));
     boule.position.y = h + 0.35;
     g.add(mat, tissu, boule);
-    g.userData = { tissu, h };
+    g.userData = { tissu, h, haut: tissu.position.y };
     return g;
   }
   // le drapeau se plante au bord de l'île, du côté qui regarde la caméra (jamais au milieu des maisons)
@@ -268,14 +268,13 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
 
   // ---------- ce que dit le bot : qui tient quoi ----------
   let choix = "", vote = "", survol = "";
-  function maj(d = {}) {
-    for (const x of d.iles || []) {
-      const i = parIle.get(x.id);
-      if (!i) continue;
-      const c = x.commu ? { id: x.commu, c1: x.c1, c2: x.c2, embleme: x.embleme, drapeau: x.drapeau } : null;
-      const cle = c ? `${c.id}|${c.c1}|${c.c2}|${c.embleme}|${c.drapeau || ""}` : "libre";
-      if (cle === i.cle) continue;
-      i.cle = cle;
+  // une île passe à une commu (c : { id, c1, c2, embleme, drapeau }), ou redevient libre (null)
+  function poserCommu(i, c) {
+    const cle = c ? `${c.id}|${c.c1}|${c.c2}|${c.embleme}|${c.drapeau || ""}` : "libre";
+    if (cle === i.cle) return false;
+    i.cle = cle;
+    if (c) couleursCommus.set(c.id, c);
+    {
       if (!i.drapeau) {
         i.drapeau = creerDrapeau(i, Boolean(i.port));
         i.angleDrapeau = Math.atan2(camera.position.z - i.z, camera.position.x - i.x) + 0.55;
@@ -296,6 +295,22 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
         i.groupe.add(i.anneau);
       }
     }
+    demander();
+    return true;
+  }
+  const couleursCommus = new Map();
+  function deboutDrapeau(i) {
+    if (!i.drapeau) return;
+    i.drapeau.scale.set(1, 1, 1);
+    i.drapeau.userData.tissu.position.y = i.drapeau.userData.haut;
+  }
+  function maj(d = {}) {
+    for (const x of bataille ? [] : d.iles || []) {
+      const i = parIle.get(x.id);
+      if (!i) continue;
+      poserCommu(i, x.commu ? { id: x.commu, c1: x.c1, c2: x.c2, embleme: x.embleme, drapeau: x.drapeau } : null);
+      deboutDrapeau(i);
+    }
     if ("choix" in d) choix = d.choix || "";
     if ("vote" in d) vote = d.vote || "";
     if ("regne" in d) regne = d.regne || "";
@@ -309,13 +324,16 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
   let L = 16, Hc = 9;
   const vise = new THREE.Vector3(0, 0, 3);
   const souris = new THREE.Vector2(0, 0), sourisLisse = new THREE.Vector2(0, 0);
-  let distance = 220, couche = false;
+  let distance = 220, couche = false, zoomCam = 1;
+  const viseRepos = new THREE.Vector3(0, 0, 3);
   function cadrer() {
     camera.aspect = L / Hc;
     camera.updateProjectionMatrix();
     couche = L / Hc < 1; // en hauteur (un téléphone) : la mer tourne d'un quart de tour
     // on recule jusqu'à voir les quatre coins de la mer
     const coins = [[-MER_X + 6, -MER_Z + 4], [MER_X - 6, -MER_Z + 4], [-MER_X + 6, MER_Z - 4], [MER_X - 6, MER_Z - 4]].map(([x, z]) => new THREE.Vector3(x, 0, z));
+    const garde = vise.clone();
+    vise.set(0, 0, 3);
     let a = 60, b = 900;
     for (let k = 0; k < 22; k++) {
       const m = (a + b) / 2;
@@ -325,7 +343,8 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
       if (dedans) b = m; else a = m;
     }
     distance = b;
-    placerCamera(distance, 0, 0);
+    vise.copy(garde);
+    placerCamera(distance * zoomCam, 0, 0);
   }
   function placerCamera(d, dx, dz) {
     const pente = 0.93; // l'angle avec l'horizon (≈ 53°)
@@ -341,6 +360,271 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
     renderer.setSize(Math.round(L), Math.round(Hc), false);
     cadrer();
     demander();
+  }
+
+  // ---------- la bataille de 21 h, rejouée sur la carte ----------
+  // Les flottes partent des ports (trois navires de la commu), la route se dessine sur l'eau ; puis, île par île (la
+  // caméra s'en approche), les canons tonnent : prise, l'ancien drapeau descend le long du mât et le nouveau monte ;
+  // tenue, un bouclier de lumière ; renforcée, des étincelles d'or. b : une bataille du journal du bot ;
+  // couleurs : commu → { c1, c2, embleme, drapeau } ; surCombat(île, k) quand les canons tonnent sur une île,
+  // surEtape(île, k) quand son sort est joué ; fin() : c'est fini (aussi quand on passe).
+  const effets = []; // des fonctions (dt) → false quand l'effet est fini
+  let bataille = null, agite = false, agiteT = 0;
+  const VOYAGE = 3, PAS = 2.6, BOUM = 1; // 3 s de mer, puis une île toutes les 2,6 s (son sort après 1 s de canons)
+  function eclat(x, y, z, { couleur = 0xffb347, taille = 4, vie = 0.35, monte = 0, ajout = true, retard = 0 } = {}) {
+    let t = -retard;
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: pastille(), color: couleur, transparent: true, depthWrite: false, opacity: 0, blending: ajout ? THREE.AdditiveBlending : THREE.NormalBlending }));
+    m.position.set(x, y, z);
+    m.scale.setScalar(taille * 0.3);
+    m.visible = false;
+    scene.add(m);
+    effets.push((dt) => {
+      t += dt;
+      if (t < 0) return true;
+      const f = Math.min(1, t / vie);
+      m.visible = true;
+      m.position.y = y + monte * f;
+      m.scale.setScalar(taille * (0.3 + 0.9 * Math.sqrt(f)));
+      m.material.opacity = (1 - f) * (ajout ? 1 : 0.7);
+      if (f >= 1) { scene.remove(m); m.material.dispose(); return false; }
+      return true;
+    });
+  }
+  // une onde sur l'eau autour d'une île (la couleur de la commu qui la prend ; blanche : elle a tenu ; or : renforcée)
+  function onde(i, couleur, retard = 0) {
+    const r = (i.obj?.userData.rMer ?? i.r) + 1;
+    const m = new THREE.Mesh(new THREE.RingGeometry(1, 1.07, 72), new THREE.MeshBasicMaterial({ color: couleur, transparent: true, opacity: 0, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(i.x, 0.3, i.z);
+    m.renderOrder = 4;
+    scene.add(m);
+    let t = -retard;
+    effets.push((dt) => {
+      t += dt;
+      if (t < 0) return true;
+      const f = Math.min(1, t / 0.9);
+      m.scale.setScalar(r * (1 + f * 0.8));
+      m.material.opacity = 0.95 * (1 - f);
+      if (f >= 1) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); return false; }
+      return true;
+    });
+  }
+  // l'île a tenu : un dôme de lumière s'allume puis s'éteint
+  function bouclier(i) {
+    const r = (i.obj?.userData.rMer ?? i.r) + 2;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    m.position.set(i.x, 0, i.z);
+    m.scale.set(r, r * 0.75, r);
+    scene.add(m);
+    let t = 0;
+    effets.push((dt) => {
+      t += dt;
+      const f = Math.min(1, t / 1.2);
+      m.material.opacity = 0.42 * (f < 0.18 ? f / 0.18 : 1 - (f - 0.18) / 0.82);
+      if (f >= 1) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); return false; }
+      return true;
+    });
+  }
+  // des étincelles qui montent (aux couleurs de la commu qui prend l'île, ou d'or quand elle la renforce)
+  function etincelles(i, couleurs, n = 14) {
+    const r = (i.obj?.userData.rMer ?? i.r) * 0.7;
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2, d = r * Math.random();
+      eclat(i.x + Math.cos(a) * d, i.haut * 0.6, i.z + Math.sin(a) * d, { couleur: couleurs[k % couleurs.length], taille: 2.4, vie: 1.1 + Math.random() * 0.4, monte: 9 + Math.random() * 7, retard: Math.random() * 0.35 });
+    }
+  }
+  // le drapeau change de main : la toile descend le long du mât, la nouvelle monte ; sur une île libre, le mât sort de terre
+  function changerDrapeau(i, c) {
+    const avait = Boolean(i.drapeau?.visible);
+    let t = 0, pose = false;
+    effets.push((dt) => {
+      t += dt;
+      if (!pose && (!avait || t >= 0.35)) {
+        pose = true;
+        poserCommu(i, c);
+        if (i.drapeau && !avait) i.drapeau.scale.set(1, 0.02, 1);
+      }
+      const g = i.drapeau;
+      if (!g) return t < 1.2;
+      const u = g.userData, bas = u.h * 0.22;
+      if (!pose) u.tissu.position.y = u.haut + (bas - u.haut) * Math.min(1, t / 0.35);
+      else if (!avait) {
+        g.scale.y = Math.min(1, 0.02 + t / 0.3);
+        u.tissu.position.y = bas + (u.haut - bas) * Math.max(0, Math.min(1, (t - 0.3) / 0.45));
+      } else u.tissu.position.y = bas + (u.haut - bas) * Math.min(1, (t - 0.35) / 0.45);
+      const fini = pose && g.scale.y >= 1 && u.tissu.position.y >= u.haut - 1e-3;
+      if (fini) deboutDrapeau(i);
+      return !fini;
+    });
+  }
+  // une petite flotte : trois navires de la commu (le même modèle que devant son port, en plus petit), en V
+  function creerFlottille(commu, depart, cible, k, ile) {
+    const f = flotte.get(commu);
+    const couleur = new THREE.Color(couleursCommus.get(commu)?.c1 || "#ffffff");
+    const g = new THREE.Group();
+    scene.add(g);
+    const dir = new THREE.Vector2(cible.x - depart.x, cible.z - depart.z);
+    const long = dir.length() || 1;
+    dir.divideScalar(long);
+    const rd = (depart.obj?.userData.rMer ?? depart.r) + 3, rc = (cible.obj?.userData.rMer ?? cible.r) + 5;
+    const a = new THREE.Vector3(depart.x + dir.x * rd, 0, depart.z + dir.y * rd);
+    const b = new THREE.Vector3(cible.x - dir.x * rc, 0, cible.z - dir.y * rc);
+    const m = a.clone().lerp(b, 0.5).add(new THREE.Vector3(-dir.y, 0, dir.x).multiplyScalar(long * 0.16 * (k % 2 ? 1 : -1)));
+    const courbe = new THREE.QuadraticBezierCurve3(a, m, b);
+    const navires = [];
+    const modele = f?.porteur.children[0];
+    for (let n = 0; n < 3; n++) {
+      let o;
+      if (modele) { o = modele.clone(); o.scale.multiplyScalar(0.6); }
+      else { o = new THREE.Mesh(new THREE.ConeGeometry(0.9, 3, 6), new THREE.MeshLambertMaterial({ color: couleur })); o.rotation.z = -Math.PI / 2; o.userData.aJeter = true; }
+      const porteur = new THREE.Group();
+      porteur.add(o);
+      g.add(porteur);
+      navires.push({ porteur, decal: (n - 1) * 2.6, retard: n * 0.07 });
+    }
+    // la route, en pointillés de sa couleur, qui se dessine derrière eux
+    const ligne = new THREE.Line(new THREE.BufferGeometry().setFromPoints(courbe.getPoints(60).map((p) => p.setY(0.35))), new THREE.LineDashedMaterial({ color: couleur, dashSize: 1.6, gapSize: 1.1, transparent: true, opacity: 0.9 }));
+    ligne.computeLineDistances();
+    ligne.geometry.setDrawRange(0, 0);
+    g.add(ligne);
+    return { g, courbe, navires, ligne, sillage: 0, ile, part: 0 };
+  }
+  const tangente = new THREE.Vector3(), cote = new THREE.Vector3();
+  function majFlottille(F, u, temps, dt) {
+    F.ligne.geometry.setDrawRange(0, Math.floor(61 * Math.min(1, u * 1.02)));
+    // l'île est jouée : la flotte s'efface (elle a pris l'île, ou elle a sombré)
+    if (F.part) {
+      F.part = Math.min(1, F.part + dt / 0.6);
+      for (const n of F.navires) n.porteur.scale.setScalar(Math.max(0.001, 1 - F.part));
+      F.ligne.material.opacity = 0.9 * (1 - F.part);
+      F.g.visible = F.part < 1;
+    }
+    for (const n of F.navires) {
+      const v = Math.max(0, Math.min(1, (u - n.retard) / (1 - n.retard)));
+      const e = v * v * (3 - 2 * v);
+      const p = F.courbe.getPoint(e);
+      F.courbe.getTangent(Math.min(0.999, e), tangente);
+      cote.set(-tangente.z, 0, tangente.x).multiplyScalar(n.decal);
+      n.porteur.position.set(p.x + cote.x - tangente.x * Math.abs(n.decal) * 0.8, houle(p.x, p.z, temps) * 3, p.z + cote.z - tangente.z * Math.abs(n.decal) * 0.8);
+      n.porteur.rotation.y = Math.atan2(-tangente.z, tangente.x);
+      n.porteur.rotation.z = Math.sin(temps * 2 + n.decal) * 0.05;
+    }
+    // le sillage : un peu d'écume derrière chaque navire (moins sur un petit appareil)
+    F.sillage += dt;
+    if (u < 1 && F.sillage > (leger ? 0.2 : 0.12)) {
+      F.sillage = 0;
+      for (const n of F.navires) eclat(n.porteur.position.x, 0.3, n.porteur.position.z, { couleur: 0xffffff, taille: 2.2, vie: 0.8, ajout: false });
+    }
+  }
+  function jouerBataille(b, { couleurs = {}, surCombat = () => {}, surEtape = () => {}, fin = () => {} } = {}) {
+    arreterBataille(false);
+    for (const [c, x] of Object.entries(couleurs)) couleursCommus.set(c, { id: c, ...x });
+    const evts = (b?.iles || []).filter((y) => parIle.has(y.ile) && (y.attaques?.length || y.renfort));
+    const commuDe = (id) => (id ? { id, ...(couleursCommus.get(id) || {}) } : null);
+    // la carte d'avant la bataille, pour les îles qui vont se battre
+    for (const y of evts) { const i = parIle.get(y.ile); poserCommu(i, commuDe(y.avant?.commu)); deboutDrapeau(i); }
+    const flottilles = [];
+    evts.forEach((y) => {
+      const venues = [...(y.attaques || []).map((a) => a.commu), ...(y.renfort && y.avant?.commu ? [y.avant.commu] : [])];
+      for (const c of venues) {
+        const port = [...parIle.values()].find((i) => i.port === c);
+        if (port) flottilles.push(creerFlottille(c, port, parIle.get(y.ile), flottilles.length, y.ile));
+      }
+    });
+    bataille = { t: 0, evts, flottilles, k: -1, prochain: VOYAGE, fini: false, finT: 0, surCombat, surEtape, fin, commuDe };
+    demarrerSiBesoin();
+    return () => arreterBataille(true);
+  }
+  function etapeBataille(B, y, k) {
+    const i = parIle.get(y.ile);
+    const r = (i.obj?.userData.rMer ?? i.r);
+    B.surCombat(y, k);
+    // les canons : des éclairs et de la fumée tout autour de l'île (et un peu sur l'île, quand on la défend)
+    const coups = y.attaques?.length ? (leger ? 8 : 12) : 0;
+    for (let n = 0; n < coups; n++) {
+      const a = Math.random() * Math.PI * 2, d = r * (0.55 + Math.random() * 0.75), x = i.x + Math.cos(a) * d, z = i.z + Math.sin(a) * d;
+      const retard = (n / coups) * 0.85;
+      eclat(x, 2 + Math.random() * 3, z, { couleur: 0xffc46b, taille: 5 + Math.random() * 3, vie: 0.28, retard });
+      eclat(x, 2.5, z, { couleur: 0x8a8a96, taille: 5.5, vie: 1.5, monte: 6, ajout: false, retard: retard + 0.05 });
+    }
+    let t = 0;
+    effets.push((dt) => {
+      t += dt;
+      if (t < BOUM) return true;
+      const apres = B.commuDe(y.apres?.commu);
+      for (const F of B.flottilles) if (F.ile === y.ile && !F.part) F.part = 0.001;
+      if (y.prise) {
+        changerDrapeau(i, apres);
+        onde(i, new THREE.Color(apres?.c1 || "#ffd36b"));
+        onde(i, new THREE.Color(apres?.c2 || "#ffffff"), 0.18);
+        etincelles(i, [new THREE.Color(apres?.c1 || "#ffd36b"), new THREE.Color(apres?.c2 || "#ffffff")], leger ? 10 : 16);
+      } else if (y.attaques?.length) { bouclier(i); onde(i, 0xffffff); }
+      else { onde(i, OR); etincelles(i, [new THREE.Color(OR)], leger ? 8 : 12); }
+      if (bataille === B) B.surEtape(y, k);
+      return false;
+    });
+  }
+  function majBataille(dt, temps) {
+    const B = bataille;
+    if (!B) {
+      // la caméra revient sur toute la mer
+      viseRepos.set(0, 0, 3);
+      vise.lerp(viseRepos, Math.min(1, dt * 2));
+      zoomCam += (1 - zoomCam) * Math.min(1, dt * 2);
+      return;
+    }
+    B.t += dt;
+    for (const F of B.flottilles) majFlottille(F, Math.min(1, B.t / VOYAGE), temps, dt);
+    while (!B.fini && B.t >= B.prochain) {
+      B.k++;
+      if (B.k < B.evts.length) { etapeBataille(B, B.evts[B.k], B.k); B.prochain += PAS; }
+      else { B.fini = true; B.finT = B.t; }
+    }
+    if (B.fini && B.t >= B.finT + 0.4) { const f = B.fin; arreterBataille(false); f(); return; }
+    // la caméra s'approche de l'île qui se bat (et reste sur toute la mer pendant que les flottes voguent)
+    // (sans sortir de la mer : le bord de la feuille et le ciel restent hors du cadre)
+    const i = !B.fini && B.k >= 0 ? parIle.get(B.evts[B.k].ile) : null;
+    viseRepos.set(i ? Math.max(-40, Math.min(40, i.x * 0.8)) : 0, 0, i ? Math.max(-19, Math.min(21, i.z * 0.8)) : 3);
+    vise.lerp(viseRepos, Math.min(1, dt * 2.2));
+    zoomCam += ((i ? 0.66 : 0.96) - zoomCam) * Math.min(1, dt * 2.2);
+  }
+  function arreterBataille(sauter) {
+    const B = bataille;
+    if (!B) return;
+    bataille = null;
+    for (const F of B.flottilles) {
+      scene.remove(F.g);
+      F.ligne.geometry.dispose();
+      F.ligne.material.dispose();
+      F.g.traverse((o) => { if (o.userData.aJeter) { o.geometry.dispose(); o.material.dispose(); } });
+    }
+    // les effets en cours se finissent d'un coup (un drapeau à moitié levé ne reste pas en l'air)
+    for (let n = 0; n < 4 && effets.length; n++) for (let k = effets.length - 1; k >= 0; k--) if (effets[k](10) === false) effets.splice(k, 1);
+    if (sauter) {
+      // on passe : chaque île prend son sort
+      for (const y of B.evts) { const i = parIle.get(y.ile); poserCommu(i, B.commuDe(y.apres?.commu)); deboutDrapeau(i); }
+      B.fin();
+    }
+    demander();
+  }
+  // pendant la bataille, l'image se dessine sans arrêt
+  function demarrerSiBesoin() { if (!enMarche) demarrer(); }
+  // « la bataille fait rage » (le bot n'a pas encore donné les résultats) : des coups de canon au loin, sur les îles
+  function agiter(oui) {
+    agite = Boolean(oui) && !reduit;
+    demander();
+  }
+  function majAgitation(dt) {
+    if (!agite || bataille) return;
+    agiteT -= dt;
+    if (agiteT > 0) return;
+    agiteT = 0.25 + Math.random() * 0.45;
+    const l = [...parIle.values()].filter((i) => !i.port);
+    const i = l[Math.floor(Math.random() * l.length)];
+    if (!i) return;
+    const r = (i.obj?.userData.rMer ?? i.r), a = Math.random() * Math.PI * 2, x = i.x + Math.cos(a) * r, z = i.z + Math.sin(a) * r;
+    eclat(x, 2.5, z, { couleur: 0xffc46b, taille: 4.5, vie: 0.25 });
+    eclat(x, 2.5, z, { couleur: 0x8a8a96, taille: 4.5, vie: 1.3, monte: 5, ajout: false, retard: 0.05 });
   }
 
   // ---------- la souris : survol et clic ----------
@@ -399,9 +683,12 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
     // l'île de son vote bat doucement ; l'île choisie aussi, un peu
     if (voteAnneau.visible) voteAnneau.material.opacity = reduit ? 0.9 : 0.6 + 0.35 * (0.5 + 0.5 * Math.sin(temps * 3.2));
     // la caméra suit un peu la souris
+    majBataille(dt, temps);
+    majAgitation(dt);
+    for (let k = effets.length - 1; k >= 0; k--) if (effets[k](dt) === false) effets.splice(k, 1);
     if (!reduit) {
       sourisLisse.lerp(souris, Math.min(1, dt * 2.5));
-      placerCamera(distance, couche ? -sourisLisse.y * 5 : sourisLisse.x * 6, couche ? sourisLisse.x * 4 : sourisLisse.y * 4);
+      placerCamera(distance * zoomCam, couche ? -sourisLisse.y * 5 : sourisLisse.x * 6, couche ? sourisLisse.x * 4 : sourisLisse.y * 4);
     }
     renderer.render(scene, camera);
     // où sont les îles à l'écran (pour les étiquettes)
@@ -416,7 +703,7 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
   function boucle(t) {
     if (!enMarche || detruit) return;
     raf = requestAnimationFrame(boucle);
-    if (reduit && !aDessiner) return;
+    if (reduit && !aDessiner && !bataille && !effets.length) return;
     dessiner(t);
   }
   function demander() {
@@ -442,9 +729,11 @@ export function creerGuerre3D(canvas, { iles = [], navires = [], surIle = () => 
 
   cadrer();
   return {
-    maj, taille, demarrer, arreter, detruire,
+    maj, taille, demarrer, arreter, detruire, bataille: jouerBataille, finirBataille: () => arreterBataille(false), enBataille: () => Boolean(bataille), agiter,
+    // toutes les îles sont là (ou l'une n'a pas pu se charger : on n'attend plus)
+    pret: () => erreurs.length > 0 || [...parIle.values()].every((i) => i.obj),
     // l'appareil peine : moins de ~20 images par seconde après les premières
     tropLent: () => nbImages > 40 && lenteur > 0.05,
-    etat: () => ({ iles: [...parIle.values()].map((i) => ({ id: i.id, modele: Boolean(i.obj), drapeau: i.cle })), navires: [...flotte.values()].map((f) => ({ commu: f.commu, modele: f.anims !== undefined && f.porteur.children.length > 0 })), erreurs: [...erreurs], choix, vote, regne, couche, distance: Math.round(distance) }),
+    etat: () => ({ iles: [...parIle.values()].map((i) => ({ id: i.id, modele: Boolean(i.obj), drapeau: i.cle })), navires: [...flotte.values()].map((f) => ({ commu: f.commu, modele: f.anims !== undefined && f.porteur.children.length > 0 })), erreurs: [...erreurs], choix, vote, regne, couche, distance: Math.round(distance), bataille: bataille ? { t: Math.round(bataille.t * 10) / 10, k: bataille.k, evts: bataille.evts.length, flottilles: bataille.flottilles.length } : null, effets: effets.length }),
   };
 }

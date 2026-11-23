@@ -458,7 +458,7 @@ export function creerFete(ctx) {
   lumVives.push((s, L) => { for (const a of anneauxLive.values()) if (a[0].visible) lum.pousser(a[0].position.x, 0.25, a[0].position.z, 8, ROSE, 0.42 * L, 1); });
 
   // ---------- un défi : l'arène, les navires face à face ----------
-  const arene = { actif: false, cle: "", centre: v3(0, 0), a0: 0, tour: 0, sortie: 0, participants: [], moi: "", gagnant: "", scores: {}, objets: null, prochainTir: 3, feteFaite: "" };
+  const arene = { actif: false, cle: "", centre: v3(0, 0), a0: 0, tour: 0, sortie: 0, participants: [], moi: "", gagnant: "", scores: {}, objets: null, prochainTir: 3, feteFaite: "", regne: "", regneFete: "" };
   const poses = new Map(); // l'id d'une commu (« moi » hors de la flotte) → où est vraiment son navire (sa route, ou sa place dans l'arène)
   function majDefi(d) {
     const defi = d.defi && typeof d.defi === "object" ? d.defi : null;
@@ -474,6 +474,11 @@ export function creerFete(ctx) {
     // la victoire : la couronne au-dessus du vainqueur, et un grand feu d'artifice la première fois qu'on la voit
     arene.gagnant = defi?.phase === "victoire" && (defi.gagnant === moi || flotte.has(defi.gagnant)) ? String(defi.gagnant) : "";
     if (arene.gagnant && arene.feteFaite !== `${defi.id}:${arene.gagnant}`) { arene.feteFaite = `${defi.id}:${arene.gagnant}`; arene.salve = temps + 1.2; }
+    // la commu qui règne (la Guerre des commus) : sa couronne, jusqu'à la fin de la saison suivante ; un petit feu d'artifice
+    // la première fois qu'on la voit (pas de fête toutes les 10 s pendant des semaines : c'est la couronne du défi qui fait ça)
+    const r = typeof d.regne === "string" ? d.regne : "";
+    arene.regne = r && (r === moi || flotte.has(r)) ? r : "";
+    if (arene.regne && arene.regneFete !== arene.regne) { arene.regneFete = arene.regne; arene.salveRegne = temps + 1.6; }
   }
   // le rayon d'une île : jusqu'à sa côte (une île du niveau 5 est plus large que l'ancien rayon i.r)
   const rayonIle = (i) => Math.max(i.r, i.rMer || 0);
@@ -814,6 +819,8 @@ export function creerFete(ctx) {
       ponton.g.visible = false;
       const couronne = faire("couronne", 2.3);
       couronne.g.visible = false;
+      const couronneRegne = faire("couronne", 1.9); // la couronne de la Guerre des commus (une seule couronne par navire)
+      couronneRegne.g.visible = false;
       arene.objets = true;
       const ptsLum = [];
       vieFete.push((s, dt) => {
@@ -865,10 +872,19 @@ export function creerFete(ctx) {
           if (arene.salve && s > arene.salve) { arene.salve = 0; feter(q.x, q.z, leger ? 6 : 10, { large: 16 }); arene.prochaineFete = s + 9; }
           if (s > (arene.prochaineFete || 0)) { arene.prochaineFete = s + 6 + Math.random() * 6; feter(q.x, q.z, 2, { large: 14 }); }
         }
+        const qr = arene.regne && arene.regne !== arene.gagnant ? poses.get(arene.regne) : null;
+        couronneRegne.g.visible = Boolean(qr);
+        if (qr) {
+          couronneRegne.g.position.set(qr.x, 11.5 + Math.sin(s * 1.3 + 1) * 0.35, qr.z);
+          couronneRegne.g.rotation.y = s * 0.6;
+          couronneRegne.g.rotation.z = Math.sin(s * 0.9) * 0.06;
+          if (arene.salveRegne && s > arene.salveRegne) { arene.salveRegne = 0; feter(qr.x, qr.z, leger ? 3 : 5, { large: 12 }); }
+        }
       });
       lumVives.push((s) => {
         for (let k = 0; k < ptsLum.length; k += 3) lampe(ptsLum[k], ptsLum[k + 1], ptsLum[k + 2], 3.2, CHAUD, 0.9 * lisse(0.3, 1, arene.sortie));
         if (couronne.g.visible) lampe(couronne.g.position.x, couronne.g.position.y, couronne.g.position.z, 5, TEINTES.luciole, 1);
+        if (couronneRegne.g.visible) lampe(couronneRegne.g.position.x, couronneRegne.g.position.y, couronneRegne.g.position.z, 4, TEINTES.luciole, 0.85);
       });
     }
   }).catch((e) => { erreurs.push(`fete-mer : ${e.message}`); });
@@ -956,11 +972,12 @@ export function creerFete(ctx) {
     // pendant un défi : le score de cette commu (pour son étiquette), ou rien
     score: (id) => (arene.actif && arene.participants.includes(id) ? Number(arene.scores[id]) || 0 : null),
     gagnant: () => arene.gagnant,
+    regne: () => arene.regne,
     etat: () => ({
       phase: amb.phase, nuit: Math.round(amb.nuit * 100) / 100, or: Math.round(amb.or * 100) / 100, teinte: Boolean(post), lumieres: nbLum, etincelles: et.vivants(), feteMer: Boolean(modeles),
       ilesEclairees: [...iles.values()].filter((i) => i.lumieres?.length).map((i) => i.id), phare: Boolean(iles.get("phare")?.lampe), faisceau: faisceau.g.visible, aurore: aurores[0].visible,
       lanternes: etatVie.lanternes, celestes: etatVie.celestes, meduses: etatVie.meduses, baleine: etatVie.baleine ? { saut: etatVie.baleine.saut >= 0, sauts: etatVie.baleine.sauts, x: Math.round(etatVie.baleine.x), z: Math.round(etatVie.baleine.z) } : null,
-      arene: { actif: arene.actif, sortie: Math.round(arene.sortie * 100) / 100, participants: [...arene.participants], centre: [Math.round(arene.centre.x), Math.round(arene.centre.z)], gagnant: arene.gagnant, combat: [...poses.values()].filter((q) => q.combat).length, places: [...poses].map(([id, q]) => [id, Math.round(q.m * 100) / 100]), aPlacer: Boolean(arene.aPlacer) },
+      arene: { actif: arene.actif, sortie: Math.round(arene.sortie * 100) / 100, participants: [...arene.participants], centre: [Math.round(arene.centre.x), Math.round(arene.centre.z)], gagnant: arene.gagnant, regne: arene.regne, combat: [...poses.values()].filter((q) => q.combat).length, places: [...poses].map(([id, q]) => [id, Math.round(q.m * 100) / 100]), aPlacer: Boolean(arene.aPlacer) },
       live: [...anneauxLive.entries()].filter(([, a]) => a[0].visible).map(([cle]) => cle),
     }),
   };
