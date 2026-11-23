@@ -4758,14 +4758,16 @@ export function creerGrandLine3D(canvas, { positions, couche, surIle = () => {},
       return fete?.gagnant() === id ? `👑 ${nom} · vainqueur du défi` : "";
     };
     // dans la flotte : le nom et le rang dans la course ; sinon, l'avance de l'étape
-    const t = d.flotte?.nom ? duel(d.flotte.id, d.flotte.nom) || `⛵ ${d.flotte.nom}${d.flotte.rang ? ` · ${d.flotte.rang}` : ""}${d.live ? " · 🔴" : ""}` : `⛵ ${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
+    // (la commu qui règne sur la Guerre des commus : une couronne à la place de la voile)
+    const voile = (id) => (fete?.regne() === id ? "👑" : "⛵");
+    const t = d.flotte?.nom ? duel(d.flotte.id, d.flotte.nom) || `${voile(d.flotte.id)} ${d.flotte.nom}${d.flotte.rang ? ` · ${d.flotte.rang}` : ""}${d.live ? " · 🔴" : ""}` : `⛵ ${Math.floor(Math.min(1, d.milles / d.longueur) * 100)} %${d.live ? " · 🔴 vent arrière" : ""}`;
     if (n.textContent !== t) n.textContent = t;
     if (d.flotte) n.style.setProperty("--c1", themeNavire(d.flotte.couleurs).c1); else n.style.removeProperty("--c1");
     vues.add("navire");
     // les autres navires de la flotte : leur nom et leur avance ; un clic les regarde
     for (const [id, f] of flotte) {
       const e = etiquette(`flotte:${id}`, "gl-etiquette-flotte");
-      const tf = duel(id, f.d.nom || id) || `⛵ ${f.d.nom || id}${f.d.rang ? ` · ${f.d.rang}` : ""}${f.d.live ? " · 🔴" : ""}`;
+      const tf = duel(id, f.d.nom || id) || `${voile(id)} ${f.d.nom || id}${f.d.rang ? ` · ${f.d.rang}` : ""}${f.d.live ? " · 🔴" : ""}`;
       if (e.dataset.texte !== tf) {
         e.dataset.texte = tf;
         e.textContent = tf;
