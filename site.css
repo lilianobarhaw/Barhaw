@@ -4066,3 +4066,139 @@ html.recit-ouvert { overflow: hidden; }
   .sh-ampoules::before, .sh-ampoules::after, .sh-projecteurs i, .sh-logo b, .sh-direct .sh-point, .sh-chaine.allume .sh-point, .sh-live.allume .sh-point { animation: none !important; }
   .st-image, .st-play { transition: none; }
 }
+
+/* ===================== La Guerre des commus (VF 1.0) : la table de guerre ===================== */
+.type-guerre { --couleur: #ffb020; }
+.guerre { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.carte.guerre { padding: clamp(16px, 2.6vw, 28px) clamp(12px, 2.6vw, 28px); }
+.guerre > div:empty { display: none; }
+/* le bandeau : la phase en grand, le compte à rebours */
+.gu-banniere { position: relative; isolation: isolate; display: grid; justify-items: center; gap: 6px; padding: 20px 14px; border-radius: 20px; border: 2px solid var(--ligne); background: radial-gradient(120% 110% at 50% 0%, #3a1c12 0%, #1a0a0d 55%, #12050d 100%); box-shadow: 6px 6px 0 var(--ombre); text-align: center; overflow: hidden; }
+.gu-banniere::before { content: ""; position: absolute; inset: 0; z-index: -1; background: repeating-linear-gradient(115deg, rgba(255, 176, 32, 0.06) 0 2px, transparent 2px 18px); }
+.gu-etat { margin: 0; color: var(--brume); font-size: 14px; }
+.gu-etat b { color: #ffd36b; }
+.gu-grand { margin: 0; font-family: var(--titre); font-size: clamp(30px, 5.4vw, 52px); line-height: 1.05; letter-spacing: 0.02em; color: #fff4dc; text-shadow: 3px 3px 0 #c2286e, 6px 6px 0 rgba(0, 0, 0, 0.35); }
+.gu-banniere.phase-en-cours .gu-grand { color: #ffd36b; }
+.gu-rebours { display: grid; gap: 2px; justify-items: center; margin: 4px 0 0; }
+.gu-rebours-libelle { color: var(--terne); font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.gu-rebours-temps { font-family: var(--titre); font-size: clamp(20px, 3.4vw, 30px); color: var(--blanc); font-variant-numeric: tabular-nums; }
+.gu-quand { max-width: 620px; margin: 4px auto 0; color: var(--brume); }
+/* la carte (3D, ou 2D avec les images des îles) et ses étiquettes */
+.gu-scene { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: radial-gradient(90% 80% at 50% 50%, #1b3c5a 0%, #0d1b2c 70%, #0a0f1a 100%); border: 2px solid var(--ligne); }
+.gu-scene[hidden] { display: none; }
+.gu-plateau, .gu-etiquettes { position: absolute; inset: 0; }
+.gu-etiquettes { pointer-events: none; }
+.gu-toile { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+.gu-attente { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--brume); font-family: var(--fort); }
+.gu-etiquette { --c1: #e9dcc0; --c2: #9aa7b8; pointer-events: auto; position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; border: 2px solid var(--encre); background: rgba(18, 5, 13, 0.82); color: #fff6ec; font: 800 12px/1.2 var(--fort); white-space: nowrap; cursor: pointer; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45); transition: background 0.2s, border-color 0.2s; will-change: transform; }
+.gu-etiquette::before { content: ""; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--c1) 50%, var(--c2) 50%); border: 1.5px solid var(--encre); }
+.gu-etiquette:not(.tenue)::before { background: transparent; border-color: #cbb895; border-style: dashed; }
+.gu-etiquette.port { background: var(--c1); color: var(--fl-texte, #fff); }
+/* (pas de « scale » au survol : en 3D, l'étiquette est placée par sa transformation, elle partirait de sous la souris) */
+.gu-etiquette:hover, .gu-etiquette.survol, .gu-etiquette:focus-visible { background: #2c1030; border-color: #fff6ec; z-index: 2; }
+.gu-etiquette.port:hover, .gu-etiquette.port.survol { background: var(--c1); }
+.gu-etiquette.choisie { outline: 3px solid #fff; outline-offset: 1px; z-index: 3; }
+.gu-etiquette.mon-vote { box-shadow: 0 0 0 3px #ffd36b, 2px 2px 0 rgba(0, 0, 0, 0.45); }
+.gu-et-nom { max-width: 11em; overflow: hidden; text-overflow: ellipsis; }
+.gu-et-garnison { font-family: var(--titre); font-weight: 400; color: #ffd36b; }
+.gu-et-bonus { padding: 0 5px; border-radius: 6px; background: #ffd36b; color: var(--encre); font-size: 10px; }
+.gu-et-votes { color: #ffd36b; }
+.gu-sous-carte { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: -8px; }
+.gu-sous-carte[hidden] { display: none; }
+.gu-legende { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--terne); font-size: 13px; }
+.gu-legende li { display: inline-flex; align-items: center; gap: 6px; }
+.gu-pastille { width: 11px; height: 11px; border-radius: 50%; background: linear-gradient(135deg, #ff5aae 50%, #55ccff 50%); border: 1.5px solid var(--encre); }
+.gu-pastille.libre { background: transparent; border: 1.5px dashed #cbb895; }
+.gu-pastille.vote { background: transparent; border: 3px solid #ffd36b; }
+.gu-bascule[hidden] { display: none; }
+/* la carte en 2D : la mer, les îles à leur place (x : de −104 à 104 ; z : de −58 à 58) */
+.gu-2d { position: absolute; inset: 0; background:
+  radial-gradient(60% 50% at 50% 50%, rgba(60, 170, 190, 0.35), transparent 70%),
+  repeating-radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 26px),
+  linear-gradient(180deg, #0c4a74, #082f52); }
+.gu-2d-ile { --x: 0; --z: 0; position: absolute; left: calc((var(--x) + 104) / 208 * 100%); top: calc((var(--z) + 58) / 116 * 100%); width: 15%; padding: 0; border: 0; background: none; transform: translate(-50%, -50%); cursor: pointer; }
+.gu-2d-ile.port { width: 16%; }
+.gu-2d-ile img { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.35)); }
+.gu-2d-anneau { position: absolute; inset: 8% 6%; border-radius: 50%; border: 3px solid transparent; pointer-events: none; }
+.gu-2d-ile.tenue .gu-2d-anneau { border-color: var(--c1); opacity: 0.85; }
+.gu-2d-ile.choisie .gu-2d-anneau { outline: 3px solid #fff; outline-offset: 2px; }
+.gu-2d-ile.mon-vote .gu-2d-anneau { box-shadow: 0 0 0 4px #ffd36b; }
+.gu-2d-fanion { position: absolute; left: 50%; top: 12%; font-size: 7px; pointer-events: none; }
+.gu-etiquettes .gu-etiquette[style*="--x"] { left: calc((var(--x) + 104) / 208 * 100%); top: calc((var(--z) + 58) / 116 * 100% - 4.5%); transform: translate(-50%, -100%); }
+/* sous la carte : l'île choisie et son camp */
+.gu-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; align-items: start; }
+.gu-info, .gu-moi { min-height: 0; }
+.gu-info:empty, .gu-moi:empty { display: none; }
+.gu-astuce { margin: 0; padding: 14px; border-radius: 14px; border: 2px dashed var(--ligne-douce); color: var(--terne); text-align: center; }
+.gu-ile, .gu-moi-bloc { --c1: #cbb895; --c2: #9aa7b8; position: relative; display: grid; gap: 8px; padding: 14px 16px; border-radius: 16px; border: 2px solid var(--ligne-douce); background: var(--verre); }
+.gu-ile { border-left: 6px solid var(--c1); }
+.gu-ile-sur { margin: 0; color: var(--terne); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.gu-ile-nom { margin: 0; font-family: var(--titre); font-size: 22px; line-height: 1.15; }
+.gu-ile-tient, .gu-engage { display: flex; align-items: center; gap: 8px; margin: 0; }
+.gu-ile-garnison { margin: 0; color: var(--brume); }
+.gu-ile-garnison b { font-family: var(--titre); font-size: 20px; color: #ffd36b; }
+.gu-ile-votes { margin: 0; color: #ffd36b; font-weight: 700; }
+.gu-fermer { position: absolute; top: 8px; right: 10px; padding: 2px 8px; border: 0; border-radius: 8px; background: none; color: var(--terne); font-size: 16px; cursor: pointer; }
+.gu-fermer:hover { color: var(--blanc); background: var(--verre-fort); }
+.gu-vote-fait { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.gu-ok { margin: 0; color: #8af0b0; font-weight: 800; }
+.gu-moi-bloc.engage { border-left: 6px solid var(--c1); }
+.gu-x2 { margin: 0; padding: 6px 10px; border-radius: 10px; background: rgba(255, 70, 85, 0.16); color: #ffd0d6; font-weight: 800; }
+.gu-mes-troupes { display: grid; gap: 6px; }
+.gu-mes-troupes .gu-barre { grid-area: auto; }
+.gu-mes-troupes p { margin: 0; }
+.gu-mes-troupes b { font-family: var(--titre); color: #ffd36b; }
+.gu-mon-vote { margin: 0; color: var(--brume); }
+.gu-titres { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.gu-titre { padding: 3px 10px; border-radius: 999px; background: linear-gradient(90deg, #ffd36b, #ffb020); color: var(--encre); font-weight: 800; font-size: 13px; }
+.gu-drapeau { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; border: 2px solid var(--encre); object-fit: cover; background: var(--nuit); }
+.gu-embleme { display: inline-grid; place-items: center; background: linear-gradient(135deg, var(--c1) 55%, var(--c2) 55%); color: var(--fl-texte, #fff); font-family: var(--titre); font-size: 14px; }
+/* les armées du jour */
+.gu-titre-bloc { margin: 0 0 8px; color: var(--terne); font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-align: center; text-transform: uppercase; }
+.gu-liste { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.gu-commu { --c1: var(--rose); --c2: var(--violet); display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; grid-template-areas: "img nom live chiffre" "barre barre barre barre"; gap: 6px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--verre); }
+.gu-commu .gu-drapeau { grid-area: img; width: 40px; height: 40px; }
+.gu-commu.gu-moi { border-color: var(--c1); }
+.gu-nom { grid-area: nom; display: grid; min-width: 0; text-align: left; }
+.gu-nom small { color: var(--terne); }
+.gu-live { grid-area: live; padding: 2px 8px; border-radius: 999px; background: rgba(255, 70, 85, 0.18); color: #ffd0d6; font-weight: 800; font-size: 12px; }
+.gu-chiffre { grid-area: chiffre; font-family: var(--titre); font-weight: 400; color: #ffd36b; white-space: nowrap; }
+.gu-barre { grid-area: barre; display: block; height: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.gu-barre i { display: block; height: 100%; min-width: 4px; border-radius: 10px; background: linear-gradient(90deg, var(--c1, #ffb020), var(--c2, #ff4f9a)); transition: width 0.8s ease; }
+/* le journal */
+.gu-journal { display: grid; gap: 6px; }
+.gu-bataille { padding: 8px 12px; border-radius: 12px; border: 2px solid var(--ligne-douce); background: var(--verre); }
+.gu-bataille summary { cursor: pointer; }
+.gu-bataille ul { display: grid; gap: 4px; margin: 8px 0 2px; padding-left: 4px; list-style: none; color: var(--brume); font-size: 14px; }
+.gu-bataille li.prise b:first-of-type { color: var(--c1); }
+/* la fin */
+.gu-fin { --c1: #ffd36b; position: relative; display: grid; justify-items: center; gap: 8px; padding: 22px 14px; border-radius: 20px; border: 3px solid var(--c1); background: radial-gradient(80% 90% at 50% 0%, rgba(255, 211, 107, 0.18), transparent 70%), var(--verre); text-align: center; }
+.gu-fin .gu-drapeau { width: 88px; height: 88px; border-radius: 18px; font-size: 34px; }
+.gu-couronne { font-size: 40px; line-height: 1; animation: gu-couronne 2.4s ease-in-out infinite; }
+@keyframes gu-couronne { 50% { transform: translateY(-6px) rotate(-6deg); } }
+.gu-fin-titre { margin: 0; font-family: var(--titre); font-size: clamp(22px, 4vw, 34px); }
+.gu-classement { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin: 0; padding: 0; list-style: none; color: var(--brume); }
+.gu-classement span { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 50%; background: var(--c1); color: var(--fl-texte, #fff); font-size: 12px; font-weight: 800; }
+/* les règles */
+.gu-regles { padding: 10px 14px; border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--verre); }
+.gu-regles summary { cursor: pointer; font-family: var(--fort); font-weight: 800; }
+.gu-regles ul { display: grid; gap: 4px; margin: 8px 0 0; padding-left: 18px; color: var(--brume); font-size: 14px; }
+/* au téléphone : la carte en hauteur (la mer tourne d'un quart de tour, comme en 3D) */
+@media (max-width: 760px) {
+  .gu-scene { aspect-ratio: 3 / 4.6; }
+  .gu-2d-ile { left: calc((58 - var(--z)) / 116 * 100%); top: calc((var(--x) + 104) / 208 * 100%); width: 27%; }
+  .gu-2d-ile.port { width: 28%; }
+  .gu-etiquettes .gu-etiquette[style*="--x"] { left: calc((58 - var(--z)) / 116 * 100%); top: calc((var(--x) + 104) / 208 * 100% - 4%); }
+  .gu-etiquette { font-size: 11px; padding: 2px 7px 2px 5px; gap: 4px; }
+  /* au téléphone, les étiquettes se font petites : la garnison seule (le nom : dans la fiche de l'île, ou quand on la choisit) */
+  .gu-etiquette:not(.port):not(.choisie) .gu-et-nom { display: none; }
+  .gu-etiquettes .gu-et-bonus, .gu-legende .gu-et-bonus { padding: 0 4px; font-size: 0; }
+  .gu-etiquettes .gu-et-bonus::before, .gu-legende .gu-et-bonus::before { content: "★"; font-size: 10px; }
+  .gu-et-nom { max-width: 8em; }
+  .gu-etiquettes .gu-etiquette[style*="--x"] { left: clamp(40px, calc((58 - var(--z)) / 116 * 100%), calc(100% - 40px)); }
+  .gu-2d-fanion { left: 60%; top: 4%; font-size: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gu-couronne { animation: none; }
+  .gu-etiquette { transition: none; }
+}
