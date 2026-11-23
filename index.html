@@ -246,6 +246,20 @@
       <p class="sous revele">Quatre streameurs, quatre équipes de cinq. Chaque semaine, un tournoi sur le jeu de l'une d'elles, qui joue à domicile. Au bout du mois, une seule équipe gagne le Show.</p>
     </div>
     <div class="show-affiche revele" id="show-affiche"></div>
+    <!-- le trailer (1 min 48) : l'image du film et son bouton ; la vidéo ne se charge qu'au clic (en 480p sur un petit écran) -->
+    <figure class="show-trailer revele" id="show-trailer">
+      <div class="st-cadre">
+        <video class="st-video" id="st-video" playsinline preload="none" width="1280" height="720" aria-label="Le trailer du Barhaw Show">
+          <source src="/videos/show-trailer-720.webm" type="video/webm">
+          <source src="/videos/show-trailer-720.mp4" type="video/mp4">
+        </video>
+        <button class="st-lancer" id="st-lancer" type="button" aria-label="Regarder le trailer du Barhaw Show (1 min 48, avec le son)">
+          <img class="st-image" src="/videos/show-trailer.jpg" alt="" width="1280" height="720" loading="lazy" decoding="async">
+          <span class="st-play" aria-hidden="true"></span>
+          <span class="st-texte" aria-hidden="true"><b>Le trailer</b><small id="st-sous">1 min 48 · avec le son</small></span>
+        </button>
+      </div>
+    </figure>
     <div class="show-equipes" id="show-equipes"></div>
     <div class="show-grille">
       <div class="carte show-programme revele" id="show-programme"></div>
