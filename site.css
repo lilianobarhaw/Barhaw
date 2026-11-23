@@ -3508,6 +3508,7 @@ html.v4 .gouter-jeu.fievre .gouter-combo { color: #ffd479; text-shadow: 0 0 10px
 @media (prefers-reduced-motion: reduce) { .caritatif-coeurs { display: none; } .caritatif-doudou, .caritatif-doudou.grand, .caritatif-carte, .caritatif-intro { animation: none; } .caritatif-intro { transition: none; } }
 
 /* ---------- la VF 1.0 : la SEMAINE BAHRIOT (toute la flotte sur les jeux Riot, tous les 3 mois) ---------- */
+.type-bahriot { --couleur: #ff4655; }
 .bahriot { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; justify-items: center; text-align: center; }
 .carte.bahriot { padding: clamp(20px, 3vw, 32px) clamp(12px, 3vw, 32px); }
 .br-tete { display: grid; gap: 4px; justify-items: center; }
