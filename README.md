@@ -1,6 +1,6 @@
 # Site Barhaw (Vercel)
 
-Le site de la commu de LilianoBarhaw, sur une seule page qui se dévoile au défilement, aux couleurs prune, rose et violet, en style manga (lignes de vitesse, onomatopées, bulles, autocollants de mèmes) : les événements à venir (Osiris, le TOURNOI BARHAW, le live de 12 h…), ta chaîne Twitch (le live, ou la rediff quand tu n'es pas en live), les chaînes des potes, tes vidéos YouTube, le Discord, et Chopper, jouable en se connectant avec Discord.
+Le site de la commu de LilianoBarhaw, sur une seule page qui se dévoile au défilement, aux couleurs prune, rose et violet, en style manga (lignes de vitesse, onomatopées, bulles, autocollants de mèmes) : les événements à venir (la SEMAINE BAHRIOT, le Barhaw Show…), ta chaîne Twitch (le live, ou la rediff quand tu n'es pas en live), les chaînes des potes, tes vidéos YouTube, le Discord, et Chopper, jouable en se connectant avec Discord.
 
 Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son « API du site », `lib/site.js` du bot). Les événements se gèrent depuis Discord avec `/evenement`, les potes avec `/reseaux`, comme d'habitude.
 
