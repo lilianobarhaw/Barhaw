@@ -4,16 +4,20 @@
 //   · le vote du carrefour : à l'ouverture, un petit rappel de temps en temps, puis la route choisie ;
 //   · ce qui arrive en mer (tempête, monstre marin, vent arrière, bouteille, vaisseau fantôme, maître des lieux) ;
 //   · le BOSS LIVE : son réveil, une barre de vie pendant le combat, puis la fin ;
-//   · la sortie de la VF 1.0 : une barre les dix dernières minutes, les dix dernières secondes en grand, puis l'annonce.
+//   · la sortie de la VF 1.0 : une barre les dix dernières minutes, les dix dernières secondes en grand, puis l'annonce ;
+//   · la Guerre des commus : « bataille dans 5 minutes », une barre la dernière minute (puis « la bataille fait rage »),
+//     les résultats de chaque bataille de 21 h, la commu qui règne à la fin de la saison, et de temps en temps, pendant le
+//     live du capitaine, « vos troupes comptent double ». Seulement des noms de commus et d'îles, jamais de joueurs.
 // Les données sont celles du site (/api/public, /api/bosslive) : rien de plus que ce que tout le monde y voit déjà, et aucun
 // pseudo n'est affiché. La page ne garde que l'heure de ce qu'elle a déjà annoncé (dans le navigateur d'OBS), pour ne pas
 // le redire quand on la recharge. Avant l'ouverture de la VF, les îles gardent leur image d'avant (img/iles) : les cartes
 // postales de la nouvelle carte (img/obs) ne se montrent qu'après, comme sur le site (une île sans carte postale prend alors
 // son image du niveau 5, img/iles/<id>-v5.webp ; un boss, img/boss/<id>-v5.webp).
 // Réglages dans l'adresse : ?commu=<id> (l'équipage suivi ; sans rien : barhaw) · ?place=haut|milieu|bas · ?son=non ·
-// ?rappel=<minutes> (le rappel du vote : 15 sans rien, 0 pour aucun) · ?fond=oui (un fond sombre, pour régler la page dans
-// un onglet) · ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|bientot|compte|sortie|tout (des alertes d'exemple
-// en boucle, sans rien demander au bot, pour placer la source).
+// ?rappel=<minutes> (le rappel du vote : 15 sans rien, 0 pour aucun rappel, ni celui du vote ni le « ×2 » de la guerre) ·
+// ?fond=oui (un fond sombre, pour régler la page dans un onglet) ·
+// ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|bientot|compte|sortie|guerre|derniere|bataille|regne|x2|tout
+// (des alertes d'exemple en boucle, sans rien demander au bot, pour placer la source).
 (() => {
   "use strict";
   const P = new URLSearchParams(location.search);
@@ -31,7 +35,8 @@
   // les îles qui ont leur carte postale (img/obs/<id>.webp, tirée de la nouvelle carte) ; les autres montrent leur maquette
   const CARTES = new Set(["moussaillons", "recif", "braise", "givre", "lucioles", "champignons", "engloutie", "vents", "marche", "arbre", "ambre", "phare", "tonnerre", "tresor", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]);
   const BOSS = new Set(["morghast", "voraxia", "krakor"]);
-  const SONS = { cloche: "/son/cloche.m4a", taiko: "/son/taiko.m4a", victoire: "/son/victoire.m4a", carte: "/son/carte.m4a", pop: "/son/pop.m4a" };
+  const SONS = { cloche: "/son/cloche.m4a", taiko: "/son/taiko.m4a", victoire: "/son/victoire.m4a", carte: "/son/carte.m4a", pop: "/son/pop.m4a", fanfare: "/son/br-fanfare.m4a", roulement: "/son/br-roulement.m4a" };
+  const RAPPEL_GUERRE = RAPPEL ? Math.max(RAPPEL, 45 * 60_000) : 0; // « vos troupes comptent double » : toutes les 45 min au plus
 
   // ---------- ce que la page sait ----------
   let decal = 0; // l'heure du bot moins celle de ce PC
@@ -46,6 +51,11 @@
   let combat = null; // le BOSS LIVE en cours
   let barre = null; // { genre, zone, noeud } : la vie du boss, ou le compte à rebours
   let vote = null; // le vote ouvert
+  let guerre = null; // la Guerre des commus, telle que le site la montre (/api/public)
+  let avantBataille = 0; // ce qu'il reste avant la bataille de 21 h, la dernière minute
+  let rage = false; // 21 h est passé et les résultats ne sont pas encore là
+  let rageDepuis = 0;
+  let dernierX2 = 0; // le dernier « vos troupes comptent double »
   let dernierRappel = 0;
   let dejaLu = false; // le site a déjà répondu une fois
   const file = []; // les alertes qui attendent leur tour
@@ -254,13 +264,143 @@
       el("div", "sortie-site", location.host)),
   });
 
+  // ---------- la Guerre des commus ----------
+  const nomCommu = (id) => String((guerre?.commus || []).find((c) => c.id === id)?.nom || id || "").slice(0, 40);
+  const ileDans = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, (m) => m.toLowerCase()); // « prend le Jardin de Cristal »
+  const surGuerre = () => `LA GUERRE DES COMMUS${guerre?.saison ? ` · SAISON ${guerre.saison}` : ""}`;
+  const evenements = (b) => (b?.iles || []).filter((y) => y.attaques?.length || y.renfort);
+  function ligneBataille(y) {
+    if (y.prise) return `🏴 ${nomCommu(y.apres?.commu)} prend ${ileDans(y.nom)}${y.avant?.commu ? ` à ${nomCommu(y.avant.commu)}` : ""}`;
+    if (y.attaques?.length) return `🛡️ ${y.nom} tient face à ${y.attaques.map((a) => nomCommu(a.commu)).join(" et ")}`;
+    return `🧱 ${nomCommu(y.apres?.commu)} renforce ${ileDans(y.nom)}`;
+  }
+  const compteIles = () => {
+    const l = [...(guerre?.commus || [])].sort((a, b) => (Number(b.iles) || 0) - (Number(a.iles) || 0)).map((c) => `${c.nom} ${Number(c.iles) || 0}`);
+    const libres = (guerre?.iles || []).filter((i) => !i.port && !i.commu).length;
+    return l.length ? `Les îles : ${l.join(" · ")}${libres ? ` · libres ${libres}` : ""}` : "";
+  };
+  const alAvantBataille = (reste) => {
+    const c = (guerre?.commus || []).find((x) => x.id === COMMU);
+    const min = Math.max(1, Math.round(reste / 60_000));
+    return {
+      nom: "guerre", duree: 12_000, son: "roulement",
+      faire: () => el("div", "al al-nuit guerre",
+        el("div", "al-emoji", "⚔️"),
+        el("div", "al-texte",
+          el("div", "al-sur", `${surGuerre()} · BATAILLE ${guerre?.bataille || ""}${guerre?.batailles ? ` SUR ${guerre.batailles}` : ""}`),
+          titre(`BATAILLE DANS ${min} MINUTE${min > 1 ? "S" : ""} !`),
+          c ? el("div", "al-nom", `${c.nom} : ${fr(c.armee)} troupes${c.live ? " (×2 pendant le live)" : ""}`) : null,
+          el("div", "al-info", `Dernières minutes pour voter : ${location.host}`))),
+    };
+  };
+  const alBataille = (b) => {
+    const evts = evenements(b);
+    const prises = evts.filter((y) => y.prise && y.apres?.commu === COMMU);
+    const perdues = evts.filter((y) => y.prise && y.avant?.commu === COMMU);
+    const tenues = evts.filter((y) => !y.prise && y.attaques?.length && y.avant?.commu === COMMU);
+    const nous = nomCommu(COMMU).toUpperCase();
+    const grand = prises.length === 1 ? `${nous} PREND ${ileDans(prises[0].nom).toUpperCase()} !` : prises.length > 1 ? `${nous} PREND ${prises.length} ÎLES !`
+      : perdues.length ? `${nous} PERD ${ileDans(perdues[0].nom).toUpperCase()}…` : tenues.length ? `${nous} TIENT BON !` : evts.length ? "LA BATAILLE EST FINIE" : "LA MER EST RESTÉE CALME";
+    const derniere = guerre?.batailles && b.n >= guerre.batailles;
+    return {
+      nom: "bataille", duree: 16_000, son: prises.length ? "fanfare" : "taiko",
+      faire: () => el("div", `al ${prises.length ? "al-papier al-or" : "al-nuit"} guerre resultats`,
+        el("div", "al-texte",
+          el("div", "al-sur", `${surGuerre()} · BATAILLE ${b.n}${guerre?.batailles ? ` SUR ${guerre.batailles}` : ""}`),
+          titre(grand),
+          evts.length ? el("ul", "gu-lignes", ...evts.slice(0, 4).map((y) => el("li", y.prise ? "prise" : "", ligneBataille(y)))) : null,
+          el("div", "al-info", compteIles()),
+          el("div", "al-info", derniere ? "C'était la dernière bataille de la saison !" : `Prochaine bataille demain à ${guerre?.heure || "21 h"}`))),
+    };
+  };
+  const alRegne = (f) => {
+    const g = f?.gagnant || "";
+    // (chaque commu d'un seul tenant : la ligne ne se coupe qu'entre deux commus)
+    const classement = (f?.classement || []).slice(0, 4).map((x, k) => `${k + 1}. ${x.nom || nomCommu(x.id)} (${Number(x.iles) || 0} île${Number(x.iles) > 1 ? "s" : ""})`.replace(/ /g, "\u00a0")).join(" · ");
+    return {
+      nom: "regne", duree: 20_000, son: "victoire",
+      faire: () => el("div", `al ${g === COMMU ? "al-papier al-or" : "al-nuit"} guerre regne`,
+        el("div", "al-emoji", "👑"),
+        el("div", "al-texte",
+          el("div", "al-sur", `${surGuerre()} · C'EST FINI`),
+          titre(g ? `${nomCommu(g).toUpperCase()} RÈGNE SUR GRAND LINE !` : "LA PAIX REVIENT SUR GRAND LINE"),
+          classement ? el("div", "al-nom", classement) : null,
+          el("div", "al-info", g ? "Une couronne sur son navire, des milles et le titre de Conquérant pour ses soldats" : "Aucune commu n'a gardé d'île cette fois"))),
+    };
+  };
+  const alX2 = (c) => ({
+    nom: "x2", duree: 11_000, son: "cloche",
+    faire: () => el("div", "al al-nuit guerre",
+      el("div", "al-emoji", "⚔️"),
+      el("div", "al-texte",
+        el("div", "al-sur", `${surGuerre()} · ${c.nom}`),
+        titre("VOS TROUPES COMPTENT DOUBLE !"),
+        el("div", "al-info", "Pendant le live du capitaine : vos games, vos messages et votre temps ici font deux fois plus de troupes"),
+        el("div", "al-info", `Engagez-vous et votez pour l'île de ce soir : ${location.host}`))),
+  });
+  // 21 h est passé et le journal n'a pas encore la bataille (le bot la compte dans la minute)
+  function enRage(g) {
+    if (g?.phase !== "en-cours") return false;
+    const faites = Number(g.journal?.[0]?.n) || 0;
+    const attendues = g.bataille ? g.bataille - 1 : g.batailles;
+    return attendues > faites || Boolean(g.prochaine && maintenant() >= g.prochaine);
+  }
+  function lireGuerre(g) {
+    guerre = g && typeof g === "object" && g.phase && g.phase !== "bientot" ? g : null;
+    if (!guerre) { rage = false; return; }
+    // une nouvelle bataille dans le journal : ses résultats (si elle vient de se jouer)
+    const b = guerre.journal?.[0];
+    const cle = b ? `${guerre.saison}:${b.n}` : "";
+    if (b && memoire.bataille !== cle) {
+      memoire.bataille = cle;
+      retenir();
+      if (maintenant() - (Number(b.t) || 0) < FRAIS) annoncer(alBataille(b));
+    }
+    // la fin de la saison (après les résultats de la dernière bataille)
+    const f = guerre.fini;
+    if (f && memoire.regne !== guerre.saison) {
+      memoire.regne = guerre.saison;
+      retenir();
+      if (maintenant() - (Number(f.t) || 0) < FRAIS + 600_000) annoncer(alRegne(f));
+    }
+    const r = enRage(guerre);
+    if (r && !rage) rageDepuis = maintenant();
+    rage = r;
+  }
+  function surveillerGuerre() {
+    const g = guerre;
+    // la bataille approche : « dans 5 minutes » (une fois par bataille), puis la barre la dernière minute
+    const reste = g?.phase === "en-cours" && g.prochaine ? g.prochaine - maintenant() : 0;
+    const cle = g ? `${g.saison}:${g.bataille}` : "";
+    if (reste > 30_000 && reste <= 300_000 && memoire.avantBataille !== cle) {
+      memoire.avantBataille = cle;
+      retenir();
+      annoncer(alAvantBataille(reste));
+    }
+    const avant = avantBataille;
+    avantBataille = reste > 0 && reste <= 60_000 ? reste : 0;
+    // 21 h pile : la bataille fait rage tout de suite (sans attendre la prochaine réponse du site) ; 5 minutes au plus
+    if (avant && !avantBataille && reste <= 0 && g?.phase === "en-cours") { rage = true; rageDepuis = maintenant(); }
+    if (rage && maintenant() - rageDepuis > 300_000) rage = false;
+    if (Boolean(avant) !== Boolean(avantBataille) || (barre?.genre === "rage") !== rage) majBarre();
+    // pendant le live du capitaine : « vos troupes comptent double », une minute après l'arrivée puis toutes les 45 min
+    const c = g?.phase === "en-cours" ? (g.commus || []).find((x) => x.id === COMMU) : null;
+    if (!c?.live || !RAPPEL_GUERRE || enCours || file.length || combat || attente || avantBataille || rage) return;
+    if (!dernierX2) { dernierX2 = Date.now() - RAPPEL_GUERRE + 60_000; return; }
+    if (Date.now() - dernierX2 < RAPPEL_GUERRE) return;
+    dernierX2 = Date.now();
+    annoncer(alX2(c));
+  }
+
   // ---------- la barre : la vie du boss pendant le combat, le compte à rebours avant la sortie ----------
   function majBarre() {
-    const genre = enCours ? "" : combat ? "boss" : attente > 10_000 ? "attente" : "";
+    const genre = enCours ? "" : combat ? "boss" : attente > 10_000 ? "attente" : avantBataille > 0 ? "guerre" : rage ? "rage" : "";
     if (barre && barre.genre !== genre) { barre.zone.remove(); barre = null; }
     if (!genre || barre) return;
     const noeud = genre === "boss"
       ? el("div", "barre", imageBoss(combat, ""), el("div", "barre-nom", String(combat.nom || "LE BOSS")), jauge(vieBoss(combat)), el("div", "barre-temps", ""))
+      : genre === "guerre" ? el("div", "barre attente guerre", el("div", "barre-nom", "⚔️ LA BATAILLE COMMENCE"), el("div", "barre-temps", ""))
+      : genre === "rage" ? el("div", "barre attente guerre rage", el("div", "barre-nom", "⚔️ LA BATAILLE FAIT RAGE…"))
       : el("div", "barre attente", el("div", "barre-nom", "LA VF 1.0 ARRIVE"), el("div", "barre-temps", ""));
     const zone = el("div", "zone", noeud);
     scene.append(zone);
@@ -277,6 +417,7 @@
       j.classList.toggle("rage", Boolean(combat.rage));
       temps.textContent = chrono((Number(combat.fin) || 0) - maintenant());
     } else if (barre.genre === "attente") temps.textContent = chrono(attente);
+    else if (barre.genre === "guerre") temps.textContent = chrono(avantBataille);
   }
 
   // ---------- la sortie de la VF 1.0 : dix minutes de barre, dix secondes en grand, puis l'annonce ----------
@@ -312,7 +453,7 @@
 
   // ---------- le vote : un rappel de temps en temps tant qu'il est ouvert ----------
   function surveillerVote() {
-    if (!vote || !RAPPEL || enCours || file.length || combat || attente) return;
+    if (!vote || !RAPPEL || enCours || file.length || combat || attente || avantBataille || rage) return;
     if (vote.fin - maintenant() < 20_000 || Date.now() - dernierRappel < RAPPEL) return;
     dernierRappel = Date.now();
     annoncer(alVote(vote, true));
@@ -327,6 +468,8 @@
     if (Number(d.v4?.ouverture) > 0) ouverture = Number(d.v4.ouverture);
     sortieLe = ouverture;
     depart = Number(d.flotte?.depart) || 0;
+    try { lireGuerre(d.guerre); } catch { guerre = null; }
+    majBarre();
     if (avant === false && vfBot === true && memoire.sortie !== ouverture) sortir(ouverture, true); // ouverte en avance, sous nos yeux
     else if (vfBot === false && memoire.sortie === ouverture && maintenant() < ouverture - 5000) { delete memoire.sortie; retenir(); } // refermée après un essai : la vraie sortie sera annoncée
     // le navire de l'équipage suivi
@@ -409,6 +552,7 @@
     if (enCours?.suivre) { try { enCours.suivre(enCours.noeud); } catch { /* l'alerte s'en va */ } }
     surveillerSortie();
     surveillerVote();
+    surveillerGuerre();
     suivreBarre();
     suivante();
   }, 250);
@@ -438,12 +582,33 @@
       bientot: () => annoncer(alBientot()),
       compte: () => { delete memoire.sortie; sortieLe = Date.now() + 16_000; },
       sortie: () => annoncer(alSortie()),
+      guerre: () => { guerre = guerreE(); annoncer(alAvantBataille(5 * 60_000)); },
+      // la dernière minute (en 14 s), puis « la bataille fait rage » quelques secondes
+      derniere: () => {
+        guerre = { ...guerreE(), prochaine: Date.now() + 14_000 };
+        setTimeout(() => { rage = false; guerre = guerreE(); majBarre(); }, 22_000);
+      },
+      bataille: () => { guerre = guerreE(); annoncer(alBataille(batailleE())); },
+      regne: () => { guerre = { ...guerreE(), phase: "fini" }; annoncer(alRegne({ gagnant: "barhaw", classement: [{ id: "barhaw", nom: "Barhaw", iles: 5 }, { id: "veyzo", nom: "Veyzo Family", iles: 3 }, { id: "kikso", nom: "Squirt.exe", iles: 1 }] })); },
+      x2: () => { guerre = guerreE(); annoncer(alX2(guerre.commus[0])); },
     };
-    const suite = ESSAI === "tout" ? ["terre", "vote", "rappel", "choisi", "mer", "boss", "vaincu", "compte", "tresor"] : [ESSAI];
+    // (des commus et des îles d'exemple, comme sur la carte : aucun joueur)
+    const guerreE = () => ({
+      saison: 1, phase: "en-cours", bataille: 7, batailles: 21, heure: "21 h", prochaine: Date.now() + 3 * 3600_000, journal: [],
+      commus: [{ id: "barhaw", nom: "Barhaw", iles: 3, armee: 1240, live: true }, { id: "veyzo", nom: "Veyzo Family", iles: 1, armee: 980 }, { id: "kikso", nom: "Squirt.exe", iles: 1, armee: 760 }],
+      iles: [{ id: "port-barhaw", port: "barhaw" }, { id: "vents", commu: "barhaw" }, { id: "arbre", commu: "barhaw" }, { id: "ambre", commu: "barhaw" }, { id: "marais", commu: "veyzo" }, { id: "cristal", commu: "kikso" }, { id: "horloge" }, { id: "geants" }, { id: "tonnerre" }, { id: "forteresse" }],
+    });
+    const batailleE = () => ({ n: 6, t: Date.now(), iles: [
+      { ile: "marais", nom: "Le Marais des Lanternes", avant: { commu: "veyzo", garnison: 674 }, renfort: 621, attaques: [], apres: { commu: "veyzo", garnison: 1295 }, prise: false },
+      { ile: "ambre", nom: "Le Désert d'Ambre", avant: { commu: "kikso", garnison: 493 }, renfort: 0, attaques: [{ commu: "barhaw", troupes: 708 }], apres: { commu: "barhaw", garnison: 215 }, prise: true },
+      { ile: "cristal", nom: "Le Jardin de Cristal", avant: { commu: null, garnison: 450 }, renfort: 0, attaques: [{ commu: "kikso", troupes: 465 }], apres: { commu: "kikso", garnison: 15 }, prise: true },
+    ] });
+    const suite = ESSAI === "tout" ? ["terre", "vote", "rappel", "choisi", "mer", "boss", "vaincu", "compte", "tresor", "guerre", "derniere", "bataille", "x2", "regne"] : [ESSAI];
+    dernierX2 = Date.now() + 86_400_000; // (pendant les essais, pas de « ×2 » tout seul)
     if (!suite.every((n) => jeux[n])) return false;
     let k = 0;
     const tour = () => {
-      if (enCours || file.length || combat || attente) return setTimeout(tour, 600);
+      if (enCours || file.length || combat || attente || avantBataille || rage) return setTimeout(tour, 600);
       jeux[suite[k++ % suite.length]]();
       setTimeout(tour, 2500);
     };
@@ -461,7 +626,7 @@
     lien.href = `${location.pathname}?${exemple}`;
     const carte = el("div", "aide",
       el("b", "", "Les alertes de GRAND LINE pour OBS"),
-      el("p", "", "Cette page reste vide tant qu'il ne se passe rien : elle montre une alerte quand l'équipage accoste, quand un vote s'ouvre, quand le BOSS LIVE se réveille."),
+      el("p", "", "Cette page reste vide tant qu'il ne se passe rien : elle montre une alerte quand l'équipage accoste, quand un vote s'ouvre, quand le BOSS LIVE se réveille, et pendant la Guerre des commus, avant et après chaque bataille de 21 h."),
       el("p", "", "Dans OBS : ajoute une source « Navigateur » avec cette adresse, en 1920 × 1080 (ou 1080 × 1920 pour un live vertical)."),
       lien);
     document.body.append(carte);
@@ -469,7 +634,7 @@
   }
 
   window.__obs = {
-    etat: () => ({ commu: COMMU, enCours: enCours?.nom || null, file: file.map((a) => a.nom), barre: barre?.genre || null, combat: Boolean(combat), vote: Boolean(vote), attente, chiffre: chiffre?.valeur || 0, ouverture, depart, vf: vf(), decal, lu: dejaLu, memoire: { ...memoire } }),
+    etat: () => ({ commu: COMMU, enCours: enCours?.nom || null, file: file.map((a) => a.nom), barre: barre?.genre || null, combat: Boolean(combat), vote: Boolean(vote), attente, chiffre: chiffre?.valeur || 0, ouverture, depart, vf: vf(), decal, lu: dejaLu, guerre: guerre ? { phase: guerre.phase, bataille: guerre.bataille, rage, avantBataille } : null, memoire: { ...memoire } }),
     relire: () => Promise.all([chargerPublic(), chargerBoss()]),
     passer: () => enCours?.partir(),
   };

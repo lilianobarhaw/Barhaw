@@ -5431,7 +5431,7 @@
 
   // en haut de GRAND LINE : « La course », puis un drapeau par commu (des onglets, au clavier avec les flèches)
   function rendreBarreFlotte(barre, liste) {
-    const cle = JSON.stringify([flVue, maFlotte?.equipage, liste.map((c) => [c.id, c.nom, c.couleurs, c.embleme, c.logo, c.live, rangCommu(c)])]);
+    const cle = JSON.stringify([flVue, maFlotte?.equipage, regneGL(), liste.map((c) => [c.id, c.nom, c.couleurs, c.embleme, c.logo, c.live, rangCommu(c)])]);
     if (cle === cleBarreFlotte && !barre.hidden) return;
     const focus = document.activeElement?.closest?.("#flotte-barre") ? document.activeElement.id : "";
     cleBarreFlotte = cle;
@@ -5451,7 +5451,8 @@
         el("span", { class: "fl-onglet-rang", text: ordinal(rangCommu(c)) }),
         c.live ? el("span", { class: "fl-onglet-live", text: "Live" }) : null,
         maFlotte?.equipage === c.id ? el("span", { class: "fl-onglet-moi", title: "Ton équipage", text: "⭐" }) : null,
-      ], { style: styleCommu(c), "aria-label": `${c.nom}, ${ordinal(rangCommu(c))}${c.live ? ", en live" : ""}${maFlotte?.equipage === c.id ? ", ton équipage" : ""}` })),
+        regneGL() === c.id ? el("span", { class: "fl-onglet-regne", title: "Elle règne sur GRAND LINE (la Guerre des commus)", text: "👑" }) : null,
+      ], { style: styleCommu(c), "aria-label": `${c.nom}, ${ordinal(rangCommu(c))}${c.live ? ", en live" : ""}${maFlotte?.equipage === c.id ? ", ton équipage" : ""}${regneGL() === c.id ? ", elle règne sur GRAND LINE" : ""}` })),
     );
     if (focus) $(focus)?.focus({ preventScroll: true });
     if (!barre.dataset.clavier) {
@@ -5687,12 +5688,15 @@
     if (s.phase === "fini" && premier?.points > 0) return { ...base, phase: "victoire", gagnant: premier.id };
     return null;
   }
+  // la commu qui règne sur GRAND LINE (elle a gagné la dernière Guerre des commus) : sa couronne sur la carte
+  const regneGL = () => (v4Ouverte() && ID_COMMU.test(String(donnees?.guerre?.regne?.commu || "")) ? donnees.guerre.regne.commu : "");
   function donneesCarteGL(g) {
     if (!g || !flotteActive()) return g;
     const c = commuRegardee();
     return {
       ...g,
       defi: defiGL(),
+      regne: regneGL(),
       recit: ilesRecit(),
       flotte: {
         id: c.id, nom: c.nom, couleurs: c.couleurs, embleme: c.embleme, drapeau: drapeauImage(c), trainee: traineeCommu(c), modele: modeleNavireGL(c), ensemble: vueCourse(), rang: ordinal(rangCommu(c)),
@@ -7374,12 +7378,13 @@
     return {
       maj(g) {
         // la carte n'est redessinée que si quelque chose a changé (les images et les animations ne repartent pas à zéro)
-        const sig = JSON.stringify([g.route?.map((e) => e.map((x) => [x.id, x.etat])), Math.round(g.milles || 0), g.longueur, Boolean(g.vote), g.flotte?.id, g.flotte?.autres?.map((o) => [o.id, o.etape, Math.round(o.milles || 0)]), v4Ouverte(), g.defi?.phase, g.defi?.gagnant]);
+        const sig = JSON.stringify([g.route?.map((e) => e.map((x) => [x.id, x.etat])), Math.round(g.milles || 0), g.longueur, Boolean(g.vote), g.flotte?.id, g.flotte?.autres?.map((o) => [o.id, o.etape, Math.round(o.milles || 0)]), v4Ouverte(), g.defi?.phase, g.defi?.gagnant, g.regne]);
         if (sig === signature && zone.querySelector("svg")) return;
         signature = sig;
         const pos = (id) => GL_PLACES[id] || [0, 0];
         // pendant un défi : deux sabres au-dessus des navires qui s'affrontent ; après : la couronne du vainqueur
-        const marque = (id, y) => (!id || !g.defi ? null : g.defi.phase === "combat" && g.defi.commus?.includes(id) ? s("text", { y, class: "gl-svg-marque" }, "⚔️") : g.defi.gagnant === id ? s("text", { y, class: "gl-svg-marque" }, "👑") : null);
+        // (et la couronne de la commu qui règne : la Guerre des commus)
+        const marque = (id, y) => (!id ? null : g.defi?.phase === "combat" && g.defi.commus?.includes(id) ? s("text", { y, class: "gl-svg-marque" }, "⚔️") : g.defi?.gagnant === id || g.regne === id ? s("text", { y, class: "gl-svg-marque" }, "👑") : null);
         const svg = s("svg", { viewBox: "0 0 236 146", class: "gl-svg", role: "img", "aria-label": `La carte de GRAND LINE : ${g.vote ? "le navire attend au carrefour" : g.cible ? `cap sur ${g.cible.nom}` : "en mer"}, ${pourcentGL(g)} % de l'étape` });
         svg.append(s("rect", { x: 14, y: 15, width: 208, height: 116, rx: 10, class: "gl-svg-mer" }));
         if (v4Ouverte()) vie2D(svg, g);
@@ -8901,6 +8906,7 @@
     ? el("img", { class: "gu-drapeau", src: c.image, alt: "", width: taille, height: taille, loading: "lazy", decoding: "async" })
     : el("span", { class: "gu-drapeau gu-embleme", style: c.style, "aria-hidden": "true", text: c.embleme }));
   const ileGuerre = (g, id) => (g?.iles || []).find((i) => i.id === id) || null;
+  const ileDans = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, (m) => m.toLowerCase());
   const nomCourtIle = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, "").replace(/^Île (des |du |de la |de l')?/i, "").replace(/^Île-/, "");
 
   // ---------- la carte : où est chaque île ----------
@@ -8959,8 +8965,11 @@
     const voulu3D = guerreVoulu3D ?? ((navigator.deviceMemory || 8) > 2 && troisDPossible());
     if (carteGuerre && carteGuerre.cle === cle && (carteGuerre.type === "3d") === voulu3D) return;
     guerrePrepare = true;
+    // une bataille en train de se rejouer reprend sur la nouvelle carte (la 3D trop lente passe en 2D, le bouton 2D / 3D)
+    const reprendre = guerreRejeu && !guerreRejeu.fini ? guerreRejeu.n : 0;
+    const relancer = () => { if (reprendre && !guerreRejeu) setTimeout(() => rejouerBataille(reprendre), 0); };
     try {
-      if (carteGuerre) { try { carteGuerre.rendu.detruire(); } catch {} carteGuerre = null; }
+      if (carteGuerre) { arreterRejeuGuerre(); try { carteGuerre.rendu.detruire(); } catch {} carteGuerre = null; }
       vider($("gu-etiquettes"));
       if (voulu3D) {
         try {
@@ -8983,6 +8992,7 @@
           setTimeout(() => { if (carteGuerre?.rendu === rendu && guerreVoulu3D === null && rendu.tropLent()) { guerreVoulu3D = false; guerrePrepare = false; preparerCarteGuerre(infosGuerre()); } }, 6000);
           rendreEtiquettesGuerre(g);
           rendreBascule3DGuerre();
+          relancer();
           return;
         } catch { zone.classList.remove("en-3d"); }
       }
@@ -8991,6 +9001,7 @@
       carteGuerre.rendu.maj(g);
       rendreEtiquettesGuerre(g);
       rendreBascule3DGuerre();
+      relancer();
     } finally { guerrePrepare = false; }
   }
   function tailleCarteGuerre() {
@@ -9041,6 +9052,29 @@
           vider(f, c ? drapeauCommu({ id: `${c.id}-`, nom: c.nom, couleurs: { principale: c.c1, secondaire: c.c2 }, embleme: c.embleme, drapeau: "" }, "gu-fanion") : null);
         }
       },
+      // la bataille rejouée : un effet sur une île (feu, prise, tient, renfort) ; sa flotte s'efface quand son sort est joué
+      effet(id, genre) {
+        const b = parId.get(id);
+        if (!b) return;
+        b.classList.remove("bat-feu", "bat-prise", "bat-tient", "bat-renfort");
+        void b.offsetWidth;
+        b.classList.add(`bat-${genre}`);
+        setTimeout(() => b.classList.remove(`bat-${genre}`), genre === "feu" ? 1100 : 1500);
+        if (genre !== "feu") for (const v of plateau.querySelectorAll(`.gu-2d-voile[data-ile="${id}"]`)) { v.classList.add("part"); setTimeout(() => v.remove(), 700); }
+      },
+      // les flottes partent des ports vers leur île (un petit navire par commu, à ses couleurs)
+      voguer(liste, duree) {
+        for (const { commu: c, de, vers } of liste) {
+          const p = places.find((x) => x.id === de), q = places.find((x) => x.id === vers);
+          if (!p || !q) continue;
+          const couleurs = commuGuerre(c);
+          const v = el("span", { class: "gu-2d-voile", "data-ile": vers, "aria-hidden": "true", style: `--x:${p.x};--z:${p.z};${couleurs.style};--duree:${duree}ms` });
+          plateau.append(v);
+          // il s'arrête au bord de l'île (un peu avant, du côté de son port)
+          requestAnimationFrame(() => requestAnimationFrame(() => v.setAttribute("style", `--x:${q.x - (q.x - p.x) * 0.13};--z:${q.z - (q.z - p.z) * 0.13};${couleurs.style};--duree:${duree}ms`)));
+        }
+      },
+      nettoyer() { for (const v of plateau.querySelectorAll(".gu-2d-voile")) v.remove(); },
       detruire() { vider(zone); },
       demarrer() {}, arreter() {},
     };
@@ -9054,7 +9088,8 @@
     if (!couche || !carteGuerre) return;
     const m = g.moi || {};
     const places = placesGuerre(g);
-    const sig = JSON.stringify([carteGuerre.type, carteGuerre.cle, g.iles, m.votes, m.vote, guerreIle, g.commus?.map((c) => c.id)]);
+    const R = guerreRejeu;
+    const sig = JSON.stringify([carteGuerre.type, carteGuerre.cle, g.iles, m.votes, m.vote, guerreIle, g.commus?.map((c) => c.id), R ? [R.n, R.vient, R.k] : 0]);
     if (sig === sigGuerre.etiquettes && couche.childElementCount) return;
     sigGuerre.etiquettes = sig;
     const liste = (g.iles || []).map((i) => {
@@ -9062,7 +9097,7 @@
       const votes = Number(m.votes?.[i.id]) || 0;
       const p = places.find((x) => x.id === i.id);
       const e = el("button", {
-        type: "button", class: `gu-etiquette${i.port ? " port" : ""}${c ? " tenue" : ""}${i.id === guerreIle ? " choisie" : ""}${i.id === m.vote ? " mon-vote" : ""}`,
+        type: "button", class: `gu-etiquette${i.port ? " port" : ""}${c ? " tenue" : ""}${i.id === guerreIle ? " choisie" : ""}${i.id === m.vote ? " mon-vote" : ""}${R && R.vient === i.id ? ` bat bat-${R.genre}` : ""}`,
         style: `${c ? c.style : ""}${carteGuerre.type === "2d" && p ? `;--x:${p.x};--z:${p.z}` : ""}`,
         "data-ile": i.id, title: i.nom, onclick: () => choisirIleGuerre(i.id),
         "aria-label": `${i.nom} : ${i.port ? `le port de ${c?.nom || ""}, imprenable` : `${c ? `tenue par ${c.nom}` : "libre"}, ${nombre(i.garnison)} troupes`}${i.bonus ? ", +10 % de troupes" : ""}${votes ? `, ${pluriel(votes, "vote")} de ta commu` : ""}`,
@@ -9104,7 +9139,15 @@
   }
 
   // ---------- le bandeau : la phase en grand et le compte à rebours ----------
+  // 21 h est passé et le journal n'a pas encore la bataille : elle se joue (le bot la compte dans la minute)
+  function enRageGuerre(g) {
+    if (g?.phase !== "en-cours") return false;
+    const faites = Number(g.journal?.[0]?.n) || 0;
+    const attendues = g.bataille ? g.bataille - 1 : g.batailles;
+    return attendues > faites || Boolean(g.prochaine && Date.now() >= g.prochaine);
+  }
   function phaseGuerre(g) {
+    if (enRageGuerre(g)) return { cle: "rage", titre: "La bataille fait rage…", libelle: "", cible: 0 };
     if (g.phase === "bientot") return { cle: "bientot", titre: "Bientôt", libelle: "La carte se dévoile dans", cible: g.ouverture };
     if (g.phase === "annonce") return { cle: "annonce", titre: "Aux armes", libelle: "La guerre commence dans", cible: g.debut };
     if (g.phase === "en-cours") return { cle: "en-cours", titre: g.bataille >= g.batailles ? "Dernière bataille" : `Bataille ${g.bataille} sur ${g.batailles}`, libelle: "Bataille dans", cible: g.prochaine };
@@ -9123,7 +9166,8 @@
       el("p", { class: "gu-grand", text: p.titre }),
       p.cible > Date.now() ? el("p", { class: "gu-rebours", role: "timer", "data-cible": String(p.cible), "aria-label": `${p.libelle} ${dureeCourte(p.cible)}` },
         el("span", { class: "gu-rebours-libelle", text: p.libelle }), el("b", { class: "gu-rebours-temps", "aria-hidden": "true", text: texteRebours(p.cible) })) : null,
-      g.phase === "bientot" ? el("p", { class: "gu-quand", text: `La carte se dévoile le ${momentGuerre(g.ouverture)}. Ensuite, on s'engage pour son équipage et la guerre commence le ${jourGuerre(g.debut)}.` }) : null);
+      g.phase === "bientot" ? el("p", { class: "gu-quand", text: `La carte se dévoile le ${momentGuerre(g.ouverture)}. Ensuite, on s'engage pour son équipage et la guerre commence le ${jourGuerre(g.debut)}.` }) : null,
+      p.cle === "rage" ? el("p", { class: "gu-quand", role: "status", text: "Les flottes se battent en ce moment. Les résultats arrivent dans un instant, et la bataille se rejoue sur la carte." }) : null);
   }
   let minuteurReboursGuerre = null;
   function suivreReboursGuerre() {
@@ -9218,7 +9262,7 @@
       el("p", { class: "gu-titre-bloc", text: titre }),
       el("ol", { class: "gu-liste", "aria-label": titre }, l.map((x) => {
         const c = commuGuerre(x.id, x.nom);
-        const sous = [pluriel(Number(x.iles) || 0, "île"), x.bonus ? `${pluriel(x.bonus, "île bonus")}` : "", pluriel(Number(x.engages) || 0, "engagé"), enCours && x.actifs ? `${pluriel(x.actifs, "actif")} aujourd'hui` : "", x.id === mienne ? "ta commu" : ""].filter(Boolean).join(" · ");
+        const sous = [pluriel(Number(x.iles) || 0, "île"), x.bonus ? `${x.bonus} île${x.bonus > 1 ? "s" : ""} bonus` : "", pluriel(Number(x.engages) || 0, "engagé"), enCours && x.actifs ? `${pluriel(x.actifs, "actif")} aujourd'hui` : "", x.id === mienne ? "ta commu" : ""].filter(Boolean).join(" · ");
         const v = Number(enCours ? x.armee : x.garnison) || 0;
         return el("li", { class: `gu-commu${x.id === mienne ? " gu-moi" : ""}`, style: c.style },
           drapeauGuerre(c, 40),
@@ -9235,14 +9279,15 @@
     if (!l.length) return null;
     const ligne = (y) => {
       const de = (id) => commuGuerre(id).nom;
-      if (y.prise) return el("li", { class: "prise", style: commuGuerre(y.apres.commu).style }, "🏴 ", el("b", { text: de(y.apres.commu) }), " prend ", el("b", { text: y.nom }), y.avant.commu ? ` à ${de(y.avant.commu)}` : "", ` (${nombre(y.apres.garnison)} restent)`);
+      if (y.prise) return el("li", { class: "prise", style: commuGuerre(y.apres.commu).style }, "🏴 ", el("b", { text: de(y.apres.commu) }), " prend ", el("b", { text: ileDans(y.nom) }), y.avant.commu ? ` à ${de(y.avant.commu)}` : "", ` (${nombre(y.apres.garnison)} restent)`);
       if (y.attaques?.length) return el("li", {}, "🛡️ ", el("b", { text: y.nom }), ` tient face à ${y.attaques.map((a) => de(a.commu)).join(" et ")} (garnison ${nombre(y.apres.garnison)})`);
-      if (y.renfort) return el("li", {}, "🧱 ", el("b", { text: de(y.apres.commu) }), " renforce ", el("b", { text: y.nom }), ` (+${nombre(y.renfort)})`);
+      if (y.renfort) return el("li", {}, "🧱 ", el("b", { text: de(y.apres.commu) }), " renforce ", el("b", { text: ileDans(y.nom) }), ` (+${nombre(y.renfort)})`);
       return null;
     };
     const bataille = (b, ouverte) => el("details", { class: "gu-bataille", open: ouverte || null },
       el("summary", {}, el("b", { text: `Bataille ${b.n}` }), ` · ${jourGuerre(b.t)}`),
-      el("ul", {}, (b.iles || []).map(ligne).filter(Boolean).length ? (b.iles || []).map(ligne) : el("li", { text: "Pas de troupes ce soir-là : la mer est restée calme." })));
+      el("ul", {}, (b.iles || []).map(ligne).filter(Boolean).length ? (b.iles || []).map(ligne) : el("li", { text: "Pas de troupes ce soir-là : la mer est restée calme." })),
+      evenementsGuerre(b).length ? el("button", { class: "lien-discret gu-revoir-n", type: "button", onclick: () => { $("gu-scene")?.scrollIntoView?.({ block: "center", behavior: reduit.matches ? "auto" : "smooth" }); rejouerBataille(b.n); }, text: "▶ La revoir sur la carte" }) : null);
     return el("div", { class: "gu-journal" },
       el("p", { class: "gu-titre-bloc", text: "Le journal des batailles" }),
       l.slice(0, 7).map((b, k) => bataille(b, k === 0)));
@@ -9281,6 +9326,228 @@
         el("li", { text: "Sur la carte, personne ne voit les votes des autres commus. Pas de paris, pas de MMR : juste la commu." })));
   }
 
+  // ---------- la bataille rejouée sur la carte ----------
+  // Une fois par bataille, toute seule, la première fois qu'on voit la carte après 21 h ; puis quand on veut (« Revoir la
+  // bataille », ou une bataille du journal). La carte reprend son état d'avant la bataille (en défaisant les batailles
+  // d'après), les flottes partent des ports, puis chaque île prend son sort, l'une après l'autre, avec un petit récit en
+  // bas de la carte (et les bruitages, si on les a allumés). En 3D : js/guerre-3d.js ; en 2D (ou si on réduit les
+  // animations) : des minuteurs, et des effets sur les images des îles.
+  const CLE_GUERRE_VUE = "barhaw-guerre-vue";
+  const SONS_GUERRE = ["br-roulement", "br-boum", "impact", "souffle", "br-fanfare", "taiko", "br-monte", "br-cymbale"];
+  let guerreRejeu = null; // { n, b, evts, etat : île → { commu, garnison }, vient, genre, k, stop, minuteurs, fini }
+  let guerreSceneVue = false, minuteurRejeuAuto = null, attenteRejeuAuto = 0, minuteurRage = null, essaisRage = 0;
+  const evenementsGuerre = (b) => (b?.iles || []).filter((y) => y.attaques?.length || y.renfort);
+  // la carte juste avant la bataille n : les îles qui se sont battues depuis reprennent leur état d'alors
+  function etatAvantGuerre(g, n) {
+    const etat = new Map();
+    for (const b of g.journal || []) { // (du plus récent au plus ancien)
+      if (b.n < n) break;
+      for (const y of b.iles || []) if (y.avant) etat.set(y.ile, { commu: y.avant.commu || null, garnison: y.avant.garnison });
+    }
+    return etat;
+  }
+  const ilesAffichees = (g) => (guerreRejeu && g ? { ...g, iles: (g.iles || []).map((i) => (guerreRejeu.etat.has(i.id) ? { ...i, ...guerreRejeu.etat.get(i.id) } : i)) } : g);
+  const couleursGuerre = (g) => Object.fromEntries((g.commus || []).map((x) => { const c = commuGuerre(x.id, x.nom); return [x.id, { c1: c.c1, c2: c.c2, embleme: c.embleme, drapeau: c.image }]; }));
+  const nomGuerre = (id) => (id ? commuGuerre(id).nom : "");
+  const joindreGuerre = (l) => (l.length < 2 ? l.join("") : `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`);
+  function texteCombatGuerre(y) {
+    const att = (y.attaques || []).map((a) => nomGuerre(a.commu));
+    if (!att.length) return `${nomGuerre(y.avant?.commu)} envoie des renforts sur ${ileDans(y.nom)}…`;
+    return `⚔️ ${joindreGuerre(att)} ${att.length > 1 ? "attaquent" : "attaque"} ${ileDans(y.nom)}…`;
+  }
+  function detailCombatGuerre(y) {
+    const l = (y.attaques || []).map((a) => `${nomGuerre(a.commu)} ${nombre(a.troupes)}`);
+    if (y.renfort) l.push(`renfort ${nombre(y.renfort)}`);
+    l.push(y.avant?.commu ? `garnison de ${nomGuerre(y.avant.commu)} ${nombre(y.avant.garnison)}` : `garnison ${nombre(y.avant?.garnison)}`);
+    return l.join(" · ");
+  }
+  function texteSortGuerre(y) {
+    if (y.prise) return `🏴 ${nomGuerre(y.apres.commu)} prend ${ileDans(y.nom)}${y.avant?.commu ? ` à ${nomGuerre(y.avant.commu)}` : ""} !`;
+    if (y.attaques?.length) return y.avant?.commu ? `🛡️ ${y.nom} tient bon : ${nomGuerre(y.avant.commu)} la garde.` : `🛡️ ${y.nom} résiste et reste libre.`;
+    return `🧱 ${nomGuerre(y.apres.commu)} renforce ${ileDans(y.nom)}.`;
+  }
+  function detailSortGuerre(y) {
+    if (y.prise) return `${pluriel(Number(y.apres.garnison) || 0, "troupe")} y restent`;
+    return `garnison : ${nombre(y.apres?.garnison)}${y.renfort && !y.attaques?.length ? ` (+${nombre(y.renfort)})` : ""}`;
+  }
+  // le récit, en bas de la carte
+  function ouvrirRecitGuerre(R) {
+    const z = $("gu-recit");
+    if (!z) return;
+    z.hidden = false;
+    z.classList.remove("fini");
+    vider(z,
+      el("p", { class: "gu-recit-titre" }, el("b", { text: `Bataille ${R.n}` }), el("small", { text: jourGuerre(R.b.t, { weekday: "short", month: "short" }) })),
+      el("div", { class: "gu-recit-corps" },
+        el("p", { class: "gu-recit-texte", id: "gu-recit-texte", role: "status", "aria-live": "polite", text: R.evts.length ? "⛵ Les flottes prennent la mer…" : "Pas de troupes ce soir-là : la mer est restée calme." }),
+        el("p", { class: "gu-recit-detail", id: "gu-recit-detail" })),
+      el("button", { class: "gu-recit-passer", type: "button", onclick: () => passerRejeuGuerre(), text: "Passer ⏭" }),
+      R.evts.length > 1 ? el("ol", { class: "gu-recit-points", "aria-hidden": "true" }, R.evts.map(() => el("li"))) : null);
+    // au téléphone, le récit se met sous la carte (la carte garde sa taille, la partie grandit le temps de la bataille) :
+    // posé dessus, il cacherait les îles du bas
+    const sc = $("gu-scene");
+    if (sc && matchMedia("(max-width: 760px)").matches) {
+      const h = sc.getBoundingClientRect().height;
+      const b = z.offsetHeight + 12;
+      sc.classList.add("recit-dessous");
+      sc.style.setProperty("--recit", `${b}px`);
+      sc.style.height = `${Math.round(h + b)}px`;
+    }
+  }
+  function rangerRecitGuerre() {
+    const z = $("gu-recit"), sc = $("gu-scene");
+    if (z) { z.hidden = true; vider(z); }
+    if (sc?.classList.contains("recit-dessous")) { sc.classList.remove("recit-dessous"); sc.style.removeProperty("--recit"); sc.style.removeProperty("height"); }
+  }
+  function majRecitGuerre(texte, detail = "", k = -1, genre = "") {
+    const t = $("gu-recit-texte"), d = $("gu-recit-detail");
+    if (t) {
+      t.textContent = texte;
+      t.dataset.genre = genre;
+      t.classList.remove("neuf");
+      void t.offsetWidth;
+      t.classList.add("neuf");
+    }
+    if (d) d.textContent = detail;
+    ($("gu-recit")?.querySelectorAll(".gu-recit-points li") || []).forEach((p, n) => {
+      p.classList.toggle("fait", n < k || (n === k && Boolean(genre)));
+      p.classList.toggle("en-cours", n === k && !genre);
+    });
+  }
+  async function rejouerBataille(n, { auto = false } = {}) {
+    let g = infosGuerre();
+    if (!g) return;
+    if (!carteGuerre) { await preparerCarteGuerre(g); g = infosGuerre(); }
+    const b = (g?.journal || []).find((x) => x.n === n);
+    if (!b || !carteGuerre) return;
+    arreterRejeuGuerre();
+    const R = { n, b, evts: evenementsGuerre(b), etat: etatAvantGuerre(g, n), vient: "", genre: "", k: -1, stop: null, minuteurs: [], fini: false, auto };
+    guerreRejeu = R;
+    prechargerSons(SONS_GUERRE);
+    ouvrirRecitGuerre(R);
+    rendreGuerre(); // la carte d'avant la bataille
+    const combat = (y, k) => {
+      if (guerreRejeu !== R) return;
+      R.k = k;
+      R.vient = "";
+      majRecitGuerre(texteCombatGuerre(y), detailCombatGuerre(y), k);
+      if (y.attaques?.length) { jouerSon("br-boum", { volume: 0.9 }); jouerSon("impact", { volume: 0.55, retard: 0.3 }); jouerSon("br-boum", { volume: 0.6, retard: 0.6 }); }
+      else jouerSon("souffle", { volume: 0.8 });
+      if (carteGuerre?.type === "2d" && !reduit.matches) carteGuerre.rendu.effet?.(y.ile, "feu");
+    };
+    const etape = (y, k) => {
+      if (guerreRejeu !== R) return;
+      R.etat.set(y.ile, { commu: y.apres?.commu || null, garnison: y.apres?.garnison });
+      R.vient = y.ile;
+      R.genre = y.prise ? "prise" : y.attaques?.length ? "tient" : "renfort";
+      majRecitGuerre(texteSortGuerre(y), detailSortGuerre(y), k, R.genre);
+      jouerSon(R.genre === "prise" ? "br-fanfare" : R.genre === "tient" ? "taiko" : "br-monte", { volume: 0.85 });
+      if (carteGuerre?.type === "2d" && !reduit.matches) carteGuerre.rendu.effet?.(y.ile, R.genre);
+      rendreGuerre();
+    };
+    const fin = () => { if (guerreRejeu === R && !R.fini) finRecitGuerre(R); };
+    if (!R.evts.length) { R.minuteurs.push(setTimeout(fin, 1800)); R.stop = fin; return; }
+    jouerSon("br-roulement", { volume: 0.75 });
+    if (carteGuerre.type === "3d" && !reduit.matches) {
+      R.stop = carteGuerre.rendu.bataille(b, { couleurs: couleursGuerre(g), surCombat: combat, surEtape: etape, fin });
+      return;
+    }
+    // en 2D (et quand on réduit les animations) : la même histoire, avec des minuteurs
+    const anime = carteGuerre.type === "2d" && !reduit.matches;
+    const voyage = anime ? 1900 : 1200, pas = 2600, boum = 1000;
+    if (anime) {
+      const ports = new Map((g.iles || []).filter((i) => i.port).map((i) => [i.port, i.id]));
+      carteGuerre.rendu.voguer?.(R.evts.flatMap((y) => [...(y.attaques || []).map((a) => a.commu), ...(y.renfort && y.avant?.commu ? [y.avant.commu] : [])]
+        .filter((c) => ports.has(c)).map((c) => ({ commu: c, de: ports.get(c), vers: y.ile }))), voyage - 200);
+    }
+    R.evts.forEach((y, k) => {
+      R.minuteurs.push(setTimeout(() => combat(y, k), voyage + k * pas));
+      R.minuteurs.push(setTimeout(() => etape(y, k), voyage + k * pas + boum));
+    });
+    R.minuteurs.push(setTimeout(fin, voyage + R.evts.length * pas + 300));
+    R.stop = () => {
+      R.minuteurs.forEach(clearTimeout);
+      R.minuteurs = [];
+      for (const y of R.evts) R.etat.set(y.ile, { commu: y.apres?.commu || null, garnison: y.apres?.garnison });
+      carteGuerre?.rendu.nettoyer?.();
+      fin();
+      rendreGuerre();
+    };
+  }
+  // la fin : le compte des îles après la bataille, quelques secondes, puis la carte revient à aujourd'hui
+  function finRecitGuerre(R) {
+    R.fini = true;
+    R.vient = "";
+    // (si on a passé : chaque île prend son sort d'un coup, en 3D comme en 2D)
+    for (const y of R.evts) R.etat.set(y.ile, { commu: y.apres?.commu || null, garnison: y.apres?.garnison });
+    carteGuerre?.rendu.nettoyer?.();
+    const gv = ilesAffichees(infosGuerre());
+    const compte = new Map();
+    for (const i of gv?.iles || []) if (!i.port && i.commu) compte.set(i.commu, (compte.get(i.commu) || 0) + 1);
+    const libres = (gv?.iles || []).filter((i) => !i.port && !i.commu).length;
+    const ligne = [...[...compte.entries()].sort((a, b) => b[1] - a[1]).map(([c, k]) => `${nomGuerre(c)} ${pluriel(k, "île")}`), libres ? `${libres} libre${libres > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+    if (R.evts.length) {
+      majRecitGuerre(`Fin de la bataille ${R.n}`, ligne, R.evts.length, "fin");
+      jouerSon("br-cymbale", { volume: 0.7 });
+    }
+    $("gu-recit")?.classList.add("fini");
+    const bouton = $("gu-recit")?.querySelector(".gu-recit-passer");
+    if (bouton) bouton.textContent = "Fermer ✕";
+    R.minuteurs.push(setTimeout(() => fermerRejeuGuerre(R), R.evts.length ? 3600 : 2200));
+    rendreGuerre();
+  }
+  function fermerRejeuGuerre(R) {
+    if (guerreRejeu !== R) return;
+    arreterRejeuGuerre();
+    rendreGuerre();
+  }
+  function passerRejeuGuerre() {
+    const R = guerreRejeu;
+    if (!R) return;
+    if (R.fini) fermerRejeuGuerre(R);
+    else R.stop?.();
+  }
+  // tout s'arrête (une autre bataille, la carte qui se refait) : pas de fin, le récit disparaît
+  function arreterRejeuGuerre() {
+    const R = guerreRejeu;
+    if (!R) return;
+    guerreRejeu = null;
+    R.minuteurs.forEach(clearTimeout);
+    if (!R.fini && carteGuerre?.type === "3d") { try { carteGuerre.rendu.finirBataille?.(); } catch {} }
+    carteGuerre?.rendu.nettoyer?.();
+    rangerRecitGuerre();
+  }
+  // la lecture toute seule : la dernière bataille (de moins d'un jour), une seule fois, quand la carte est bien en vue
+  function rejeuAutoGuerre() {
+    const g = infosGuerre();
+    if (guerreRejeu || !g || !carteGuerre || !guerreSceneVue || document.hidden || reduit.matches) return;
+    // (pendant que la bataille fait rage, on attend la nouvelle plutôt que de rejouer celle d'hier)
+    if ((g.phase !== "en-cours" && g.phase !== "fini") || enRageGuerre(g)) return;
+    const b = g.journal?.[0];
+    if (!b || !evenementsGuerre(b).length || Date.now() - b.t > 26 * 3_600_000) return;
+    const cle = `${g.saison}:${b.n}`;
+    let vu = "";
+    try { vu = localStorage.getItem(CLE_GUERRE_VUE) || ""; } catch {}
+    if (vu === cle) return;
+    // en 3D, on attend que les îles soient là (8 s au plus)
+    if (carteGuerre.type === "3d" && !carteGuerre.rendu.pret?.() && Date.now() - (attenteRejeuAuto ||= Date.now()) < 8000) {
+      clearTimeout(minuteurRejeuAuto);
+      minuteurRejeuAuto = setTimeout(rejeuAutoGuerre, 400);
+      return;
+    }
+    attenteRejeuAuto = 0;
+    try { localStorage.setItem(CLE_GUERRE_VUE, cle); } catch {}
+    rejouerBataille(b.n, { auto: true });
+  }
+  // pendant que la bataille fait rage : des coups de canon sur la carte, et la page redemande les résultats (15 s)
+  function suivreRageGuerre(g) {
+    const rage = enRageGuerre(g);
+    carteGuerre?.rendu.agiter?.(rage && !guerreRejeu);
+    if (!rage) { essaisRage = 0; clearTimeout(minuteurRage); minuteurRage = null; return; }
+    if (minuteurRage || essaisRage >= 16) return;
+    minuteurRage = setTimeout(() => { minuteurRage = null; essaisRage++; if (!document.hidden) charger(); }, 15_000);
+  }
+
   // ---------- la partie ----------
   function squeletteGuerre(z) {
     if ($("gu-scene")) return;
@@ -9288,7 +9555,8 @@
       el("div", { id: "gu-banniere" }),
       el("div", { class: "gu-scene", id: "gu-scene" },
         el("div", { class: "gu-plateau", id: "gu-plateau" }, el("p", { class: "gu-attente", text: "La carte se déplie…" })),
-        el("div", { class: "gu-etiquettes", id: "gu-etiquettes" })),
+        el("div", { class: "gu-etiquettes", id: "gu-etiquettes" }),
+        el("div", { class: "gu-recit", id: "gu-recit", hidden: true })),
       // sous la carte : ce que veulent dire les étiquettes, et le bouton 2D / 3D
       el("div", { class: "gu-sous-carte", id: "gu-sous-carte" },
         el("ul", { class: "gu-legende", "aria-label": "La légende de la carte" },
@@ -9297,7 +9565,9 @@
           el("li", {}, el("b", { class: "gu-et-bonus", text: "+10 %" }), "île bonus"),
           el("li", {}, el("b", { class: "gu-et-votes", text: "🗳" }), "votes de ta commu"),
           el("li", {}, el("i", { class: "gu-pastille vote", "aria-hidden": "true" }), "ton vote")),
-        el("button", { class: "gu-bascule btn btn-contour btn-petit", id: "gu-bascule", type: "button", hidden: true, onclick: () => basculerCarteGuerre() })),
+        el("div", { class: "gu-boutons-carte" },
+          el("button", { class: "gu-revoir btn btn-plein btn-petit", id: "gu-revoir", type: "button", hidden: true, onclick: () => { const b = infosGuerre()?.journal?.[0]; if (b) rejouerBataille(b.n); }, text: "▶ Revoir la bataille" }),
+          el("button", { class: "gu-bascule btn btn-contour btn-petit", id: "gu-bascule", type: "button", hidden: true, onclick: () => basculerCarteGuerre() }))),
       el("div", { class: "gu-grille" },
         el("div", { class: "gu-info", id: "gu-info", "aria-live": "polite" }),
         el("div", { class: "gu-moi", id: "gu-moi", "aria-live": "polite" })),
@@ -9308,6 +9578,13 @@
       el("div", { id: "gu-regles" }));
     // la carte suit la taille de la partie ; elle ne bouge que quand on la voit
     if ("ResizeObserver" in window) new ResizeObserver(() => tailleCarteGuerre()).observe($("gu-plateau"));
+    // la bataille se rejoue toute seule quand la carte est bien en vue (plus de la moitié à l'écran)
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver((e) => {
+        guerreSceneVue = e.some((x) => x.isIntersecting && x.intersectionRatio >= 0.55);
+        if (guerreSceneVue) rejeuAutoGuerre();
+      }, { threshold: [0, 0.55, 1] }).observe($("gu-scene"));
+    } else guerreSceneVue = true;
     const section = $("guerre");
     if (section && "IntersectionObserver" in window) {
       new IntersectionObserver((e) => {
@@ -9343,15 +9620,24 @@
     z.dataset.phase = g.phase;
     $("gu-scene").hidden = g.phase === "bientot";
     $("gu-sous-carte").hidden = g.phase === "bientot";
-    rendreZone("gu-banniere", JSON.stringify([g.phase, g.saison, g.debut, g.fin, g.ouverture, g.bataille, g.prochaine, g.fini?.gagnant]), () => banniereGuerre(g));
+    rendreZone("gu-banniere", JSON.stringify([g.phase, g.saison, g.debut, g.fin, g.ouverture, g.bataille, g.prochaine, g.fini?.gagnant, enRageGuerre(g)]), () => banniereGuerre(g));
     if (g.phase !== "bientot") {
       if (guerreVue) preparerCarteGuerre(g);
       if (carteGuerre) {
-        if (carteGuerre.type === "3d") carteGuerre.rendu.maj(donnees3DGuerre(g));
-        else carteGuerre.rendu.maj(g);
-        rendreEtiquettesGuerre(g);
+        const gv = ilesAffichees(g);
+        if (carteGuerre.type === "3d") carteGuerre.rendu.maj(donnees3DGuerre(gv));
+        else carteGuerre.rendu.maj(gv);
+        rendreEtiquettesGuerre(gv);
       }
     }
+    const revoir = $("gu-revoir");
+    if (revoir) {
+      const b = g.journal?.[0];
+      revoir.hidden = !b || !carteGuerre || Boolean(guerreRejeu) || !evenementsGuerre(b).length;
+      revoir.setAttribute("aria-label", b ? `Revoir la bataille ${b.n} sur la carte` : "Revoir la bataille");
+    }
+    suivreRageGuerre(g);
+    rejeuAutoGuerre();
     rendreZone("gu-info", JSON.stringify([g.phase === "bientot" ? 0 : 1, guerreIle, ileGuerre(g, guerreIle), g.moi?.vote, g.moi?.votes?.[guerreIle], g.moi?.engage, g.moi?.commu, Boolean(moi?.connecte), guerreOccupe]), () => (g.phase === "bientot" ? null : infoIleGuerre(g)));
     rendreZone("gu-moi", JSON.stringify([g.phase, g.moi, Boolean(moi?.connecte), guerreOccupe, (g.iles || []).find((i) => i.id === g.moi?.vote)?.nom]), () => moiGuerre(g));
     rendreZone("gu-message", JSON.stringify(guerreMessage), () => (guerreMessage ? el("p", { class: guerreMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: guerreMessage.texte }) : null));
