@@ -13,10 +13,10 @@
 
   // si le bot ne répond pas : les événements déjà prévus (les mêmes que dans le bot)
   const SECOURS = [
-    // (avec la VF 1.0, l'agenda ajoute aussi la SEMAINE BAHRIOT et le Barhaw Show : agendaVF)
-    { id: "live12h", type: "live", titre: "Live 12 h · Chained Together", debut: "2026-12-26T00:00:00+01:00", heure: false, description: "12 heures de live sur Chained Together, duo contre duo : le duo le plus haut au bout des 12 h gagne.", lien: "https://www.twitch.tv/lilianobarhaw" },
+    // (avec la VF 1.0, l'agenda ajoute la SEMAINE BAHRIOT et le Barhaw Show : agendaVF ; avant, il peut rester vide)
     // reportés le 21/11/2026 (le tournoi n'a pas lieu en février 2027, ni le casting d'Osiris à sa finale), puis tout Osiris
-    // le 23/11/2026 ; pour les remettre : décommenter, et les rajouter dans le bot avec /evenement ajouter
+    // et le live 12 h le 23/11/2026 ; pour les remettre : décommenter, et les rajouter dans le bot avec /evenement ajouter
+    // { id: "live12h", type: "live", titre: "Live 12 h · Chained Together", debut: "2026-12-26T00:00:00+01:00", heure: false, description: "12 heures de live sur Chained Together, duo contre duo : le duo le plus haut au bout des 12 h gagne.", lien: "https://www.twitch.tv/lilianobarhaw" },
     // { id: "osiris-ouverture", type: "osiris", titre: "Osiris · ouverture du site et du Discord", debut: "2026-12-26T21:00:00+01:00", heure: true, description: "Le site et le Discord d'Osiris ouvrent enfin, avec le premier teaser « On vous regarde ».", lien: "https://osiriswl.vercel.app" },
     // { id: "tournoi", type: "tournoi", titre: "TOURNOI BARHAW", debut: "2027-02-04T00:00:00+01:00", heure: false, fin: "2027-02-20T00:00:00+01:00", description: "6 équipes de 3 sur Valorant, 1 000 € de cashprize sur le tournoi, tous les matchs en BO3 et en direct. Finale le samedi 20 février.", lien: "https://www.twitch.tv/lilianobarhaw" },
     // { id: "osiris-casting", type: "osiris", titre: "Osiris · ouverture du casting", debut: "2027-02-20T23:30:00+01:00", heure: true, fin: "2027-03-20T23:59:00+01:00", finHeure: true, description: "Le casting du Programme 01 s'ouvre en direct à la finale du TOURNOI BARHAW. Candidatures jusqu'au 20 mars, 17 ans minimum et un bon micro.", lien: "https://osiriswl.vercel.app/casting" },
