@@ -15,7 +15,8 @@
 // son image du niveau 5, img/iles/<id>-v5.webp ; un boss, img/boss/<id>-v5.webp).
 // Réglages dans l'adresse : ?commu=<id> (l'équipage suivi ; sans rien : barhaw) · ?place=haut|milieu|bas · ?son=non ·
 // ?rappel=<minutes> (le rappel du vote : 15 sans rien, 0 pour aucun rappel, ni celui du vote ni le « ×2 » de la guerre) ·
-// ?fond=oui (un fond sombre, pour régler la page dans un onglet) ·
+// ?fond=oui (un fond sombre, pour régler la page dans un onglet) · ?guerre=essai (montrer aussi la saison d'essai de la Guerre :
+// sans ça, elle ne passe jamais à l'écran, pour ne rien dévoiler pendant un live) ·
 // ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|bientot|compte|sortie|guerre|derniere|bataille|regne|x2|tout
 // (des alertes d'exemple en boucle, sans rien demander au bot, pour placer la source).
 (() => {
@@ -37,6 +38,7 @@
   const BOSS = new Set(["morghast", "voraxia", "krakor"]);
   const SONS = { cloche: "/son/cloche.m4a", taiko: "/son/taiko.m4a", victoire: "/son/victoire.m4a", carte: "/son/carte.m4a", pop: "/son/pop.m4a", fanfare: "/son/br-fanfare.m4a", roulement: "/son/br-roulement.m4a" };
   const RAPPEL_GUERRE = RAPPEL ? Math.max(RAPPEL, 45 * 60_000) : 0; // « vos troupes comptent double » : toutes les 45 min au plus
+  const GUERRE_ESSAI = P.get("guerre") === "essai"; // la saison d'essai (/guerre essai) : seulement si on la demande
 
   // ---------- ce que la page sait ----------
   let decal = 0; // l'heure du bot moins celle de ce PC
@@ -267,11 +269,14 @@
   // ---------- la Guerre des commus ----------
   const nomCommu = (id) => String((guerre?.commus || []).find((c) => c.id === id)?.nom || id || "").slice(0, 40);
   const ileDans = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, (m) => m.toLowerCase()); // « prend le Jardin de Cristal »
-  const surGuerre = () => `LA GUERRE DES COMMUS${guerre?.saison ? ` · SAISON ${guerre.saison}` : ""}`;
+  const aCommu = (n) => (/^Les /.test(n) ? `aux ${n.slice(4)}` : /^Le /.test(n) ? `au ${n.slice(3)}` : `à ${n}`); // « aux Navigateurs »
+  const liste = (l) => (l.length < 2 ? l.join("") : `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`); // « A, B et C »
+  const surGuerre = () => `LA GUERRE DES COMMUS${guerre?.essai ? " · ESSAI" : guerre?.saison ? ` · SAISON ${guerre.saison}` : ""}`;
+  const heureCourte = (t) => { const [h, mi] = new Date(t).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" }).split(":"); return `${Number(h)} h${mi !== "00" ? ` ${mi}` : ""}`; };
   const evenements = (b) => (b?.iles || []).filter((y) => y.attaques?.length || y.renfort);
   function ligneBataille(y) {
-    if (y.prise) return `🏴 ${nomCommu(y.apres?.commu)} prend ${ileDans(y.nom)}${y.avant?.commu ? ` à ${nomCommu(y.avant.commu)}` : ""}`;
-    if (y.attaques?.length) return `🛡️ ${y.nom} tient face à ${y.attaques.map((a) => nomCommu(a.commu)).join(" et ")}`;
+    if (y.prise) return `🏴 ${nomCommu(y.apres?.commu)} prend ${ileDans(y.nom)}${y.avant?.commu ? ` ${aCommu(nomCommu(y.avant.commu))}` : ""}`;
+    if (y.attaques?.length) return `🛡️ ${y.nom} tient face ${aCommu(liste(y.attaques.map((a) => nomCommu(a.commu))))}`;
     return `🧱 ${nomCommu(y.apres?.commu)} renforce ${ileDans(y.nom)}`;
   }
   const compteIles = () => {
@@ -310,7 +315,7 @@
           titre(grand),
           evts.length ? el("ul", "gu-lignes", ...evts.slice(0, 4).map((y) => el("li", y.prise ? "prise" : "", ligneBataille(y)))) : null,
           el("div", "al-info", compteIles()),
-          el("div", "al-info", derniere ? "C'était la dernière bataille de la saison !" : `Prochaine bataille demain à ${guerre?.heure || "21 h"}`))),
+          el("div", "al-info", derniere ? `C'était la dernière bataille ${guerre?.essai ? "de l'essai" : "de la saison"} !` : guerre?.essai && guerre?.prochaine ? `Prochaine bataille à ${heureCourte(guerre.prochaine)}` : `Prochaine bataille demain à ${guerre?.heure || "21 h"}`))),
     };
   };
   const alRegne = (f) => {
@@ -323,9 +328,9 @@
         el("div", "al-emoji", "👑"),
         el("div", "al-texte",
           el("div", "al-sur", `${surGuerre()} · C'EST FINI`),
-          titre(g ? `${nomCommu(g).toUpperCase()} RÈGNE SUR GRAND LINE !` : "LA PAIX REVIENT SUR GRAND LINE"),
+          titre(g ? `${nomCommu(g).toUpperCase()} ${guerre?.essai ? "AURAIT RÉGNÉ" : "RÈGNE SUR GRAND LINE"} !` : "LA PAIX REVIENT SUR GRAND LINE"),
           classement ? el("div", "al-nom", classement) : null,
-          el("div", "al-info", g ? "Une couronne sur son navire, des milles et le titre de Conquérant pour ses soldats" : "Aucune commu n'a gardé d'île cette fois"))),
+          el("div", "al-info", guerre?.essai ? "C'était un essai : rien ne compte pour de vrai" : g ? "Une couronne sur son navire, des milles et le titre de Conquérant pour ses soldats" : "Aucune commu n'a gardé d'île cette fois"))),
     };
   };
   const alX2 = (c) => ({
@@ -346,7 +351,7 @@
     return attendues > faites || Boolean(g.prochaine && maintenant() >= g.prochaine);
   }
   function lireGuerre(g) {
-    guerre = g && typeof g === "object" && g.phase && g.phase !== "bientot" ? g : null;
+    guerre = g && typeof g === "object" && g.phase && g.phase !== "bientot" && (!g.essai || GUERRE_ESSAI) ? g : null;
     if (!guerre) { rage = false; return; }
     // une nouvelle bataille dans le journal : ses résultats (si elle vient de se jouer)
     const b = guerre.journal?.[0];

@@ -8259,7 +8259,7 @@
   // la Guerre des commus entre aussi dans l'agenda avec la VF (aux dates que donne le bot), sauf si le bot l'a déjà
   function agendaAvecGuerre(ev) {
     const g = donnees?.guerre;
-    if (!v4Ouverte() || !ev || !g?.debut || !g?.fin) return ev;
+    if (!v4Ouverte() || !ev || !g?.debut || !g?.fin || g.essai) return ev; // (la saison d'essai n'entre pas dans l'agenda)
     if ([...(ev.aVenir || []), ...(ev.passes || [])].some((e) => /guerre des commus/i.test(String(e?.titre || "")))) return ev;
     const t = Date.now();
     const debut = ms(g.debut);
@@ -8885,13 +8885,13 @@
   // le port de Barhaw est Port Barhaw ; les autres commus prennent une île-port de GRAND LINE (inventée, comme le reste)
   const GUERRE_PORTS_MODELES = ["marche", "moussaillons", "lucioles"];
   const GUERRE_RAYON = 8.2 * 1.35; // le rayon d'une île sur la carte (les modèles sont un peu agrandis : js/guerre-3d.js)
-  let maGuerre = null, guerreOccupe = false, guerreMessage = null, guerreDemande = 0, guerrePhase = "", guerreVue = false;
+  let maGuerre = null, guerreOccupe = false, guerreMessage = null, guerreDemande = 0, guerrePhase = "", guerreSaison = null, guerreVue = false;
   let guerreIle = ""; // l'île choisie sur la carte
   let carteGuerre = null; // { type: "3d" | "2d", rendu, cle }
   let guerrePrepare = false, guerreVoulu3D = null; // null : le choix de l'appareil ; true / false : celui du visiteur
   const sigGuerre = {};
   // les données publiques viennent de /api/public ; la réponse du bot pour le membre ne sert que pour « moi »
-  const infosGuerre = () => (donnees?.guerre ? { ...donnees.guerre, moi: maGuerre ? maGuerre.moi : donnees.guerre.moi } : null);
+  const infosGuerre = () => (donnees?.guerre ? { ...donnees.guerre, moi: maGuerre && maGuerre.saison === donnees.guerre.saison ? maGuerre.moi : donnees.guerre.moi } : null);
   const jourGuerre = (t, o = {}) => new Date(t).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", ...o });
   const momentGuerre = (t) => `${jourGuerre(t)} à ${heure(t)}`;
   const datesGuerre = (g) => `du ${jourGuerre(g.debut)} au ${jourGuerre(g.fin)}`;
@@ -8907,6 +8907,10 @@
     : el("span", { class: "gu-drapeau gu-embleme", style: c.style, "aria-hidden": "true", text: c.embleme }));
   const ileGuerre = (g, id) => (g?.iles || []).find((i) => i.id === id) || null;
   const ileDans = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, (m) => m.toLowerCase());
+  // devant le nom d'une commu : « à Barhaw », mais « aux Navigateurs », « au Grand Large » ; « de » de même (« des », « du »)
+  const aCommu = (n) => (/^Les /.test(n) ? `aux ${n.slice(4)}` : /^Le /.test(n) ? `au ${n.slice(3)}` : `à ${n}`);
+  const deCommu = (n) => (/^Les /.test(n) ? `des ${n.slice(4)}` : /^Le /.test(n) ? `du ${n.slice(3)}` : `de ${n}`);
+  const listeCommus = (l) => (l.length < 2 ? l.join("") : `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`);
   const nomCourtIle = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, "").replace(/^Île (des |du |de la |de l')?/i, "").replace(/^Île-/, "");
 
   // ---------- la carte : où est chaque île ----------
@@ -8992,6 +8996,7 @@
           setTimeout(() => { if (carteGuerre?.rendu === rendu && guerreVoulu3D === null && rendu.tropLent()) { guerreVoulu3D = false; guerrePrepare = false; preparerCarteGuerre(infosGuerre()); } }, 6000);
           rendreEtiquettesGuerre(g);
           rendreBascule3DGuerre();
+          majRevoirGuerre();
           relancer();
           return;
         } catch { zone.classList.remove("en-3d"); }
@@ -9001,6 +9006,7 @@
       carteGuerre.rendu.maj(g);
       rendreEtiquettesGuerre(g);
       rendreBascule3DGuerre();
+      majRevoirGuerre();
       relancer();
     } finally { guerrePrepare = false; }
   }
@@ -9109,9 +9115,22 @@
       return e;
     });
     vider(couche, ...liste);
+    if (carteGuerre.type === "2d") requestAnimationFrame(recadrerEtiquettes2D);
     if (carteGuerre.type === "3d") {
       carteGuerre.etiquettes.clear();
       for (const e of liste) carteGuerre.etiquettes.set(e.dataset.ile, e);
+    }
+  }
+  // en 2D, une étiquette au bord de la carte reste entière : elle glisse un peu vers l'intérieur (un long nom de commu)
+  function recadrerEtiquettes2D() {
+    const z = $("gu-plateau");
+    if (!z || carteGuerre?.type !== "2d" || enVeille(z)) return;
+    const b = z.getBoundingClientRect();
+    for (const e of $("gu-etiquettes")?.children || []) {
+      e.style.removeProperty("--dx");
+      const r = e.getBoundingClientRect();
+      const dx = r.left < b.left + 4 ? b.left + 4 - r.left : r.right > b.right - 4 ? b.right - 4 - r.right : 0;
+      if (Math.abs(dx) >= 1) e.style.setProperty("--dx", `${Math.round(dx)}px`);
     }
   }
   function placerEtiquettesGuerre(positions, etiquettes) {
@@ -9152,7 +9171,7 @@
     if (g.phase === "annonce") return { cle: "annonce", titre: "Aux armes", libelle: "La guerre commence dans", cible: g.debut };
     if (g.phase === "en-cours") return { cle: "en-cours", titre: g.bataille >= g.batailles ? "Dernière bataille" : `Bataille ${g.bataille} sur ${g.batailles}`, libelle: "Bataille dans", cible: g.prochaine };
     const r = g.fini?.gagnant ? commuGuerre(g.fini.gagnant).nom : "";
-    return { cle: "fini", titre: r ? `${r} règne` : "La paix revient", libelle: "", cible: 0 };
+    return { cle: "fini", titre: r ? `${r} ${g.essai ? "aurait régné" : "règne"}` : "La paix revient", libelle: "", cible: 0 };
   }
   function texteRebours(cible) {
     const r = Math.max(0, cible - Date.now());
@@ -9162,12 +9181,15 @@
   function banniereGuerre(g) {
     const p = phaseGuerre(g);
     return el("div", { class: `gu-banniere phase-${p.cle}` },
-      el("p", { class: "gu-etat" }, el("b", { text: `Saison ${nombre(g.saison)}` }), ` · ${datesGuerre(g)} · une bataille chaque soir à ${g.heure || "21 h"}`),
+      g.essai
+        ? el("p", { class: "gu-etat" }, el("b", { class: "gu-essai", text: "🧪 Saison d'essai" }), ` · de ${heure(g.debut)} à ${heure(g.fin)} · une bataille toutes les ${pluriel(Number(g.periode) || 10, "minute")}`)
+        : el("p", { class: "gu-etat" }, el("b", { text: `Saison ${nombre(g.saison)}` }), ` · ${datesGuerre(g)} · une bataille chaque soir à ${g.heure || "21 h"}`),
       el("p", { class: "gu-grand", text: p.titre }),
       p.cible > Date.now() ? el("p", { class: "gu-rebours", role: "timer", "data-cible": String(p.cible), "aria-label": `${p.libelle} ${dureeCourte(p.cible)}` },
         el("span", { class: "gu-rebours-libelle", text: p.libelle }), el("b", { class: "gu-rebours-temps", "aria-hidden": "true", text: texteRebours(p.cible) })) : null,
       g.phase === "bientot" ? el("p", { class: "gu-quand", text: `La carte se dévoile le ${momentGuerre(g.ouverture)}. Ensuite, on s'engage pour son équipage et la guerre commence le ${jourGuerre(g.debut)}.` }) : null,
-      p.cle === "rage" ? el("p", { class: "gu-quand", role: "status", text: "Les flottes se battent en ce moment. Les résultats arrivent dans un instant, et la bataille se rejoue sur la carte." }) : null);
+      p.cle === "rage" ? el("p", { class: "gu-quand", role: "status", text: "Les flottes se battent en ce moment. Les résultats arrivent dans un instant, et la bataille se rejoue sur la carte." }) : null,
+      g.essai ? el("p", { class: "gu-quand gu-essai-note", text: "Une répétition, pour tout vérifier avant la vraie : tout va plus vite, de faux joueurs remplissent les commus, et rien ne compte pour de vrai (ni couronne, ni milles, ni titre). Avant la VF, toi seul la vois." }) : null);
   }
   let minuteurReboursGuerre = null;
   function suivreReboursGuerre() {
@@ -9217,7 +9239,7 @@
     const m = g.moi;
     if (!m) return el("p", { class: "note", role: "status", text: "On regarde ton camp…" });
     const titres = (m.titres || []).length ? el("p", { class: "gu-titres" }, (m.titres || []).map((t) => el("span", { class: "gu-titre", text: `👑 ${t}` }))) : null;
-    if (g.phase === "fini") return el("div", { class: "gu-moi-bloc" }, titres || el("p", { class: "note", text: "La saison est finie : merci à tous les soldats ! Rendez-vous à la prochaine." }));
+    if (g.phase === "fini") return el("div", { class: "gu-moi-bloc" }, (!g.essai && titres) || el("p", { class: "note", text: g.essai ? "L'essai est fini : rien ne compte pour de vrai. La vraie saison reprend sa place dans 2 h." : "La saison est finie : merci à tous les soldats ! Rendez-vous à la prochaine." }));
     if (!m.engage) {
       if (!m.commu) {
         return el("div", { class: "gu-moi-bloc" },
@@ -9241,7 +9263,7 @@
       el("p", { class: "gu-engage" }, drapeauGuerre(c, 32), " Engagé pour ", el("b", { text: c.nom })),
       m.capitaineEnLive && g.phase === "en-cours" ? el("p", { class: "gu-x2", role: "status", text: "🔴 Ton capitaine est en live : tes troupes comptent double !" }) : null,
       g.phase === "en-cours" ? el("div", { class: "gu-mes-troupes" },
-        el("p", {}, "Tes troupes du jour : ", el("b", { text: `${nombre(t.total)} / ${nombre(plafond)}` })),
+        el("p", {}, g.essai ? "Tes troupes pour la prochaine bataille : " : "Tes troupes du jour : ", el("b", { text: `${nombre(t.total)} / ${nombre(plafond)}` })),
         el("span", { class: "gu-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.min(100, Math.round((Number(t.total) / plafond) * 100))}%` })),
         sources ? el("p", { class: "note", text: sources }) : el("p", { class: "note", text: "Pas encore de troupes aujourd'hui : une game, un passage sur un live ou une partie du site, et c'est parti." }),
         m.rang ? el("p", { class: "note", text: `Tu es ${m.rang === 1 ? "1er" : `${m.rang}e`} de ta commu aujourd'hui${m.compte ? " : tes troupes partent à la bataille ce soir." : ` : seuls les ${r.meilleurs || 10} meilleurs comptent, encore un effort !`}` }) : null) : null,
@@ -9257,7 +9279,7 @@
     const enCours = g.phase === "en-cours";
     const max = Math.max(1, ...l.map((x) => Number(enCours ? x.armee : x.garnison) || 0));
     const mienne = g.moi?.engage ? g.moi.commu : "";
-    const titre = enCours ? "Les armées du jour (elles partent à 21 h)" : g.phase === "fini" ? "Les commus à la fin" : "Les commus de la flotte";
+    const titre = enCours ? (g.essai ? `Les armées (elles partent à ${heure(g.prochaine || g.fin)})` : "Les armées du jour (elles partent à 21 h)") : g.phase === "fini" ? "Les commus à la fin" : "Les commus de la flotte";
     return el("div", { class: "gu-armees" },
       el("p", { class: "gu-titre-bloc", text: titre }),
       el("ol", { class: "gu-liste", "aria-label": titre }, l.map((x) => {
@@ -9279,13 +9301,13 @@
     if (!l.length) return null;
     const ligne = (y) => {
       const de = (id) => commuGuerre(id).nom;
-      if (y.prise) return el("li", { class: "prise", style: commuGuerre(y.apres.commu).style }, "🏴 ", el("b", { text: de(y.apres.commu) }), " prend ", el("b", { text: ileDans(y.nom) }), y.avant.commu ? ` à ${de(y.avant.commu)}` : "", ` (${nombre(y.apres.garnison)} restent)`);
-      if (y.attaques?.length) return el("li", {}, "🛡️ ", el("b", { text: y.nom }), ` tient face à ${y.attaques.map((a) => de(a.commu)).join(" et ")} (garnison ${nombre(y.apres.garnison)})`);
+      if (y.prise) return el("li", { class: "prise", style: commuGuerre(y.apres.commu).style }, "🏴 ", el("b", { text: de(y.apres.commu) }), " prend ", el("b", { text: ileDans(y.nom) }), y.avant.commu ? ` ${aCommu(de(y.avant.commu))}` : "", ` (${nombre(y.apres.garnison)} restent)`);
+      if (y.attaques?.length) return el("li", {}, "🛡️ ", el("b", { text: y.nom }), ` tient face ${aCommu(listeCommus(y.attaques.map((a) => de(a.commu))))} (garnison ${nombre(y.apres.garnison)})`);
       if (y.renfort) return el("li", {}, "🧱 ", el("b", { text: de(y.apres.commu) }), " renforce ", el("b", { text: ileDans(y.nom) }), ` (+${nombre(y.renfort)})`);
       return null;
     };
     const bataille = (b, ouverte) => el("details", { class: "gu-bataille", open: ouverte || null },
-      el("summary", {}, el("b", { text: `Bataille ${b.n}` }), ` · ${jourGuerre(b.t)}`),
+      el("summary", {}, el("b", { text: `Bataille ${b.n}` }), ` · ${g.essai ? heure(b.t) : jourGuerre(b.t)}`),
       el("ul", {}, (b.iles || []).map(ligne).filter(Boolean).length ? (b.iles || []).map(ligne) : el("li", { text: "Pas de troupes ce soir-là : la mer est restée calme." })),
       evenementsGuerre(b).length ? el("button", { class: "lien-discret gu-revoir-n", type: "button", onclick: () => { $("gu-scene")?.scrollIntoView?.({ block: "center", behavior: reduit.matches ? "auto" : "smooth" }); rejouerBataille(b.n); }, text: "▶ La revoir sur la carte" }) : null);
     return el("div", { class: "gu-journal" },
@@ -9297,6 +9319,13 @@
   function finGuerre(g) {
     if (g.phase !== "fini" || !g.fini) return null;
     const c = g.fini.classement || [];
+    if (g.essai) {
+      const r = g.fini.gagnant ? commuGuerre(g.fini.gagnant) : null;
+      return el("div", { class: "gu-fin gu-fin-essai", style: r?.style || null },
+        el("p", { class: "gu-fin-titre" }, r ? [el("b", { text: r.nom }), " aurait régné"] : "Personne n'aurait régné"),
+        el("ol", { class: "gu-classement" }, c.map((x, k) => el("li", { style: commuGuerre(x.id, x.nom).style }, el("span", { text: String(k + 1) }), el("b", { text: commuGuerre(x.id, x.nom).nom }), ` · ${pluriel(x.iles, "île")}`))),
+        el("p", { class: "note", text: "C'était un essai : pas de couronne, pas de milles, pas de titre. La carte d'essai reste 2 h, puis la vraie saison reprend sa place." }));
+    }
     if (!g.fini.gagnant) return el("p", { class: "gu-quand", text: "Aucune commu n'a gardé d'île : personne ne règne cette fois." });
     const r = commuGuerre(g.fini.gagnant);
     return el("div", { class: "gu-fin", style: r.style },
@@ -9315,6 +9344,7 @@
     return el("details", { class: "gu-regles", open: g.phase === "bientot" || null },
       el("summary", { text: "Comment ça marche" }),
       el("ul", {},
+        g.essai ? el("li", { class: "gu-essai-regle", text: `Saison d'essai : une bataille toutes les ${pluriel(Number(g.periode) || 10, "minute")} au lieu de chaque soir à 21 h, et les troupes « du jour » valent pour une bataille. Le reste est comme en vrai.` }) : null,
         el("li", { text: "On s'engage sur le site pour l'équipage pour lequel on rame dans GRAND LINE. Une fois la guerre lancée, on ne change plus de camp." }),
         el("li", { text: "La carte : un port par commu (imprenable) et 9 îles à prendre. Le Jardin de Cristal, l'Île des Géants Endormis et la Forteresse des Corsaires donnent +10 % de troupes à la commu qui les tient." }),
         el("li", { text: `Tes troupes du jour (de 21 h à 21 h) : une game LoL ou VALORANT notée (S+ ${p["S+"] || 50}, S ${p.S || 45}, A ${p.A || 40}, B ${p.B || 35}, C ${p.C || 30}, D ${p.D || 25}), ${r.live || 5} par tranche de 5 min sur le live d'un capitaine (${r.liveMax || 120} au plus), ${r.message || 1} par message sur un Discord de la flotte (${r.messageMax || 40} au plus), ${r.jeu || 10} par partie des jeux du site (${r.jeuMax || 50} au plus).` }),
@@ -9349,7 +9379,7 @@
   const ilesAffichees = (g) => (guerreRejeu && g ? { ...g, iles: (g.iles || []).map((i) => (guerreRejeu.etat.has(i.id) ? { ...i, ...guerreRejeu.etat.get(i.id) } : i)) } : g);
   const couleursGuerre = (g) => Object.fromEntries((g.commus || []).map((x) => { const c = commuGuerre(x.id, x.nom); return [x.id, { c1: c.c1, c2: c.c2, embleme: c.embleme, drapeau: c.image }]; }));
   const nomGuerre = (id) => (id ? commuGuerre(id).nom : "");
-  const joindreGuerre = (l) => (l.length < 2 ? l.join("") : `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`);
+  const joindreGuerre = listeCommus;
   function texteCombatGuerre(y) {
     const att = (y.attaques || []).map((a) => nomGuerre(a.commu));
     if (!att.length) return `${nomGuerre(y.avant?.commu)} envoie des renforts sur ${ileDans(y.nom)}…`;
@@ -9358,11 +9388,11 @@
   function detailCombatGuerre(y) {
     const l = (y.attaques || []).map((a) => `${nomGuerre(a.commu)} ${nombre(a.troupes)}`);
     if (y.renfort) l.push(`renfort ${nombre(y.renfort)}`);
-    l.push(y.avant?.commu ? `garnison de ${nomGuerre(y.avant.commu)} ${nombre(y.avant.garnison)}` : `garnison ${nombre(y.avant?.garnison)}`);
+    l.push(y.avant?.commu ? `garnison ${deCommu(nomGuerre(y.avant.commu))} ${nombre(y.avant.garnison)}` : `garnison ${nombre(y.avant?.garnison)}`);
     return l.join(" · ");
   }
   function texteSortGuerre(y) {
-    if (y.prise) return `🏴 ${nomGuerre(y.apres.commu)} prend ${ileDans(y.nom)}${y.avant?.commu ? ` à ${nomGuerre(y.avant.commu)}` : ""} !`;
+    if (y.prise) return `🏴 ${nomGuerre(y.apres.commu)} prend ${ileDans(y.nom)}${y.avant?.commu ? ` ${aCommu(nomGuerre(y.avant.commu))}` : ""} !`;
     if (y.attaques?.length) return y.avant?.commu ? `🛡️ ${y.nom} tient bon : ${nomGuerre(y.avant.commu)} la garde.` : `🛡️ ${y.nom} résiste et reste libre.`;
     return `🧱 ${nomGuerre(y.apres.commu)} renforce ${ileDans(y.nom)}.`;
   }
@@ -9539,6 +9569,14 @@
     try { localStorage.setItem(CLE_GUERRE_VUE, cle); } catch {}
     rejouerBataille(b.n, { auto: true });
   }
+  // le bouton « Revoir la bataille » (la dernière), sous la carte
+  function majRevoirGuerre(g = infosGuerre()) {
+    const revoir = $("gu-revoir");
+    if (!revoir || !g) return;
+    const b = g.journal?.[0];
+    revoir.hidden = !b || !carteGuerre || Boolean(guerreRejeu) || !evenementsGuerre(b).length;
+    revoir.setAttribute("aria-label", b ? `Revoir la bataille ${b.n} sur la carte` : "Revoir la bataille");
+  }
   // pendant que la bataille fait rage : des coups de canon sur la carte, et la page redemande les résultats (15 s)
   function suivreRageGuerre(g) {
     const rage = enRageGuerre(g);
@@ -9577,7 +9615,7 @@
       el("div", { id: "gu-journal" }),
       el("div", { id: "gu-regles" }));
     // la carte suit la taille de la partie ; elle ne bouge que quand on la voit
-    if ("ResizeObserver" in window) new ResizeObserver(() => tailleCarteGuerre()).observe($("gu-plateau"));
+    if ("ResizeObserver" in window) new ResizeObserver(() => { tailleCarteGuerre(); recadrerEtiquettes2D(); }).observe($("gu-plateau"));
     // la bataille se rejoue toute seule quand la carte est bien en vue (plus de la moitié à l'écran)
     if ("IntersectionObserver" in window) {
       new IntersectionObserver((e) => {
@@ -9615,7 +9653,8 @@
     if (!g || section.hidden) return;
     // connecté : on demande au bot son camp et ses troupes (toutes les 2 minutes pendant la guerre, une fois l'heure sinon)
     if (guerrePhase && g.phase !== guerrePhase) guerreMessage = null;
-    if (moi?.connecte && g.phase !== "bientot" && (!guerreDemande || g.phase !== guerrePhase || Date.now() - guerreDemande > (g.phase === "en-cours" && guerreVue ? 120_000 : 3_600_000))) { guerreDemande = Date.now(); guerrePhase = g.phase; agirGuerre("guerre"); }
+    // (une autre saison, la saison d'essai qui arrive ou s'efface : on redemande aussi)
+    if (moi?.connecte && g.phase !== "bientot" && (!guerreDemande || g.phase !== guerrePhase || g.saison !== guerreSaison || Date.now() - guerreDemande > (g.phase === "en-cours" && guerreVue ? 120_000 : 3_600_000))) { guerreDemande = Date.now(); guerrePhase = g.phase; guerreSaison = g.saison; maGuerre = maGuerre?.saison === g.saison ? maGuerre : null; agirGuerre("guerre"); }
     squeletteGuerre(z);
     z.dataset.phase = g.phase;
     $("gu-scene").hidden = g.phase === "bientot";
@@ -9630,21 +9669,16 @@
         rendreEtiquettesGuerre(gv);
       }
     }
-    const revoir = $("gu-revoir");
-    if (revoir) {
-      const b = g.journal?.[0];
-      revoir.hidden = !b || !carteGuerre || Boolean(guerreRejeu) || !evenementsGuerre(b).length;
-      revoir.setAttribute("aria-label", b ? `Revoir la bataille ${b.n} sur la carte` : "Revoir la bataille");
-    }
+    majRevoirGuerre(g);
     suivreRageGuerre(g);
     rejeuAutoGuerre();
-    rendreZone("gu-info", JSON.stringify([g.phase === "bientot" ? 0 : 1, guerreIle, ileGuerre(g, guerreIle), g.moi?.vote, g.moi?.votes?.[guerreIle], g.moi?.engage, g.moi?.commu, Boolean(moi?.connecte), guerreOccupe]), () => (g.phase === "bientot" ? null : infoIleGuerre(g)));
-    rendreZone("gu-moi", JSON.stringify([g.phase, g.moi, Boolean(moi?.connecte), guerreOccupe, (g.iles || []).find((i) => i.id === g.moi?.vote)?.nom]), () => moiGuerre(g));
+    rendreZone("gu-info", JSON.stringify([g.saison, g.phase === "bientot" ? 0 : 1, guerreIle, ileGuerre(g, guerreIle), g.moi?.vote, g.moi?.votes?.[guerreIle], g.moi?.engage, g.moi?.commu, Boolean(moi?.connecte), guerreOccupe]), () => (g.phase === "bientot" ? null : infoIleGuerre(g)));
+    rendreZone("gu-moi", JSON.stringify([g.saison, g.phase, g.moi, Boolean(moi?.connecte), guerreOccupe, (g.iles || []).find((i) => i.id === g.moi?.vote)?.nom]), () => moiGuerre(g));
     rendreZone("gu-message", JSON.stringify(guerreMessage), () => (guerreMessage ? el("p", { class: guerreMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: guerreMessage.texte }) : null));
     rendreZone("gu-fin", JSON.stringify([g.phase, g.fini]), () => finGuerre(g));
     rendreZone("gu-armees", JSON.stringify([g.phase, g.commus, g.moi?.engage, g.moi?.commu]), () => (g.phase === "bientot" ? null : armeesGuerre(g)));
     rendreZone("gu-journal", JSON.stringify(g.journal?.map((b) => b.n)), () => journalGuerre(g));
-    rendreZone("gu-regles", JSON.stringify([g.phase === "bientot", g.regles]), () => reglesGuerre(g));
+    rendreZone("gu-regles", JSON.stringify([g.saison, g.phase === "bientot", g.regles]), () => reglesGuerre(g));
     if (guerreVue) suivreReboursGuerre();
   }
   async function agirGuerre(action, extra = {}) {
@@ -9663,7 +9697,7 @@
     if (d.erreur && action !== "guerre") guerreMessage = { texte: d.texte || (typeof d.erreur === "string" && d.erreur.length > 12 ? d.erreur : "Ça n'a pas marché, réessaie."), erreur: true };
     else if (action === "guerre-engager" && d.ok) guerreMessage = { texte: g?.phase === "en-cours" ? "Engagé ! Tes troupes comptent dès maintenant. Vote pour l'île de ce soir." : `Engagé ! La guerre commence le ${jourGuerre(g?.debut || Date.now())}. Tu peux déjà voter pour la 1re bataille.` };
     else if (action === "guerre-quitter" && d.ok) guerreMessage = { texte: "Tu n'es plus engagé." };
-    else if (action === "guerre-voter" && d.ok) guerreMessage = { texte: extra.ile ? `Vote enregistré : ${ileGuerre(g, extra.ile)?.nom || "l'île"}, ce soir à ${g?.heure || "21 h"}.` : "Vote retiré." };
+    else if (action === "guerre-voter" && d.ok) guerreMessage = { texte: extra.ile ? `Vote enregistré : ${ileGuerre(g, extra.ile)?.nom || "l'île"}, ${g?.essai ? `à la prochaine bataille (${heure(g.prochaine || g.debut)})` : `ce soir à ${g?.heure || "21 h"}`}.` : "Vote retiré." };
     rendreGuerre();
   }
   async function demanderFideles(action) {
