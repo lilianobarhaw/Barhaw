@@ -7,7 +7,7 @@
   document.documentElement.classList.remove("sans-js");
 
   const MA_CHAINE = "lilianobarhaw";
-  const TYPES = { osiris: "Osiris", tournoi: "Tournoi", show: "Show", bahriot: "Bahriot", live: "Live", video: "Vidéo", autre: "Event" };
+  const TYPES = { osiris: "Osiris", tournoi: "Tournoi", show: "Show", bahriot: "Bahriot", guerre: "Guerre", live: "Live", video: "Vidéo", autre: "Event" };
   const HOTE = location.hostname || "localhost";
   const reduit = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -35,7 +35,7 @@
     "déprimé": { bulle: "…", sfx: "ズーン" },
   };
   // l'onomatopée en coin du prochain event, selon son type
-  const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], show: ["ジャーン", "tremble"], bahriot: ["バーン", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
+  const SFX_TYPES = { osiris: ["ゴゴゴ", "violet tremble"], tournoi: ["ドドド", "tremble"], show: ["ジャーン", "tremble"], bahriot: ["バーン", "tremble"], guerre: ["ドーン", "tremble"], live: ["ワクワク", ""], video: ["キラッ", ""], autre: ["キラッ", ""] };
   // la musique du site : « The World's Number One Oden Store » (bande originale de One Piece), un fichier du site
   const MUSIQUE = "/musique/oden.mp3";
   // les vidéos des events (dossier videos/) : le teaser s'affiche avec l'event qui a cet identifiant (/evenement)
@@ -401,7 +401,7 @@
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
     { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "barhaw-show", "evenements"] },
-    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "chasse", "chopper"] },
+    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
@@ -7980,6 +7980,7 @@
     rendreEntete();
     rendreFideles();
     rendreBahriot();
+    rendreGuerre();
     rendreShow();
     rendreMaintenant();
     rendreEvenements();
@@ -8250,7 +8251,22 @@
     if (finDe(bahriot) < t) return { ...ev, passes: [bahriot, ...(ev.passes || [])].sort((x, y) => ms(y.debut) - ms(x.debut)).slice(0, 3) };
     return { ...ev, aVenir: [...(ev.aVenir || []), { ...bahriot, enCours: debut <= t }].sort((x, y) => ms(x.debut) - ms(y.debut)) };
   }
-  function agendaVF(ev) { return agendaAvecBahriot(agendaAvecShow(ev)); }
+  // la Guerre des commus entre aussi dans l'agenda avec la VF (aux dates que donne le bot), sauf si le bot l'a déjà
+  function agendaAvecGuerre(ev) {
+    const g = donnees?.guerre;
+    if (!v4Ouverte() || !ev || !g?.debut || !g?.fin) return ev;
+    if ([...(ev.aVenir || []), ...(ev.passes || [])].some((e) => /guerre des commus/i.test(String(e?.titre || "")))) return ev;
+    const t = Date.now();
+    const debut = ms(g.debut);
+    const guerre = {
+      id: `guerre-${g.saison || 1}`, type: "guerre", titre: `La Guerre des commus · saison ${g.saison || 1}`, debut, heure: false, fin: ms(g.fin),
+      ancre: "guerre", ancreTexte: g.phase === "bientot" ? "Les règles" : g.phase === "annonce" ? "Je m'engage" : "Voir la carte",
+      description: `Les commus de la flotte se disputent les îles de GRAND LINE : une bataille chaque soir à ${g.heure || "21 h"}. La commu qui tient le plus d'îles à la fin règne.`,
+    };
+    if (finDe(guerre) < t) return { ...ev, passes: [guerre, ...(ev.passes || [])].sort((x, y) => ms(y.debut) - ms(x.debut)).slice(0, 3) };
+    return { ...ev, aVenir: [...(ev.aVenir || []), { ...guerre, enCours: debut <= t }].sort((x, y) => ms(x.debut) - ms(y.debut)) };
+  }
+  function agendaVF(ev) { return agendaAvecGuerre(agendaAvecBahriot(agendaAvecShow(ev))); }
 
   let minuteurShow = null;
   let cleShow = "";
@@ -8845,6 +8861,525 @@
     else if (action === "bahriot-desinscrire" && d.ok) bahriotMessage = { texte: "Tu n'es plus inscrit." };
     rendreBahriot();
   }
+
+  // ---------- la VF 1.0 : la Guerre des commus (le bot compte : lib/guerre.js) ----------
+  // Les commus de la flotte se disputent les îles de GRAND LINE, avec une bataille chaque soir à 21 h (saison 1 : du
+  // lundi 1er au dimanche 21 mars 2027 ; la carte se dévoile le samedi 27 février). Avant : les dates et le compte à
+  // rebours. Ensuite : la carte (en 3D quand l'appareil suit, js/guerre-3d.js ; sinon en 2D, avec les images des îles),
+  // le vote, ses troupes, les armées du jour, le journal des batailles. Jamais le pseudo d'un joueur : seulement les
+  // commus, et ses propres troupes ; les votes de sa commu ne se voient que dans sa commu.
+  // La place des 9 îles à prendre (le repère de GRAND LINE : x de −104 à 104, z de −58 à 58)
+  const GUERRE_ILES = { vents: [-56, 2], arbre: [56, -2], marais: [-2, -36], ambre: [2, 38], cristal: [-31, -22], horloge: [-31, 22], geants: [31, 22], tonnerre: [31, -22], forteresse: [0, 0] };
+  // les ports, un par commu dans l'ordre de la flotte (Barhaw d'abord), et la place de son navire, au mouillage à côté
+  const GUERRE_PORTS = {
+    1: [{ x: -84, z: 0, n: [-66, -16] }],
+    2: [{ x: -84, z: 0, n: [-66, -16] }, { x: 84, z: 0, n: [66, 16] }],
+    3: [{ x: -84, z: 0, n: [-66, -16] }, { x: 80, z: -38, n: [58, -42] }, { x: 80, z: 38, n: [58, 42] }],
+    4: [{ x: -80, z: -38, n: [-58, -42] }, { x: 80, z: -38, n: [58, -42] }, { x: 80, z: 38, n: [58, 42] }, { x: -80, z: 38, n: [-58, 42] }],
+  };
+  // le port de Barhaw est Port Barhaw ; les autres commus prennent une île-port de GRAND LINE (inventée, comme le reste)
+  const GUERRE_PORTS_MODELES = ["marche", "moussaillons", "lucioles"];
+  const GUERRE_RAYON = 8.2 * 1.35; // le rayon d'une île sur la carte (les modèles sont un peu agrandis : js/guerre-3d.js)
+  let maGuerre = null, guerreOccupe = false, guerreMessage = null, guerreDemande = 0, guerrePhase = "", guerreVue = false;
+  let guerreIle = ""; // l'île choisie sur la carte
+  let carteGuerre = null; // { type: "3d" | "2d", rendu, cle }
+  let guerrePrepare = false, guerreVoulu3D = null; // null : le choix de l'appareil ; true / false : celui du visiteur
+  const sigGuerre = {};
+  // les données publiques viennent de /api/public ; la réponse du bot pour le membre ne sert que pour « moi »
+  const infosGuerre = () => (donnees?.guerre ? { ...donnees.guerre, moi: maGuerre ? maGuerre.moi : donnees.guerre.moi } : null);
+  const jourGuerre = (t, o = {}) => new Date(t).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", ...o });
+  const momentGuerre = (t) => `${jourGuerre(t)} à ${heure(t)}`;
+  const datesGuerre = (g) => `du ${jourGuerre(g.debut)} au ${jourGuerre(g.fin)}`;
+  // une commu : ses couleurs et son emblème (la flotte), son drapeau (jamais img/flotte/barhaw.webp)
+  function commuGuerre(id, nom = "") {
+    const c = commu(id) || (Array.isArray(donnees?.flotte?.commus) ? donnees.flotte.commus.find((x) => x?.id === id) : null) || { id, nom, couleurs: id === "barhaw" ? { principale: "#ff5aae", secondaire: "#55ccff" } : null };
+    const n = String(c.nom || nom || (donnees?.guerre?.commus || []).find((x) => x.id === id)?.nom || id);
+    const image = id === "barhaw" ? "" : drapeauImage(c);
+    return { id, nom: n, c1: hexaCommu(c, "principale"), c2: hexaCommu(c, "secondaire"), style: styleCommu(c), embleme: String(c.embleme || n[0] || "?").slice(0, 2), image, twitch: c.twitch || "" };
+  }
+  const drapeauGuerre = (c, taille) => (c.image
+    ? el("img", { class: "gu-drapeau", src: c.image, alt: "", width: taille, height: taille, loading: "lazy", decoding: "async" })
+    : el("span", { class: "gu-drapeau gu-embleme", style: c.style, "aria-hidden": "true", text: c.embleme }));
+  const ileGuerre = (g, id) => (g?.iles || []).find((i) => i.id === id) || null;
+  const nomCourtIle = (n) => String(n || "").replace(/^(L'|Le |La |Les )/, "").replace(/^Île (des |du |de la |de l')?/i, "").replace(/^Île-/, "");
+
+  // ---------- la carte : où est chaque île ----------
+  function placesGuerre(g) {
+    const ports = (g.iles || []).filter((i) => i.port);
+    const places = GUERRE_PORTS[Math.min(4, Math.max(1, ports.length))];
+    let autre = 0;
+    const iles = (g.iles || []).map((i) => {
+      if (i.port) {
+        const p = places[ports.indexOf(i)] || places[0];
+        const m = i.port === "barhaw" ? "port" : GUERRE_PORTS_MODELES[autre++ % GUERRE_PORTS_MODELES.length];
+        return { id: i.id, x: p.x, z: p.z, modele: `ile-${m}-v5`, image: `/img/iles/${m}-v5.webp`, port: i.port, navire: p.n };
+      }
+      const [x, z] = GUERRE_ILES[i.id] || [0, 0];
+      return { id: i.id, x, z, modele: `ile-${i.id}-v5`, image: `/img/iles/${i.id}-v5.webp`, bonus: Boolean(i.bonus) };
+    });
+    return iles;
+  }
+  // les navires des commus, au mouillage devant leur port (le même navire que sur GRAND LINE), le nez vers le large
+  function naviresGuerre(places) {
+    return places.filter((p) => p.port).map((p) => {
+      const c = commuGuerre(p.port);
+      const [x, z] = p.navire;
+      const dx = -x, dz = -z;
+      return { commu: p.port, x, z, cap: Math.atan2(-dz, dx), modele: `navire-${NAVIRES_V5[p.port] || "brick"}.glb`, couleurs: { principale: c.c1, secondaire: c.c2 }, embleme: c.embleme, drapeau: c.image };
+    });
+  }
+  function donnees3DGuerre(g) {
+    const m = g.moi || {};
+    return {
+      iles: (g.iles || []).map((i) => {
+        if (!i.commu) return { id: i.id, commu: null };
+        const c = commuGuerre(i.commu);
+        return { id: i.id, commu: i.commu, c1: c.c1, c2: c.c2, embleme: c.embleme, drapeau: c.image };
+      }),
+      choix: guerreIle, vote: m.vote || "", regne: g.regne?.commu || "",
+    };
+  }
+  // la carte se prépare quand on arrive près de la partie : en 3D si l'appareil suit (ou si on l'a demandée), sinon en 2D
+  function troisDPossible() {
+    if (navigator.connection?.saveData) return false;
+    try {
+      const essai = document.createElement("canvas").getContext("webgl2");
+      const info = essai?.getExtension("WEBGL_debug_renderer_info");
+      const logiciel = info && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(essai.getParameter(info.UNMASKED_RENDERER_WEBGL)));
+      essai?.getExtension("WEBGL_lose_context")?.loseContext();
+      return Boolean(essai) && (!logiciel || new URLSearchParams(location.search).get("3d") === "oui");
+    } catch { return false; }
+  }
+  const appareilLeger = () => { try { return matchMedia("(max-width: 760px), (pointer: coarse)").matches || (navigator.deviceMemory || 8) <= 4; } catch { return false; } };
+  async function preparerCarteGuerre(g) {
+    const zone = $("gu-plateau");
+    if (!zone || guerrePrepare) return;
+    const places = placesGuerre(g);
+    const cle = places.map((p) => `${p.id}:${p.modele}`).join(",");
+    const voulu3D = guerreVoulu3D ?? ((navigator.deviceMemory || 8) > 2 && troisDPossible());
+    if (carteGuerre && carteGuerre.cle === cle && (carteGuerre.type === "3d") === voulu3D) return;
+    guerrePrepare = true;
+    try {
+      if (carteGuerre) { try { carteGuerre.rendu.detruire(); } catch {} carteGuerre = null; }
+      vider($("gu-etiquettes"));
+      if (voulu3D) {
+        try {
+          const { creerGuerre3D } = await import("/js/guerre-3d.js");
+          const toile = el("canvas", { class: "gu-toile", role: "img", "aria-label": "La carte de la Guerre des commus en 3D : clique sur une île (ou sur son étiquette)" });
+          vider(zone, toile);
+          zone.classList.add("en-3d");
+          const etiquettes = new Map();
+          const rendu = creerGuerre3D(toile, {
+            iles: places, navires: naviresGuerre(places), reduit: reduit.matches, leger: appareilLeger(),
+            surIle: (id) => choisirIleGuerre(id), surSurvol: (id) => survolGuerre(id),
+            placer: (liste) => placerEtiquettesGuerre(liste, etiquettes),
+          });
+          toile.addEventListener("webglcontextlost", (e) => { e.preventDefault(); if (carteGuerre?.rendu === rendu) { guerreVoulu3D = false; guerrePrepare = false; carteGuerre = null; preparerCarteGuerre(infosGuerre()); } });
+          carteGuerre = { type: "3d", rendu, cle, etiquettes };
+          tailleCarteGuerre();
+          rendu.maj(donnees3DGuerre(g));
+          if (guerreVue) rendu.demarrer();
+          // trop lent : la carte passe en 2D (on le regarde après les premières images)
+          setTimeout(() => { if (carteGuerre?.rendu === rendu && guerreVoulu3D === null && rendu.tropLent()) { guerreVoulu3D = false; guerrePrepare = false; preparerCarteGuerre(infosGuerre()); } }, 6000);
+          rendreEtiquettesGuerre(g);
+          rendreBascule3DGuerre();
+          return;
+        } catch { zone.classList.remove("en-3d"); }
+      }
+      zone.classList.remove("en-3d");
+      carteGuerre = { type: "2d", rendu: carte2DGuerre(zone, places), cle };
+      carteGuerre.rendu.maj(g);
+      rendreEtiquettesGuerre(g);
+      rendreBascule3DGuerre();
+    } finally { guerrePrepare = false; }
+  }
+  function tailleCarteGuerre() {
+    const zone = $("gu-plateau");
+    if (!zone || carteGuerre?.type !== "3d") return;
+    const b = zone.getBoundingClientRect();
+    if (b.width > 10 && b.height > 10) carteGuerre.rendu.taille(b.width, b.height);
+  }
+  // le bouton « la carte en 2D / en 3D »
+  function rendreBascule3DGuerre() {
+    const b = $("gu-bascule");
+    if (!b) return;
+    b.hidden = !carteGuerre;
+    b.textContent = carteGuerre?.type === "3d" ? "Voir la carte en 2D" : "Voir la carte en 3D";
+  }
+  function basculerCarteGuerre() {
+    guerreVoulu3D = carteGuerre?.type !== "3d";
+    const g = infosGuerre();
+    if (g) preparerCarteGuerre(g);
+  }
+
+  // ---------- la carte en 2D : les images des îles (rendues dans Blender) posées sur la mer ----------
+  function carte2DGuerre(zone, places) {
+    const plateau = el("div", { class: "gu-2d", role: "img", "aria-label": "La carte de la Guerre des commus : clique sur une île (ou sur son étiquette)" });
+    const parId = new Map();
+    for (const p of places) {
+      const b = el("button", { type: "button", class: `gu-2d-ile${p.port ? " port" : ""}`, style: `--x:${p.x};--z:${p.z}`, "data-ile": p.id, tabindex: "-1", "aria-hidden": "true", onclick: () => choisirIleGuerre(p.id) },
+        el("img", { src: p.image, alt: "", width: 360, height: 234, loading: "lazy", decoding: "async" }),
+        el("span", { class: "gu-2d-anneau" }),
+        el("span", { class: "gu-2d-fanion" }));
+      parId.set(p.id, b);
+      plateau.append(b);
+    }
+    vider(zone, plateau);
+    return {
+      maj(g) {
+        const m = g.moi || {};
+        for (const i of g.iles || []) {
+          const b = parId.get(i.id);
+          if (!b) continue;
+          const c = i.commu ? commuGuerre(i.commu) : null;
+          b.classList.toggle("tenue", Boolean(c));
+          b.classList.toggle("choisie", i.id === guerreIle);
+          b.classList.toggle("mon-vote", i.id === m.vote);
+          if (c) b.setAttribute("style", `--x:${placesGuerreX(places, i.id)};--z:${placesGuerreZ(places, i.id)};${c.style}`);
+          const f = b.querySelector(".gu-2d-fanion");
+          // (le fanion à ses couleurs : jamais d'image de drapeau ici, et jamais img/flotte/barhaw.webp)
+          vider(f, c ? drapeauCommu({ id: `${c.id}-`, nom: c.nom, couleurs: { principale: c.c1, secondaire: c.c2 }, embleme: c.embleme, drapeau: "" }, "gu-fanion") : null);
+        }
+      },
+      detruire() { vider(zone); },
+      demarrer() {}, arreter() {},
+    };
+  }
+  const placesGuerreX = (places, id) => places.find((p) => p.id === id)?.x ?? 0;
+  const placesGuerreZ = (places, id) => places.find((p) => p.id === id)?.z ?? 0;
+
+  // ---------- les étiquettes des îles (sur la carte) : la garnison, la commu, le bonus, les votes de sa commu ----------
+  function rendreEtiquettesGuerre(g) {
+    const couche = $("gu-etiquettes");
+    if (!couche || !carteGuerre) return;
+    const m = g.moi || {};
+    const places = placesGuerre(g);
+    const sig = JSON.stringify([carteGuerre.type, carteGuerre.cle, g.iles, m.votes, m.vote, guerreIle, g.commus?.map((c) => c.id)]);
+    if (sig === sigGuerre.etiquettes && couche.childElementCount) return;
+    sigGuerre.etiquettes = sig;
+    const liste = (g.iles || []).map((i) => {
+      const c = i.commu ? commuGuerre(i.commu) : null;
+      const votes = Number(m.votes?.[i.id]) || 0;
+      const p = places.find((x) => x.id === i.id);
+      const e = el("button", {
+        type: "button", class: `gu-etiquette${i.port ? " port" : ""}${c ? " tenue" : ""}${i.id === guerreIle ? " choisie" : ""}${i.id === m.vote ? " mon-vote" : ""}`,
+        style: `${c ? c.style : ""}${carteGuerre.type === "2d" && p ? `;--x:${p.x};--z:${p.z}` : ""}`,
+        "data-ile": i.id, title: i.nom, onclick: () => choisirIleGuerre(i.id),
+        "aria-label": `${i.nom} : ${i.port ? `le port de ${c?.nom || ""}, imprenable` : `${c ? `tenue par ${c.nom}` : "libre"}, ${nombre(i.garnison)} troupes`}${i.bonus ? ", +10 % de troupes" : ""}${votes ? `, ${pluriel(votes, "vote")} de ta commu` : ""}`,
+      },
+      el("span", { class: "gu-et-nom", text: i.port ? (c?.nom || "Port") : nomCourtIle(i.nom) }),
+      i.port ? null : el("b", { class: "gu-et-garnison", text: nombre(i.garnison) }),
+      i.bonus ? el("span", { class: "gu-et-bonus", title: "+10 % de troupes pour la commu qui la tient", text: "+10 %" }) : null,
+      votes ? el("span", { class: "gu-et-votes", text: `🗳 ${votes}` }) : null);
+      return e;
+    });
+    vider(couche, ...liste);
+    if (carteGuerre.type === "3d") {
+      carteGuerre.etiquettes.clear();
+      for (const e of liste) carteGuerre.etiquettes.set(e.dataset.ile, e);
+    }
+  }
+  function placerEtiquettesGuerre(positions, etiquettes) {
+    const L = $("gu-plateau")?.clientWidth || 0;
+    for (const p of positions) {
+      const e = etiquettes.get(p.id);
+      if (!e) continue;
+      // une étiquette au bord de la carte reste entière (elle glisse un peu vers l'intérieur)
+      const w = (e._largeur ||= e.offsetWidth || 0);
+      const x = L && w ? Math.min(Math.max(p.x, w / 2 + 4), L - w / 2 - 4) : p.x;
+      const t = `translate(${Math.round(x)}px, ${Math.round(p.y)}px)`;
+      if (e.dataset.t !== t) { e.dataset.t = t; e.style.transform = `${t} translate(-50%, -100%)`; }
+      e.hidden = !p.visible;
+    }
+  }
+  function survolGuerre(id) {
+    for (const e of $("gu-etiquettes")?.children || []) e.classList.toggle("survol", e.dataset.ile === id);
+  }
+  function choisirIleGuerre(id) {
+    guerreIle = guerreIle === id ? "" : id;
+    const g = infosGuerre();
+    if (!g) return;
+    rendreGuerre();
+    if (guerreIle) $("gu-info")?.scrollIntoView?.({ block: "nearest", behavior: reduit.matches ? "auto" : "smooth" });
+  }
+
+  // ---------- le bandeau : la phase en grand et le compte à rebours ----------
+  function phaseGuerre(g) {
+    if (g.phase === "bientot") return { cle: "bientot", titre: "Bientôt", libelle: "La carte se dévoile dans", cible: g.ouverture };
+    if (g.phase === "annonce") return { cle: "annonce", titre: "Aux armes", libelle: "La guerre commence dans", cible: g.debut };
+    if (g.phase === "en-cours") return { cle: "en-cours", titre: g.bataille >= g.batailles ? "Dernière bataille" : `Bataille ${g.bataille} sur ${g.batailles}`, libelle: "Bataille dans", cible: g.prochaine };
+    const r = g.fini?.gagnant ? commuGuerre(g.fini.gagnant).nom : "";
+    return { cle: "fini", titre: r ? `${r} règne` : "La paix revient", libelle: "", cible: 0 };
+  }
+  function texteRebours(cible) {
+    const r = Math.max(0, cible - Date.now());
+    const j = Math.floor(r / 86_400_000), h = Math.floor(r / 3_600_000) % 24, m = Math.floor(r / 60_000) % 60, s = Math.floor(r / 1000) % 60;
+    return `${j ? `${j} j ` : ""}${String(h).padStart(2, "0")} h ${String(m).padStart(2, "0")} min ${String(s).padStart(2, "0")} s`;
+  }
+  function banniereGuerre(g) {
+    const p = phaseGuerre(g);
+    return el("div", { class: `gu-banniere phase-${p.cle}` },
+      el("p", { class: "gu-etat" }, el("b", { text: `Saison ${nombre(g.saison)}` }), ` · ${datesGuerre(g)} · une bataille chaque soir à ${g.heure || "21 h"}`),
+      el("p", { class: "gu-grand", text: p.titre }),
+      p.cible > Date.now() ? el("p", { class: "gu-rebours", role: "timer", "data-cible": String(p.cible), "aria-label": `${p.libelle} ${dureeCourte(p.cible)}` },
+        el("span", { class: "gu-rebours-libelle", text: p.libelle }), el("b", { class: "gu-rebours-temps", "aria-hidden": "true", text: texteRebours(p.cible) })) : null,
+      g.phase === "bientot" ? el("p", { class: "gu-quand", text: `La carte se dévoile le ${momentGuerre(g.ouverture)}. Ensuite, on s'engage pour son équipage et la guerre commence le ${jourGuerre(g.debut)}.` }) : null);
+  }
+  let minuteurReboursGuerre = null;
+  function suivreReboursGuerre() {
+    clearInterval(minuteurReboursGuerre);
+    minuteurReboursGuerre = setInterval(() => {
+      if (document.hidden || !guerreVue) return;
+      for (const r of document.querySelectorAll(".gu-rebours[data-cible]")) {
+        const cible = Number(r.dataset.cible);
+        if (cible <= Date.now()) { clearInterval(minuteurReboursGuerre); setTimeout(charger, 2500); return; }
+        const t = r.querySelector(".gu-rebours-temps");
+        if (t) t.textContent = texteRebours(cible);
+      }
+    }, 1000);
+  }
+
+  // ---------- l'île choisie ----------
+  function infoIleGuerre(g) {
+    const i = ileGuerre(g, guerreIle);
+    if (!i) return el("p", { class: "gu-astuce", text: "Clique sur une île de la carte pour voir qui la tient et voter." });
+    const m = g.moi || {};
+    const c = i.commu ? commuGuerre(i.commu) : null;
+    const mienne = Boolean(m.engage && i.commu === m.commu);
+    const votes = Number(m.votes?.[i.id]) || 0;
+    const ouvert = g.phase === "annonce" || g.phase === "en-cours";
+    let action = null;
+    if (i.port) action = el("p", { class: "note", text: `Le port de ${c?.nom || "sa commu"} : imprenable. Les troupes partent d'ici.` });
+    else if (!ouvert) action = null;
+    else if (!moi?.connecte) action = el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Se connecter pour voter" });
+    else if (!m.engage) action = el("p", { class: "note", text: "Engage-toi pour ton équipage (juste en dessous) pour voter." });
+    else if (m.vote === i.id) action = el("div", { class: "gu-vote-fait" }, el("p", { class: "gu-ok", text: `✓ Ton vote : ce soir, ${mienne ? "on la renforce" : "on l'attaque"}.` }), el("button", { class: "lien-discret", type: "button", disabled: guerreOccupe, onclick: () => agirGuerre("guerre-voter", { ile: "" }), text: "Retirer mon vote" }));
+    else action = el("button", { class: "btn btn-plein btn-petit", type: "button", disabled: guerreOccupe, onclick: () => agirGuerre("guerre-voter", { ile: i.id }), text: mienne ? "Voter pour la renforcer" : "Voter pour l'attaquer" });
+    return el("div", { class: "gu-ile", style: c ? c.style : null },
+      el("button", { class: "gu-fermer", type: "button", "aria-label": "Fermer", onclick: () => choisirIleGuerre(guerreIle), text: "✕" }),
+      el("p", { class: "gu-ile-sur", text: i.port ? "Port" : i.bonus ? "Île bonus · +10 % de troupes" : "Île" }),
+      el("h3", { class: "gu-ile-nom", text: i.nom }),
+      i.port ? null : el("p", { class: "gu-ile-tient" }, c ? [drapeauGuerre(c, 28), " Tenue par ", el("b", { text: c.nom })] : "Libre : personne ne la tient encore."),
+      i.port ? null : el("p", { class: "gu-ile-garnison" }, el("b", { text: nombre(i.garnison) }), " troupes la gardent"),
+      i.bonus && !i.port ? el("p", { class: "note", text: "La commu qui la tient a 10 % de troupes en plus à chaque bataille." }) : null,
+      m.engage && !i.port && ouvert ? el("p", { class: "gu-ile-votes", text: votes ? `${pluriel(votes, "vote")} de ta commu pour cette île` : "Pas encore de vote de ta commu ici" }) : null,
+      action);
+  }
+
+  // ---------- son camp : s'engager, ses troupes du jour, son vote ----------
+  function moiGuerre(g) {
+    if (g.phase === "bientot") return null; // (le bandeau dit déjà quand la carte se dévoile)
+    if (!moi?.connecte) return el("div", { class: "gu-moi-bloc" }, el("p", { text: "Connecte-toi avec Discord pour t'engager pour ton équipage." }), el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter" }));
+    const m = g.moi;
+    if (!m) return el("p", { class: "note", role: "status", text: "On regarde ton camp…" });
+    const titres = (m.titres || []).length ? el("p", { class: "gu-titres" }, (m.titres || []).map((t) => el("span", { class: "gu-titre", text: `👑 ${t}` }))) : null;
+    if (g.phase === "fini") return el("div", { class: "gu-moi-bloc" }, titres || el("p", { class: "note", text: "La saison est finie : merci à tous les soldats ! Rendez-vous à la prochaine." }));
+    if (!m.engage) {
+      if (!m.commu) {
+        return el("div", { class: "gu-moi-bloc" },
+          el("p", { text: "Tu es sur plusieurs Discord de la flotte : choisis d'abord ton équipage dans GRAND LINE, puis reviens t'engager." }),
+          el("a", { class: "btn btn-contour btn-petit", href: "#grandline", text: "Choisir mon équipage" }), titres);
+      }
+      const c = commuGuerre(m.commu, m.nomCommu);
+      return el("div", { class: "gu-moi-bloc", style: c.style },
+        el("p", {}, "Tu te battras pour ", el("b", { text: c.nom }), " : l'équipage pour lequel tu rames sur GRAND LINE."),
+        el("button", { class: "btn btn-plein", type: "button", disabled: guerreOccupe || !m.peutEngager, onclick: () => agirGuerre("guerre-engager"), text: g.phase === "en-cours" ? "Je m'engage (ça compte tout de suite)" : "Je m'engage" }),
+        el("p", { class: "note", text: "Engagé, tes games LoL et VALORANT (comptes reliés), ton temps sur les lives des capitaines (Twitch relié), tes messages sur les Discord de la flotte (comptés, jamais lus) et tes parties des jeux du site font des troupes pour ta commu. Une fois la guerre lancée, on ne change plus de camp." }),
+        titres);
+    }
+    const c = commuGuerre(m.commu, m.nomCommu);
+    const t = m.troupes || { total: 0 };
+    const r = g.regles || {};
+    const plafond = Number(r.plafond) || 200;
+    const sources = [["partie", "Parties"], ["live", "Live"], ["message", "Messages"], ["jeu", "Jeux du site"]].filter(([k]) => t[k]).map(([k, n]) => `${n} ${nombre(t[k])}`).join(" · ");
+    const vote = ileGuerre(g, m.vote);
+    return el("div", { class: "gu-moi-bloc engage", style: c.style },
+      el("p", { class: "gu-engage" }, drapeauGuerre(c, 32), " Engagé pour ", el("b", { text: c.nom })),
+      m.capitaineEnLive && g.phase === "en-cours" ? el("p", { class: "gu-x2", role: "status", text: "🔴 Ton capitaine est en live : tes troupes comptent double !" }) : null,
+      g.phase === "en-cours" ? el("div", { class: "gu-mes-troupes" },
+        el("p", {}, "Tes troupes du jour : ", el("b", { text: `${nombre(t.total)} / ${nombre(plafond)}` })),
+        el("span", { class: "gu-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.min(100, Math.round((Number(t.total) / plafond) * 100))}%` })),
+        sources ? el("p", { class: "note", text: sources }) : el("p", { class: "note", text: "Pas encore de troupes aujourd'hui : une game, un passage sur un live ou une partie du site, et c'est parti." }),
+        m.rang ? el("p", { class: "note", text: `Tu es ${m.rang === 1 ? "1er" : `${m.rang}e`} de ta commu aujourd'hui${m.compte ? " : tes troupes partent à la bataille ce soir." : ` : seuls les ${r.meilleurs || 10} meilleurs comptent, encore un effort !`}` }) : null) : null,
+      el("p", { class: "gu-mon-vote" }, vote ? ["Ton vote : ", el("b", { text: vote.nom })] : g.phase === "annonce" ? "Tu peux déjà voter pour la 1re bataille : clique sur une île." : "Tu n'as pas encore voté ce soir : clique sur une île."),
+      m.peutQuitter ? el("button", { class: "lien-discret", type: "button", disabled: guerreOccupe, onclick: () => agirGuerre("guerre-quitter"), text: "Ne plus m'engager" }) : null,
+      titres);
+  }
+
+  // ---------- les armées du jour, les îles de chaque commu ----------
+  function armeesGuerre(g) {
+    const l = [...(g.commus || [])];
+    if (!l.length) return null;
+    const enCours = g.phase === "en-cours";
+    const max = Math.max(1, ...l.map((x) => Number(enCours ? x.armee : x.garnison) || 0));
+    const mienne = g.moi?.engage ? g.moi.commu : "";
+    const titre = enCours ? "Les armées du jour (elles partent à 21 h)" : g.phase === "fini" ? "Les commus à la fin" : "Les commus de la flotte";
+    return el("div", { class: "gu-armees" },
+      el("p", { class: "gu-titre-bloc", text: titre }),
+      el("ol", { class: "gu-liste", "aria-label": titre }, l.map((x) => {
+        const c = commuGuerre(x.id, x.nom);
+        const sous = [pluriel(Number(x.iles) || 0, "île"), x.bonus ? `${pluriel(x.bonus, "île bonus")}` : "", pluriel(Number(x.engages) || 0, "engagé"), enCours && x.actifs ? `${pluriel(x.actifs, "actif")} aujourd'hui` : "", x.id === mienne ? "ta commu" : ""].filter(Boolean).join(" · ");
+        const v = Number(enCours ? x.armee : x.garnison) || 0;
+        return el("li", { class: `gu-commu${x.id === mienne ? " gu-moi" : ""}`, style: c.style },
+          drapeauGuerre(c, 40),
+          el("span", { class: "gu-nom" }, el("b", { text: c.nom }), el("small", { text: sous })),
+          x.live ? el("span", { class: "gu-live", title: "Son capitaine est en live : ses troupes comptent double", text: "🔴 ×2" }) : null,
+          el("span", { class: "gu-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round((v / max) * 100)}%` })),
+          el("b", { class: "gu-chiffre", text: enCours ? `${nombre(v)} troupes` : `${nombre(v)} en garnison` }));
+      })));
+  }
+
+  // ---------- le journal des batailles (sans aucun nom de joueur) ----------
+  function journalGuerre(g) {
+    const l = g.journal || [];
+    if (!l.length) return null;
+    const ligne = (y) => {
+      const de = (id) => commuGuerre(id).nom;
+      if (y.prise) return el("li", { class: "prise", style: commuGuerre(y.apres.commu).style }, "🏴 ", el("b", { text: de(y.apres.commu) }), " prend ", el("b", { text: y.nom }), y.avant.commu ? ` à ${de(y.avant.commu)}` : "", ` (${nombre(y.apres.garnison)} restent)`);
+      if (y.attaques?.length) return el("li", {}, "🛡️ ", el("b", { text: y.nom }), ` tient face à ${y.attaques.map((a) => de(a.commu)).join(" et ")} (garnison ${nombre(y.apres.garnison)})`);
+      if (y.renfort) return el("li", {}, "🧱 ", el("b", { text: de(y.apres.commu) }), " renforce ", el("b", { text: y.nom }), ` (+${nombre(y.renfort)})`);
+      return null;
+    };
+    const bataille = (b, ouverte) => el("details", { class: "gu-bataille", open: ouverte || null },
+      el("summary", {}, el("b", { text: `Bataille ${b.n}` }), ` · ${jourGuerre(b.t)}`),
+      el("ul", {}, (b.iles || []).map(ligne).filter(Boolean).length ? (b.iles || []).map(ligne) : el("li", { text: "Pas de troupes ce soir-là : la mer est restée calme." })));
+    return el("div", { class: "gu-journal" },
+      el("p", { class: "gu-titre-bloc", text: "Le journal des batailles" }),
+      l.slice(0, 7).map((b, k) => bataille(b, k === 0)));
+  }
+
+  // ---------- la fin : la commu qui règne ----------
+  function finGuerre(g) {
+    if (g.phase !== "fini" || !g.fini) return null;
+    const c = g.fini.classement || [];
+    if (!g.fini.gagnant) return el("p", { class: "gu-quand", text: "Aucune commu n'a gardé d'île : personne ne règne cette fois." });
+    const r = commuGuerre(g.fini.gagnant);
+    return el("div", { class: "gu-fin", style: r.style },
+      el("span", { class: "gu-couronne", "aria-hidden": "true", text: "👑" }),
+      drapeauGuerre(r, 88),
+      el("p", { class: "gu-fin-titre" }, el("b", { text: r.nom }), " règne sur GRAND LINE !"),
+      el("p", { class: "note", text: `Une couronne sur son navire jusqu'à la fin de la saison suivante, ${nombre(g.regles?.milles || 500)} milles, et le titre « Conquérant · saison ${g.saison} » pour ses soldats.` }),
+      el("ol", { class: "gu-classement" }, c.map((x, k) => el("li", { style: commuGuerre(x.id, x.nom).style }, el("span", { text: String(k + 1) }), el("b", { text: commuGuerre(x.id, x.nom).nom }), ` · ${pluriel(x.iles, "île")}`))),
+      c[1] && c[1].iles === c[0].iles ? el("p", { class: "note", text: "À égalité d'îles, c'est la plus grosse garnison qui l'emporte." }) : null);
+  }
+
+  // ---------- les règles ----------
+  function reglesGuerre(g) {
+    const r = g.regles || {};
+    const p = r.partie || {};
+    return el("details", { class: "gu-regles", open: g.phase === "bientot" || null },
+      el("summary", { text: "Comment ça marche" }),
+      el("ul", {},
+        el("li", { text: "On s'engage sur le site pour l'équipage pour lequel on rame dans GRAND LINE. Une fois la guerre lancée, on ne change plus de camp." }),
+        el("li", { text: "La carte : un port par commu (imprenable) et 9 îles à prendre. Le Jardin de Cristal, l'Île des Géants Endormis et la Forteresse des Corsaires donnent +10 % de troupes à la commu qui les tient." }),
+        el("li", { text: `Tes troupes du jour (de 21 h à 21 h) : une game LoL ou VALORANT notée (S+ ${p["S+"] || 50}, S ${p.S || 45}, A ${p.A || 40}, B ${p.B || 35}, C ${p.C || 30}, D ${p.D || 25}), ${r.live || 5} par tranche de 5 min sur le live d'un capitaine (${r.liveMax || 120} au plus), ${r.message || 1} par message sur un Discord de la flotte (${r.messageMax || 40} au plus), ${r.jeu || 10} par partie des jeux du site (${r.jeuMax || 50} au plus).` }),
+        el("li", { text: `Tout compte double pendant le live du capitaine de ta commu. ${nombre(r.plafond || 200)} troupes au plus par joueur et par jour.` }),
+        el("li", { text: `L'armée d'une commu : ses ${r.meilleurs || 10} meilleurs joueurs du jour. Une petite commu bien motivée peut battre une grosse.` }),
+        el("li", { text: "Le vote : chacun vote pour l'île à attaquer, ou à renforcer si elle est à sa commu. À 21 h, toute l'armée y va. Sans vote, elle renforce son île la plus faible." }),
+        el("li", { text: "La bataille : les attaquants se battent d'abord entre eux ; ce qui reste prend l'île s'il dépasse la garnison. Sinon, la garnison perd la moitié de l'attaque. À égalité, le défenseur garde l'île." }),
+        el("li", { text: `La fin : la commu qui tient le plus d'îles règne. Couronne sur son navire, ${nombre(r.milles || 500)} milles sur GRAND LINE, le rôle Conquérants sur le Discord Barhaw et le titre « Conquérant » sur le site.` }),
+        el("li", { text: "Sur la carte, personne ne voit les votes des autres commus. Pas de paris, pas de MMR : juste la commu." })));
+  }
+
+  // ---------- la partie ----------
+  function squeletteGuerre(z) {
+    if ($("gu-scene")) return;
+    vider(z,
+      el("div", { id: "gu-banniere" }),
+      el("div", { class: "gu-scene", id: "gu-scene" },
+        el("div", { class: "gu-plateau", id: "gu-plateau" }, el("p", { class: "gu-attente", text: "La carte se déplie…" })),
+        el("div", { class: "gu-etiquettes", id: "gu-etiquettes" })),
+      // sous la carte : ce que veulent dire les étiquettes, et le bouton 2D / 3D
+      el("div", { class: "gu-sous-carte", id: "gu-sous-carte" },
+        el("ul", { class: "gu-legende", "aria-label": "La légende de la carte" },
+          el("li", {}, el("i", { class: "gu-pastille libre", "aria-hidden": "true" }), "libre"),
+          el("li", {}, el("i", { class: "gu-pastille", "aria-hidden": "true" }), "tenue (aux couleurs de la commu)"),
+          el("li", {}, el("b", { class: "gu-et-bonus", text: "+10 %" }), "île bonus"),
+          el("li", {}, el("b", { class: "gu-et-votes", text: "🗳" }), "votes de ta commu"),
+          el("li", {}, el("i", { class: "gu-pastille vote", "aria-hidden": "true" }), "ton vote")),
+        el("button", { class: "gu-bascule btn btn-contour btn-petit", id: "gu-bascule", type: "button", hidden: true, onclick: () => basculerCarteGuerre() })),
+      el("div", { class: "gu-grille" },
+        el("div", { class: "gu-info", id: "gu-info", "aria-live": "polite" }),
+        el("div", { class: "gu-moi", id: "gu-moi", "aria-live": "polite" })),
+      el("div", { id: "gu-message" }),
+      el("div", { id: "gu-fin" }),
+      el("div", { id: "gu-armees" }),
+      el("div", { id: "gu-journal" }),
+      el("div", { id: "gu-regles" }));
+    // la carte suit la taille de la partie ; elle ne bouge que quand on la voit
+    if ("ResizeObserver" in window) new ResizeObserver(() => tailleCarteGuerre()).observe($("gu-plateau"));
+    const section = $("guerre");
+    if (section && "IntersectionObserver" in window) {
+      new IntersectionObserver((e) => {
+        const vu = e.some((x) => x.isIntersecting);
+        guerreVue = vu;
+        if (vu) {
+          const g = infosGuerre();
+          if (g && g.phase !== "bientot") preparerCarteGuerre(g);
+          carteGuerre?.rendu.demarrer?.();
+          suivreReboursGuerre();
+        } else carteGuerre?.rendu.arreter?.();
+      }, { rootMargin: "300px 0px" }).observe(section);
+    } else guerreVue = true;
+  }
+  function rendreZone(id, cle, fabrique) {
+    const z = $(id);
+    if (!z || sigGuerre[id] === cle) return;
+    sigGuerre[id] = cle;
+    vider(z, fabrique());
+  }
+  function rendreGuerre() {
+    const section = $("guerre"), z = $("guerre-carte");
+    const g = infosGuerre();
+    if (!section || !z) return;
+    section.hidden = !g || !document.documentElement.classList.contains("v4");
+    const pastille = $("pastille-guerre");
+    if (pastille) pastille.hidden = g?.phase !== "en-cours";
+    if (!g || section.hidden) return;
+    // connecté : on demande au bot son camp et ses troupes (toutes les 2 minutes pendant la guerre, une fois l'heure sinon)
+    if (guerrePhase && g.phase !== guerrePhase) guerreMessage = null;
+    if (moi?.connecte && g.phase !== "bientot" && (!guerreDemande || g.phase !== guerrePhase || Date.now() - guerreDemande > (g.phase === "en-cours" && guerreVue ? 120_000 : 3_600_000))) { guerreDemande = Date.now(); guerrePhase = g.phase; agirGuerre("guerre"); }
+    squeletteGuerre(z);
+    z.dataset.phase = g.phase;
+    $("gu-scene").hidden = g.phase === "bientot";
+    $("gu-sous-carte").hidden = g.phase === "bientot";
+    rendreZone("gu-banniere", JSON.stringify([g.phase, g.saison, g.debut, g.fin, g.ouverture, g.bataille, g.prochaine, g.fini?.gagnant]), () => banniereGuerre(g));
+    if (g.phase !== "bientot") {
+      if (guerreVue) preparerCarteGuerre(g);
+      if (carteGuerre) {
+        if (carteGuerre.type === "3d") carteGuerre.rendu.maj(donnees3DGuerre(g));
+        else carteGuerre.rendu.maj(g);
+        rendreEtiquettesGuerre(g);
+      }
+    }
+    rendreZone("gu-info", JSON.stringify([g.phase === "bientot" ? 0 : 1, guerreIle, ileGuerre(g, guerreIle), g.moi?.vote, g.moi?.votes?.[guerreIle], g.moi?.engage, g.moi?.commu, Boolean(moi?.connecte), guerreOccupe]), () => (g.phase === "bientot" ? null : infoIleGuerre(g)));
+    rendreZone("gu-moi", JSON.stringify([g.phase, g.moi, Boolean(moi?.connecte), guerreOccupe, (g.iles || []).find((i) => i.id === g.moi?.vote)?.nom]), () => moiGuerre(g));
+    rendreZone("gu-message", JSON.stringify(guerreMessage), () => (guerreMessage ? el("p", { class: guerreMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: guerreMessage.texte }) : null));
+    rendreZone("gu-fin", JSON.stringify([g.phase, g.fini]), () => finGuerre(g));
+    rendreZone("gu-armees", JSON.stringify([g.phase, g.commus, g.moi?.engage, g.moi?.commu]), () => (g.phase === "bientot" ? null : armeesGuerre(g)));
+    rendreZone("gu-journal", JSON.stringify(g.journal?.map((b) => b.n)), () => journalGuerre(g));
+    rendreZone("gu-regles", JSON.stringify([g.phase === "bientot", g.regles]), () => reglesGuerre(g));
+    if (guerreVue) suivreReboursGuerre();
+  }
+  async function agirGuerre(action, extra = {}) {
+    if (guerreOccupe) return;
+    guerreOccupe = true;
+    if (action !== "guerre") { guerreMessage = null; rendreGuerre(); }
+    let d = {};
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      d = await r.json().catch(() => ({}));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+    } catch { d = { erreur: "reseau", texte: "Impossible de joindre le bot. Vérifie ta connexion." }; }
+    guerreOccupe = false;
+    if (d.guerre) maGuerre = d.guerre;
+    const g = infosGuerre();
+    if (d.erreur && action !== "guerre") guerreMessage = { texte: d.texte || (typeof d.erreur === "string" && d.erreur.length > 12 ? d.erreur : "Ça n'a pas marché, réessaie."), erreur: true };
+    else if (action === "guerre-engager" && d.ok) guerreMessage = { texte: g?.phase === "en-cours" ? "Engagé ! Tes troupes comptent dès maintenant. Vote pour l'île de ce soir." : `Engagé ! La guerre commence le ${jourGuerre(g?.debut || Date.now())}. Tu peux déjà voter pour la 1re bataille.` };
+    else if (action === "guerre-quitter" && d.ok) guerreMessage = { texte: "Tu n'es plus engagé." };
+    else if (action === "guerre-voter" && d.ok) guerreMessage = { texte: extra.ile ? `Vote enregistré : ${ileGuerre(g, extra.ile)?.nom || "l'île"}, ce soir à ${g?.heure || "21 h"}.` : "Vote retiré." };
+    rendreGuerre();
+  }
   async function demanderFideles(action) {
     try {
       const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
@@ -8900,6 +9435,7 @@
     rendreActions();
     rendreClassementJeu();
     rendreBahriot();
+    rendreGuerre();
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
     chargerMesJeux();
