@@ -58,6 +58,7 @@
   </a>
   <nav class="nav" id="nav" aria-label="Sections du site">
     <a href="#accueil" data-lien="accueil" class="nav-accueil">Accueil</a>
+    <a href="#calendrier" data-lien="calendrier" id="lien-calendrier" hidden>Calendrier <span class="compteur" id="pastille-calendrier" hidden>🎁</span></a>
     <a href="#evenements" data-lien="evenements">Events</a>
     <a href="#grandline" data-lien="grandline">GRAND LINE <span class="compteur compteur-v3" id="pastille-grandline" title="Ouvre avec la V3, samedi 31 octobre à 21 h">V3</span></a>
       <a href="#guerre" data-lien="guerre" class="vf-seul">Guerre des commus <span class="pastille-live" id="pastille-guerre" hidden>Live</span></a>
@@ -142,6 +143,17 @@
   </section>
 
   <div class="raccourcis" id="maintenant" aria-label="En ce moment"></div>
+
+  <!-- ===================== LE CALENDRIER DE LA VF (du 1er au 22 décembre 2026) ===================== -->
+  <section id="calendrier" data-section aria-labelledby="titre-calendrier" hidden>
+    <span class="kanji" aria-hidden="true">暦</span>
+    <div class="entete-section">
+      <p class="surtitre revele">Du 1er au 22 décembre · une case par jour</p>
+      <h2 class="titre-section revele" id="titre-calendrier">Le Calendrier <span class="degrade">de la VF.</span></h2>
+      <p class="sous revele">Chaque jour, une case s'ouvre : un cadeau pour toi, et un bout de ce qui arrive avec la VF 1.0. La dernière s'ouvre le 22 décembre à 21 h 30, à la sortie.</p>
+    </div>
+    <div class="cal revele" id="cal"></div>
+  </section>
 
   <!-- ===================== ÉVÉNEMENTS ===================== -->
   <section id="evenements" data-section aria-labelledby="titre-evenements">

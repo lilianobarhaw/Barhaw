@@ -4382,3 +4382,213 @@ html.mer-plein, html.mer-plein body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .mer-compte.bat, .mer-fil li { animation: none; }
 }
+
+/* ---------- le Calendrier de la VF : une planche de manga de 22 cases (du 1er au 22 décembre) ---------- */
+.cal { display: grid; gap: 16px; }
+.cal-bandeau { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding: 12px 14px 12px 18px; border-radius: 16px; background: var(--panneau); border: 1px solid var(--ligne); }
+.cal-bandeau p { margin: 0; font-size: 15px; line-height: 1.45; }
+.cal-bandeau b { font-family: var(--fort); font-weight: 800; }
+.cal-bandeau p > span { color: var(--brume); }
+.cal-score b { font-size: 18px; color: #fff; }
+.cal-note { text-align: center; }
+
+.cal-planche {
+  --gouttiere: clamp(7px, 0.9vw, 11px);
+  position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: clamp(104px, 11.2vw, 148px);
+  gap: var(--gouttiere); padding: calc(var(--gouttiere) * 1.7);
+  background: var(--papier); border: 3px solid var(--encre); border-radius: 6px;
+  box-shadow: 8px 9px 0 var(--violet), 0 34px 60px -34px rgba(0, 0, 0, 0.85);
+}
+.cal-case {
+  position: relative; overflow: hidden; isolation: isolate; container-type: size;
+  grid-column: var(--c) / span var(--l); grid-row: var(--r) / span var(--h);
+  display: block; min-width: 0; margin: 0; padding: 0;
+  border: 3px solid var(--encre); border-radius: 3px; background: #fff; color: var(--encre);
+  font: inherit; text-align: left; -webkit-tap-highlight-color: transparent;
+}
+button.cal-case { cursor: pointer; appearance: none; }
+button.cal-case:focus-visible { outline: 3px solid var(--rose); outline-offset: 3px; }
+
+/* le grand chiffre en kanji, en contour derrière la case */
+.cal-kanji {
+  position: absolute; inset: 0; z-index: 0; display: grid; place-items: center; pointer-events: none; user-select: none;
+  font-family: var(--sfx); font-size: min(70cqh, 62cqw); line-height: 0.95; white-space: nowrap;
+  color: transparent; -webkit-text-stroke: 1.5px rgba(18, 5, 13, 0.24);
+}
+.n11 .cal-kanji, .n12 .cal-kanji, .n13 .cal-kanji, .n14 .cal-kanji, .n15 .cal-kanji, .n16 .cal-kanji, .n17 .cal-kanji, .n18 .cal-kanji, .n19 .cal-kanji, .n20 .cal-kanji { font-size: min(52cqh, 40cqw); }
+.n21 .cal-kanji, .n22 .cal-kanji { font-size: min(40cqh, 28cqw); }
+.cal-num {
+  position: absolute; left: 6px; top: 6px; z-index: 2; min-width: 30px; height: 30px; padding: 0 8px; display: grid; place-items: center;
+  border-radius: 99px; background: var(--encre); color: var(--papier); box-shadow: 2px 2px 0 var(--rose);
+  font-family: var(--titre); font-size: 16px; line-height: 1;
+}
+.cal-date { position: absolute; left: 8px; bottom: 6px; z-index: 2; font-family: var(--fort); font-weight: 800; font-size: 12px; line-height: 1.2; }
+/* le sceau 封 (« scellé »), tamponné à l'encre rouge */
+.cal-sceau { position: absolute; right: 7px; top: 7px; z-index: 2; width: 28px; height: 28px; display: grid; place-items: center; border: 2px solid #e8123f; border-radius: 6px; background: rgba(255, 255, 255, 0.55); color: #e8123f; font-family: var(--sfx); font-size: 16px; line-height: 1; rotate: -9deg; opacity: 0.72; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
+.cal-bientot { position: absolute; right: 6px; bottom: 6px; z-index: 2; max-width: calc(100% - 12px); padding: 2px 9px 3px; border-radius: 99px; background: var(--encre); color: #fff; font-family: var(--fort); font-weight: 800; font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-case.fermee .cal-date + .cal-bientot { bottom: 24px; }
+
+/* fermée : la page blanche, une trame en coin */
+.cal-case.fermee { background: #fff9fc; }
+.cal-case.fermee::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(155, 77, 255, 0.4) 1.1px, transparent 1.6px); background-size: 7px 7px;
+  -webkit-mask: radial-gradient(circle at 100% 100%, #000 0, transparent 72%); mask: radial-gradient(circle at 100% 100%, #000 0, transparent 72%);
+}
+.cal-case.fermee.prochaine { background: #fff0f7; }
+.cal-case.fermee.prochaine .cal-kanji { -webkit-text-stroke-color: rgba(255, 79, 154, 0.55); }
+.cal-case.fermee.prochaine::before { background-image: radial-gradient(rgba(255, 79, 154, 0.5) 1.1px, transparent 1.6px); }
+
+/* à ouvrir : la case qui appelle, avec ses lignes de vitesse */
+.cal-case.a-ouvrir { background: var(--degrade); color: #fff; transition: translate 0.25s var(--rebond), rotate 0.25s var(--rebond); }
+.cal-vitesse, .cal-dechire i::before {
+  content: ""; position: absolute; inset: -40%; z-index: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.3) 0deg 0.8deg, transparent 0.8deg 6deg);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 24%, #000 62%); mask: radial-gradient(circle closest-side, transparent 0 24%, #000 62%);
+}
+.cal-vitesse { animation: vibrer 1.1s steps(3) infinite; }
+.cal-case.a-ouvrir .cal-kanji { color: #fff; -webkit-text-stroke: 1.8px var(--encre); text-shadow: 3px 3px 0 var(--encre); }
+.cal-case.a-ouvrir .cal-num { background: #fff; color: var(--encre); box-shadow: 2px 2px 0 var(--encre); }
+.cal-case.a-ouvrir .cal-date { color: #fff; text-shadow: 1px 1px 0 var(--encre), -1px -1px 0 var(--encre), 1px -1px 0 var(--encre), -1px 1px 0 var(--encre); }
+.cal-sticker {
+  position: absolute; right: 6px; top: 7px; z-index: 3; padding: 3px 10px 4px; border-radius: 8px;
+  background: #ffe45c; color: var(--encre); border: 2.5px solid var(--encre); box-shadow: 3px 3px 0 var(--encre);
+  font-family: var(--titre); font-size: 13px; line-height: 1.1; white-space: nowrap; rotate: 6deg;
+}
+.cal-case.a-ouvrir:hover { translate: -2px -3px; rotate: -0.8deg; }
+.cal-case.a-ouvrir.du-jour { z-index: 2; box-shadow: 0 0 0 3px #ffe45c, 0 0 30px 4px rgba(255, 79, 154, 0.75); animation: cal-appel 1.5s ease-in-out infinite; }
+.cal-case.a-ouvrir.du-jour .cal-sticker { animation: trembler 0.32s steps(2) infinite; }
+@keyframes cal-appel { 0%, 100% { scale: 1; } 50% { scale: 1.04; } }
+.cal-sticker .court { display: none; }
+
+/* ouverte : l'image, et la légende en bas comme un cartouche de manga */
+.cal-case.ouverte { background: var(--encre); }
+.cal-img { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; transition: scale 0.6s var(--doux); }
+.cal-case.ouverte:hover .cal-img, .cal-case.ouverte:hover .cal-objet img { scale: 1.07; }
+.cal-objet { position: absolute; inset: 0; z-index: 0; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--fond) 45%, #fff) 0, var(--fond) 72%); }
+.cal-objet::before { content: ""; position: absolute; inset: -40%; background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.32) 0deg 0.9deg, transparent 0.9deg 7deg); }
+.cal-objet img { position: relative; height: 62%; width: auto; max-width: 78%; object-fit: contain; filter: drop-shadow(4px 5px 0 var(--encre)); transition: scale 0.6s var(--doux); }
+.cal-objet b { position: relative; font-size: 40px; }
+.cal-legende {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 7px;
+  padding: 4px 8px 5px 5px; background: var(--papier); border-top: 2.5px solid var(--encre); color: var(--encre);
+  font-family: var(--fort); font-weight: 800; font-size: 12.5px; line-height: 1.25;
+}
+.cal-legende b { flex: none; min-width: 22px; height: 22px; padding: 0 5px; display: grid; place-items: center; border-radius: 99px; background: var(--encre); color: var(--papier); font-family: var(--titre); font-weight: 400; font-size: 12px; }
+.cal-legende span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* une case étroite : le titre sur deux lignes plutôt que coupé */
+.cal-case.ouverte:not(.large):not(.grande) .cal-legende { align-items: flex-start; font-size: 11.5px; }
+.cal-case.ouverte:not(.large):not(.grande) .cal-legende span { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.cal-pris { position: absolute; right: 6px; top: 6px; z-index: 2; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #2bd17e; color: #fff; border: 2.5px solid var(--encre); font-family: var(--fort); font-weight: 800; font-size: 13px; line-height: 1; }
+.cal-pris.a-prendre { background: #ffe45c; font-size: 13px; animation: cal-sautille 1s var(--doux) infinite; }
+@keyframes cal-sautille { 0%, 100% { translate: 0 0; } 40% { translate: 0 -5px; } }
+
+/* la 22e : noir et or, la sortie de la VF */
+.cal-case.derniere.fermee, .cal-case.derniere.a-ouvrir { background: radial-gradient(110% 90% at 50% 0%, #3b1c0e 0, #12050d 62%); color: #ffd36b; box-shadow: inset 0 0 0 3px #12050d, inset 0 0 0 5px #e9b44c; }
+.cal-case.derniere.fermee::before { background-image: radial-gradient(rgba(233, 180, 76, 0.42) 1.1px, transparent 1.6px); -webkit-mask: radial-gradient(circle at 100% 100%, #000 0, transparent 60%); mask: radial-gradient(circle at 100% 100%, #000 0, transparent 60%); }
+.cal-case.derniere.fermee::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(115deg, transparent 38%, rgba(255, 228, 160, 0.16) 50%, transparent 62%) 0 0 / 260% 100%; animation: cal-reflet 4.5s linear infinite; }
+@keyframes cal-reflet { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+.cal-case.derniere .cal-kanji { display: none; }
+.cal-case.derniere.fermee { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(233, 180, 76, 0.1) 0deg 1.2deg, transparent 1.2deg 9deg), radial-gradient(110% 90% at 50% 0%, #3b1c0e 0, #12050d 62%); }
+.cal-case.derniere .cal-sceau { border-color: #e9b44c; color: #e9b44c; background: rgba(18, 5, 13, 0.6); box-shadow: none; opacity: 0.9; }
+.cal-case.derniere .cal-num { background: #e9b44c; color: var(--encre); box-shadow: 2px 2px 0 #6b3a12; }
+.cal-case.derniere .cal-bientot { background: #e9b44c; color: var(--encre); }
+.cal-vf { position: absolute; left: 50%; top: 50%; z-index: 2; translate: -50% -50%; display: grid; justify-items: center; gap: 4px; width: max-content; max-width: 92%; text-align: center; }
+.cal-vf b { font-family: var(--titre); font-weight: 400; font-size: clamp(28px, 4.4vw, 56px); line-height: 1; background: linear-gradient(175deg, #fff8df 0%, #ffd36b 45%, #e39a32 100%); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 1px #3b1c0e; filter: drop-shadow(3px 3px 0 #6b3a12); }
+.cal-vf span { font-family: var(--fort); font-weight: 800; font-size: 12.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #ffe7a8; }
+.cal-case.derniere.a-ouvrir .cal-vitesse { opacity: 0.55; }
+.cal-case.derniere.a-ouvrir.du-jour { box-shadow: inset 0 0 0 3px #12050d, inset 0 0 0 5px #e9b44c, 0 0 0 3px #ffe45c, 0 0 36px 6px rgba(233, 180, 76, 0.7); }
+
+/* l'ouverture : la couverture se déchire en deux, BARI ! */
+.cal-case.s-ouvre { z-index: 3; animation: cal-secoue 0.12s steps(2) 3; }
+@keyframes cal-secoue { 0% { translate: 0 0; } 50% { translate: 2px -2px; } 100% { translate: -2px 1px; } }
+.cal-case.s-ouvre .cal-img, .cal-case.s-ouvre .cal-objet { animation: cal-revele 1s var(--doux) both; }
+@keyframes cal-revele { from { scale: 1.3; filter: brightness(1.9) saturate(0.5); } to { scale: 1; filter: none; } }
+.cal-case.s-ouvre .cal-legende { animation: cal-legende 0.4s var(--doux) 0.75s both; }
+@keyframes cal-legende { from { translate: 0 110%; } to { translate: 0 0; } }
+.cal-dechire { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.cal-dechire i { position: absolute; inset: 0; overflow: hidden; background: var(--degrade); }
+.cal-dechire i::before { animation: none; }
+.cal-dechire i .cal-kanji { z-index: 1; color: #fff; -webkit-text-stroke: 1.8px var(--encre); text-shadow: 3px 3px 0 var(--encre); }
+.cal-dechire .g { clip-path: polygon(0 0, 55% 0, 47% 13%, 56% 27%, 45% 41%, 55% 56%, 44% 70%, 54% 85%, 47% 100%, 0 100%); animation: cal-gauche 0.9s cubic-bezier(0.55, 0, 0.8, 0.2) 0.14s both; }
+.cal-dechire .d { clip-path: polygon(55% 0, 100% 0, 100% 100%, 47% 100%, 54% 85%, 44% 70%, 55% 56%, 45% 41%, 56% 27%, 47% 13%); animation: cal-droite 0.9s cubic-bezier(0.55, 0, 0.8, 0.2) 0.14s both; }
+@keyframes cal-gauche { 0% { transform: none; } 14% { transform: translate(-3px, 1px) rotate(-1.5deg); } 100% { transform: translate(-75%, 36%) rotate(-26deg); opacity: 0; } }
+@keyframes cal-droite { 0% { transform: none; } 14% { transform: translate(3px, -1px) rotate(1.5deg); } 100% { transform: translate(75%, 40%) rotate(24deg); opacity: 0; } }
+.cal-dechire::after { content: ""; position: absolute; inset: 0; z-index: 2; background: #fff; animation: cal-flash 0.55s ease-out 0.1s both; }
+@keyframes cal-flash { 0% { opacity: 0; } 20% { opacity: 0.85; } 100% { opacity: 0; } }
+.cal-sfx {
+  --r: -10deg; position: absolute; left: 50%; top: 46%; z-index: 3; translate: -50% -50%; white-space: nowrap;
+  font-family: var(--sfx); font-weight: 400; font-size: clamp(30px, 18cqw, 64px); line-height: 1;
+  background: linear-gradient(175deg, #ffffff 0%, #fff3a8 40%, #ffb02e 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1.6px var(--encre); filter: drop-shadow(4px 4px 0 var(--encre));
+  animation: cal-sfx 1s var(--rebond) both;
+}
+@keyframes cal-sfx { 0% { opacity: 0; transform: scale(0.3) rotate(var(--r)); } 35% { opacity: 1; transform: scale(1.2) rotate(var(--r)); } 75% { opacity: 1; transform: scale(1) rotate(var(--r)); } 100% { opacity: 0; transform: scale(1.1) rotate(var(--r)); } }
+.cal-case.derniere .cal-dechire i { background: radial-gradient(110% 90% at 50% 0%, #3b1c0e 0, #12050d 62%); }
+.cal-case.derniere .cal-dechire i .cal-kanji { color: #ffd36b; }
+
+/* la case en grand */
+#cal-grand-hote { position: fixed; inset: 0; z-index: 1000; }
+.cal-fond { position: absolute; inset: 0; display: grid; place-items: center; padding: clamp(14px, 3vw, 34px); overflow-y: auto; overscroll-behavior: contain; background: rgba(12, 3, 9, 0.84); backdrop-filter: blur(6px); animation: recit-voile 0.25s ease-out; }
+.cal-grand {
+  position: relative; width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  background: var(--papier); color: var(--encre); border: 3px solid var(--encre); border-radius: 8px;
+  box-shadow: 10px 11px 0 var(--violet); animation: cal-arrive 0.5s var(--rebond) both;
+}
+@keyframes cal-arrive { from { opacity: 0; transform: scale(0.86) rotate(-1.5deg); } to { opacity: 1; transform: none; } }
+.cal-grand-visuel { position: relative; min-height: 360px; overflow: hidden; border-right: 3px solid var(--encre); border-radius: 5px 0 0 5px; background: var(--encre); }
+.cal-grand-visuel .cal-img, .cal-grand-visuel .cal-objet { position: absolute; inset: 0; }
+.cal-grand-visuel .cal-objet img { height: 58%; }
+.cal-grand-num { position: absolute; left: 14px; top: 14px; z-index: 2; min-width: 46px; height: 46px; padding: 0 10px; display: grid; place-items: center; border-radius: 99px; background: var(--encre); color: var(--papier); border: 3px solid var(--papier); box-shadow: 3px 3px 0 var(--rose); font-family: var(--titre); font-size: 22px; line-height: 1; }
+.cal-grand-date { position: absolute; left: 14px; bottom: 14px; z-index: 2; padding: 3px 12px 4px; border-radius: 8px; background: var(--papier); color: var(--encre); border: 2.5px solid var(--encre); box-shadow: 3px 3px 0 var(--encre); font-family: var(--fort); font-weight: 800; font-size: 13px; rotate: -2deg; }
+.cal-grand-texte { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 28px 26px 22px; min-width: 0; }
+.cal-grand-genre { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rose-fonce); }
+.cal-grand-titre { margin: 0; padding-right: 18px; font-family: var(--titre); font-weight: 400; font-size: clamp(25px, 2.8vw, 34px); line-height: 1.1; color: var(--encre); }
+.cal-bulle { position: relative; margin: 8px 0 2px; padding: 14px 16px; border: 2.5px solid var(--encre); border-radius: 18px; background: #fff; box-shadow: 4px 4px 0 var(--rose); font-size: 15.5px; line-height: 1.55; color: var(--encre); }
+.cal-bulle::before { content: ""; position: absolute; left: 26px; top: -10px; width: 16px; height: 16px; rotate: 45deg; background: #fff; border-left: 2.5px solid var(--encre); border-top: 2.5px solid var(--encre); }
+.cal-cadeau { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 11px 12px 11px 14px; border: 2.5px dashed var(--encre); border-radius: 14px; background: #fff6c9; }
+.cal-cadeau.sans-compte .btn { flex: 1 1 100%; text-align: center; white-space: normal; line-height: 1.25; }
+.cal-cadeau p { flex: 1 1 140px; min-width: 0; margin: 0; display: grid; line-height: 1.3; }
+.cal-cadeau p b { font-family: var(--fort); font-weight: 800; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #8a5800; }
+.cal-cadeau p span { font-family: var(--fort); font-weight: 800; font-size: 16px; }
+.cal-cadeau-icone { flex: none; font-size: 28px; line-height: 1; }
+.cal-cadeau .btn { flex: none; }
+.cal-cadeau.pris { border-style: solid; background: #dcfbe8; }
+.cal-cadeau.pris p b { color: #0d7a43; }
+.cal-ok { flex: none; font-family: var(--fort); font-weight: 800; font-size: 13px; color: #0d7a43; white-space: nowrap; }
+.cal-cadeau.vient { animation: cal-pop 0.7s var(--rebond) both; }
+.cal-cadeau.vient .cal-cadeau-icone { animation: cal-sautille 0.6s var(--doux) 3; }
+@keyframes cal-pop { 0% { scale: 0.7; } 60% { scale: 1.06; } 100% { scale: 1; } }
+.cal-grand-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.cal-grand-compte { font-family: var(--fort); font-weight: 800; font-size: 13px; color: #7a5a70; }
+.cal-fermer { position: absolute; right: -16px; top: -16px; z-index: 3; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--encre); color: #fff; border: 3px solid var(--papier); box-shadow: 3px 3px 0 var(--rose); font-size: 17px; line-height: 1; cursor: pointer; }
+.cal-fermer:hover { background: var(--rose-fonce); }
+.cal-grand.derniere { box-shadow: 10px 11px 0 #e9b44c; }
+.cal-grand.derniere .cal-grand-num { background: #e9b44c; color: var(--encre); box-shadow: 3px 3px 0 #6b3a12; }
+.cal-grand.derniere .cal-grand-genre { color: #a8650d; }
+
+@media (max-width: 1000px) {
+  /* une case étroite à ouvrir : l'autocollant passe en bas, à la place de la date */
+  .cal-case.a-ouvrir:not(.large):not(.grande) .cal-sticker { top: auto; left: 0; right: 0; bottom: 8px; width: max-content; margin: 0 auto; rotate: -4deg; }
+  .cal-case.a-ouvrir:not(.large):not(.grande) .cal-date { display: none; }
+  .cal-case.a-ouvrir:not(.large):not(.grande) .cal-sticker .long { display: none; }
+  .cal-case.a-ouvrir:not(.large):not(.grande) .cal-sticker .court { display: inline; }
+}
+@media (max-width: 760px) {
+  .cal-bandeau { padding: 12px 14px; }
+  .cal-planche { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 108px; grid-auto-flow: dense; box-shadow: 6px 7px 0 var(--violet); }
+  .cal-case { grid-column: auto; grid-row: auto; }
+  .cal-case.grande { grid-column: span 2; grid-row: span 2; }
+  .cal-case.large { grid-column: span 2; }
+  .cal-case.haute { grid-row: span 2; }
+  .cal-case.derniere { grid-column: 1 / -1; grid-row: span 2; }
+  .cal-sticker { font-size: 11.5px; padding: 2px 8px 3px; }
+  .cal-grand { grid-template-columns: 1fr; }
+  .cal-grand-visuel { min-height: 0; aspect-ratio: 16 / 10; border-right: 0; border-bottom: 3px solid var(--encre); border-radius: 5px 5px 0 0; }
+  .cal-grand-texte { padding: 18px 16px 16px; gap: 10px; }
+  .cal-fermer { right: 8px; top: 8px; }
+  .cal-grand-nav .btn { padding: 8px 11px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-vitesse, .cal-case.a-ouvrir.du-jour, .cal-case.a-ouvrir.du-jour .cal-sticker, .cal-pris.a-prendre, .cal-case.derniere.fermee::after, .cal-grand, .cal-fond, .cal-cadeau.vient, .cal-cadeau.vient .cal-cadeau-icone { animation: none; }
+}

@@ -400,14 +400,14 @@
   // les mêmes liens (avec leurs pastilles « Live », compteurs…) sont rangés dans 4 rubriques : un menu déroulant en haut
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
-    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "mer", "barhaw-show", "evenements"] },
+    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "mer", "barhaw-show", "evenements", "calendrier"] },
     { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
     chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], mer: ["bouteille", "La course de barques du live"], tournoi: ["trophee", "Le TOURNOI BARHAW"], "barhaw-show": ["micro", "4 équipes, 4 jeux, en février"],
-    evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
+    evenements: ["lanterne", "Ce qui arrive bientôt"], calendrier: ["coffre", "Les cases manquées, jusqu'au 31"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
     faille: ["epees", "Les games de LoL entre potes"], bahriot: ["trophee", "Toute la flotte sur les jeux Riot"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
   };
@@ -7980,6 +7980,7 @@
     rendreMenuVF();
     rendreAccueilVF();
     rendreCaritatif();
+    rendreCalendrier();
     if (!ancreFaite && location.hash.length > 1) setTimeout(retourAncre, 60);
     rendreEscale();
     rendreEntete();
@@ -10286,6 +10287,236 @@
     window.addEventListener("hashchange", () => { if (/^#mer(-|$)/.test(location.hash)) rendreMer(); });
   }
 
+  // ---------- le Calendrier de la VF : du 1er au 22 décembre 2026, une case par jour (le bot : lib/calendrier.js) ----------
+  // Une planche de manga de 22 cases. Chaque jour à minuit (heure de Paris), une case s'ouvre ; la 22e le 22 décembre à
+  // 21 h 30, à la sortie de la VF. Dedans : un aperçu de ce qui arrive avec la VF (une île, un bout de lore, une nouveauté),
+  // que tout le monde voit, et un cadeau pour le membre connecté (des berrys, parfois une carte), donné par le bot une fois
+  // par case. Une case manquée s'ouvre encore les jours suivants, jusqu'au 31 décembre. Le bot ne donne le contenu d'une
+  // case qu'une fois son heure passée : rien n'est dévoilé en avance, même en lisant la page.
+  // donnees.calendrier = { cases: [{ n, le, ouverte, (ouverte :) genre, titre, texte, image | objet + couleur, cadeau: { berrys, carte } }] }
+  // monCal (POST « calendrier ») = { ouvertes: [n…], berrys, cartes }
+  let monCal = null, calOccupe = false, calMessage = null, calDemande = 0, calGrand = 0, calAnime = 0, calRecu = 0, calVue = false;
+  let minuteurCal = null, cleGrandCal = "", fileCal = Promise.resolve();
+  const KANJI_CAL = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十", "二十一", "二十二"];
+  // [colonne, largeur, ligne, hauteur] de chaque case sur la planche (6 colonnes sur 7 lignes, sans trou)
+  const PLANCHE_CAL = [[1, 2, 1, 2], [3, 1, 1, 1], [4, 2, 1, 1], [6, 1, 1, 2], [3, 2, 2, 1], [5, 1, 2, 1], [1, 1, 3, 1], [2, 2, 3, 1], [4, 1, 3, 2], [5, 2, 3, 2], [1, 2, 4, 1], [3, 1, 4, 1], [1, 2, 5, 1], [3, 1, 5, 1], [4, 1, 5, 1], [5, 2, 5, 1], [1, 1, 6, 1], [2, 1, 6, 1], [3, 1, 6, 1], [1, 2, 7, 1], [3, 1, 7, 1], [4, 3, 6, 2]];
+  const SFX_CAL = ["バリッ!", "ドン!", "パッ!", "ジャーン!", "キラッ!", "バーン!"];
+  const IMAGE_CAL = /^\/?img\/[\w/-]{3,80}\.(webp|jpg|png)$/;
+  const OBJET_CAL = (nom) => `/img/objets/${nom}.webp`;
+  const infosCal = () => (Array.isArray(donnees?.calendrier?.cases) ? donnees.calendrier : null);
+  // ce que la page a déjà ouvert sans compte (rien n'est envoyé : c'est seulement pour qu'elles restent ouvertes)
+  const vuesCal = new Set((() => { try { return JSON.parse(localStorage.getItem("barhaw-calendrier") || "[]"); } catch { return []; } })());
+  const priseCal = (n) => Boolean(monCal?.ouvertes?.includes(n));
+  const vueCal = (n) => priseCal(n) || vuesCal.has(n);
+  const fmtJourCal = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" });
+  const jourCal = (t) => fmtJourCal.format(new Date(t)).replace(/\./g, "");
+  function dansCal(t) {
+    const s = Math.max(0, Math.round((t - Date.now()) / 1000));
+    const j = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    return j ? `dans ${j} j ${h} h` : h ? `dans ${h} h ${String(m).padStart(2, "0")}` : m ? `dans ${m} min` : "dans un instant";
+  }
+  // un compte à rebours : le texte autour reste, seul le temps change (toutes les 30 s)
+  const reboursCal = (t, avant = "", apres = "", classe = "") => el("span", { class: classe || null, "data-cal-le": String(t), "data-avant": avant, "data-apres": apres, text: `${avant}${dansCal(t)}${apres}` });
+  function texteCadeau(g) {
+    const morceaux = [];
+    if (g?.berrys) morceaux.push(`${nombre(g.berrys)} berrys`);
+    if (g?.carte) morceaux.push(g.carte > 1 ? `${g.carte} cartes au hasard` : "une carte au hasard");
+    return morceaux.join(" + ") || "une surprise";
+  }
+  // l'image d'une case : une carte postale de GRAND LINE, un décor, ou un objet sur des lignes de vitesse
+  function visuelCal(x, grand = false) {
+    if (x.image && IMAGE_CAL.test(x.image)) return el("img", { class: "cal-img", src: x.image, alt: grand ? x.titre || "" : "", loading: grand ? "eager" : "lazy", decoding: "async" });
+    const fond = /^#[0-9a-f]{6}$/i.test(x.couleur || "") ? x.couleur : "#ff4f9a";
+    if (x.objet && /^[a-z]{3,12}$/.test(x.objet)) return el("span", { class: "cal-objet", style: `--fond:${fond}` }, el("img", { src: OBJET_CAL(x.objet), alt: "", loading: "lazy", decoding: "async" }));
+    return el("span", { class: "cal-objet", style: `--fond:${fond}` }, el("b", { text: "🎁" }));
+  }
+  function caseCal(x, c) {
+    const [col, l, ligne, h] = PLANCHE_CAL[x.n - 1];
+    const derniere = x.n === 22;
+    const style = `--c:${col};--l:${l};--r:${ligne};--h:${h}`;
+    const anime = calAnime === x.n;
+    const forme = l * h >= 4 ? " grande" : l > 1 ? " large" : h > 1 ? " haute" : "";
+    const classe = (etat) => `cal-case n${x.n} ${etat}${derniere ? " derniere" : ""}${forme}`;
+    const numero = el("span", { class: "cal-num", text: String(x.n) });
+    const kanji = el("span", { class: "cal-kanji", "aria-hidden": "true", text: KANJI_CAL[x.n - 1] });
+    // ouverte (ou en train de s'ouvrir) : l'aperçu de la VF, son titre, son cadeau
+    if (x.ouverte && (vueCal(x.n) || anime)) {
+      return el("button", { class: classe(`ouverte${anime ? " s-ouvre" : ""}`), style, type: "button", "aria-label": `Case ${x.n} : ${x.titre || ""}. Voir en grand`, onclick: () => voirCase(x.n) },
+        visuelCal(x),
+        el("span", { class: "cal-legende" }, el("b", { text: String(x.n) }), el("span", { text: x.titre || "" })),
+        priseCal(x.n) ? el("span", { class: "cal-pris", title: "Cadeau récupéré", text: "✓" }) : moi?.connecte ? el("span", { class: "cal-pris a-prendre", title: "Cadeau à récupérer", text: "🎁" }) : null,
+        anime ? el("span", { class: "cal-dechire", "aria-hidden": "true" },
+          el("i", { class: "g" }, el("span", { class: "cal-kanji", text: KANJI_CAL[x.n - 1] })),
+          el("i", { class: "d" }, el("span", { class: "cal-kanji", text: KANJI_CAL[x.n - 1] })),
+          el("b", { class: "cal-sfx", text: SFX_CAL[x.n % SFX_CAL.length] })) : null);
+    }
+    // à ouvrir : la case du jour bat et appelle ; une case manquée attend
+    if (x.ouverte) {
+      const duJour = c.cases.filter((y) => y.ouverte).at(-1)?.n === x.n;
+      return el("button", { class: classe(`a-ouvrir${duJour ? " du-jour" : ""}`), style, type: "button", "aria-label": `Ouvrir la case ${x.n}`, onclick: () => ouvrirCase(x.n) },
+        el("span", { class: "cal-vitesse", "aria-hidden": "true" }),
+        kanji, numero,
+        derniere ? el("span", { class: "cal-vf" }, el("b", { text: "VF 1.0" }), el("span", { text: "C'est l'heure !" })) : el("span", { class: "cal-date", text: jourCal(x.le) }),
+        duJour ? el("span", { class: "cal-sticker" }, el("span", { class: "long", text: "Ouvre-moi !" }), el("span", { class: "court", text: "Ouvre !" })) : el("span", { class: "cal-sticker", text: "À ouvrir" }));
+    }
+    // fermée : la date, et le temps qui reste pour la prochaine
+    const prochaine = c.cases.find((y) => !y.ouverte)?.n === x.n;
+    return el("div", { class: classe(`fermee${prochaine ? " prochaine" : ""}`), style, role: "img", "aria-label": `Case ${x.n} : s'ouvre ${derniere ? "le 22 décembre à 21 h 30" : `le ${jourCal(x.le)}`}` },
+      kanji, numero,
+      derniere ? el("span", { class: "cal-vf" }, el("b", { text: "VF 1.0" }), el("span", { text: "22 déc. · 21 h 30" })) : el("span", { class: "cal-date", text: jourCal(x.le) }),
+      prochaine ? reboursCal(x.le, "🔒 ", "", "cal-bientot") : el("span", { class: "cal-sceau", "aria-hidden": "true", text: "封" }));
+  }
+  // la case en grand : l'image, le texte dans une bulle, le cadeau
+  function grandCal(c) {
+    const ouvertes = c.cases.filter((y) => y.ouverte && vueCal(y.n));
+    const x = ouvertes.find((y) => y.n === calGrand);
+    if (!x) return null;
+    const k = ouvertes.indexOf(x);
+    const fermer = () => voirCase(0);
+    const recu = calRecu === x.n ? " vient" : "";
+    const cadeau = priseCal(x.n)
+      ? el("div", { class: `cal-cadeau pris${recu}` }, el("span", { class: "cal-cadeau-icone", "aria-hidden": "true", text: "🎁" }), el("p", {}, el("b", { text: recu ? "C'est à toi !" : "Ton cadeau" }), el("span", { text: texteCadeau(x.cadeau) })), el("span", { class: "cal-ok", text: "✓ Récupéré" }))
+      : moi?.connecte
+        ? el("div", { class: "cal-cadeau" }, el("span", { class: "cal-cadeau-icone", "aria-hidden": "true", text: "🎁" }), el("p", {}, el("b", { text: "Ton cadeau" }), el("span", { text: texteCadeau(x.cadeau) })), el("button", { class: "btn btn-plein btn-petit", type: "button", disabled: calOccupe, onclick: () => prendreCadeau(x.n), text: calOccupe ? "Un instant…" : "Récupérer" }))
+        : el("div", { class: "cal-cadeau sans-compte" }, el("span", { class: "cal-cadeau-icone", "aria-hidden": "true", text: "🎁" }), el("p", {}, el("b", { text: "Le cadeau" }), el("span", { text: texteCadeau(x.cadeau) })), el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Se connecter avec Discord pour le prendre" }));
+    return el("div", { class: "cal-fond", onclick: (e) => { if (e.target === e.currentTarget) fermer(); } },
+      el("div", { class: `cal-grand${x.n === 22 ? " derniere" : ""}`, role: "dialog", "aria-modal": "true", "aria-labelledby": "cal-grand-titre" },
+        el("div", { class: "cal-grand-visuel" }, visuelCal(x, true), el("span", { class: "cal-grand-num", text: String(x.n) }), el("span", { class: "cal-grand-date", text: x.n === 22 ? "22 déc. · 21 h 30" : jourCal(x.le) })),
+        el("div", { class: "cal-grand-texte" },
+          el("p", { class: "cal-grand-genre", text: x.genre || "La VF 1.0" }),
+          el("h3", { class: "cal-grand-titre", id: "cal-grand-titre", text: x.titre || "" }),
+          el("p", { class: "cal-bulle", text: x.texte || "" }),
+          cadeau,
+          el("div", { class: "cal-grand-nav" },
+            el("button", { class: "btn btn-contour btn-petit", type: "button", disabled: k <= 0, onclick: () => voirCase(ouvertes[k - 1]?.n || x.n), text: "← Celle d'avant" }),
+            el("span", { class: "cal-grand-compte", text: `${k + 1} / ${ouvertes.length}` }),
+            el("button", { class: "btn btn-contour btn-petit", type: "button", disabled: k >= ouvertes.length - 1, onclick: () => voirCase(ouvertes[k + 1]?.n || x.n), text: "La suivante →" }))),
+        el("button", { class: "cal-fermer", type: "button", "aria-label": "Fermer", onclick: fermer, text: "✕" })));
+  }
+  function bandeauCal(c) {
+    const ouvertes = c.cases.filter((y) => y.ouverte);
+    const prochaine = c.cases.find((y) => !y.ouverte);
+    const aOuvrir = ouvertes.filter((y) => !vueCal(y.n)).length;
+    let gauche;
+    if (!ouvertes.length) gauche = el("p", {}, el("b", { text: "⏳ Le calendrier ouvre le 1er décembre à minuit." }), prochaine ? reboursCal(prochaine.le, " La première case ", ".") : null);
+    else if (prochaine) gauche = el("p", {}, el("b", { text: aOuvrir ? `🎁 ${aOuvrir} case${aOuvrir > 1 ? "s" : ""} à ouvrir` : "✅ Tu es à jour" }), reboursCal(prochaine.le, prochaine.n === 22 ? " · la dernière " : " · la prochaine ", prochaine.n === 22 ? ", à la sortie de la VF" : ""));
+    else gauche = el("p", {}, el("b", { text: aOuvrir ? `🎁 ${aOuvrir} case${aOuvrir > 1 ? "s" : ""} à ouvrir` : "🏁 Toutes les cases sont ouvertes" }), el("span", { text: " · les cases manquées s'ouvrent jusqu'au 31 décembre" }));
+    const droite = moi?.connecte
+      ? el("p", { class: "cal-score" }, el("b", { text: `${monCal?.ouvertes?.length || 0} / 22` }), el("span", { text: monCal?.berrys ? ` · ${nombre(monCal.berrys)} berrys gagnés` : " cadeaux pris" }))
+      : el("p", { class: "cal-score" }, el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Se connecter pour les cadeaux" }));
+    return el("div", { class: "cal-bandeau" }, gauche, droite);
+  }
+  function rendreCalendrier() {
+    const section = $("calendrier"), z = $("cal");
+    if (!section || !z) return;
+    const c = infosCal();
+    section.hidden = !c;
+    const lien = $("lien-calendrier");
+    if (lien) lien.hidden = !c;
+    if (!c) { voirCase(0, false); return; }
+    // connecté : ses cases déjà prises (une fois en arrivant, puis toutes les 10 min)
+    if (moi?.connecte && (!calDemande || Date.now() - calDemande > 600_000)) { calDemande = Date.now(); agirCal("calendrier"); }
+    const aOuvrir = c.cases.filter((y) => y.ouverte && !vueCal(y.n)).length;
+    const p = $("pastille-calendrier");
+    if (p) p.hidden = !aOuvrir;
+    vider(z,
+      bandeauCal(c),
+      calMessage ? el("p", { class: calMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: calMessage.texte }) : null,
+      el("div", { class: "cal-planche" }, c.cases.filter((x) => x.n >= 1 && x.n <= 22).map((x) => caseCal(x, c))),
+      el("p", { class: "note cal-note", text: "Une case manquée s'ouvre encore les jours suivants, jusqu'au 31 décembre. Les cadeaux vont à ton compte du site (connecté avec Discord) : les berrys sur ta prime, les cartes dans ton album." }));
+    rendreGrandCal(c);
+    // le temps qui reste, à la minute (seulement quand la partie est à l'écran)
+    clearTimeout(minuteurCal);
+    if (calVue) minuteurCal = setTimeout(majCal, 30_000);
+  }
+  // la fenêtre de la case en grand : refaite seulement si quelque chose y a changé (pas à chaque rafraîchissement de la page)
+  function rendreGrandCal(c) {
+    const cle = calGrand ? [calGrand, priseCal(calGrand), calOccupe, calRecu, moi?.connecte, vueCal(calGrand)].join("|") : "";
+    if (cle === cleGrandCal && (!cle || $("cal-grand-hote"))) return;
+    cleGrandCal = cle;
+    const g = calGrand ? grandCal(c) : null;
+    const avant = $("cal-grand-hote");
+    if (!g) { avant?.remove(); document.documentElement.classList.remove("cal-modale"); return; }
+    const hote = el("div", { id: "cal-grand-hote" }, g);
+    if (avant) avant.replaceWith(hote); else document.body.append(hote);
+    document.documentElement.classList.add("cal-modale");
+    if (!avant) hote.querySelector(".cal-fermer")?.focus({ preventScroll: true });
+  }
+  function voirCase(n, rendre = true) {
+    calGrand = n;
+    if (!n) calRecu = 0;
+    if (rendre) rendreCalendrier();
+    else if (!n) { $("cal-grand-hote")?.remove(); document.documentElement.classList.remove("cal-modale"); cleGrandCal = ""; }
+  }
+  function majCal() {
+    const c = infosCal();
+    if (!c) return;
+    // une case vient de s'ouvrir : la page redemande au bot ; sinon on met juste les comptes à rebours à jour
+    const prochaine = c.cases.find((y) => !y.ouverte);
+    if (prochaine && Date.now() >= prochaine.le) { charger(); return; }
+    for (const e of document.querySelectorAll("#calendrier [data-cal-le]")) e.textContent = `${e.dataset.avant || ""}${dansCal(Number(e.dataset.calLe))}${e.dataset.apres || ""}`;
+    clearTimeout(minuteurCal);
+    if (calVue) minuteurCal = setTimeout(majCal, 30_000);
+  }
+  async function ouvrirCase(n) {
+    if (calAnime) return;
+    calMessage = null;
+    calAnime = n;
+    rendreCalendrier();
+    jouerSon("carte", { volume: 0.9 });
+    if (n === 22) jouerSon("br-fanfare", { volume: 0.7, retard: 0.35 });
+    const attente = new Promise((r) => setTimeout(r, reduit.matches ? 60 : 1050));
+    // la case reste ouverte sur cet appareil, même si le cadeau n'a pas pu être donné (le bouton « Récupérer » réessaie)
+    vuesCal.add(n);
+    try { localStorage.setItem("barhaw-calendrier", JSON.stringify([...vuesCal])); } catch {}
+    if (moi?.connecte) await agirCal("calendrier-ouvrir", { n }, false);
+    await attente;
+    calAnime = 0;
+    if (priseCal(n)) { calRecu = n; jouerSon("br-paillettes", { volume: 0.6 }); }
+    voirCase(n);
+  }
+  async function prendreCadeau(n) {
+    const d = await agirCal("calendrier-ouvrir", { n });
+    if (d?.ok && priseCal(n)) { calRecu = n; jouerSon("br-paillettes", { volume: 0.6 }); rendreCalendrier(); }
+  }
+  // les demandes au bot passent l'une après l'autre (la page ne se bloque jamais en attendant)
+  function agirCal(action, extra = {}, rendre = true) {
+    const tour = fileCal.then(async () => {
+      calOccupe = true;
+      if (rendre && !calAnime && calGrand) rendreGrandCal(infosCal() || { cases: [] });
+      let d = {};
+      try {
+        const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+        d = await r.json().catch(() => ({}));
+        if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+      } catch { d = { erreur: "reseau", texte: "Impossible de joindre le bot. Vérifie ta connexion." }; }
+      calOccupe = false;
+      if (d.calendrier) monCal = d.calendrier;
+      if (d.butin) recevoirButin(d.butin); // les berrys montent tout de suite sur l'affiche WANTED
+      if (d.erreur && action !== "calendrier") calMessage = { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
+      if (rendre && !calAnime) rendreCalendrier();
+      return d;
+    });
+    fileCal = tour.catch(() => {});
+    return tour;
+  }
+  function suivreCalendrier() {
+    const section = $("calendrier");
+    if (!section) return;
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver((e) => { calVue = e.some((x) => x.isIntersecting); if (calVue) majCal(); }, { rootMargin: "200px 0px" }).observe(section);
+    } else calVue = true;
+    document.addEventListener("keydown", (e) => {
+      if (!calGrand) return;
+      const c = infosCal();
+      const ouvertes = c ? c.cases.filter((y) => y.ouverte && vueCal(y.n)).map((y) => y.n) : [];
+      const k = ouvertes.indexOf(calGrand);
+      if (e.key === "Escape") voirCase(0);
+      else if (e.key === "ArrowLeft" && k > 0) voirCase(ouvertes[k - 1]);
+      else if (e.key === "ArrowRight" && k >= 0 && k < ouvertes.length - 1) voirCase(ouvertes[k + 1]);
+    });
+  }
+
   async function demanderFideles(action) {
     try {
       const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
@@ -10344,6 +10575,9 @@
     rendreGuerre();
     merDemande = 0;
     rendreMer();
+    calDemande = 0;
+    if (!moi?.connecte) monCal = null;
+    rendreCalendrier();
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
     chargerMesJeux();
@@ -10389,6 +10623,7 @@
     suivreFaille();
     suivreGrandLine();
     suivreMer();
+    suivreCalendrier();
     suivreTrailerShow();
     // la V4 : la classe v4 dès le départ (selon la date), puis à l'heure pile ; les liens directs vers un navire
     document.documentElement.classList.toggle("v4", v4Ouverte());
