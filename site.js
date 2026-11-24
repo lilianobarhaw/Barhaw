@@ -400,13 +400,13 @@
   // les mêmes liens (avec leurs pastilles « Live », compteurs…) sont rangés dans 4 rubriques : un menu déroulant en haut
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
-    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "barhaw-show", "evenements"] },
+    { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "mer", "barhaw-show", "evenements"] },
     { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
-    chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], tournoi: ["trophee", "Le TOURNOI BARHAW"], "barhaw-show": ["micro", "4 équipes, 4 jeux, en février"],
+    chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], mer: ["bouteille", "La course de barques du live"], tournoi: ["trophee", "Le TOURNOI BARHAW"], "barhaw-show": ["micro", "4 équipes, 4 jeux, en février"],
     evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
     faille: ["epees", "Les games de LoL entre potes"], bahriot: ["trophee", "Toute la flotte sur les jeux Riot"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
@@ -7986,6 +7986,7 @@
     rendreFideles();
     rendreBahriot();
     rendreGuerre();
+    rendreMer();
     rendreShow();
     rendreMaintenant();
     rendreEvenements();
@@ -9700,6 +9701,591 @@
     else if (action === "guerre-voter" && d.ok) guerreMessage = { texte: extra.ile ? `Vote enregistré : ${ileGuerre(g, extra.ile)?.nom || "l'île"}, ${g?.essai ? `à la prochaine bataille (${heure(g.prochaine || g.debut)})` : `ce soir à ${g?.heure || "21 h"}`}.` : "Vote retiré." };
     rendreGuerre();
   }
+  // ---------- la VF 1.0 : la mer en direct (la course se joue dans le bot : lib/mer.js) ----------
+  // Un soir de live, Liliano (ou le capitaine d'une commu) lance une course : tout le monde sur la même mer, chacun sa
+  // barque, 4 bouées à toucher dans l'ordre puis la ligne. js/mer-jeu.js fait la connexion et le suivi (les autres un
+  // peu en retard pour être fluides, la sienne tout de suite) ; js/mer-3d.js ou js/mer-2d.js dessinent. On monte à
+  // bord connecté avec Discord ; tout le monde peut regarder. Sans course : l'entraînement contre des barques d'essai,
+  // joué dans la page (rien n'est envoyé). Les pseudos sont ceux de Discord, comme dans les classements du site.
+  let maMer = null, merOccupe = false, merMessage = null, merDemande = 0, merVue = false;
+  let sallesMer = null; // la liste à jour, reçue du bot (le salon d'attente), plus fraîche que /api/public
+  let salonMer = null; // la connexion qui attend qu'une mer ouvre
+  let partieMer = null; // la course à l'écran
+  let modulesMer = null;
+  let merHote = ""; // la mer choisie dans le panneau du capitaine
+  let merVeut2D = null; // null : le choix de l'appareil ; true / false : celui du visiteur
+  let minuteurMer = null;
+  const sigMer = {};
+  const zoneMer = (id, cle, fabrique) => { const z = $(id); if (!z || sigMer[id] === cle) return; sigMer[id] = cle; vider(z, fabrique()); };
+  const PHASES_MER = { embarquement: "Embarquement", depart: "Au départ", course: "Course en cours", resultats: "Résultats", libre: "Entre deux courses" };
+  const SONS_MER = ["br-tic", "br-cymbale", "pop", "impact", "victoire", "br-paillettes", "br-fanfare"];
+  const tempsMer = (s) => { if (s === null || s === undefined) return "—"; const m = Math.floor(s / 60); const x = (s - m * 60).toFixed(2).replace(".", ","); return m ? `${m}:${x.padStart(5, "0")}` : `${x} s`; };
+  const rangMer = (n) => (n === 1 ? "1er" : `${n}e`);
+  function infosMer() {
+    const pub = donnees?.mer || null;
+    if (!pub && !maMer) return null;
+    const parId = new Map();
+    for (const s of [...(maMer?.salles || []), ...(pub?.salles || []), ...(sallesMer || [])]) if (s?.id) parId.set(s.id, s);
+    // la liste du salon fait foi pour les vraies mers : une mer qui n'y est plus est fermée
+    if (sallesMer) for (const [id, s] of parId) if (!s.essai && !sallesMer.some((x) => x.id === id)) parId.delete(id);
+    return { ...(pub || {}), ...(maMer || {}), salles: [...parId.values()] };
+  }
+  // les couleurs des commus de la flotte (Barhaw d'abord)
+  function paletteMer(ids = []) {
+    const tous = new Set(["barhaw", ...ids, ...((donnees?.flotte?.commus || []).map((c) => c?.id).filter(Boolean))]);
+    return Object.fromEntries([...tous].map((id) => { const c = commuGuerre(id); return [id, { nom: c.nom, c1: c.c1, c2: c.c2, embleme: c.embleme }]; }));
+  }
+
+  // ---------- la partie du site ----------
+  function squeletteMer(z) {
+    if ($("mer-salles")) return;
+    vider(z,
+      el("div", { class: "mer-salles", id: "mer-salles", "aria-live": "polite" }),
+      el("div", { class: "mer-hote", id: "mer-hote" }),
+      el("div", { id: "mer-message" }),
+      el("div", { class: "mer-scene", id: "mer-scene", hidden: true }),
+      el("div", { class: "mer-sous" },
+        el("div", { class: "mer-regles", id: "mer-regles" }),
+        el("div", { class: "mer-palmares", id: "mer-palmares" })));
+  }
+  function sallesMerHtml(m, ouvertes) {
+    if (!ouvertes.length) {
+      return el("div", { class: "mer-calme" },
+        el("p", { class: "mer-calme-titre", text: "🌊 Pas de course en ce moment" }),
+        el("p", { text: "Les courses se lancent pendant les lives de Liliano et des capitaines de la flotte : le chat et le Discord préviennent, et la mer s'ouvre ici." }),
+        el("div", { class: "rangee" },
+          el("button", { class: "btn btn-plein", type: "button", onclick: () => ouvrirPartieMer({ type: "entrainement" }), text: "🏝️ S'entraîner" }),
+          el("span", { class: "note", text: "Contre 7 barques d'essai : rien n'est envoyé, rien ne compte." })));
+    }
+    return el("div", { class: "mer-liste" }, ouvertes.map((s) => {
+      const c = commuGuerre(s.id);
+      const reste = s.fin ? Math.max(0, Math.round((s.fin - Date.now()) / 1000)) : 0;
+      const etat = s.phase === "embarquement" ? `Départ dans ${Math.floor(reste / 60)}:${String(reste % 60).padStart(2, "0")}` : PHASES_MER[s.phase] || "";
+      const ici = partieMer?.salle === s.id;
+      const boutons = !m.adresse && !s.essai
+        ? [el("span", { class: "note", text: "La mer n'est pas encore installée sur le serveur." })]
+        : [
+            moi?.connecte
+              ? el("button", { class: "btn btn-plein", type: "button", disabled: merOccupe || (ici && partieMer?.o.role === "joueur"), onclick: () => embarquerMer(s.id), text: ici && partieMer?.o.role === "joueur" ? "⛵ À bord" : "⛵ Monter à bord" })
+              : el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter avec Discord pour courir" }),
+            el("button", { class: "btn btn-contour", type: "button", disabled: merOccupe || ici, onclick: () => regarderMer(s.id), text: "👀 Regarder" }),
+          ];
+      return el("div", { class: `mer-salle${s.essai ? " essai" : ""}` },
+        el("span", { class: "mer-drapeau", style: `--c1:${c.c1};--c2:${c.c2}`, "aria-hidden": "true", text: c.embleme }),
+        el("div", { class: "mer-salle-texte" },
+          el("p", { class: "mer-salle-nom" }, el("b", { text: `La mer ${deCommu(c.nom)}` }), s.essai ? el("span", { class: "etiquette", text: "🧪 essai" }) : s.live ? el("span", { class: "pastille-live", text: "Live" }) : null),
+          el("p", { class: "mer-salle-infos", text: `Course ${s.numero || 1} · ${s.parcours || ""}` }),
+          el("p", { class: "mer-salle-etat" }, el("b", { text: etat }), ` · ${nombre(s.barques)} barque${s.barques > 1 ? "s" : ""} sur ${s.places || 50}`)),
+        el("div", { class: "mer-boutons" }, boutons));
+    }));
+  }
+  // le panneau de celui qui lance : toi (toutes les mers), un capitaine (celle de sa commu)
+  function hoteMerHtml(m) {
+    const hotes = m?.hotes || [];
+    if (!hotes.length) return null;
+    if (!hotes.includes(merHote)) merHote = hotes[0];
+    const s = (m.salles || []).find((x) => x.id === merHote);
+    const c = commuGuerre(merHote);
+    const agir = (action, extra = {}) => () => agirMer(action, { salle: merHote, ...extra });
+    return el("div", { class: "carte mer-hote-carte" },
+      el("p", { class: "mer-hote-titre" }, el("b", { text: "🎙️ Ton panneau" }), hotes.length > 1 ? " · " : null,
+        hotes.length > 1 ? el("select", { class: "mer-choix", "aria-label": "La mer de quelle commu", onchange: (e) => { merHote = e.target.value; sigMer["mer-hote"] = ""; rendreMer(); } },
+          hotes.map((id) => el("option", { value: id, selected: id === merHote, text: commuGuerre(id).nom }))) : ` La mer ${deCommu(c.nom)}`),
+      el("div", { class: "rangee" },
+        !s ? el("button", { class: "btn btn-plein btn-petit", type: "button", disabled: merOccupe || m.apercu, onclick: agir("mer-lancer"), text: "⛵ Ouvrir la mer" }) : null,
+        !s ? el("button", { class: "btn btn-contour btn-petit", type: "button", disabled: merOccupe, onclick: agir("mer-lancer", { essai: true }), text: "🧪 Mer d'essai" }) : null,
+        s && (s.phase === "libre" || s.phase === "resultats") ? el("button", { class: "btn btn-plein btn-petit", type: "button", disabled: merOccupe, onclick: agir("mer-lancer", { essai: s.essai }), text: "⛵ Course suivante" }) : null,
+        s?.phase === "embarquement" ? el("button", { class: "btn btn-plein btn-petit", type: "button", disabled: merOccupe || !s.barques, onclick: agir("mer-depart"), text: "🚩 Départ !" }) : null,
+        s ? el("button", { class: "btn btn-contour btn-petit", type: "button", disabled: merOccupe, onclick: agir("mer-arreter"), text: "⚓ Fermer la mer" }) : null),
+      el("p", { class: "note", text: m.apercu ? "Avant la VF 1.0, seulement des mers d'essai (12 fausses barques) : toi seul les vois." : "La mer s'ouvre pendant ton live (sinon : une mer d'essai, avec 12 fausses barques, qui ne compte pas). Dans ton chat : !mer, !mer go, !mer stop." }));
+  }
+  function reglesMerHtml(m) {
+    return el("div", { class: "carte" },
+      el("h3", { text: "Comment ça marche" }),
+      el("ul", { class: "mer-liste-regles" },
+        el("li", {}, el("b", { text: "⌨️ Au clavier" }), " : flèches ou Q / D pour tourner, espace (ou Z, ↑) pour ramer fort."),
+        el("li", {}, el("b", { text: "👆 Au doigt" }), " : les deux grosses flèches pour tourner, le bouton RAME ! pour ramer fort."),
+        el("li", {}, el("b", { text: "🚣 La rame" }), " se vide en 2 secondes et se recharge toute seule : garde-la pour les lignes droites."),
+        el("li", {}, el("b", { text: "🎯 Les 4 bouées" }), " se touchent dans l'ordre (la flèche d'or montre la suivante), puis on repasse la ligne. Les rochers ralentissent, les autres barques se poussent."),
+        el("li", {}, el("b", { text: "🏆 Le podium" }), " gagne 4 000, 2 500 et 1 500 berrys, chaque barque arrivée 400, et des milles pour le navire de chacun (pendant le live, à partir de 3 barques)."),
+        el("li", {}, el("b", { text: "🪙 Le coffre" }), " apparaît entre deux courses : le premier qui l'atteint gagne 2 000 berrys.")),
+      m?.aujourdhui !== undefined ? el("p", { class: "note", text: `Aujourd'hui : ${m.aujourdhui} course${m.aujourdhui > 1 ? "s" : ""} sur ${m.parJour || 10} qui rapportent.` }) : null);
+  }
+  function palmaresMerHtml(m) {
+    const noms = Object.fromEntries((m?.parcours || []).map((p) => [p.id, p.nom]));
+    const records = Object.entries(m?.records || {});
+    const h = m?.historique || [];
+    return el("div", { class: "carte" },
+      el("h3", { text: "Records et dernières courses" }),
+      records.length ? el("ul", { class: "mer-records" }, records.map(([id, r]) => el("li", {}, el("span", { text: noms[id] || id }), el("b", { text: tempsMer(r.temps) }), el("small", { text: r.nom })))) : el("p", { class: "note", text: "Pas encore de record : le premier sera le tien ?" }),
+      h.length ? el("ol", { class: "mer-historique" }, h.slice(0, 5).map((c) => el("li", {},
+        el("span", { class: "mer-h-quand", text: `${fmtCourt.format(new Date(c.le))} à ${heure(c.le)}` }),
+        el("span", { text: `${c.nomParcours} · ${c.barques} barques` }),
+        el("span", { class: "mer-h-podium", text: (c.podium || []).map((x, k) => `${["🥇", "🥈", "🥉"][k]} ${x.nom}`).join("  ") })))) : null);
+  }
+
+  function rendreMer() {
+    const section = $("mer"), z = $("mer-carte");
+    if (!section || !z) return;
+    const m = infosMer();
+    const vf = document.documentElement.classList.contains("v4");
+    // avant la VF, le site public ne dit rien de la mer : Liliano (son aperçu) la demande au bot
+    if (!m && vf && moi?.connecte && !merOccupe && !merDemande) { merDemande = Date.now(); agirMer("mer"); }
+    section.hidden = !m || !vf;
+    const ouvertes = (m?.salles || []).filter((s) => s.phase && s.phase !== "fermee");
+    const pastille = $("pastille-mer");
+    if (pastille) pastille.hidden = !ouvertes.some((s) => !s.essai);
+    if (section.hidden) { if (partieMer) fermerPartieMer(); return; }
+    // connecté : ce que le bot dit pour lui (ses mers d'essai, son panneau de capitaine, son compte du jour)
+    if (moi?.connecte && !merOccupe && (!merDemande || Date.now() - merDemande > (merVue ? 60_000 : 900_000))) { merDemande = Date.now(); agirMer("mer"); }
+    squeletteMer(z);
+    const seconde = ouvertes.some((s) => s.phase === "embarquement") ? Math.floor(Date.now() / 1000) : 0;
+    zoneMer("mer-salles", JSON.stringify([ouvertes, Boolean(moi?.connecte), merOccupe, partieMer?.salle || "", partieMer?.o?.role || "", m.adresse ? 1 : 0, seconde]), () => sallesMerHtml(m, ouvertes));
+    zoneMer("mer-hote", JSON.stringify([m.hotes, merHote, (m.salles || []).map((s) => [s.id, s.phase, s.barques, s.essai]), merOccupe, m.apercu]), () => hoteMerHtml(m));
+    zoneMer("mer-message", JSON.stringify(merMessage), () => (merMessage ? el("p", { class: merMessage.erreur ? "note erreur" : "jeu-bravo", role: "status", text: merMessage.texte }) : null));
+    zoneMer("mer-regles", JSON.stringify([m.aujourdhui, m.parJour]), () => reglesMerHtml(m));
+    zoneMer("mer-palmares", JSON.stringify([m.records, (m.historique || []).map((x) => x.le)]), () => palmaresMerHtml(m));
+    // le compte à rebours de l'embarquement, à la seconde
+    clearTimeout(minuteurMer);
+    if (seconde && merVue) minuteurMer = setTimeout(rendreMer, 1000 - (Date.now() % 1000) + 20);
+    suivreSallesMer();
+  }
+  async function agirMer(action, extra = {}) {
+    if (merOccupe) return null;
+    merOccupe = true;
+    if (action !== "mer") { merMessage = null; rendreMer(); }
+    let d = {};
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      d = await r.json().catch(() => ({}));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+    } catch { d = { erreur: "reseau", texte: "Impossible de joindre le bot. Vérifie ta connexion." }; }
+    merOccupe = false;
+    if (d.mer !== undefined) maMer = d.mer;
+    if (d.erreur && action !== "mer") merMessage = { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
+    else if (["mer-lancer", "mer-depart", "mer-arreter"].includes(action) && d.texte) merMessage = { texte: d.texte };
+    rendreMer();
+    return d;
+  }
+  // la liste des mers à jour : une connexion qui attend, seulement quand la partie est à l'écran (et avec la VF)
+  function suivreSallesMer() {
+    const m = infosMer();
+    const veut = merVue && !document.hidden && Boolean(m?.adresse) && v4Officielle() && !partieMer;
+    if (!veut) {
+      if (salonMer) { const s = salonMer; salonMer = null; try { s.close(1000); } catch {} }
+      return;
+    }
+    if (salonMer) return;
+    let ws;
+    try { ws = new WebSocket(m.adresse); } catch { return; }
+    salonMer = ws;
+    ws.addEventListener("open", () => ws.send(JSON.stringify({ k: "bonjour", v: 1, salle: "*" })));
+    ws.addEventListener("message", (e) => {
+      if (typeof e.data !== "string") return;
+      try { const x = JSON.parse(e.data); if (x.k === "salles" && Array.isArray(x.salles)) { sallesMer = x.salles; rendreMer(); } } catch {}
+    });
+    ws.addEventListener("close", () => { if (salonMer === ws) { salonMer = null; setTimeout(suivreSallesMer, 15_000); } });
+  }
+  async function embarquerMer(salle) {
+    if (!moi?.connecte) { location.href = "/api/auth/login"; return; }
+    const d = await agirMer("mer-embarquer", { salle });
+    if (d?.ticket) ouvrirPartieMer({ type: "reseau", salle: d.salle, adresse: d.adresse, ticket: d.ticket, role: "joueur" });
+  }
+  async function regarderMer(salle) {
+    const m = infosMer();
+    const s = (m?.salles || []).find((x) => x.id === salle);
+    // une mer d'essai : seulement avec un billet (toi, ou le capitaine)
+    if (s?.essai || !v4Officielle()) {
+      const d = await agirMer("mer-regarder", { salle });
+      if (d?.ticket) ouvrirPartieMer({ type: "reseau", salle: d.salle, adresse: d.adresse, ticket: d.ticket, role: "spectateur" });
+      return;
+    }
+    if (m?.adresse) ouvrirPartieMer({ type: "reseau", salle, adresse: m.adresse, role: "spectateur" });
+  }
+
+  // ---------- la course à l'écran ----------
+  async function chargerModulesMer() {
+    if (modulesMer) return modulesMer;
+    const [jeu, d2] = await Promise.all([import("/js/mer-jeu.js"), import("/js/mer-2d.js")]);
+    modulesMer = { jeu, d2, d3: null };
+    return modulesMer;
+  }
+  function fermerPartieMer(rendre = true) {
+    const P = partieMer;
+    partieMer = null;
+    if (P) {
+      P.ferme = true;
+      cancelAnimationFrame(P.raf);
+      clearInterval(P.battement);
+      clearTimeout(P.reprise);
+      P.clavier?.();
+      P.observateur?.disconnect();
+      try { P.source?.fermer(); } catch {}
+      try { P.rendu?.detruire(); } catch {}
+      window.removeEventListener("resize", P.surTaille);
+      document.removeEventListener("fullscreenchange", P.surTaille);
+      document.documentElement.classList.remove("mer-plein");
+    }
+    const scene = $("mer-scene");
+    if (scene) { scene.hidden = true; vider(scene); scene.classList.remove("plein", "jouer"); }
+    if (rendre) rendreMer();
+  }
+  async function ouvrirPartieMer(o) {
+    fermerPartieMer(false);
+    const jeton = {};
+    partieMer = { jeton, o, salle: o.type === "entrainement" ? "entrainement" : o.salle, ferme: false };
+    rendreMer();
+    let mods;
+    try { mods = await chargerModulesMer(); } catch { partieMer = null; merMessage = { texte: "La mer n'a pas pu se charger. Recharge la page.", erreur: true }; rendreMer(); return; }
+    if (partieMer?.jeton !== jeton) return;
+    prechargerSons(SONS_MER);
+    const scene = $("mer-scene");
+    const toile = el("div", { class: "mer-toile" });
+    const etiquettes = el("div", { class: "mer-etiquettes", "aria-hidden": "true" });
+    const hud = {
+      place: el("p", { class: "mer-place" }), bouee: el("p", { class: "mer-bouee" }), chrono: el("p", { class: "mer-chrono" }),
+      classement: el("ol", { class: "mer-classement", "aria-label": "Le classement" }), fil: el("ul", { class: "mer-fil", "aria-live": "polite" }),
+      compte: el("p", { class: "mer-compte", "aria-live": "assertive" }), jauge: el("div", { class: "mer-jauge" }, el("i")), attente: el("p", { class: "mer-attente" }),
+      fin: el("div", { class: "mer-fin", hidden: true }),
+    };
+    const touche = (cle, texte, classe) => el("button", {
+      class: `mer-touche ${classe}`, type: "button", "aria-label": texte, text: { g: "◀", d: "▶", r: "RAME !" }[cle],
+      onpointerdown: (e) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); P.touches[cle] = true; envoyerEntreeMer(P); },
+      onpointerup: () => { P.touches[cle] = false; envoyerEntreeMer(P); },
+      onpointercancel: () => { P.touches[cle] = false; envoyerEntreeMer(P); },
+      onlostpointercapture: () => { P.touches[cle] = false; envoyerEntreeMer(P); },
+      oncontextmenu: (e) => e.preventDefault(),
+    });
+    const bouton = (texte, titre, f, classe = "") => el("button", { class: `mer-bouton ${classe}`, type: "button", title: titre, "aria-label": titre, onclick: f, text: texte });
+    const P = Object.assign(partieMer, {
+      mods, suivi: mods.jeu.creerSuivi(), joueurs: new Map(), commus: paletteMer(), p: null, phase: "", fin: 0, numero: 0, decalage: 0, moi: 0,
+      source: null, rendu: null, rendu3D: false, toile, etiquettes, hud, touches: { g: false, d: false, r: false }, clavierEntree: { t: 0, b: 0 }, envoyee: "",
+      arrivees: [], classement: [], fil: [], resultats: null, essais: 0, compteVu: -1, prochaineVue: 0, chocVu: 0, finie: false,
+    });
+    vider(scene,
+      toile, etiquettes,
+      el("div", { class: "mer-hud" },
+        el("div", { class: "mer-hud-gauche" }, hud.place, hud.bouee),
+        hud.chrono,
+        el("div", { class: "mer-hud-boutons" },
+          bouton("⛶", "Plein écran", () => basculerPleinEcranMer(P)),
+          bouton("🎥", "Changer de vue : ta barque, le premier, toute la mer", () => changerVueMer(P)),
+          bouton("2D", "Passer en 2D ou en 3D", () => { merVeut2D = !P.rendu3D ? false : true; choisirRenduMer(P, true); }, "mer-bouton-texte"),
+          bouton("✕", "Quitter la mer", () => fermerPartieMer()))),
+      hud.classement, hud.fil, hud.compte, hud.attente, hud.fin,
+      el("div", { class: "mer-bas" }, hud.jauge),
+      el("div", { class: "mer-commandes" }, touche("g", "Tourner à gauche", "gauche"), touche("r", "Ramer fort", "rame"), touche("d", "Tourner à droite", "droite")));
+    scene.hidden = false;
+    scene.classList.add("jouer");
+    scene.classList.toggle("spectateur", o.role === "spectateur");
+    await choisirRenduMer(P);
+    if (partieMer !== P) return;
+    const surMessage = (m) => { if (partieMer === P) messageMer(P, m); };
+    P.source = o.type === "entrainement"
+      ? mods.jeu.entrainement({ nom: moi?.nom || "Toi", commu: maFlotte?.equipage || "barhaw", commus: P.commus, surMessage })
+      : mods.jeu.connecter({ adresse: o.adresse, salle: o.salle, ticket: o.ticket, surMessage, surEtat: (e, code) => { if (partieMer === P) etatMer(P, e, code); } });
+    // le clavier ne pilote que quand la mer est à l'écran (ailleurs, les flèches et l'espace font défiler la page)
+    P.vue = true;
+    if ("IntersectionObserver" in window) { P.observateur = new IntersectionObserver((e) => { P.vue = e.some((x) => x.isIntersecting && x.intersectionRatio > 0.35); }, { threshold: [0, 0.35, 1] }); P.observateur.observe(scene); }
+    P.clavier = mods.jeu.lireClavier(window, (e) => { P.clavierEntree = e; envoyerEntreeMer(P); }, () => P.vue && !P.hud.fin.contains(document.activeElement));
+    P.battement = setInterval(() => P.source?.renvoyer?.(), 1000);
+    P.surTaille = () => P.rendu?.taille();
+    window.addEventListener("resize", P.surTaille);
+    document.addEventListener("fullscreenchange", P.surTaille);
+    boucleMer(P);
+    scene.scrollIntoView({ block: "center", behavior: reduit.matches ? "auto" : "smooth" });
+    rendreMer();
+  }
+  // la 3D si l'appareil suit (ou si on l'a demandée), sinon la 2D ; une nouvelle toile à chaque changement
+  async function choisirRenduMer(P, change = false) {
+    const voulu3D = merVeut2D === null ? (navigator.deviceMemory || 8) > 2 && troisDPossible() : !merVeut2D;
+    if (change && P.rendu && P.rendu3D === voulu3D) return;
+    try { P.rendu?.detruire(); } catch {}
+    P.rendu = null;
+    vider(P.etiquettes);
+    const canvas = el("canvas", { class: "mer-canvas", role: "img", "aria-label": "La mer en direct : les barques, les bouées et la ligne" });
+    vider(P.toile, canvas);
+    if (voulu3D) {
+      try {
+        if (!P.mods.d3) P.mods.d3 = await import("/js/mer-3d.js");
+        if (partieMer !== P) return;
+        P.rendu = P.mods.d3.creerMer3D(canvas, { etiquettes: P.etiquettes, commus: P.commus, leger: appareilLeger(), reduit: reduit.matches });
+        P.rendu3D = true;
+      } catch { P.rendu = null; }
+    }
+    if (!P.rendu) {
+      const c2 = el("canvas", { class: "mer-canvas", role: "img", "aria-label": "La mer en direct vue de haut : les barques, les bouées et la ligne" });
+      vider(P.toile, c2);
+      P.rendu = P.mods.d2.creerMer2D(c2, { commus: P.commus, suivre: P.o.role !== "spectateur" });
+      P.rendu3D = false;
+    }
+    if (P.p) P.rendu.parcours(P.p);
+    if (P.rendu3D) P.rendu.camera = P.moi ? "suivre" : "tout";
+    P.verifie = false;
+    P.depuis = performance.now();
+    requestAnimationFrame(() => P.rendu?.taille());
+    const b = P.hud && $("mer-scene")?.querySelector(".mer-bouton-texte");
+    if (b) b.textContent = P.rendu3D ? "2D" : "3D";
+  }
+  function changerVueMer(P) {
+    if (P.rendu3D) {
+      const ordre = P.moi ? ["suivre", "premier", "tout"] : ["tout", "premier"];
+      P.rendu.camera = ordre[(ordre.indexOf(P.rendu.camera) + 1) % ordre.length];
+      ajouterFilMer(P, P.rendu.camera === "suivre" ? "🎥 Vue : ta barque" : P.rendu.camera === "premier" ? "🎥 Vue : le premier" : "🎥 Vue : toute la mer");
+    } else {
+      P.rendu.suivre = !P.rendu.suivre;
+      ajouterFilMer(P, P.rendu.suivre ? "🎥 Vue : ta barque" : "🎥 Vue : toute la mer");
+    }
+  }
+  function basculerPleinEcranMer(P) {
+    const scene = $("mer-scene");
+    if (document.fullscreenElement) { document.exitFullscreen?.(); return; }
+    if (scene.classList.contains("plein")) { scene.classList.remove("plein"); document.documentElement.classList.remove("mer-plein"); P.rendu?.taille(); return; }
+    // le vrai plein écran si le navigateur le permet ; sinon (iPhone) la mer prend toute la fenêtre
+    const r = scene.requestFullscreen?.();
+    if (r?.catch) r.catch(() => { scene.classList.add("plein"); document.documentElement.classList.add("mer-plein"); P.rendu?.taille(); });
+    else if (!r) { scene.classList.add("plein"); document.documentElement.classList.add("mer-plein"); P.rendu?.taille(); }
+  }
+  function envoyerEntreeMer(P) {
+    const k = P.clavierEntree;
+    const t = Math.max(-1, Math.min(1, (P.touches.d ? 1 : 0) - (P.touches.g ? 1 : 0) + k.t));
+    const e = { t, b: P.touches.r || k.b ? 1 : 0 };
+    const cle = `${e.t}|${e.b}`;
+    P.suivi.entree(e);
+    if (cle === P.envoyee) return;
+    P.envoyee = cle;
+    if (P.moi) P.source?.envoyer(e);
+  }
+  function ajouterFilMer(P, texte) {
+    P.fil.unshift({ texte, t: Date.now() });
+    P.fil.length = Math.min(P.fil.length, 4);
+    vider(P.hud.fil, P.fil.map((x) => el("li", { text: x.texte })));
+  }
+  function etatMer(P, e, code) {
+    if (e === "ouvert") { P.essais = 0; P.hud.attente.textContent = ""; return; }
+    if (e !== "ferme" || P.finie) return;
+    // la version a changé, une autre page a pris la barque, la mer est fermée ou privée : on ne réessaie pas
+    if ([4001, 4002, 4003].includes(code)) return;
+    P.essais += 1;
+    if (P.essais > 5) { P.hud.attente.textContent = "⚠️ La connexion est perdue. Ferme la mer et remonte à bord."; return; }
+    P.hud.attente.textContent = "📡 Connexion perdue… je reviens.";
+    P.reprise = setTimeout(async () => {
+      if (partieMer !== P) return;
+      let ticket = "";
+      if (P.o.role === "joueur" || P.o.ticket) {
+        const d = await agirMer(P.o.role === "joueur" ? "mer-embarquer" : "mer-regarder", { salle: P.o.salle });
+        if (partieMer !== P) return;
+        if (!d?.ticket) { P.hud.attente.textContent = d?.texte || "⚠️ La mer est fermée."; return; }
+        ticket = d.ticket;
+      }
+      P.suivi.vider();
+      P.source = P.mods.jeu.connecter({ adresse: P.o.adresse, salle: P.o.salle, ticket, surMessage: (m) => { if (partieMer === P) messageMer(P, m); }, surEtat: (x, c) => { if (partieMer === P) etatMer(P, x, c); } });
+    }, Math.min(8000, 1200 * P.essais));
+  }
+  function nouveauParcoursMer(P, x) {
+    if (!x?.id) return;
+    if (P.p && P.p.id === x.id && P.p.miroir === x.miroir) return;
+    P.p = P.mods.jeu.parcours(x.id, x.miroir);
+    P.suivi.parcours = P.p;
+    P.rendu?.parcours(P.p);
+  }
+  function messageMer(P, m) {
+    const nom = (n) => P.joueurs.get(n)?.nom || "Une barque";
+    switch (m.k) {
+      case "s":
+        P.suivi.rtt = P.source?.rtt || 120;
+        P.suivi.recevoir(m);
+        return;
+      case "salut":
+        P.moi = m.moi || 0;
+        P.suivi.moi = P.moi;
+        P.joueurs = new Map((m.joueurs || []).map(([n, nm, commu, faux]) => [n, { nom: nm, commu, faux: Boolean(faux) }]));
+        P.commus = { ...paletteMer(Object.keys(m.commus || {})), ...Object.fromEntries(Object.entries(m.commus || {}).map(([id, c]) => [id, { nom: c.nom, c1: c.c1, c2: c.c2, embleme: c.embleme }])) };
+        if (P.rendu) P.rendu.commus = P.commus;
+        P.decalage = (m.s || Date.now()) - Date.now();
+        Object.assign(P, { phase: m.phase, fin: m.fin, numero: m.numero, arrivees: [], resultats: m.resultats || null });
+        P.p = null;
+        nouveauParcoursMer(P, m.parcours);
+        if (P.rendu3D) P.rendu.camera = P.moi ? "suivre" : "tout";
+        else if (P.rendu) P.rendu.suivre = Boolean(P.moi);
+        $("mer-scene")?.classList.toggle("spectateur", !P.moi);
+        ajouterFilMer(P, P.o.type === "entrainement" ? "🏝️ Entraînement : 7 barques d'essai, rien ne compte" : `⛵ Bienvenue sur la mer ${deCommu(m.salle?.nom || "")}${m.salle?.essai ? " (essai)" : ""}`);
+        if (m.resultats) finMer(P, m.resultats);
+        return;
+      case "arrive":
+        P.joueurs.set(m.j[0], { nom: m.j[1], commu: m.j[2], faux: Boolean(m.j[3]) });
+        if (m.j[0] !== P.moi && !m.j[3]) ajouterFilMer(P, `⛵ ${m.j[1]} monte à bord`);
+        return;
+      case "parti":
+        P.joueurs.delete(m.n);
+        return;
+      case "phase": {
+        const avant = P.phase;
+        Object.assign(P, { phase: m.phase, fin: m.fin, numero: m.numero });
+        if (m.s) P.decalage = m.s - Date.now();
+        nouveauParcoursMer(P, m.parcours);
+        if (m.phase === "embarquement") { P.hud.fin.hidden = true; P.resultats = null; ajouterFilMer(P, `⛵ Course ${m.numero} : ${m.parcours?.nom || ""}`); }
+        if (m.phase === "depart") { P.arrivees = []; P.hud.fin.hidden = true; P.resultats = null; P.compteVu = -1; P.prochaineVue = 0; }
+        if (m.phase === "course" && avant !== "course") jouerSon("br-cymbale", { volume: 0.7 });
+        if (m.phase === "libre") { setTimeout(() => { if (partieMer === P && P.phase === "libre") P.hud.fin.hidden = true; }, 6000); }
+        if (P.o.type !== "entrainement") rendreMer();
+        return;
+      }
+      case "arrivee":
+        if (!P.arrivees.includes(m.n)) P.arrivees.push(m.n);
+        if (m.n === P.moi) { jouerSon("victoire", { volume: 0.8 }); ajouterFilMer(P, `🏁 Tu passes la ligne : ${rangMer(m.place)} en ${tempsMer(m.temps)} !`); }
+        else if (m.place <= 3) ajouterFilMer(P, `🏁 ${nom(m.n)} passe la ligne : ${rangMer(m.place)} en ${tempsMer(m.temps)}`);
+        return;
+      case "resultats":
+        P.resultats = m;
+        finMer(P, m);
+        return;
+      case "coffre":
+        jouerSon("br-paillettes", { volume: 0.6 });
+        ajouterFilMer(P, "🪙 Un coffre est apparu sur la mer ! Le premier qui l'atteint l'ouvre.");
+        return;
+      case "coffre-pris":
+        ajouterFilMer(P, m.n === P.moi ? `🪙 Tu ouvres le coffre !${m.berrys ? ` +${nombre(m.berrys)} berrys` : ""}${m.milles ? `, +${nombre(m.milles)} milles` : ""}` : `🪙 ${m.nom} ouvre le coffre !`);
+        if (m.n === P.moi) jouerSon("br-fanfare", { volume: 0.6 });
+        return;
+      case "coffre-perdu":
+        ajouterFilMer(P, "🌊 Le coffre a coulé…");
+        return;
+      case "ferme":
+        P.finie = true;
+        ajouterFilMer(P, `⚓ ${m.texte || "La mer ferme."}`);
+        P.hud.attente.textContent = m.texte || "La mer ferme.";
+        setTimeout(() => { if (partieMer === P) fermerPartieMer(); }, 4500);
+        return;
+      case "erreur":
+        if (m.code === "pleine") P.hud.attente.textContent = m.texte;
+        else { P.hud.attente.textContent = `⚠️ ${m.texte || "La mer a refusé."}`; if (["version", "fermee", "privee", "billet", "ailleurs"].includes(m.code)) P.finie = true; }
+        return;
+      default:
+    }
+  }
+  // l'écran de fin : le podium, sa place, ce qu'il a gagné, le record
+  function finMer(P, r) {
+    const ligne = (n, place, temps) => el("li", { class: n === P.moi ? "moi" : "" }, el("b", { text: rangMer(place) }), el("span", { text: P.joueurs.get(n)?.nom || "Une barque" }), el("small", { text: temps === null ? "pas arrivé" : tempsMer(temps) }));
+    const moiL = r.classement.find(([n]) => n === P.moi);
+    const gains = (r.gains || []).find(([n]) => n === P.moi);
+    if (moiL && moiL[1] <= 3 && moiL[2] !== null) jouerSon("br-fanfare", { volume: 0.7 });
+    vider(P.hud.fin,
+      el("p", { class: "mer-fin-titre", text: `🏁 ${r.parcours || "La course"}` }),
+      el("ol", { class: "mer-podium" }, r.classement.slice(0, 3).map(([n, place, temps]) => ligne(n, place, temps))),
+      moiL && moiL[1] > 3 ? el("p", { class: "mer-fin-moi", text: `Toi : ${rangMer(moiL[1])}${moiL[2] === null ? " (pas arrivé)" : ` en ${tempsMer(moiL[2])}`}` }) : null,
+      gains ? el("p", { class: "mer-fin-gains", text: gains[3] ? "Tu as fait tes 10 courses qui rapportent aujourd'hui." : `+${nombre(gains[1])} berrys${gains[2] ? ` · +${nombre(gains[2])} milles pour ton navire` : ""}` }) : null,
+      !r.rapporte && P.o.type !== "entrainement" ? el("p", { class: "note", text: "Cette course ne rapportait rien (une mer d'essai, hors live, ou moins de 3 barques)." }) : null,
+      r.record ? el("p", { class: "mer-fin-record", text: `🏆 Nouveau record du parcours : ${tempsMer(r.record.temps)} par ${r.record.nom} !` }) : null,
+      P.o.type === "entrainement"
+        ? el("div", { class: "rangee" }, el("button", { class: "btn btn-plein btn-petit", type: "button", onclick: () => { P.hud.fin.hidden = true; P.source?.relancer?.(); }, text: "🔁 Une autre course" }), el("button", { class: "btn btn-contour btn-petit", type: "button", onclick: () => fermerPartieMer(), text: "Quitter" }))
+        : el("p", { class: "note", text: "Un coffre va apparaître sur la mer…" }));
+    P.hud.fin.hidden = false;
+  }
+  // le haut de l'écran : sa place, la bouée suivante, le chrono, le classement, le compte à rebours, la rame
+  function hudMer(P, vue, mien) {
+    const h = P.hud;
+    const maintenant = Date.now() + P.decalage;
+    const reste = P.fin ? Math.max(0, (P.fin - maintenant) / 1000) : 0;
+    // le classement pendant la course
+    if (P.phase === "course" || P.phase === "resultats") {
+      const pos = new Map(P.arrivees.map((n, k) => [n, k]));
+      const cible = (b) => (b.prochaine < P.p.bouees.length ? P.p.bouees[b.prochaine] : P.p.centre);
+      const dist = (b) => { const c = cible(b); return Math.hypot(c.x - b.x, c.z - b.z); };
+      P.classement = [...vue.barques].sort((a, b) => {
+        const fa = pos.has(a.id), fb = pos.has(b.id);
+        if (fa !== fb) return fa ? -1 : 1;
+        if (fa) return pos.get(a.id) - pos.get(b.id);
+        if (a.absent !== b.absent) return a.absent ? 1 : -1;
+        return b.prochaine - a.prochaine || dist(a) - dist(b);
+      }).map((b) => b.id);
+    } else P.classement = [];
+    const place = P.classement.indexOf(P.moi) + 1;
+    h.place.textContent = P.moi && place && P.phase === "course" ? `${rangMer(place)} / ${P.classement.length}` : P.moi ? "" : "👀 Tu regardes";
+    if (P.moi && mien && P.phase === "course") h.bouee.textContent = mien.fini ? "🏁 Arrivé !" : mien.prochaine < 4 ? `🎯 Bouée ${mien.prochaine + 1} / 4` : "🏁 La ligne !";
+    else h.bouee.textContent = P.moi && !mien && (P.phase === "depart" || P.phase === "course") ? "⏳ À bord pour la course suivante" : "";
+    // le chrono, ou le temps qui reste
+    if (P.phase === "embarquement") h.chrono.textContent = `Départ dans ${Math.floor(reste / 60)}:${String(Math.floor(reste % 60)).padStart(2, "0")}`;
+    else if (P.phase === "course") h.chrono.textContent = tempsMer(Math.max(0, (vue.tick - (P.debutTick ??= vue.tick)) * 0.05)).replace(" s", "");
+    else if (P.phase === "libre") h.chrono.textContent = vue.coffre ? "🪙 Le coffre !" : "Entre deux courses";
+    else if (P.phase === "resultats") h.chrono.textContent = "Résultats";
+    else h.chrono.textContent = "";
+    if (P.phase !== "course") P.debutTick = undefined;
+    // le compte à rebours, en grand
+    let compte = "";
+    if (P.phase === "depart") compte = reste > 3 ? "Prêts ?" : String(Math.max(1, Math.ceil(reste)));
+    else if (P.phase === "course" && vue.tick - (P.debutTick ?? vue.tick) < 16) compte = "PARTEZ !";
+    if (compte !== h.compte.textContent) {
+      h.compte.textContent = compte;
+      h.compte.classList.remove("bat");
+      void h.compte.offsetWidth;
+      if (compte) h.compte.classList.add("bat");
+      if (/^\d$/.test(compte)) jouerSon("br-tic", { volume: 0.6 });
+    }
+    // le top 5 (et soi, s'il n'y est pas)
+    const top = P.classement.slice(0, 5);
+    if (P.moi && place > 5) top.push(P.moi);
+    const cle = top.join(",") + P.phase;
+    if (h.classement.dataset.cle !== cle) {
+      h.classement.dataset.cle = cle;
+      vider(h.classement, top.map((n) => el("li", { class: n === P.moi ? "moi" : "" }, el("b", { text: String(P.classement.indexOf(n) + 1) }), el("span", { text: P.joueurs.get(n)?.nom || "?" }))));
+    }
+    h.classement.hidden = !top.length;
+    // la rame
+    if (mien) {
+      h.jauge.firstChild.style.transform = `scaleX(${Math.max(0, Math.min(1, mien.e || 0)).toFixed(3)})`;
+      h.jauge.classList.toggle("vide", (mien.e || 0) < 0.15);
+      h.jauge.classList.toggle("rame", Boolean(mien.rame));
+    }
+    h.jauge.hidden = !mien;
+    // les petits sons : sa bouée, son choc
+    if (mien && P.phase === "course") {
+      if (mien.prochaine > P.prochaineVue) { jouerSon("pop", { volume: 0.7 }); if (mien.prochaine <= 4) ajouterFilMer(P, mien.prochaine < 4 ? `🎯 Bouée ${mien.prochaine} ! Cap sur la ${mien.prochaine + 1}` : "🎯 Bouée 4 ! Cap sur la ligne"); }
+      P.prochaineVue = mien.prochaine;
+      if (mien.choc && performance.now() - P.chocVu > 700) { P.chocVu = performance.now(); jouerSon("impact", { volume: 0.5 }); }
+    }
+    // une 3D trop lente passe en 2D (une fois)
+    if (P.rendu3D && !P.verifie && performance.now() - P.depuis > 5000 && P.rendu.tropLent?.()) {
+      P.verifie = true;
+      merVeut2D = merVeut2D ?? true;
+      ajouterFilMer(P, "🗺️ Ton appareil peine en 3D : je passe la mer en 2D.");
+      choisirRenduMer(P, true);
+    }
+  }
+  function boucleMer(P) {
+    let avant = performance.now();
+    let dernierHud = 0;
+    const image = (t) => {
+      if (partieMer !== P || P.ferme) return;
+      P.raf = requestAnimationFrame(image);
+      const dt = t - avant;
+      avant = t;
+      if (document.hidden || !P.rendu) return;
+      P.suivi.pas(dt);
+      const vue = P.suivi.vue(t);
+      if (!vue || !P.p) return;
+      const mien = vue.barques.find((b) => b.moi) || null;
+      P.rendu.maj(vue, { moi: P.moi, joueurs: P.joueurs, prochaine: mien?.prochaine ?? 0, tete: new Set(P.classement.slice(0, 3)), premier: P.classement[0] || 0 });
+      P.rendu.rendre();
+      if (t - dernierHud > 150) { dernierHud = t; hudMer(P, vue, mien); }
+    };
+    P.raf = requestAnimationFrame(image);
+  }
+  function suivreMer() {
+    const section = $("mer");
+    if (!section) return;
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver((e) => {
+        merVue = e.some((x) => x.isIntersecting);
+        if (merVue) rendreMer();
+        suivreSallesMer();
+      }, { rootMargin: "200px 0px" }).observe(section);
+    } else merVue = true;
+    document.addEventListener("visibilitychange", suivreSallesMer);
+    // un lien direct : #mer ou #mer-barhaw (la mer d'une commu)
+    window.addEventListener("hashchange", () => { if (/^#mer(-|$)/.test(location.hash)) rendreMer(); });
+  }
+
   async function demanderFideles(action) {
     try {
       const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
@@ -9756,6 +10342,8 @@
     rendreClassementJeu();
     rendreBahriot();
     rendreGuerre();
+    merDemande = 0;
+    rendreMer();
     if (moi?.connecte) agir("etat");
     chargerMesCartes();
     chargerMesJeux();
@@ -9800,6 +10388,7 @@
     suivreChasse();
     suivreFaille();
     suivreGrandLine();
+    suivreMer();
     suivreTrailerShow();
     // la V4 : la classe v4 dès le départ (selon la date), puis à l'heure pile ; les liens directs vers un navire
     document.documentElement.classList.toggle("v4", v4Ouverte());

@@ -4269,3 +4269,116 @@ html.recit-ouvert { overflow: hidden; }
   .gu-etiquette { transition: none; }
   .gu-banniere.phase-rage .gu-grand, .gu-banniere.phase-rage::after, .gu-recit, .gu-recit-texte.neuf, .gu-etiquette.bat, .gu-etiquette.bat .gu-et-garnison { animation: none; }
 }
+
+/* ===================== LA MER EN DIRECT (VF 1.0) ===================== */
+.mer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.mer-salles:empty, .mer-hote:empty, #mer-message:empty { display: none; }
+.mer-calme { display: grid; gap: 10px; padding: 18px; border-radius: 16px; background: linear-gradient(160deg, rgba(85, 204, 255, 0.12), rgba(155, 77, 255, 0.1)); border: 1px dashed rgba(120, 220, 255, 0.4); }
+.mer-calme p { margin: 0; }
+.mer-calme-titre { font-family: var(--titre); font-size: 1.15rem; }
+.mer-liste { display: grid; gap: 10px; }
+.mer-salle { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 16px; background: linear-gradient(120deg, rgba(85, 204, 255, 0.16), rgba(255, 79, 154, 0.12)); border: 2px solid rgba(120, 220, 255, 0.45); box-shadow: 4px 4px 0 var(--ombre); }
+.mer-salle.essai { border-style: dashed; }
+.mer-salle p { margin: 0; }
+.mer-salle-nom { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 1.05rem; }
+.mer-salle-infos, .mer-salle-etat { color: var(--brume); font-size: 0.92rem; }
+.mer-salle-etat b { color: #ffd36b; }
+.mer-drapeau { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; font-family: var(--titre); font-size: 1.3rem; color: #fff; background: linear-gradient(135deg, var(--c1, #ff5aae) 55%, var(--c2, #55ccff) 55%); border: 2px solid var(--encre); text-shadow: 0 2px 0 var(--encre); }
+.mer-boutons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.mer-hote-carte { display: grid; gap: 10px; padding: 14px 16px; border-style: dashed; }
+.mer-hote-carte p { margin: 0; }
+.mer-choix { background: var(--nuit); color: var(--blanc); border: 1px solid var(--ligne); border-radius: 8px; padding: 4px 8px; font: inherit; }
+.mer-sous { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.mer-sous .carte { padding: 16px 18px; }
+.mer-sous h3 { margin: 0 0 10px; }
+.mer-liste-regles { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
+.mer-records, .mer-historique { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.mer-records li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; }
+.mer-records b { color: #ffd36b; font-family: var(--titre); }
+.mer-records small, .mer-h-quand { color: var(--terne); }
+.mer-historique { margin-top: 12px; }
+.mer-historique li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--verre); }
+.mer-h-podium { font-weight: 800; }
+
+/* la course à l'écran */
+.mer-scene { position: relative; aspect-ratio: 16 / 9; min-height: 320px; border-radius: 18px; overflow: hidden; background: radial-gradient(90% 80% at 50% 50%, #e9dcc0 0%, #cdb98f 100%); border: 2px solid var(--ligne); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.mer-scene[hidden] { display: none; }
+.mer-scene.jouer:not(.spectateur) { touch-action: none; }
+.mer-scene:fullscreen, .mer-scene.plein { aspect-ratio: auto; width: 100%; height: 100%; border-radius: 0; border: 0; }
+.mer-scene.plein { position: fixed; inset: 0; z-index: 200; height: 100dvh; }
+html.mer-plein, html.mer-plein body { overflow: hidden; }
+.mer-toile, .mer-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mer-etiquettes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.mer-etiquette { position: absolute; left: 0; top: 0; padding: 2px 8px; border-radius: 8px; background: rgba(18, 5, 13, 0.72); color: #fff; font: 800 12px/1.3 var(--fort); white-space: nowrap; will-change: transform; }
+.mer-etiquette.moi { background: #ffd36b; color: var(--encre); z-index: 2; }
+.mer-etiquette[hidden] { display: none; }
+.mer-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 8px; pointer-events: none; }
+.mer-hud-gauche p, .mer-chrono { margin: 0; color: #fff; font-family: var(--titre); text-shadow: 0 2px 0 var(--encre), 0 0 8px rgba(0, 0, 0, 0.5); }
+.mer-place { font-size: clamp(1.4rem, 3.4vw, 2.1rem); line-height: 1; }
+.mer-bouee { font-size: 0.95rem; margin-top: 4px !important; }
+.mer-chrono { justify-self: center; padding: 4px 12px; border-radius: 10px; background: rgba(18, 5, 13, 0.55); font-size: clamp(1rem, 2.4vw, 1.35rem); }
+.mer-chrono:empty { display: none; }
+.mer-hud-boutons { justify-self: end; display: flex; gap: 6px; pointer-events: auto; }
+.mer-bouton { width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--encre); background: rgba(255, 242, 248, 0.92); color: var(--encre); font: 900 15px/1 var(--fort); cursor: pointer; box-shadow: 2px 2px 0 var(--encre); }
+.mer-bouton:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--encre); }
+.mer-classement { position: absolute; top: 76px; right: 10px; margin: 0; padding: 8px 10px; list-style: none; display: grid; gap: 3px; min-width: 150px; max-width: 42%; border-radius: 12px; background: rgba(18, 5, 13, 0.62); color: #fff; font-size: 0.85rem; pointer-events: none; }
+.mer-classement[hidden] { display: none; }
+.mer-classement li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; }
+.mer-classement li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mer-classement li b { color: #ffd36b; }
+.mer-classement li.moi { color: #ffd36b; font-weight: 800; }
+.mer-fil { position: absolute; left: 10px; bottom: 64px; margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; max-width: min(70%, 420px); pointer-events: none; }
+.mer-fil li { padding: 4px 10px; border-radius: 10px; background: rgba(18, 5, 13, 0.66); color: #fff; font-size: 0.85rem; animation: mer-fil 0.35s var(--doux); }
+.mer-fil li:nth-child(n + 3) { opacity: 0.6; }
+@keyframes mer-fil { from { opacity: 0; transform: translateY(6px); } }
+.mer-compte { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; pointer-events: none; font-family: var(--titre); font-size: clamp(3rem, 12vw, 7rem); color: #ffd36b; -webkit-text-stroke: 3px var(--encre); text-shadow: 0 6px 0 var(--encre); }
+.mer-compte:empty { display: none; }
+.mer-compte.bat { animation: mer-bat 0.6s var(--rebond); }
+@keyframes mer-bat { from { transform: scale(1.8); opacity: 0; } }
+.mer-attente { position: absolute; left: 50%; top: 62px; transform: translateX(-50%); margin: 0; padding: 6px 14px; border-radius: 12px; background: rgba(18, 5, 13, 0.75); color: #fff; font-weight: 800; text-align: center; max-width: 90%; pointer-events: none; }
+.mer-attente:empty { display: none; }
+.mer-fin { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(92%, 400px); padding: 16px 18px; border-radius: 16px; background: var(--papier); color: var(--encre); border: 3px solid var(--encre); box-shadow: 6px 6px 0 var(--encre); display: grid; gap: 8px; text-align: center; }
+.mer-fin[hidden] { display: none; }
+.mer-fin p { margin: 0; }
+.mer-fin .note { color: #5a3a55; }
+.mer-fin-titre { font-family: var(--titre); font-size: 1.2rem; }
+.mer-podium { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; text-align: left; }
+.mer-podium li { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 8px; padding: 6px 10px; border-radius: 10px; background: rgba(18, 5, 13, 0.06); }
+.mer-podium li:first-child { background: rgba(255, 211, 107, 0.45); font-weight: 800; }
+.mer-podium li.moi { outline: 2px solid var(--rose); }
+.mer-fin-gains { font-weight: 800; color: #8a4b00; }
+.mer-fin-record { font-weight: 800; color: var(--rose-fonce); }
+.mer-fin .rangee { justify-content: center; }
+.mer-bas { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); pointer-events: none; }
+.mer-jauge { width: min(46vw, 220px); height: 14px; border-radius: 99px; background: rgba(18, 5, 13, 0.55); border: 2px solid var(--encre); overflow: hidden; }
+.mer-jauge[hidden] { display: none; }
+.mer-jauge i { display: block; height: 100%; background: linear-gradient(90deg, #55ccff, #ffd36b); transform-origin: left; transition: transform 0.12s linear; }
+.mer-jauge.rame i { background: linear-gradient(90deg, #ff4f9a, #ffd36b); }
+.mer-jauge.vide i { background: #9aa5a8; }
+.mer-commandes { display: none; position: absolute; left: 0; right: 0; bottom: 34px; padding: 0 10px; justify-content: space-between; align-items: end; pointer-events: none; }
+.mer-touche { pointer-events: auto; touch-action: none; width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--encre); background: rgba(255, 242, 248, 0.82); color: var(--encre); font: 900 28px/1 var(--fort); box-shadow: 3px 3px 0 var(--encre); }
+.mer-touche.rame { width: 96px; height: 56px; border-radius: 16px; font-size: 16px; background: rgba(255, 211, 107, 0.92); }
+.mer-touche:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--encre); }
+@media (pointer: coarse), (max-width: 760px) {
+  .mer-commandes { display: flex; }
+  .mer-bas { bottom: 104px; }
+  .mer-fil { bottom: 128px; }
+  .mer-fil li:nth-child(n + 3) { display: none; }
+}
+.mer-scene.spectateur .mer-commandes, .mer-scene.spectateur .mer-bas { display: none; }
+@media (max-width: 760px) {
+  .mer-scene { aspect-ratio: 3 / 4; }
+  .mer-scene.plein { aspect-ratio: auto; }
+  .mer-salle { grid-template-columns: auto minmax(0, 1fr); }
+  .mer-boutons { grid-column: 1 / -1; justify-content: flex-start; }
+  .mer-hud { grid-template-columns: minmax(0, 1fr) auto; }
+  .mer-chrono { grid-column: 1 / -1; grid-row: 2; }
+  .mer-place { font-size: 1.5rem; }
+  .mer-classement { top: 104px; font-size: 0.78rem; min-width: 0; padding: 6px 8px; background: rgba(18, 5, 13, 0.82); }
+  .mer-attente { top: 104px; }
+  .mer-classement li:nth-child(n + 4):not(.moi) { display: none; }
+  .mer-bouton { width: 34px; height: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mer-compte.bat, .mer-fil li { animation: none; }
+}
