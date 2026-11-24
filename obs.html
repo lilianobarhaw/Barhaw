@@ -58,6 +58,24 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
 .al-image img, .choix-image img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .al-image.maquette img, .choix-image.maquette img { object-fit: contain; }
 .al-emoji { flex: none; font-size: 14rem; line-height: 1; filter: drop-shadow(0.6rem 0.7rem 0 rgba(18, 5, 13, 0.35)); }
+/* ---------- la mer en direct (?mer) : la course vue de haut, le top 5 ---------- */
+.mer-obs { position: absolute; display: flex; align-items: flex-end; gap: 2rem; opacity: 0; transform: translateY(20%) scale(0.96); transition: transform 0.6s var(--rebond), opacity 0.3s linear; }
+.mer-obs.entre { opacity: 1; transform: none; }
+.mer-obs.coin-bas-gauche { left: 4rem; bottom: 4rem; }
+.mer-obs.coin-bas-droite { right: 4rem; bottom: 4rem; flex-direction: row-reverse; }
+.mer-obs.coin-haut-gauche { left: 4rem; top: 4rem; align-items: flex-start; }
+.mer-obs.coin-haut-droite { right: 4rem; top: 4rem; align-items: flex-start; flex-direction: row-reverse; }
+.mer-carte { position: relative; width: 64rem; aspect-ratio: 16 / 10; border: 0.5rem solid var(--encre); border-radius: 2.4rem; overflow: hidden; background: #e9dcc0; box-shadow: 1.1rem 1.2rem 0 var(--ombre); }
+@media (orientation: portrait) { .mer-obs { flex-direction: column; align-items: flex-start; } .mer-obs.coin-bas-gauche, .mer-obs.coin-bas-droite { left: 4rem; right: auto; bottom: 26rem; flex-direction: column-reverse; } .mer-carte { width: 92rem; } }
+.mer-toile { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mer-etat { position: absolute; left: 1.4rem; top: 1.2rem; padding: 0.6rem 1.4rem; border-radius: 1.2rem; background: rgba(18, 5, 13, 0.78); color: #fff; font-size: 2.4rem; font-weight: 800; }
+.mer-etat:empty { display: none; }
+.mer-top { margin: 0; padding: 1.2rem 1.6rem; list-style: none; display: grid; gap: 0.5rem; min-width: 26rem; border: 0.4rem solid var(--encre); border-radius: 1.8rem; background: rgba(31, 12, 30, 0.92); color: #fff; font-size: 2.6rem; box-shadow: 0.8rem 0.9rem 0 var(--ombre); }
+.mer-top[hidden] { display: none; }
+.mer-top li { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.8rem; }
+.mer-top li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 24rem; }
+.mer-top li b { color: var(--or); font-family: var(--titre); font-weight: 400; }
+.al-mer .al-nom { font-family: var(--titre); font-weight: 400; color: var(--or); }
 .al-or .al-titre { text-shadow: 0.5rem 0.5rem 0 var(--or); }
 .al-or .al-image { box-shadow: 0.7rem 0.8rem 0 var(--or); }
 

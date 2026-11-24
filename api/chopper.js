@@ -25,13 +25,16 @@
 //        → la flotte des commus (V4) : de quels serveurs de la course le membre est membre (le bot répond oui ou non,
 //          serveur par serveur), son équipage, et son choix d'équipage s'il est sur plusieurs (bloqué jusqu'au trésor).
 //          Les actions de GRAND LINE disent aussi quel navire elles visent (commu) : le bot vérifie que c'est son équipage.
+//   POST /api/chopper  { action: "mer" | "mer-embarquer" | "mer-regarder" | "mer-lancer" | "mer-depart" | "mer-arreter", salle, essai }
+//        → la mer en direct : les mers ouvertes, un billet pour monter à bord (ou regarder une mer d'essai) sur le serveur
+//          en direct du bot, et le panneau de Liliano et des capitaines (ouvrir la mer, le départ, la fermer)
 //   POST /api/chopper  { action: "fideles" | "fideles-code" | "fideles-retirer" }
 //        → les fidèles du stream : son temps sur le live, un code pour relier son Twitch (« !lier CODE » dans le chat), tout retirer
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "bahriot", "bahriot-inscrire", "bahriot-desinscrire", "guerre", "guerre-engager", "guerre-quitter", "guerre-voter", "valorant", "valorant-demander", "valorant-annuler", "valorant-retirer"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "bahriot", "bahriot-inscrire", "bahriot-desinscrire", "guerre", "guerre-engager", "guerre-quitter", "guerre-voter", "mer", "mer-embarquer", "mer-regarder", "mer-lancer", "mer-depart", "mer-arreter", "valorant", "valorant-demander", "valorant-annuler", "valorant-retirer"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course", "traversee"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
@@ -100,6 +103,11 @@ export async function POST(req) {
   if (action === "rumble-fin") {
     corps.transformations = entier(d.transformations, 0, 7);
     corps.score = entier(d.score, 0, 1000);
+  }
+  // la mer en direct : la mer visée (l'identifiant d'une commu) ; mer-lancer peut ouvrir une mer d'essai
+  if (action.startsWith("mer")) {
+    corps.salle = /^[a-z0-9]{2,20}$/.test(String(d.salle || "")) ? String(d.salle) : "";
+    if (action === "mer-lancer") corps.essai = d.essai === true;
   }
   // la Guerre des commus : l'île de son vote (vide : retirer son vote)
   if (action === "guerre-voter") corps.ile = /^[a-z0-9-]{2,30}$/.test(String(d.ile || "")) ? String(d.ile) : "";

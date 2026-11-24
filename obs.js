@@ -19,6 +19,10 @@
 // sans ça, elle ne passe jamais à l'écran, pour ne rien dévoiler pendant un live) ·
 // ?essai=terre|tresor|vote|rappel|choisi|mer|monstre|boss|vaincu|fui|bientot|compte|sortie|guerre|derniere|bataille|regne|x2|tout
 // (des alertes d'exemple en boucle, sans rien demander au bot, pour placer la source).
+// LA MER EN DIRECT : ?mer (la mer de l'équipage suivi) ou ?mer=<commu> : pendant une course, la mer vue de haut, le top 5 et
+// les alertes (la mer ouvre, le vainqueur, le coffre). Le top 5 montre les pseudos Discord, comme le site ; ?pseudos=non pour
+// montrer la commu à la place. ?coin=bas-gauche|bas-droite|haut-gauche|haut-droite (bas-gauche sans rien) ·
+// ?essai=course : une course d'exemple en boucle, jouée dans la page, avec des barques aux noms inventés.
 (() => {
   "use strict";
   const P = new URLSearchParams(location.search);
@@ -474,6 +478,7 @@
     sortieLe = ouverture;
     depart = Number(d.flotte?.depart) || 0;
     try { lireGuerre(d.guerre); } catch { guerre = null; }
+    try { surMerPublic(d.mer); } catch { /* la mer attendra le prochain tour */ }
     majBarre();
     if (avant === false && vfBot === true && memoire.sortie !== ouverture) sortir(ouverture, true); // ouverte en avance, sous nos yeux
     else if (vfBot === false && memoire.sortie === ouverture && maintenant() < ouverture - 5000) { delete memoire.sortie; retenir(); } // refermée après un essai : la vraie sortie sera annoncée
@@ -631,18 +636,146 @@
     lien.href = `${location.pathname}?${exemple}`;
     const carte = el("div", "aide",
       el("b", "", "Les alertes de GRAND LINE pour OBS"),
-      el("p", "", "Cette page reste vide tant qu'il ne se passe rien : elle montre une alerte quand l'équipage accoste, quand un vote s'ouvre, quand le BOSS LIVE se réveille, et pendant la Guerre des commus, avant et après chaque bataille de 21 h."),
+      el("p", "", "Cette page reste vide tant qu'il ne se passe rien : elle montre une alerte quand l'équipage accoste, quand un vote s'ouvre, quand le BOSS LIVE se réveille, et pendant la Guerre des commus, avant et après chaque bataille de 21 h. Avec ?mer dans l'adresse, elle montre aussi la course de la mer en direct, vue de haut, et son top 5."),
       el("p", "", "Dans OBS : ajoute une source « Navigateur » avec cette adresse, en 1920 × 1080 (ou 1080 × 1920 pour un live vertical)."),
       lien);
     document.body.append(carte);
     setTimeout(() => carte.remove(), 20_000);
   }
 
+  // ---------- la mer en direct : la course vue de haut, le top 5 et ses alertes (?mer) ----------
+  const MER_SALLE = P.has("mer") || ESSAI === "course" ? ((P.get("mer") || COMMU).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || COMMU) : "";
+  const MER_PSEUDOS = P.get("pseudos") !== "non";
+  const MER_COIN = ["bas-gauche", "bas-droite", "haut-gauche", "haut-droite"].includes(P.get("coin")) ? P.get("coin") : "bas-gauche";
+  let mer = null; // la course à l'écran
+  let merMods = null;
+  let merCommus = {}; // id → { nom, c1, c2, embleme }
+  const modulesMer = () => (merMods ||= Promise.all([import("/js/mer-jeu.js"), import("/js/mer-2d.js")]).then(([jeu, d2]) => ({ jeu, d2 })));
+  const rangMer = (n) => (n === 1 ? "1er" : `${n}e`);
+  const tempsMer = (s) => { const m = Math.floor(s / 60); const x = (s - m * 60).toFixed(2).replace(".", ","); return m ? `${m} min ${x} s` : `${x} s`; };
+  const nomMer = (j) => (MER_PSEUDOS ? j?.nom : merCommus[j?.commu]?.nom) || "Une barque";
+  const alMerOuverte = (nom) => ({
+    nom: "mer", duree: 12_000, son: "cloche",
+    faire: () => el("div", "al al-nuit al-mer",
+      el("div", "al-emoji", "⛵"),
+      el("div", "al-texte",
+        el("div", "al-sur", `La mer en direct${nom ? ` · ${nom}` : ""}`),
+        titre("MONTEZ À BORD !"),
+        el("div", "al-nom", `${location.host}/#mer`),
+        el("div", "al-info", "Course dans une minute · connectez-vous avec Discord"))),
+  });
+  const alMerGagnant = (j, temps, parcours) => ({
+    nom: "mer-gagnant", duree: 9000, son: "victoire",
+    faire: () => el("div", "al al-papier al-or",
+      el("div", "al-emoji", "🏆"),
+      el("div", "al-texte",
+        el("div", "al-sur", `La mer en direct · ${parcours || "la course"}`),
+        titre(`${nomMer(j)} GAGNE !`),
+        el("div", "al-info", `en ${tempsMer(temps)}`))),
+  });
+  function fermerMer() {
+    if (!mer) return;
+    const m = mer;
+    mer = null;
+    cancelAnimationFrame(m.raf);
+    try { m.source?.fermer(); } catch { /* déjà fermée */ }
+    m.panneau.classList.remove("entre");
+    setTimeout(() => m.panneau.remove(), 500);
+  }
+  async function ouvrirMer({ adresse = "", essai = false } = {}) {
+    if (mer) return;
+    const { jeu, d2 } = await modulesMer();
+    if (mer) return;
+    const toile = el("canvas", "mer-toile");
+    const top = el("ol", "mer-top");
+    const etat = el("div", "mer-etat");
+    // la carte de la course, et le top 5 à côté (pour ne rien cacher de la course)
+    const panneau = el("div", `mer-obs coin-${MER_COIN}`, el("div", "mer-carte", toile, etat), top);
+    scene.append(panneau);
+    const m = mer = { source: null, suivi: jeu.creerSuivi(), rendu: d2.creerMer2D(toile, { commus: merCommus, suivre: false }), joueurs: new Map(), p: null, phase: "", arrivees: [], panneau, top, etat, raf: 0, numero: 0, essai, jeu };
+    const surMessage = (x) => { if (mer === m) messageMer(m, x); };
+    m.source = essai
+      ? jeu.entrainement({ sansMoi: true, faux: 12, commus: merCommus, surMessage })
+      : jeu.connecter({ adresse, salle: MER_SALLE, surMessage, surEtat: (e) => { if (e === "ferme" && mer === m) fermerMer(); } });
+    let dernier = 0;
+    const image = (t) => {
+      if (mer !== m) return;
+      m.raf = requestAnimationFrame(image);
+      const vue = m.suivi.vue(t);
+      if (!vue || !m.p) return;
+      if (t - dernier > 250) { dernier = t; topMer(m, vue); }
+      m.rendu.maj(vue, { moi: 0, joueurs: MER_PSEUDOS ? m.joueurs : new Map(), tete: new Set(m.classement || []) });
+      m.rendu.rendre();
+    };
+    m.raf = requestAnimationFrame(image);
+    requestAnimationFrame(() => { m.rendu.taille(); montrer(panneau); });
+  }
+  function messageMer(m, x) {
+    if (x.k === "s") { m.suivi.rtt = m.source?.rtt || 120; m.suivi.recevoir(x); return; }
+    const parcours = (q) => { if (q?.id && (!m.p || m.p.id !== q.id || m.p.miroir !== q.miroir)) { m.p = m.jeu.parcours(q.id, q.miroir); m.suivi.parcours = m.p; m.rendu.parcours(m.p); } };
+    if (x.k === "salut") {
+      for (const [id, c] of Object.entries(x.commus || {})) merCommus[id] = { nom: c.nom, c1: c.c1, c2: c.c2, embleme: c.embleme };
+      m.rendu.commus = merCommus;
+      m.joueurs = new Map((x.joueurs || []).map(([n, nom, commu]) => [n, { nom, commu }]));
+      Object.assign(m, { phase: x.phase, numero: x.numero, arrivees: [] });
+      parcours(x.parcours);
+      return;
+    }
+    if (x.k === "arrive") { m.joueurs.set(x.j[0], { nom: x.j[1], commu: x.j[2] }); return; }
+    if (x.k === "parti") { m.joueurs.delete(x.n); return; }
+    if (x.k === "phase") {
+      const avant = m.phase;
+      Object.assign(m, { phase: x.phase, numero: x.numero });
+      parcours(x.parcours);
+      if (x.phase === "depart") m.arrivees = [];
+      // la mer ouvre (ou une nouvelle course) : l'alerte, une fois par course
+      if (x.phase === "embarquement" && avant !== "embarquement" && !m.essai) annoncer(alMerOuverte(equipage));
+      return;
+    }
+    if (x.k === "arrivee") { if (!m.arrivees.includes(x.n)) m.arrivees.push(x.n); return; }
+    if (x.k === "resultats") {
+      const [n, , temps] = x.classement?.[0] || [];
+      if (n && temps !== null && temps !== undefined) annoncer(alMerGagnant(m.joueurs.get(n), temps, x.parcours));
+      if (m.essai) setTimeout(() => { if (mer === m) m.source?.relancer?.(); }, 9000);
+      return;
+    }
+    if (x.k === "ferme") fermerMer();
+  }
+  // le haut du panneau (la phase, le chrono) et le top 5
+  function topMer(m, vue) {
+    const pos = new Map(m.arrivees.map((n, k) => [n, k]));
+    const cible = (b) => (b.prochaine < m.p.bouees.length ? m.p.bouees[b.prochaine] : m.p.centre);
+    const dist = (b) => { const c = cible(b); return Math.hypot(c.x - b.x, c.z - b.z); };
+    const enCourse = m.phase === "course" || m.phase === "resultats";
+    const ordre = enCourse ? [...vue.barques].sort((a, b) => {
+      const fa = pos.has(a.id), fb = pos.has(b.id);
+      if (fa !== fb) return fa ? -1 : 1;
+      if (fa) return pos.get(a.id) - pos.get(b.id);
+      return b.prochaine - a.prochaine || dist(a) - dist(b);
+    }).map((b) => b.id) : [];
+    m.classement = ordre.slice(0, 3);
+    const texte = { embarquement: `⛵ Montez à bord : ${location.host}/#mer`, depart: "🚩 3, 2, 1…", course: `🏁 Course ${m.numero} · ${m.p?.nom || ""}`, resultats: "🏆 Les résultats", libre: vue.coffre ? "🪙 Le coffre est sur la mer !" : "⛵ Entre deux courses" }[m.phase] || "";
+    if (m.etat.textContent !== texte) m.etat.textContent = texte;
+    const lignes = ordre.slice(0, 5).map((n, k) => `${k + 1}|${nomMer(m.joueurs.get(n))}`);
+    const cle = lignes.join(",");
+    if (m.top.dataset.cle === cle) return;
+    m.top.dataset.cle = cle;
+    m.top.replaceChildren(...lignes.map((l) => { const [k, nom] = l.split("|"); return el("li", "", el("b", "", k), el("span", "", nom)); }));
+    m.top.hidden = !lignes.length;
+  }
+  function surMerPublic(d) {
+    if (!MER_SALLE || !d?.adresse) return;
+    const s = (d.salles || []).find((x) => x.id === MER_SALLE && !x.essai);
+    if (s && !mer) ouvrirMer({ adresse: d.adresse });
+  }
+
   window.__obs = {
+    mer: () => (mer ? { phase: mer.phase, numero: mer.numero, joueurs: mer.joueurs.size, parcours: mer.p?.id || "", top: mer.top.textContent } : null),
     etat: () => ({ commu: COMMU, enCours: enCours?.nom || null, file: file.map((a) => a.nom), barre: barre?.genre || null, combat: Boolean(combat), vote: Boolean(vote), attente, chiffre: chiffre?.valeur || 0, ouverture, depart, vf: vf(), decal, lu: dejaLu, guerre: guerre ? { phase: guerre.phase, bataille: guerre.bataille, rage, avantBataille } : null, memoire: { ...memoire } }),
     relire: () => Promise.all([chargerPublic(), chargerBoss()]),
     passer: () => enCours?.partir(),
   };
+  if (ESSAI === "course") { equipage = COMMU === "barhaw" ? "Barhaw" : COMMU; merCommus = { barhaw: { nom: "Barhaw", c1: "#ff5aae", c2: "#55ccff", embleme: "B" }, veyzo: { nom: "Veyzo Family", c1: "#3fd0c9", c2: "#2f6fe0", embleme: "V" }, squirt: { nom: "Squirt.exe", c1: "#ffb300", c2: "#7a3cff", embleme: "S" } }; ouvrirMer({ essai: true }); setTimeout(() => annoncer(alMerOuverte(equipage)), 1500); return; }
   if (ESSAI && essais()) return;
   sortieLe = ouverture;
   chargerPublic();
