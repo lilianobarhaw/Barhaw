@@ -6,6 +6,8 @@
 // qui prévient le chat. Rechargée au milieu d'une vidéo, la page la reprend là où elle en était.
 // Les lecteurs : YouTube (youtube-nocookie.com/embed) et TikTok (tiktok.com/player/v1), pilotés par postMessage, sans charger
 // leurs scripts (les deux sont dans la règle frame-src de vercel.json). La page ne garde rien : la file vit dans le bot.
+// Chez un pote streamer qui a !video (/video ajouter sur Discord) : ?video=<sa chaîne Twitch> (sa file à lui) ; ?video seul :
+// la chaîne de Liliano.
 // Réglages dans l'adresse : ?coin=haut-gauche|haut-droite|bas-gauche|bas-droite (sans rien : au milieu, en grand) ·
 // ?pseudos=non (cacher qui a mis la vidéo) · ?essai=video (des vidéos d'exemple dessinées dans la page, avec une cloche pour
 // vérifier que le son arrive dans OBS) · ?fond=oui (un fond sombre, pour régler la page dans un onglet).
@@ -142,6 +144,9 @@ const EXEMPLES = [
 
 export function demarrer({ scene, P }) {
   const ESSAI = (P.get("essai") || "").toLowerCase() === "video";
+  // la chaîne : rien = celle de Liliano ; un nom invalide = on ne se branche pas (pas question de montrer la file d'un autre)
+  const brut = String(P.get("video") || "").trim().toLowerCase().replace(/^@/, "");
+  const CHAINE = !brut ? "" : /^[a-z0-9_]{3,25}$/.test(brut) ? brut : null;
   const COIN = COINS.includes(P.get("coin")) ? P.get("coin") : "centre";
   const PSEUDOS = P.get("pseudos") !== "non";
   const DANS_OBS = Boolean(window.obsstudio || window.streamlabsOBS);
@@ -151,6 +156,7 @@ export function demarrer({ scene, P }) {
   let adresse = "";
   let lu = false; // le site a répondu au moins une fois
   let branche = false; // le bot a dit bonjour
+  let refusee = false; // le bot ne connaît pas cette chaîne (elle n'a pas !video)
   let essais = 0;
   let minuteur = null;
   let vu = 0; // le dernier message du bot
@@ -312,6 +318,7 @@ export function demarrer({ scene, P }) {
     if (!m || typeof m !== "object") return;
     if (m.k === "etat") {
       branche = true;
+      refusee = false;
       lireFile(m);
       if (m.v) jouer(m.v, m.v.deja);
       else if (ici && !ici.fini) enlever(ici); // le bot n'a plus rien en cours (il a redémarré)
@@ -336,7 +343,7 @@ export function demarrer({ scene, P }) {
   function plusTard(ms) { clearTimeout(minuteur); minuteur = setTimeout(brancher, ms); }
   async function brancher() {
     clearTimeout(minuteur);
-    if (ws) return;
+    if (ws || CHAINE === null) return;
     const d = await lire("/api/public");
     if (ws) return;
     if (d && !d.horsLigne) {
@@ -350,7 +357,7 @@ export function demarrer({ scene, P }) {
     try { s = new WebSocket(adresse); } catch { s = null; }
     if (!s) { plusTard(20_000); return; }
     ws = s;
-    s.onopen = () => { vu = Date.now(); s.send(JSON.stringify({ k: "bonjour", role: "obs" })); };
+    s.onopen = () => { vu = Date.now(); s.send(JSON.stringify({ k: "bonjour", role: "obs", ...(CHAINE ? { chaine: CHAINE } : {}) })); };
     s.onmessage = (e) => {
       vu = Date.now();
       essais = 0;
@@ -363,8 +370,11 @@ export function demarrer({ scene, P }) {
       debrancher();
       majAide();
       essais += 1;
-      // 4004 : les vidéos du chat sont coupées dans le bot (VIDEO=non) ; sinon on revient vite, puis de moins en moins souvent
-      plusTard(e?.code === 4004 ? 60_000 : Math.min(30_000, 1500 * 2 ** Math.min(essais, 5)));
+      // 4004 : les vidéos du chat sont coupées dans le bot (VIDEO=non) ; 4005 : cette chaîne n'a pas !video ;
+      // sinon on revient vite, puis de moins en moins souvent
+      refusee = e?.code === 4005;
+      majAide();
+      plusTard(e?.code === 4004 || e?.code === 4005 ? 60_000 : Math.min(30_000, 1500 * 2 ** Math.min(essais, 5)));
     };
   }
   // un petit signe toutes les 15 s ; sans nouvelles du bot depuis 50 s, la connexion est morte : on en refait une
@@ -390,9 +400,11 @@ export function demarrer({ scene, P }) {
   function majAide() {
     if (!aideLigne) return;
     const t = ESSAI ? "Essai : des vidéos d'exemple, sans le bot (avec une cloche, pour vérifier le son)."
+      : CHAINE === null ? "⛔ Le nom de chaîne dans l'adresse n'est pas bon : ?video=<le pseudo Twitch de la chaîne>."
+      : refusee ? `⛔ La chaîne « ${CHAINE} » n'a pas les vidéos du chat : demande à Liliano de l'ajouter (/video ajouter sur Discord).`
       : !lu ? "Connexion au site…"
       : !adresse ? "⏳ Le bot ne propose pas encore les vidéos du chat (sa mise à jour n'est pas installée, ou VIDEO=non dans ses réglages)."
-      : branche ? `✅ Branchée au bot : les vidéos du chat passeront ici${ouvert ? "" : " (fermées pour l'instant : !video on)"}.${attente ? ` ${attente} en attente.` : ""}`
+      : branche ? `✅ Branchée au bot${CHAINE ? ` pour la chaîne ${CHAINE}` : ""} : les vidéos du chat passeront ici${ouvert ? "" : " (fermées pour l'instant : !video on)"}.${attente ? ` ${attente} en attente.` : ""}`
       : "⏳ Connexion au bot…";
     if (aideLigne.textContent !== t) aideLigne.textContent = t;
   }
@@ -430,7 +442,7 @@ export function demarrer({ scene, P }) {
   }
 
   window.__obsVideo = {
-    etat: () => ({ essai: ESSAI, adresse, lu, branche, attente, ouvert, coin: COIN, obs: DANS_OBS, ici: ici ? { n: ici.v.n, site: ici.v.site, lecture: Boolean(ici.lecture), coupeA: ici.coupeA, reste: ici.reste, depart: ici.depart, muet: ici.muet, veutSon: ici.veutSon, fini: ici.fini, temps: ici.c.temps.textContent } : null, envoyes: envoyes.slice() }),
+    etat: () => ({ essai: ESSAI, chaine: CHAINE, refusee, adresse, lu, branche, attente, ouvert, coin: COIN, obs: DANS_OBS, ici: ici ? { n: ici.v.n, site: ici.v.site, lecture: Boolean(ici.lecture), coupeA: ici.coupeA, reste: ici.reste, depart: ici.depart, muet: ici.muet, veutSon: ici.veutSon, fini: ici.fini, temps: ici.c.temps.textContent } : null, envoyes: envoyes.slice() }),
   };
   if (ESSAI) { setTimeout(essaiSuivant, 800); return; }
   brancher();
