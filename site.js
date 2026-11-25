@@ -750,7 +750,9 @@
   const SON_BOUCLES = { mer: 24, "jeu-quiz": 20, "jeu-memory": 18.2944, "jeu-course": 23.2798, "jeu-rumble": 26.1818, "jeu-docteur": 19.6018 };
   const SON_NIVEAUX = { pop: 0.5, souffle: 0.45, clic: 0.55, taiko: 0.85, impact: 0.9, carte: 0.75, paire: 0.6, "quiz-bon": 0.65, "quiz-faux": 0.55, saut: 0.4, tonneau: 0.7, cloche: 0.7, potion: 0.5, soin: 0.55, victoire: 0.65,
     "br-tic": 0.39, "br-boum": 0.61, "br-onde": 0.38, "br-charge": 0.45, "br-score": 0.26, "br-monte": 0.47, "br-tampon": 0.92,
-    "br-roulement": 0.76, "br-cymbale": 0.76, "br-fanfare": 0.64, "br-feux": 0.54, "br-acclame": 0.31, "br-paillettes": 0.58 };
+    "br-roulement": 0.76, "br-cymbale": 0.76, "br-fanfare": 0.64, "br-feux": 0.54, "br-acclame": 0.31, "br-paillettes": 0.58,
+    "cr-plouf": 1, "cr-bulles": 0.42, "cr-filet": 0.55, "cr-baleine": 0.22, "cr-pieces": 1, "cr-feu": 0.58, "cr-cristal": 0.29,
+    "cr-mignon": 0.46, "cr-nacree": 0.55, "cr-envol": 0.51 };
   // la SEMAINE BAHRIOT (js/bahriot-anim.js) : ses bruitages, préchargés quand ses animations arrivent
   const SONS_BAHRIOT = ["br-tic", "br-boum", "br-onde", "br-charge", "br-score", "br-monte", "br-tampon", "br-roulement", "br-cymbale", "br-fanfare", "br-feux", "br-acclame", "br-paillettes", "carte"];
   const SONS_JEUX = { rumble: ["cloche", "potion", "victoire", "quiz-faux"], quiz: ["clic", "quiz-bon", "quiz-faux", "souffle", "victoire"], docteur: ["soin", "quiz-faux", "victoire", "souffle"], memory: ["carte", "paire", "victoire"], course: ["clic", "saut", "tonneau", "impact", "pop", "victoire"] };
@@ -7978,8 +7980,11 @@
   // (« 1 filet sur 2 » pour une commune, « 1 sur 8 » pour une épique). Le bot dit quelle créature est sur le Discord
   // (donnees.creatures.sauvage) et ce que le membre a attrapé (action « creatures ») ; ce qu'est chaque créature (nom, type,
   // texte, statistiques) et son dessin en 3D sont dans js/creatures-3d.js, chargé à l'approche de la partie.
-  // Actions du bot : « creatures » (le Bestiaire), « creatures-filet » { id }, « creatures-evoluer » { espece }.
-  const SONS_CREATURES = ["souffle", "br-tic", "victoire", "quiz-faux", "br-paillettes", "br-monte", "br-onde", "br-boum", "br-roulement", "br-cymbale", "br-fanfare", "br-acclame", "br-feux"];
+  // Actions du bot : « creatures » (le Bestiaire), « creatures-filet » { apparition }, « creatures-evoluer » { espece }.
+  const SONS_CREATURES = ["clic", "br-tic", "victoire", "quiz-faux", "br-paillettes", "br-monte", "br-onde", "br-boum", "br-roulement", "br-cymbale", "br-fanfare", "br-acclame", "br-feux",
+    "cr-plouf", "cr-bulles", "cr-filet", "cr-mignon", "cr-envol", "cr-nacree", "cr-baleine", "cr-pieces", "cr-feu", "cr-cristal"];
+  // le bruitage propre à certaines espèces, quand elles arrivent : [son, volume, retard]
+  const CR_SON_ESPECE = { celeste: ["cr-baleine", 0.9, 0.15], doublon: ["cr-pieces", 0.85, 0.2], braisilotl: ["cr-feu", 0.9, 0.1], narvelin: ["cr-cristal", 0.85, 0.2] };
   const cr = {
     mod: null, charge: false, vueSauvage: null, vueFiche: null, vueFicheNacree: false, atelier: null, ui: null, // la 3D
     moi: null, demande: 0, occupe: false, message: null, // le Bestiaire du membre, ce que dit le bot
@@ -8270,8 +8275,8 @@
     const qui = moi.nom || "Toi";
     cr.discord = [`🪢 ${qui} lance son filet ${depuis === "discord" ? "depuis le Discord" : "depuis le site"}…`];
     majSauvage(s);
-    jouerSon("souffle", { volume: 0.7 });
-    const d = await agirCreatures("creatures-filet", { id: w.id }, { differer: true });
+    jouerSon("clic", { volume: 0.6 });
+    const d = await agirCreatures("creatures-filet", { apparition: w.id }, { differer: true });
     if (d.erreur || !["attrape", "echappe"].includes(d.issue)) {
       cr.occupe = false;
       cr.discord = [];
@@ -8280,6 +8285,7 @@
       rendreCreatures();
       return;
     }
+    jouerSon("cr-filet", { volume: 0.9 });
     await cr.vueSauvage.lancerFilet(d.issue);
     appliquerCreatures(d);
     cr.occupe = false;
@@ -8295,18 +8301,34 @@
     rendreCreatures();
   }
   function evenementCreature(quoi, n) {
-    if (quoi === "entree") { annoncerRarete(n); return; }
+    const vole = Boolean(cr.vueSauvage?.vole?.());
+    if (quoi === "entree") {
+      // elle sort de l'eau (ou descend du ciel), avec son bruitage à elle, et le carillon si elle est nacrée
+      jouerSon(vole ? "cr-envol" : "cr-plouf", { volume: vole ? 0.9 : 0.8 });
+      const propre = CR_SON_ESPECE[cr.vueSauvage?.espece?.()];
+      if (propre) jouerSon(propre[0], { volume: propre[1], retard: propre[2] });
+      if (crSauvage(crInfos())?.nacree) jouerSon("cr-nacree", { volume: 0.8, retard: 0.45 });
+      annoncerRarete(n);
+      return;
+    }
+    if (quoi === "partir") { jouerSon(vole ? "cr-envol" : "cr-plouf", { volume: 0.45 }); return; }
+    if (quoi === "filet") { if (!vole) jouerSon("cr-plouf", { volume: 0.4 }); return; }
     cr.tamponRang = 0;
-    if (quoi === "secousse") { cr.tampon = `${n}…`; jouerSon("br-tic", { volume: 0.8 }); }
+    if (quoi === "secousse") {
+      cr.tampon = `${n}…`;
+      jouerSon("br-tic", { volume: 0.6 });
+      if (!vole) jouerSon("cr-bulles", { volume: 0.55 + 0.15 * (Number(n) || 1) });
+    }
     else if (quoi === "attrape") {
       cr.tampon = "ATTRAPÉE\u00a0!";
       cr.tamponRang = Number(n) || 0;
       jouerSon("victoire", { volume: 0.8 });
+      jouerSon("cr-mignon", { volume: 0.85, retard: 0.08 });
       if (n >= 3) jouerSon("br-acclame", { volume: 0.8, retard: 0.25 });
       if (n >= 4) jouerSon("br-fanfare", { volume: 0.8, retard: 0.15 });
       if (n >= 5) jouerSon("br-feux", { volume: 0.7, retard: 0.6 });
     }
-    else if (quoi === "echappe") { cr.tampon = "ÉCHAPPÉE…"; jouerSon("quiz-faux", { volume: 0.7 }); }
+    else if (quoi === "echappe") { cr.tampon = "ÉCHAPPÉE…"; jouerSon("quiz-faux", { volume: 0.7 }); jouerSon(vole ? "cr-envol" : "cr-plouf", { volume: 0.6, retard: 0.35 }); }
     else if (quoi === "evolution") { jouerSon("br-monte", { volume: 0.8 }); return; }
     else if (quoi === "flash") { jouerSon("br-paillettes", { volume: 0.9 }); return; }
     else return;
@@ -8419,7 +8441,7 @@
   }
   function basculerNacree() {
     cr.nacree = !cr.nacree;
-    if (cr.nacree) jouerSon("br-paillettes", { volume: 0.6 });
+    if (cr.nacree) jouerSon("cr-nacree", { volume: 0.7 });
     cr.sig = "";
     rendreCreatures();
   }

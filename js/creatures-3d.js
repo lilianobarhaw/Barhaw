@@ -2411,6 +2411,7 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
       return false;
     });
     if (!c.vole) effets.push(gerbe(scene, { n: 12, couleurs: ["#ffffff", "#c9fbff"], origine: new THREE.Vector3(0, 0.1, 0), vitesse: 2, haut: 3, duree: 0.8, taille: 0.18, graine: 3 }));
+    surEvenement("partir");
   }
   // lancer le filet : il vole, s'ouvre, tombe sur la créature, secoue trois fois, puis l'attrape (ou elle s'échappe)
   function lancerFilet(issue = "attrape") {
@@ -2426,6 +2427,8 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
       const vus = new Set();
       effets.push((t) => {
         const u = t - t0;
+        // le filet touche la créature (même si une image a sauté ce moment-là, sur un appareil lent)
+        if (!vus.has("pose") && u >= 0.77) { vus.add("pose"); surEvenement("filet"); }
         if (u < 0.55) {
           const k = u / 0.55;
           filet.position.lerpVectors(depart, haut, k);
@@ -2439,7 +2442,6 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
           filet.position.set(0, yC + R * 1.8 - k * R * 1.95, 0);
           filet.rotation.set(0, 5, 0);
           filet.scale.setScalar(R * 1.3);
-          if (!vus.has("pose") && k > 0.95) { vus.add("pose"); surEvenement("filet"); }
           return true;
         }
         if (u < 1.0) { filet.scale.setScalar(R * (1.3 - 0.22 * doux(0, 1, (u - 0.8) / 0.2))); return true; }
@@ -2568,6 +2570,8 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
     lancerFilet,
     evoluer,
     espece: () => idActuel,
+    // elle vole (Nuéraie, Céleste) : elle descend du ciel au lieu de sortir de l'eau
+    vole: () => Boolean(c?.vole),
     etat: () => ({ horloge, cachee, visible: Boolean(c?.racine.visible), y: plateau.position.y, echelle: plateau.scale.x, filet: Boolean(filet), effets: effets.length }),
     // l'image de la créature telle qu'on la voit (pour Discord)
     instantane() { renderer.render(scene, camera); return canvas.toDataURL("image/png"); },
