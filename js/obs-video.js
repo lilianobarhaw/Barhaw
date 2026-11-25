@@ -8,9 +8,12 @@
 // leurs scripts (les deux sont dans la règle frame-src de vercel.json). La page ne garde rien : la file vit dans le bot.
 // Chez un pote streamer qui a !video (/video ajouter sur Discord) : ?video=<sa chaîne Twitch> (sa file à lui) ; ?video seul :
 // la chaîne de Liliano.
+// À l'écran : SEULEMENT la vidéo, dans son cadre (demande de Liliano, 25/11 : pas de message à côté). ?infos=oui remet la
+// carte d'avant à côté (qui l'a mise, le titre, le temps qui reste, « Mets la tienne dans le chat : !video + lien »).
 // Réglages dans l'adresse : ?coin=haut-gauche|haut-droite|bas-gauche|bas-droite (sans rien : au milieu, en grand) ·
-// ?pseudos=non (cacher qui a mis la vidéo) · ?essai=video (des vidéos d'exemple dessinées dans la page, avec une cloche pour
-// vérifier que le son arrive dans OBS) · ?fond=oui (un fond sombre, pour régler la page dans un onglet).
+// ?infos=oui · ?pseudos=non (avec ?infos=oui : cacher qui a mis la vidéo) · ?essai=video (des vidéos d'exemple dessinées
+// dans la page, avec une cloche pour vérifier que le son arrive dans OBS) · ?fond=oui (un fond sombre, pour régler la page
+// dans un onglet).
 
 const YT = "https://www.youtube-nocookie.com";
 const TT = "https://www.tiktok.com";
@@ -149,6 +152,7 @@ export function demarrer({ scene, P }) {
   const CHAINE = !brut ? "" : /^[a-z0-9_]{3,25}$/.test(brut) ? brut : null;
   const COIN = COINS.includes(P.get("coin")) ? P.get("coin") : "centre";
   const PSEUDOS = P.get("pseudos") !== "non";
+  const INFOS = P.get("infos") === "oui";
   const DANS_OBS = Boolean(window.obsstudio || window.streamlabsOBS);
   document.title = "Les vidéos du chat pour OBS · Barhaw";
 
@@ -193,6 +197,12 @@ export function demarrer({ scene, P }) {
       el("div", "vid-jauge", c.jauge),
       c.note);
     const pied = el("div", "vid-pied", "Mets la tienne dans le chat : ", el("b", "", "!video + lien"), c.file);
+    // sans ?infos=oui : la vidéo seule (le petit mot pour le son, hors d'OBS seulement, passe par-dessus la vidéo)
+    if (!INFOS) {
+      c.cadre.append(c.note);
+      c.boite = el("div", `vid seule coin-${COIN}${vertical ? " vertical" : ""}`, c.cadre);
+      return c;
+    }
     c.boite = el("div", `vid coin-${COIN}${vertical ? " vertical" : ""}`, c.cadre, el("div", "vid-cote", info, pied));
     return c;
   }
