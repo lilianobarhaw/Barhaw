@@ -214,11 +214,16 @@ export function demarrer({ scene, P }) {
   const majNote = (a) => { a.c.note.hidden = DANS_OBS || !(a.muet || !a.veutSon); };
 
   // ---------- une vidéo arrive ----------
-  function jouer(v, deja = 0) {
+  // (nouvelle : une vidéo que le bot vient de lancer ; sinon, celle qu'il avait en cours quand la page s'est rebranchée)
+  function jouer(v, deja = 0, nouvelle = false) {
     if (!v || typeof v !== "object" || !["youtube", "tiktok"].includes(v.site) || typeof v.id !== "string" || !v.id) return;
     v.n = Number(v.n) || 0;
     if (ici && ici.v.n === v.n && !ici.fini) return; // déjà à l'écran (la connexion est revenue)
-    if (finies.has(v.n)) { dire({ k: "fin", n: v.n, raison: finies.get(v.n) }); return; } // finie pendant une coupure
+    if (finies.has(v.n)) {
+      // une nouvelle vidéo avec le numéro d'une ancienne : le bot a redémarré (ses numéros sont repartis) → elle passe
+      if (nouvelle) finies.delete(v.n);
+      else { dire({ k: "fin", n: v.n, raison: finies.get(v.n) }); return; } // finie pendant une coupure
+    }
     enlever(ici, { vite: true });
     const total = Math.max(5, Number(v.dureeMax) || 90);
     deja = Math.max(0, Number(deja) || 0);
@@ -331,8 +336,12 @@ export function demarrer({ scene, P }) {
       refusee = false;
       lireFile(m);
       if (m.v) jouer(m.v, m.v.deja);
-      else if (ici && !ici.fini) enlever(ici); // le bot n'a plus rien en cours (il a redémarré)
-    } else if (m.k === "joue") jouer(m.v);
+      else {
+        // le bot n'a plus rien en cours (il a peut-être redémarré) : les vidéos finies ici ne servent plus à rien
+        finies.clear();
+        if (ici && !ici.fini) enlever(ici);
+      }
+    } else if (m.k === "joue") jouer(m.v, 0, true);
     else if (m.k === "stop") { if (ici && ici.v.n === Number(m.n)) { finies.set(ici.v.n, "passee"); enlever(ici); } }
     else if (m.k === "file") lireFile(m);
     majAide();
