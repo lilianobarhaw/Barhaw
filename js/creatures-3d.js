@@ -881,7 +881,7 @@ function gerbe(scene, { n = 16, couleurs = ["#ffffff"], origine, vitesse = 3, ha
 }
 
 // ---------- la vue d'une créature : « fiche » (on la tourne, elle évolue) ou « sauvage » (sur l'eau, le filet)
-export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false, mode = "fiche", reduit = false, surEvenement = () => {} } = {}) {
+export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false, mode = "fiche", reduit = false, vide = false, surEvenement = () => {} } = {}) {
   const sauvage = mode === "sauvage";
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -984,6 +984,8 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
   ro?.observe(canvas);
   document.addEventListener("visibilitychange", demarrer);
   poser(espece);
+  // (vide : la mer seule, la créature arrivera avec entree() ou changer())
+  if (vide && sauvage) { cachee = true; c.racine.visible = false; }
   demarrer();
 
   // la créature sauvage sort de l'eau (ou descend du ciel)
@@ -1003,6 +1005,23 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
     });
     if (!c.vole) effets.push(gerbe(scene, { n: 18, couleurs: ["#ffffff", "#c9fbff"], origine: new THREE.Vector3(0, 0.1, 0), vitesse: 2.6, haut: 4.2, duree: 0.95, taille: 0.2, graine: Math.floor(horloge * 10) }));
     surEvenement("entree");
+  }
+  // elle repart au large : elle plonge (ou s'envole), puis la mer reste vide (entree() la fait revenir)
+  function partir() {
+    if (!sauvage || cachee || filet || !c) return;
+    const t0 = horloge;
+    const y0 = plateau.position.y;
+    effets.push((t) => {
+      const k = borne((t - t0) / 0.7);
+      plateau.position.y = y0 + (c.vole ? 2.6 * k * k : -1.8 * k * k);
+      plateau.scale.setScalar(1 - 0.6 * k);
+      if (k < 1) return true;
+      c.racine.visible = false;
+      cachee = true;
+      plateau.scale.setScalar(1);
+      return false;
+    });
+    if (!c.vole) effets.push(gerbe(scene, { n: 12, couleurs: ["#ffffff", "#c9fbff"], origine: new THREE.Vector3(0, 0.1, 0), vitesse: 2, haut: 3, duree: 0.8, taille: 0.18, graine: 3 }));
   }
   // lancer le filet : il vole, s'ouvre, tombe sur la créature, secoue trois fois, puis l'attrape (ou elle s'échappe)
   function lancerFilet(issue = "attrape") {
@@ -1098,7 +1117,8 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
       nouveau.racine.visible = false;
       plateau.add(nouveau.racine);
       const blanchir = (o, oui) => o.racine.traverse((m) => {
-        if (!m.isMesh || m.userData.encre) return;
+        if (!m.isMesh) return;
+        if (m.userData.encre) { m.visible = !oui; return; }
         if (oui && !m.userData.vraie) { m.userData.vraie = m.material; m.material = matBlanc; }
         if (!oui && m.userData.vraie) { m.material = m.userData.vraie; delete m.userData.vraie; }
       });
@@ -1155,6 +1175,7 @@ export function creerVueCreature(canvas, { espece = "piquebulle", nacree = false
     changer(id, opts = {}) { poser(id, opts); if (sauvage) entree(); },
     nacree(oui) { poser(idActuel, { nacree: oui }); },
     entree,
+    partir,
     lancerFilet,
     evoluer,
     espece: () => idActuel,
@@ -1193,7 +1214,7 @@ export function creerAtelier() {
     if (!cache.has(k)) cache.set(k, creerCreature(id, { nacree }));
     return cache.get(k);
   };
-  function rendre(id, { nacree = false, silhouette = false, t = performance.now() / 1000, l = 256, h = 256, angle = -0.42, marge = 1.08 }) {
+  function rendre(id, { nacree = false, silhouette = false, t = performance.now() / 1000, l = 256, h = 256, angle = -0.42, marge = 1.08, hauteur = null }) {
     if (canvas.width !== l || canvas.height !== h) renderer.setSize(l, h, false);
     const c = obtenir(id, nacree);
     support.add(c.racine);
@@ -1204,7 +1225,7 @@ export function creerAtelier() {
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
     const r = c.rayon * marge;
     const d = Math.max(r / Math.sin(vfov / 2), r / Math.sin(hfov / 2));
-    camera.position.set(0, c.centre + d * (c.hauteur ?? 0.2), d);
+    camera.position.set(0, c.centre + d * (hauteur ?? c.hauteur ?? 0.2), d);
     camera.lookAt(0, c.centre, 0);
     camera.updateProjectionMatrix();
     ombre.visible = !silhouette;

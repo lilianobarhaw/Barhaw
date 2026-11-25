@@ -4382,3 +4382,167 @@ html.mer-plein, html.mer-plein body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .mer-compte.bat, .mer-fil li { animation: none; }
 }
+
+/* ============ LES CRÉATURES DE GRAND LINE : la créature sauvage, le Discord, le Bestiaire, la fiche ============ */
+.cr { display: grid; gap: clamp(26px, 3.4vw, 40px); }
+.cr-rencontre { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: clamp(16px, 2.2vw, 28px); align-items: start; }
+.cr-cote { display: grid; gap: 10px; min-width: 0; }
+.cr-legende { margin: 0; display: flex; align-items: center; gap: 8px; font-family: var(--fort); font-weight: 800; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--violet-clair); }
+.cr-legende::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: currentColor; }
+.cr-puces { display: flex; flex-wrap: wrap; gap: 6px; }
+.cr-puce {
+  display: inline-flex; align-items: center; padding: 3px 10px 4px; border-radius: 99px; font-weight: 800; font-size: 12.5px; line-height: 1.2;
+  color: #fff; background: color-mix(in srgb, var(--c) 26%, #1a0a1b); border: 1.5px solid color-mix(in srgb, var(--c) 80%, transparent);
+}
+.cr-puce.num { color: var(--brume); background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.16); font-variant-numeric: tabular-nums; }
+
+/* la créature sauvage : la mer en 3D, le tampon des secousses, le bouton du filet */
+.cr-sauvage { overflow: hidden; }
+.cr-scene { position: relative; aspect-ratio: 16 / 10; background: linear-gradient(180deg, #9fd8ff 0%, #66bff0 44%, #2a87cf 46%, #155a9e 100%); border-bottom: 2px solid var(--ligne-douce); }
+.cr-toile { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+.cr-scene .cr-toile { position: absolute; inset: 0; }
+.cr-en-vue, .cr-chrono {
+  position: absolute; top: 12px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 7px; border-radius: 99px;
+  font-weight: 800; font-size: 13px; color: #fff; background: rgba(18, 5, 13, 0.72); border: 1.5px solid rgba(255, 255, 255, 0.22); backdrop-filter: blur(4px);
+}
+.cr-en-vue { left: 12px; }
+.cr-en-vue .point { width: 8px; height: 8px; border-radius: 50%; background: #5cf08a; box-shadow: 0 0 0 0 rgba(92, 240, 138, 0.6); animation: cr-pouls 1.6s ease-out infinite; }
+.cr-en-vue.calme .point { background: #949ba4; animation: none; }
+.cr-chrono { right: 12px; font-variant-numeric: tabular-nums; }
+@keyframes cr-pouls { 70% { box-shadow: 0 0 0 8px rgba(92, 240, 138, 0); } 100% { box-shadow: 0 0 0 0 rgba(92, 240, 138, 0); } }
+.cr-tampon { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.cr-tampon-mot {
+  font-family: var(--titre); font-size: clamp(34px, 5.4vw, 64px); line-height: 1; color: var(--papier); rotate: -6deg;
+  -webkit-text-stroke: 3px var(--encre); paint-order: stroke fill; text-shadow: 5px 6px 0 var(--ombre); animation: cr-tampon 0.45s var(--rebond) both;
+}
+.cr-tampon-mot.or { color: #ffd65c; text-shadow: 5px 6px 0 #c2286e; }
+.cr-tampon-mot.gris { color: #cfd8e6; text-shadow: 5px 6px 0 #3a1a3c; }
+@keyframes cr-tampon { from { opacity: 0; transform: scale(1.8); } to { opacity: 1; transform: none; } }
+.cr-sauvage-bas { display: grid; gap: 10px; padding: 16px 18px 18px; }
+.cr-sauvage-titre { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cr-sauvage-nom { font-family: var(--titre); font-size: clamp(22px, 2.4vw, 28px); line-height: 1.1; }
+.cr-sauvage-texte { margin: 0; color: var(--brume); font-size: 15px; }
+.cr-sauvage-texte.erreur { color: #ffb3c4; }
+.cr-action { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.cr-action .btn[disabled] { opacity: 0.55; cursor: default; transform: none; }
+.cr-filets { color: var(--terne); font-size: 13.5px; font-weight: 700; }
+
+/* le Discord (une maquette : le message que le bot poste quand une créature surgit) */
+.cr-discord { overflow: hidden; border-radius: 14px; background: #313338; color: #dbdee1; font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 400; font-size: 15px; line-height: 1.375; border: 2px solid #1e1f22; box-shadow: 6px 7px 0 rgba(88, 101, 242, 0.35); }
+.cr-d-salon { display: flex; align-items: center; gap: 6px; padding: 12px 16px; font-weight: 600; color: #f2f3f5; border-bottom: 1px solid #26272b; box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2); }
+.cr-d-diese { color: #80848e; font-size: 22px; line-height: 1; font-weight: 400; }
+.cr-d-etiquette { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #949ba4; background: #2b2d31; padding: 3px 8px; border-radius: 4px; }
+.cr-d-message { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; padding: 14px 16px 6px; }
+.cr-d-message.suite { padding-top: 8px; padding-bottom: 12px; }
+.cr-d-avatar { width: 40px; height: 40px; border-radius: 50%; background: #5865f2; image-rendering: auto; }
+.cr-d-corps { min-width: 0; }
+.cr-d-auteur { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cr-d-auteur b { color: #f2f3f5; font-weight: 600; }
+.cr-d-app { padding: 0 5px; border-radius: 4px; background: #5865f2; color: #fff; font-size: 10px; font-weight: 700; line-height: 15px; }
+.cr-d-auteur time { color: #949ba4; font-size: 12px; }
+.cr-d-ligne { margin-top: 2px; color: #dbdee1; overflow-wrap: anywhere; }
+.cr-d-embed { margin-top: 6px; max-width: 432px; display: grid; gap: 8px; padding: 10px 16px 14px 12px; background: #2b2d31; border-radius: 4px; border-left: 4px solid var(--c, #4e5058); }
+.cr-d-titre { color: #f2f3f5; font-weight: 700; font-size: 15.5px; }
+.cr-d-texte { font-size: 14px; }
+.cr-d-champs { display: grid; grid-template-columns: repeat(3, minmax(0, auto)); justify-content: start; gap: 6px 22px; font-size: 14px; }
+.cr-d-champ b { display: block; color: #f2f3f5; font-weight: 600; font-size: 13.5px; }
+.cr-d-champ span { font-variant-numeric: tabular-nums; }
+.cr-d-image { display: block; width: 100%; height: auto; border-radius: 4px; }
+.cr-d-pied { color: #b5bac1; font-size: 12px; }
+.cr-d-boutons { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 6px; }
+.cr-d-bouton {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 16px; border: 0; border-radius: 4px; cursor: pointer;
+  font: 600 14px/1 "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; color: #fff; background: #5865f2; text-decoration: none; transition: background 0.17s;
+}
+.cr-d-bouton:hover { background: #4752c4; }
+.cr-d-bouton.gris { background: #4e5058; }
+.cr-d-bouton.gris:hover { background: #6d6f78; }
+.cr-d-bouton[disabled] { opacity: 0.5; cursor: not-allowed; }
+.cr-d-suite:empty { display: none; }
+.cr-d-suite .cr-d-message.suite { animation: monter 0.35s var(--doux); }
+
+/* le Bestiaire */
+.cr-bloc-tete { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.cr-h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: clamp(22px, 2.6vw, 30px); }
+.cr-compte { margin-left: 6px; padding: 2px 12px 4px; border-radius: 99px; font-size: 0.62em; vertical-align: 0.18em; background: var(--degrade); color: #fff; }
+.cr-compte:empty { display: none; }
+.cr-grille { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.cr-case-bouton {
+  position: relative; display: grid; justify-items: center; align-content: start; gap: 2px; width: 100%; height: 100%; min-height: 150px; padding: 8px 8px 10px;
+  border-radius: 14px; border: 2px solid var(--ligne-douce); background: var(--panneau); color: inherit; font: inherit; text-align: center;
+}
+button.cr-case-bouton { cursor: pointer; transition: transform 0.2s var(--doux), border-color 0.2s, box-shadow 0.2s var(--doux); }
+button.cr-case-bouton:hover { transform: translate(-2px, -3px); border-color: rgba(255, 120, 190, 0.6); box-shadow: 4px 5px 0 var(--ombre); }
+.cr-case.choisie .cr-case-bouton { border-color: var(--rose); box-shadow: 4px 5px 0 var(--ombre); }
+.cr-case-num { align-self: start; justify-self: start; font-family: var(--fort); font-weight: 800; font-size: 11.5px; color: var(--terne); font-variant-numeric: tabular-nums; }
+.cr-vignette { width: 88px; height: 88px; }
+.cr-case-nom { font-weight: 800; font-size: 13.5px; line-height: 1.2; }
+.cr-case-type { font-size: 11px; font-weight: 800; color: var(--c); }
+.cr-case-x { position: absolute; top: 6px; right: 8px; font-family: var(--fort); font-weight: 800; font-size: 12px; color: var(--brume); }
+.cr-case-nacree { position: absolute; top: 24px; right: 7px; font-size: 14px; filter: drop-shadow(0 0 4px #ffe58a); }
+.cr-case.pris .cr-case-bouton { background: radial-gradient(circle at 50% 40%, rgba(255, 143, 203, 0.16), transparent 62%), var(--panneau); }
+.cr-case.vu .cr-case-bouton { opacity: 0.85; }
+.cr-case.vu .cr-case-nom { color: var(--terne); }
+.cr-case.inconnu .cr-case-bouton { border-style: dashed; background: rgba(255, 255, 255, 0.02); }
+.cr-case-mystere { margin-top: 18px; font-family: var(--titre); font-size: 44px; line-height: 1; color: rgba(209, 166, 255, 0.28); }
+
+/* la fiche */
+.cr-fiche { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); overflow: hidden; }
+.cr-f-vue { position: relative; min-height: 380px; background: radial-gradient(circle at 50% 55%, rgba(255, 143, 203, 0.22), transparent 60%), linear-gradient(170deg, #2a1232, #160818); border-right: 2px solid var(--ligne-douce); }
+.cr-fiche-toile { position: absolute; inset: 0; cursor: grab; }
+.cr-fiche-toile:active { cursor: grabbing; }
+.cr-f-aide { position: absolute; left: 14px; bottom: 12px; font-size: 12.5px; font-weight: 700; color: var(--terne); pointer-events: none; }
+.cr-nacree {
+  position: absolute; right: 14px; top: 14px; padding: 7px 14px 8px; border-radius: 99px; cursor: pointer; font: 800 13px var(--fort);
+  color: #3a2400; background: linear-gradient(100deg, #fff3b0, #ffd65c 50%, #ffb3e6); border: 2px solid var(--encre); box-shadow: 3px 3px 0 var(--ombre);
+}
+.cr-nacree[aria-pressed="true"] { box-shadow: 0 0 0 3px rgba(255, 229, 138, 0.5), 3px 3px 0 var(--ombre); }
+.cr-fiche.nacree .cr-f-vue { background: radial-gradient(circle at 50% 55%, rgba(255, 229, 138, 0.3), transparent 62%), linear-gradient(170deg, #3a2242, #1c0c1e); }
+.cr-f-infos { display: grid; gap: 12px; align-content: start; padding: clamp(18px, 2.4vw, 28px); }
+.cr-f-tete { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.cr-f-num { font-family: var(--fort); font-weight: 800; font-size: 15px; color: var(--terne); font-variant-numeric: tabular-nums; }
+.cr-f-nom { margin: 0; font-family: var(--titre); font-weight: 400; font-size: clamp(30px, 3.6vw, 44px); line-height: 1.05; }
+.cr-f-ile { margin: 0; color: var(--violet-clair); font-weight: 700; font-size: 14.5px; }
+.cr-f-texte { margin: 0; padding: 12px 16px; border-radius: 14px; background: var(--papier); color: var(--encre); font-weight: 700; font-size: 15px; border: 2px solid var(--encre); box-shadow: 4px 4px 0 var(--ombre); }
+.cr-stats { display: grid; gap: 6px; }
+.cr-stat { display: grid; grid-template-columns: 92px minmax(0, 1fr) 30px; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700; color: var(--brume); }
+.cr-stat b { text-align: right; color: var(--blanc); font-variant-numeric: tabular-nums; }
+.cr-barre { display: block; height: 10px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.cr-barre > i { display: block; height: 100%; border-radius: inherit; background: var(--degrade); }
+.cr-f-sous { margin: 6px 0 0; font-family: var(--fort); font-weight: 800; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--terne); }
+.cr-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.cr-etape { display: grid; justify-items: center; gap: 2px; padding: 6px 8px 8px; border-radius: 12px; border: 2px solid transparent; background: rgba(255, 255, 255, 0.03); color: inherit; font: 800 12.5px var(--fort); }
+button.cr-etape { cursor: pointer; }
+button.cr-etape:hover { border-color: rgba(255, 120, 190, 0.5); }
+.cr-etape.ici { border-color: var(--rose); background: rgba(255, 79, 154, 0.08); }
+.cr-etape.cachee span { color: var(--terne); }
+.cr-mini { width: 64px; height: 64px; }
+.cr-fleche { color: var(--terne); font-weight: 800; }
+.cr-f-action { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.cr-f-action .btn[disabled] { opacity: 0.55; cursor: default; transform: none; }
+.cr-f-regle { color: var(--terne); font-size: 13.5px; font-weight: 700; }
+.cr-bientot { margin: 0; color: var(--brume); font-size: 14.5px; padding: 14px 18px; border-radius: 14px; border: 2px dashed var(--ligne); }
+.cr-bientot b { color: var(--blanc); }
+
+@media (max-width: 900px) {
+  .cr-rencontre { grid-template-columns: minmax(0, 1fr); }
+  .cr-fiche { grid-template-columns: minmax(0, 1fr); }
+  .cr-f-vue { min-height: 320px; border-right: 0; border-bottom: 2px solid var(--ligne-douce); }
+}
+@media (max-width: 520px) {
+  .cr-en-vue, .cr-chrono { top: auto; bottom: 10px; padding: 5px 10px 6px; font-size: 12px; }
+  .cr-en-vue { left: 10px; }
+  .cr-long { display: none; }
+  .cr-chrono { right: 10px; }
+  .cr-grille { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .cr-case-bouton { min-height: 112px; padding: 5px 3px 7px; border-radius: 12px; }
+  .cr-case.inconnu .cr-case-bouton { min-height: 64px; }
+  .cr-case-mystere { margin-top: 2px; font-size: 28px; }
+  .cr-case-num { font-size: 10.5px; }
+  .cr-case-nom { font-size: 12px; }
+  .cr-case-x { top: 4px; right: 5px; font-size: 11px; }
+  .cr-vignette { width: 60px; height: 60px; }
+  .cr-d-champs { grid-template-columns: repeat(2, minmax(0, auto)); }
+  .cr-stat { grid-template-columns: 82px minmax(0, 1fr) 28px; }
+}
+@media (prefers-reduced-motion: reduce) { .cr-en-vue .point, .cr-tampon-mot, .cr-d-suite .cr-d-message.suite { animation: none; } }
