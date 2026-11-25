@@ -26,8 +26,9 @@
 // LES VIDÉOS DU CHAT : ?video, une source navigateur à part, rien que pour elles (« !video <lien> » dans le chat Twitch ; pas
 // d'alertes dans cette source-là) : tout est dans js/obs-video.js. ?essai=video : des vidéos d'exemple, pour placer la source.
 // LES WIDGETS NÉON (VF 1.0), chacun dans sa source navigateur, sans alertes : ?chat (le chat Twitch à l'écran, branché
-// directement sur Twitch : js/obs-chat.js) et ?objectifs (l'objectif sub et l'objectif follow, envoyés par le bot :
-// js/obs-objectifs.js). ?essai=chat et ?essai=objectifs : une démo en boucle, pour placer la source.
+// directement sur Twitch : js/obs-chat.js), ?objectifs (l'objectif sub et l'objectif follow, envoyés par le bot :
+// js/obs-objectifs.js) et ?sondage (les sondages Twitch de la chaîne, envoyés par le bot : js/obs-sondage.js).
+// ?essai=chat, ?essai=objectifs et ?essai=sondage : une démo en boucle, pour placer la source.
 (() => {
   "use strict";
   const P = new URLSearchParams(location.search);
@@ -49,6 +50,12 @@
   if (P.has("chat") || ESSAI === "chat") {
     document.documentElement.classList.add("w-chat");
     import("/js/obs-chat.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
+    return;
+  }
+  // LES SONDAGES TWITCH (D.A. Néon) : envoyés par le bot (js/obs-sondage.js) ; 1rem = 10 px d'une source large de 600 px
+  if (P.has("sondage") || ESSAI === "sondage") {
+    document.documentElement.classList.add("w-sondage");
+    import("/js/obs-sondage.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
     return;
   }
   if (P.has("objectifs") || ESSAI === "objectifs") {

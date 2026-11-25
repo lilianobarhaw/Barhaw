@@ -333,6 +333,44 @@ html.w-objectifs { font-size: calc(100vw / 60); }
 .ob-zone { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .ob-p { position: absolute; left: 0; top: 0; width: 1.1rem; height: 0.6rem; border-radius: 0.2rem; }
 .ob-p.rond { width: 0.8rem; height: 0.8rem; border-radius: 50%; }
+/* ---------- LES SONDAGES TWITCH en Néon (?sondage, js/obs-sondage.js) : source conseillée 600 × 560 ---------- */
+html.w-sondage { font-size: calc(100vw / 60); }
+.so { position: absolute; top: 2rem; left: 2rem; right: 2rem; box-sizing: border-box; padding: 2.4rem 2.8rem 2.6rem; border-radius: 2.2rem; background: rgba(23, 10, 22, 0.88); border: 0.15rem solid rgba(255, 110, 180, 0.35); box-shadow: 0 0 3.4rem rgba(155, 77, 255, 0.4); visibility: hidden; }
+.so.vu { visibility: visible; }
+.so-haut { display: flex; align-items: center; justify-content: space-between; gap: 1.2rem; min-height: 3.6rem; }
+.so-titre { display: flex; align-items: center; gap: 0.8rem; font-size: 1.5rem; font-weight: 800; letter-spacing: 0.16em; color: var(--brume); white-space: nowrap; }
+.so-titre svg { flex: none; width: 2rem; height: 2rem; fill: none; stroke: var(--rose-clair); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.so.fini .so-titre { color: var(--or); }
+.so.fini .so-titre svg { stroke: var(--or); }
+.so-chrono { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 1.1rem 0.45rem; border-radius: 99rem; background: rgba(255, 170, 220, 0.1); font-family: var(--titre); font-weight: 400; font-size: 2.2rem; line-height: 1; color: var(--blanc); white-space: nowrap; }
+.so-chrono svg { width: 1.8rem; height: 1.8rem; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.so-chrono.vite { color: var(--rose-clair); background: rgba(255, 79, 154, 0.2); }
+.so.fini .so-chrono { color: var(--encre); background: linear-gradient(100deg, #ffe48a, var(--or)); font-size: 1.6rem; letter-spacing: 0.08em; }
+.so-question { margin-top: 1rem; font-family: var(--titre); font-weight: 400; font-size: 2.8rem; line-height: 1.2; color: var(--blanc); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.so-temps { position: relative; margin-top: 1.2rem; height: 0.6rem; border-radius: 99rem; background: rgba(255, 170, 220, 0.13); overflow: hidden; }
+.so-temps i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 99rem; background: linear-gradient(100deg, #ff8fcb, #ff4f9a 45%, #9b4dff); transform-origin: left center; }
+.so.fini .so-temps { opacity: 0; }
+.so-choix { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.6rem; }
+.so-ligne { position: relative; display: flex; align-items: center; gap: 1rem; min-height: 5.2rem; box-sizing: border-box; padding: 0.6rem 1.6rem; border-radius: 1.4rem; background: rgba(255, 170, 220, 0.07); }
+.so-ligne.tete { box-shadow: 0 0 2.2rem rgba(255, 79, 154, 0.4); }
+.so-fond { position: absolute; inset: 0; border-radius: 1.4rem; overflow: hidden; }
+.so-rempli { position: absolute; left: 0; top: 0; bottom: 0; width: 0; overflow: hidden; background: linear-gradient(100deg, rgba(255, 143, 203, 0.78), rgba(255, 79, 154, 0.78) 45%, rgba(155, 77, 255, 0.82)); }
+.so-rempli::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 0.25rem; background: rgba(255, 214, 236, 0.85); box-shadow: 0 0 1rem 0.15rem rgba(255, 143, 203, 0.85); }
+.so-ligne.gagnant .so-rempli { background: linear-gradient(100deg, rgba(255, 207, 92, 0.85), rgba(255, 159, 67, 0.82) 45%, rgba(255, 79, 154, 0.82)); }
+.so-ligne.gagnant .so-rempli::after { background: #fff4c9; box-shadow: 0 0 1rem 0.2rem rgba(255, 207, 92, 0.95); }
+.so-eclat { position: absolute; inset: 0; background: linear-gradient(100deg, transparent 25%, rgba(255, 255, 255, 0.6) 50%, transparent 75%); transform: translateX(-100%); }
+.so-anneau { position: absolute; inset: 0; border-radius: 1.4rem; padding: 0.2rem; background: linear-gradient(100deg, #ff8fcb, #ff4f9a 45%, #9b4dff); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; opacity: 0; pointer-events: none; }
+.so-ligne.tete .so-anneau, .so-ligne.gagnant .so-anneau { opacity: 1; }
+.so-ligne.gagnant { box-shadow: 0 0 2.8rem rgba(255, 207, 92, 0.55); }
+.so-ligne.gagnant .so-anneau { background: linear-gradient(100deg, #ffe48a, #ffcf5c 45%, #ff8fcb); }
+.so-ligne.perdant { opacity: 0.45; }
+.so-couronne { position: relative; flex: none; display: none; width: 2.6rem; height: 2.6rem; }
+.so-ligne.gagnant .so-couronne { display: block; }
+.so-nom { position: relative; flex: 1; min-width: 0; font-size: 2.2rem; font-weight: 800; line-height: 1.25; color: var(--blanc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0.15rem 0.5rem rgba(18, 5, 13, 0.7); }
+.so-votes { position: relative; flex: none; font-size: 1.5rem; font-weight: 800; color: #e2c4d8; white-space: nowrap; text-shadow: 0 0.1rem 0.4rem rgba(18, 5, 13, 0.8); }
+.so-pct { position: relative; flex: none; min-width: 6.6rem; text-align: right; font-family: var(--titre); font-weight: 400; font-size: 2.4rem; line-height: 1; color: var(--blanc); text-shadow: 0 0.15rem 0.5rem rgba(18, 5, 13, 0.7); }
+.so-ligne.gagnant .so-pct { color: var(--or); }
+.so-zone { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .al, .barre, .vid { transition: opacity 0.3s linear; transform: none; } .vid-faux, .vid-faux-icone { animation: none; } .compte, .barre.guerre.rage { animation: none; } }
 </style>
 </head>
