@@ -223,6 +223,9 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
 /* debout (TikTok, Shorts) : la vidéo comme sur le téléphone, la carte à côté (le lecteur TikTok veut au moins 325 × 578) */
 .vid.vertical { flex-direction: row; align-items: flex-end; gap: 3em; width: auto; }
 .vid.vertical .vid-cadre { flex: none; width: 46em; min-width: 325px; aspect-ratio: 9 / 16; }
+/* la vidéo seule (sans ?infos=oui) : rien à côté ; le mot pour le son (hors d'OBS) passe par-dessus la vidéo */
+.vid.seule.vertical { gap: 0; }
+.vid-cadre > .vid-note { position: absolute; left: 50%; bottom: 1.4em; z-index: 2; margin: 0; transform: translateX(-50%); white-space: nowrap; }
 .vid.vertical .vid-cote { width: 64em; align-items: flex-start; }
 .vid.vertical .vid-haut { align-items: flex-start; }
 .vid.vertical .vid-qui { font-size: 3.6em; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
