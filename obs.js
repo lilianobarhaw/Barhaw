@@ -23,6 +23,8 @@
 // les alertes (la mer ouvre, le vainqueur, le coffre). Le top 5 montre les pseudos Discord, comme le site ; ?pseudos=non pour
 // montrer la commu à la place. ?coin=bas-gauche|bas-droite|haut-gauche|haut-droite (bas-gauche sans rien) ·
 // ?essai=course : une course d'exemple en boucle, jouée dans la page, avec des barques aux noms inventés.
+// LES VIDÉOS DU CHAT : ?video, une source navigateur à part, rien que pour elles (« !video <lien> » dans le chat Twitch ; pas
+// d'alertes dans cette source-là) : tout est dans js/obs-video.js. ?essai=video : des vidéos d'exemple, pour placer la source.
 (() => {
   "use strict";
   const P = new URLSearchParams(location.search);
@@ -36,6 +38,10 @@
   const scene = document.getElementById("obs");
   document.body.classList.add(`place-${PLACE}`);
   if (P.get("fond") === "oui") document.body.classList.add("fond");
+  if (P.has("video") || ESSAI === "video") {
+    import("/js/obs-video.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
+    return;
+  }
 
   // les îles qui ont leur carte postale (img/obs/<id>.webp, tirée de la nouvelle carte) ; les autres montrent leur maquette
   const CARTES = new Set(["moussaillons", "recif", "braise", "givre", "lucioles", "champignons", "engloutie", "vents", "marche", "arbre", "ambre", "phare", "tonnerre", "tresor", "marais", "cristal", "archipel", "cimetiere", "horloge", "geants", "forteresse"]);

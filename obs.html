@@ -189,16 +189,78 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
   .sortie-titre { font-size: 7rem; }
   .compte { font-size: 40rem; }
 }
+/* ---------- les vidéos du chat (?video, js/obs-video.js) : la vidéo, et une carte « la vidéo de @… » ----------
+   Tout se mesure en em : 1em = 1rem au milieu de l'écran, un peu moins dans un coin (--k). */
+.vid { --k: 1; position: absolute; display: flex; flex-direction: column; align-items: center; gap: 1.6em; width: 112em; font-size: calc(var(--k) * 1rem); color: var(--encre); pointer-events: none;
+  opacity: 0; transform: translateY(3rem) scale(0.94) rotate(-1.2deg); transition: transform 0.6s var(--rebond), opacity 0.3s linear; }
+.vid.entre { opacity: 1; transform: none; }
+.vid.sort { opacity: 0; transform: scale(0.97); transition: transform 0.4s ease-in, opacity 0.35s linear; }
+.vid.coin-centre { left: 50%; top: 50%; translate: -50% -50%; }
+.vid.coin-haut-gauche, .vid.coin-haut-droite, .vid.coin-bas-gauche, .vid.coin-bas-droite { --k: 0.6; }
+.vid.coin-haut-gauche { left: 4rem; top: 4rem; }
+.vid.coin-haut-droite { right: 4rem; top: 4rem; }
+.vid.coin-bas-gauche { left: 4rem; bottom: 4rem; }
+.vid.coin-bas-droite { right: 4rem; bottom: 4rem; }
+.vid-cadre { position: relative; width: calc(100% - 1.2em); aspect-ratio: 16 / 9; background: #000; border: 0.6em solid var(--encre); border-radius: 2.4em; overflow: hidden; box-shadow: 1.1em 1.2em 0 var(--ombre); }
+.vid-cadre iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vid-cote { display: flex; flex-direction: column; align-items: center; gap: 1.4em; width: 100%; }
+.vid-info { box-sizing: border-box; width: 100%; padding: 1.3em 2.4em 1.6em; background: var(--papier); border: 0.5em solid var(--encre); border-radius: 2em; box-shadow: 0.8em 0.9em 0 var(--rose); rotate: -0.5deg; }
+.vid-haut { display: flex; align-items: center; gap: 1.2em; }
+.vid-clap { flex: none; font-size: 3.6em; line-height: 1; }
+.vid-qui { flex: 1; min-width: 0; font-family: var(--titre); font-weight: 400; font-size: 4em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0.08em 0.08em 0 var(--rose-clair); }
+.vid-temps { flex: none; min-width: 2.6em; text-align: right; font-family: var(--titre); font-weight: 400; font-size: 3.8em; line-height: 1; color: var(--rose-fonce); }
+.vid-titre { margin-top: 0.3em; font-weight: 800; font-size: 2.9em; line-height: 1.22; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.vid-auteur { margin-top: 0.35em; font-size: 2.3em; color: var(--prune-texte); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vid-site { display: inline-block; margin-right: 0.25em; padding: 0.08em 0.6em 0.16em; border-radius: 99em; font-size: 0.82em; font-weight: 800; color: #fff; background: #e1251b; vertical-align: 0.08em; }
+.vid-site.tiktok { background: var(--encre); box-shadow: -0.14em 0 0 #25f4ee, 0.14em 0 0 #fe2c55; }
+.vid-jauge { height: 1.5em; margin-top: 0.9em; background: #f6d3e6; border: 0.3em solid var(--encre); border-radius: 99em; overflow: hidden; }
+.vid-jauge i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--rose), var(--violet)); transition: width 0.2s linear; }
+.vid-note { display: inline-block; margin-top: 0.8em; padding: 0.2em 0.8em 0.3em; font-size: 2.2em; background: var(--or); border: 0.12em solid var(--encre); border-radius: 99em; }
+.vid-note[hidden] { display: none; }
+.vid-pied { font-size: 2.4em; color: var(--blanc); background: var(--nuit); border: 0.17em solid var(--encre); border-radius: 99em; padding: 0.25em 0.9em 0.35em; box-shadow: 0.15em 0.18em 0 var(--ombre); white-space: nowrap; }
+.vid-pied b { color: var(--or); }
+.vid-file { color: var(--brume); white-space: nowrap; }
+/* debout (TikTok, Shorts) : la vidéo comme sur le téléphone, la carte à côté (le lecteur TikTok veut au moins 325 × 578) */
+.vid.vertical { flex-direction: row; align-items: flex-end; gap: 3em; width: auto; }
+.vid.vertical .vid-cadre { flex: none; width: 46em; min-width: 325px; aspect-ratio: 9 / 16; }
+.vid.vertical .vid-cote { width: 64em; align-items: flex-start; }
+.vid.vertical .vid-haut { align-items: flex-start; }
+.vid.vertical .vid-qui { font-size: 3.6em; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.vid.vertical .vid-pied { max-width: 100%; box-sizing: border-box; white-space: normal; border-radius: 1em; }
+.vid.vertical.coin-haut-droite, .vid.vertical.coin-bas-droite { flex-direction: row-reverse; }
+.vid.vertical.coin-haut-gauche, .vid.vertical.coin-haut-droite { align-items: flex-start; }
+.vid.vertical .vid-titre { -webkit-line-clamp: 3; }
+/* ?essai=video : une fausse vidéo */
+.vid-faux { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2em; color: #fff; background: linear-gradient(160deg, #2a0f3a, #c2286e 55%, #ffcf5c); background-size: 220% 220%; animation: vid-faux 6s ease-in-out infinite alternate; }
+.vid-faux.tiktok { background-image: linear-gradient(200deg, #101018, #3a1a3c 45%, #25c6d9); }
+.vid-faux-icone { font-size: 12em; line-height: 1; animation: vid-pouls 1.4s ease-in-out infinite; }
+.vid-faux-texte { font-family: var(--titre); font-size: 4.4em; text-shadow: 0.08em 0.08em 0 var(--encre); }
+@keyframes vid-faux { to { background-position: 100% 100%; } }
+@keyframes vid-pouls { 50% { transform: scale(1.08); } }
+/* une vidéo qui ne passe pas : la carte le dit quelques secondes */
+.vid-rate { position: absolute; inset: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6em; padding: 2em; text-align: center; color: var(--blanc); background: var(--nuit); }
+.vid-rate b { font-size: 10em; line-height: 1; }
+.vid-rate span { font-family: var(--titre); font-size: 4.6em; line-height: 1.1; }
+.vid-rate small { font-size: 2.6em; color: var(--brume); }
+.vid.vertical .vid-rate span { font-size: 3.6em; }
+/* une page debout (live vertical) : tout s'empile */
+@media (orientation: portrait) {
+  .vid { width: 100em; }
+  .vid.vertical { flex-direction: column; align-items: center; width: 62em; }
+  .vid.vertical .vid-cadre { width: 62em; }
+  .vid.vertical .vid-cote { width: 100%; align-items: center; }
+}
 /* ouverte dans un navigateur : un mot d'explication (obs.js ne le montre jamais dans OBS) */
 .aide { position: fixed; left: 2.4vmin; bottom: 2.4vmin; box-sizing: border-box; max-width: min(46rem, calc(100vw - 4.8vmin)); padding: 1.6rem 2rem 1.8rem; background: var(--nuit); color: var(--blanc); border: 0.3rem solid var(--encre); border-radius: 1.6rem; box-shadow: 0.5rem 0.6rem 0 var(--ombre); font-size: max(1.5rem, 14px); line-height: 1.45; }
 .aide b { font-size: max(1.8rem, 16px); }
 .aide p { margin: 0.6em 0 0; color: var(--brume); }
+.aide p.aide-etat { color: var(--blanc); font-weight: 800; }
 .aide a { display: inline-block; margin-top: 0.9em; padding: 0.35em 1em 0.45em; background: var(--rose); color: var(--encre); border: 0.2rem solid var(--encre); border-radius: 99rem; font-weight: 800; text-decoration: none; }
-@media (prefers-reduced-motion: reduce) { .al, .barre { transition: opacity 0.3s linear; transform: none; } .compte, .barre.guerre.rage { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .al, .barre, .vid { transition: opacity 0.3s linear; transform: none; } .vid-faux, .vid-faux-icone { animation: none; } .compte, .barre.guerre.rage { animation: none; } }
 </style>
 </head>
 <body>
 <main id="obs" aria-live="polite"></main>
-<noscript>Cette page a besoin de JavaScript : elle affiche les alertes de GRAND LINE dans OBS.</noscript>
+<noscript>Cette page a besoin de JavaScript : elle affiche les alertes de GRAND LINE et les vidéos du chat dans OBS.</noscript>
 </body>
 </html>

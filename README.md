@@ -11,6 +11,7 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `index.html`, `site.css`, `site.js` | La page (parties Accueil, Events, Tournoi, Ma chaîne, Potes, YouTube, Chopper avec son mini-jeu, Discord) |
 | `mentions.html` | Mentions, données personnelles, cookies, crédits (adresse `/mentions`) |
 | `obs.html`, `obs.js`, `img/obs/` | Les alertes de GRAND LINE pour OBS (adresse `/obs`) : une page transparente à poser dans le live, voir plus bas |
+| `js/obs-video.js` | Les vidéos du chat pour OBS (adresse `/obs?video`) : « !video <lien> » dans le chat Twitch, la vidéo passe dans le live, voir plus bas |
 | `api/public.js` | Ce que la page affiche, demandé au bot (gardé 20 s par Vercel) |
 | `api/chopper.js` | La carte et les animations de Chopper ; nourrir, jouer et parler au nom du membre connecté |
 | `api/recit.js` | Le récit de GRAND LINE (VF) : les pages (texte et voix) que l'équipage du membre a débloquées ; les autres restent scellées |
@@ -173,6 +174,17 @@ Réglages dans l'adresse : `?commu=<id>` (un autre équipage de la flotte ; sans
 - **Avant la VF** : les îles gardent leur image d'aujourd'hui (`img/iles`). Les cartes postales de la nouvelle carte (`img/obs/<id>.webp`, 960 × 540, des captures de la carte 3D recadrées) ne se montrent qu'une fois la VF ouverte, et un essai lancé avant la date ne dit rien d'elle. Quand une île passe en niveau 5 : ajouter sa carte postale et son nom dans `CARTES` (`obs.js`) ; sans carte postale, l'alerte montre la maquette.
 - **L'heure** : celle du bot (donnée avec le BOSS LIVE), pour que le compte à rebours tombe juste même si l'horloge du PC est décalée. Vercel peut rendre une réponse vieille de quelques secondes : la page garde la mesure la plus fraîche des cinq dernières minutes.
 - **Hors d'OBS** : ouverte dans un navigateur ordinaire, elle affiche un mot d'explication dès qu'on bouge la souris (jamais dans OBS, où personne ne la touche).
+
+### Les vidéos du chat (`/obs?video`)
+
+Une **source navigateur à part**, rien que pour elles (aucune alerte dedans) : quand un viewer tape `!video <lien YouTube ou TikTok>` dans le chat Twitch, le bot (`lib/videos.js`) vérifie le lien, le met dans sa file et l'envoie à cette page par son serveur en direct (`wss://mer.95-170-26-39.sslip.io/video` ; l'adresse vient de `/api/public`, champ `video.adresse`, sans attendre la VF). La vidéo passe avec le son, une à la fois, coupée au bout de la durée que donne le bot (90 s), puis la page dit au bot qu'elle a fini (`fini`, `coupe` ou `erreur`) et il envoie la suivante 2,5 s plus tard. Tout est dans `js/obs-video.js` (`obs.js` le charge et s'arrête là).
+
+- **Les lecteurs** : YouTube (`www.youtube-nocookie.com/embed/<id>`, sans boutons) et TikTok (`www.tiktok.com/player/v1/<id>`, sans boutons ni boucle), tous deux dans la règle `frame-src` de `vercel.json`. La page les pilote par `postMessage`, comme le font leurs API, sans charger leurs scripts : elle sait quand la vidéo démarre, où elle en est, quand elle finit ou ne passe pas (privée, supprimée, bloquée hors de YouTube : la carte le dit 2,5 s et le bot prévient le chat). Un lecteur muet ou qui ne démarre pas : 15 s sans réponse, ou 30 s sans départ, et la vidéo est sautée.
+- **La carte** : la vidéo (16:9 ; debout pour TikTok et les Shorts, la carte à côté), « La vidéo de @pseudo » (`?pseudos=non` : « Une vidéo du chat »), le titre et la chaîne (donnés par le bot), le temps qui reste, et « Mets la tienne dans le chat : !video + lien » avec le nombre de vidéos en attente. Au milieu en grand, ou plus petite dans un coin (`?coin=haut-gauche|haut-droite|bas-gauche|bas-droite`). Une page debout (1080 × 1920) empile tout.
+- **Le son** : dans OBS, cocher « Contrôler l'audio via OBS » sur la source, et le son arrive dans le mélangeur. OBS laisse les vidéos démarrer avec le son ; un navigateur ordinaire, non : la vidéo y repart muette au bout de 3,5 s, et un clic sur la page rend le son. À la coupure, le son de YouTube baisse en une seconde.
+- **Rechargée** au milieu d'une vidéo, la page la reprend là où elle en était (le bot lui dit laquelle passe et depuis quand). Une vidéo finie pendant une coupure n'est pas rejouée : la page le redit au bot. Sans nouvelles du bot depuis 50 s, elle refait sa connexion.
+- `?essai=video` : des vidéos d'exemple dessinées dans la page (YouTube puis TikTok, en boucle), avec une cloche pour vérifier que le son arrive dans OBS, sans rien demander au bot. Ouverte dans un navigateur, la page dit dans son mot d'explication si elle est branchée au bot.
+- **Ce qu'elle garde** : rien. La file vit dans la mémoire du bot ; la page ne reçoit que la vidéo en cours, avec le pseudo Twitch de celui qui l'a mise (déjà visible dans le chat).
 
 ## L'escale : quand le bot fait une pause
 
