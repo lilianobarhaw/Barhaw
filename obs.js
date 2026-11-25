@@ -25,6 +25,9 @@
 // ?essai=course : une course d'exemple en boucle, jouée dans la page, avec des barques aux noms inventés.
 // LES VIDÉOS DU CHAT : ?video, une source navigateur à part, rien que pour elles (« !video <lien> » dans le chat Twitch ; pas
 // d'alertes dans cette source-là) : tout est dans js/obs-video.js. ?essai=video : des vidéos d'exemple, pour placer la source.
+// LES WIDGETS NÉON (VF 1.0), chacun dans sa source navigateur, sans alertes : ?chat (le chat Twitch à l'écran, branché
+// directement sur Twitch : js/obs-chat.js) et ?objectifs (l'objectif sub et l'objectif follow, envoyés par le bot :
+// js/obs-objectifs.js). ?essai=chat et ?essai=objectifs : une démo en boucle, pour placer la source.
 (() => {
   "use strict";
   const P = new URLSearchParams(location.search);
@@ -40,6 +43,17 @@
   if (P.get("fond") === "oui") document.body.classList.add("fond");
   if (P.has("video") || ESSAI === "video") {
     import("/js/obs-video.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
+    return;
+  }
+  // (1rem = 10 px d'une source large de 560 px pour le chat, de 600 px pour les objectifs : voir obs.html)
+  if (P.has("chat") || ESSAI === "chat") {
+    document.documentElement.classList.add("w-chat");
+    import("/js/obs-chat.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
+    return;
+  }
+  if (P.has("objectifs") || ESSAI === "objectifs") {
+    document.documentElement.classList.add("w-objectifs");
+    import("/js/obs-objectifs.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
     return;
   }
 
