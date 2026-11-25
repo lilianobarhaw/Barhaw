@@ -43,7 +43,7 @@ const DOUX = "cubic-bezier(.2, .8, .2, 1)";
 // ?essai=objectifs : deux objectifs d'exemple qui avancent tout seuls (un sub, deux subs offerts qui atteignent l'objectif,
 // puis des follows), en boucle
 const DEMO = {
-  periode: 26_000,
+  periode: 28_000,
   depart: { sub: { but: 20, actuel: 17, texte: "TOURNOI BARHAW" }, follow: { but: 1250, actuel: 1246, texte: "BLIND TEST" } },
   etapes: [[3_800, "sub", 1, "Bigorneau_TV"], [8_000, "sub", 2, "Krakenito"], [16_200, "follow", 1, "zebulon"], [19_600, "follow", 1, "LaMouetteRieuse"], [21_800, "follow", 1, "moussaillon_42"]],
 };
