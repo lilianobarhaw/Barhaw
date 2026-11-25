@@ -4,6 +4,7 @@
 // Rien n'est gardé, ni ici ni ailleurs. Cachés : les commandes (« !… ») et les bots (BarhawBot, StreamElements, Nightbot…).
 // Un message supprimé par un modo (ou tous ceux de quelqu'un mis en timeout ou banni) disparaît aussi de l'écran.
 // Les emotes : celles de Twitch, et celles de la chaîne sur 7TV, BTTV et FFZ. Les liens sont remplacés par « lien ».
+// Les GIF du clavier GIF de Twitch (GIPHY) s'affichent en image, à la place de leur texte « [… GIF by …] ».
 // Les animations : le message arrive en glissant avec un reflet, le dernier arrivé garde un contour lumineux, les autres
 // montent en douceur ; au bout de 10 s, le néon s'éteint (le contour clignote, le texte s'efface, la carte glisse à gauche) ;
 // un message supprimé se brouille puis s'efface ; le premier message de quelqu'un sur la chaîne a un contour doré, un
@@ -81,12 +82,37 @@ export function lesBadges(tags) {
   if (b.has("subscriber") || b.has("founder")) res.push(["sub", mois > 1 ? `SUB ${mois} MOIS` : "SUB"]);
   return res.slice(0, 3);
 }
+// les GIF (le clavier GIF de Twitch, avec GIPHY) : le tag « gifs » = « <début>-<fin>|<id du GIF>|<adresse> », séparés par des
+// virgules ; les positions sont celles du texte « [… GIF by …] » qui le remplace dans le message. Twitch demande d'afficher
+// l'adresse complète, sans la modifier : on la garde telle quelle (seulement en https, chez GIPHY).
+export function lesGifs(tag) {
+  const res = [];
+  for (const m of String(tag || "").matchAll(/(\d+)-(\d+)\|([^|,]{1,64})\|(https:\/\/[^\s|]+?)(?=,\d+-\d+\||$)/g)) {
+    let u = null;
+    try { u = new URL(m[4]); } catch { continue; }
+    if (u.protocol !== "https:" || !/(^|\.)giphy\.com$/i.test(u.hostname)) continue;
+    res.push({ a: Number(m[1]), b: Number(m[2]), id: m[3], url: m[4] });
+  }
+  return res;
+}
 const LIEN = /^(?:https?:\/\/|www\.)\S+$|^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|fr|net|org|gg|tv|io|be|co|me|ly|xyz|app|biz|info|shop|live|link|site|store|online)(?:\/\S*)?$/i;
 // le texte en morceaux : du texte, des emotes (Twitch d'après les positions données, puis 7TV / BTTV / FFZ par leur nom),
-// des liens (remplacés par « lien »), des @mentions. Les positions Twitch comptent en caractères Unicode.
-export function morceaux(texte, emotesTag, tiers = new Map(), chaine = "", decalage = 0) {
+// des GIF (d'après les positions du tag « gifs »), des liens (remplacés par « lien »), des @mentions. Les positions Twitch
+// comptent en caractères Unicode.
+export function morceaux(texte, emotesTag, tiers = new Map(), chaine = "", decalage = 0, gifsTag = "") {
   const cps = Array.from(String(texte));
   const places = [];
+  const gifs = lesGifs(gifsTag);
+  for (const g of gifs) {
+    const a = g.a - decalage;
+    const b = g.b - decalage;
+    if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= a && b < cps.length) places.push({ a, b, gif: g.url });
+  }
+  // (des positions qui ne tombent pas juste : un seul GIF et un message « […] » tout entier, c'est lui)
+  if (gifs.length === 1 && !places.length && /^\[[^\]]*\]$/.test(String(texte).trim())) {
+    const debut = String(texte).length - String(texte).trimStart().length;
+    places.push({ a: Array.from(String(texte).slice(0, debut)).length, b: Array.from(String(texte).trimEnd()).length - 1, gif: gifs[0].url });
+  }
   for (const bloc of String(emotesTag || "").split("/")) {
     const [id, pos] = bloc.split(":");
     if (!id || !pos || !/^[\w-]{1,64}$/.test(id)) continue;
@@ -101,7 +127,8 @@ export function morceaux(texte, emotesTag, tiers = new Map(), chaine = "", decal
   for (const p of places) {
     if (p.a < i) continue;
     if (p.a > i) bruts.push({ t: cps.slice(i, p.a).join("") });
-    bruts.push({ emote: `https://static-cdn.jtvnw.net/emoticons/v2/${p.id}/default/dark/2.0`, nom: cps.slice(p.a, p.b + 1).join("") });
+    const nom = cps.slice(p.a, p.b + 1).join("");
+    bruts.push(p.gif ? { gif: p.gif, nom } : { emote: `https://static-cdn.jtvnw.net/emoticons/v2/${p.id}/default/dark/2.0`, nom });
     i = p.b + 1;
   }
   if (i < cps.length) bruts.push({ t: cps.slice(i).join("") });
@@ -310,9 +337,20 @@ export function demarrer({ scene, P }) {
     if (action) corps.style.color = couleur;
     let longueur = 0;
     let rien = true; // que des emotes ?
-    for (const m of morceaux(texte, tags.emotes, tiers, CHAINE, decalage)) {
+    let gif = false;
+    for (const m of morceaux(texte, tags.emotes, tiers, CHAINE, decalage, tags.gifs)) {
       if (longueur >= MAX_CARACTERES) { corps.append("…"); break; }
-      if (m.emote) {
+      if (m.gif) {
+        // le GIF, avec l'adresse complète donnée par Twitch ; s'il ne charge pas, son texte revient à sa place
+        const img = el("img", "ch-gif");
+        img.src = m.gif;
+        img.alt = m.nom.replace(/^\[|\]$/g, "");
+        img.decoding = "async";
+        img.addEventListener("error", () => img.replaceWith(m.nom), { once: true });
+        corps.append(img);
+        gif = true;
+        longueur += 2;
+      } else if (m.emote) {
         const img = el("img", "ch-emote");
         img.src = m.emote;
         img.alt = m.nom;
@@ -329,6 +367,7 @@ export function demarrer({ scene, P }) {
       }
     }
     if (rien && corps.querySelector(".ch-emote")) carte.classList.add("emotes");
+    if (gif) carte.classList.add("gif");
     carte.append(...[anneau, el("i", "ch-reflets", reflet), tete, reponse, corps].filter(Boolean));
     carte.__anneau = anneau;
     carte.__reflet = reflet;
