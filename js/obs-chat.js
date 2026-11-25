@@ -5,10 +5,11 @@
 // Un message supprimé par un modo (ou tous ceux de quelqu'un mis en timeout ou banni) disparaît aussi de l'écran.
 // Les emotes : celles de Twitch, et celles de la chaîne sur 7TV, BTTV et FFZ. Les liens sont remplacés par « lien ».
 // Les animations : le message arrive en glissant avec un reflet, le dernier arrivé garde un contour lumineux, les autres
-// montent en douceur ; un message supprimé se brouille puis s'efface ; le premier message de quelqu'un sur la chaîne a un
-// contour doré, un message mis en avant (points de chaîne) brille plus fort.
+// montent en douceur ; au bout de 10 s, le néon s'éteint (le contour clignote, le texte s'efface, la carte glisse à gauche) ;
+// un message supprimé se brouille puis s'efface ; le premier message de quelqu'un sur la chaîne a un contour doré, un
+// message mis en avant (points de chaîne) brille plus fort.
 // Taille conseillée de la source : 560 × 1000 (tout suit la taille). Réglages dans l'adresse : ?chat=<chaîne> (sans rien :
-// lilianobarhaw) · ?duree=<secondes> (le temps qu'un message reste : 60 ; 0 = toujours) · ?max=<nombre> (10 à la fois) ·
+// lilianobarhaw) · ?duree=<secondes> (le temps qu'un message reste : 10 ; 0 = toujours) · ?max=<nombre> (10 à la fois) ·
 // ?bots=oui (montrer aussi les bots) · ?commandes=oui (montrer aussi les « !… ») · ?essai=chat (une démo en boucle, sans
 // Twitch) · ?fond=oui (un fond sombre, pour régler la page dans un onglet).
 
@@ -128,34 +129,31 @@ const EMOTES_DEMO = new Map([
   [":regard:", dessin('<circle cx="32" cy="33" r="27" fill="#d1a6ff" stroke="#12050d" stroke-width="4"/><ellipse cx="22" cy="28" rx="7" ry="6" fill="#fff" stroke="#12050d" stroke-width="2.5"/><ellipse cx="42" cy="28" rx="7" ry="6" fill="#fff" stroke="#12050d" stroke-width="2.5"/><circle cx="26" cy="29" r="3" fill="#12050d"/><circle cx="46" cy="29" r="3" fill="#12050d"/><path d="M24 44h16" stroke="#12050d" stroke-width="4" stroke-linecap="round"/>')],
 ]);
 const DEMO = {
-  periode: 26_000,
+  // (assez espacés pour voir chaque message partir au bout de 10 s ; synchronisés avec la démo des objectifs)
+  periode: 28_000,
   etapes: [
     [500, { nom: "LaMouetteRieuse", badges: "moderator/1", texte: "Soyez sages, je vous surveille :regard:" }],
-    [1_700, { nom: "capitaine_frites", badges: "vip/1", texte: "il a pas vu le mec derrière lui MDRR :rire:" }],
-    [2_900, { nom: "moussaillon_42", premier: true, texte: "première fois ici, la D.A. est trop propre" }],
+    [2_400, { nom: "capitaine_frites", badges: "vip/1", texte: "il a pas vu le mec derrière lui MDRR :rire:" }],
     [4_300, { nom: "Bigorneau_TV", badges: "subscriber/0", info: "subscriber/1", texte: "LET'S GO je viens de sub :hype:" }],
-    [5_600, { nom: "LilianoBarhaw", badges: "broadcaster/1", texte: "merci pour le sub Bigorneau !!" }],
-    [7_100, { nom: "zebulon", texte: "GG le rush" }],
+    [6_000, { nom: "LilianoBarhaw", badges: "broadcaster/1", texte: "merci pour le sub Bigorneau !!" }],
     [8_700, { nom: "Krakenito", badges: "subscriber/12", info: "subscriber/14", texte: "TOURNOI BARHAW DÉBLOQUÉ :hype:" }],
-    [9_400, { nom: "capitaine_frites", badges: "vip/1", texte: ":hype: :hype: :hype:" }],
-    [10_200, { nom: "LaMouetteRieuse", badges: "moderator/1", texte: "GG à tous, c'était chaud" }],
-    [11_600, { nom: "pub_bot_23", id: "pub", texte: "achetez des followers pas chers sur viewers-pas-chers.biz" }],
-    [13_300, { supprimer: "pub" }],
-    [14_600, { nom: "capitaine_frites", badges: "vip/1", mise: true, texte: "on veut le blind test ce soir !!" }],
-    [16_400, { nom: "zebulon", texte: "\u0001ACTION vient de follow la chaîne\u0001" }],
-    [17_800, { nom: "moussaillon_42", texte: "@LilianoBarhaw tu le lances quand le blind test ?" }],
-    [19_400, { nom: "LilianoBarhaw", badges: "broadcaster/1", texte: "à 1 250 follows on le lance :coeur:" }],
-    [21_000, { nom: "Bigorneau_TV", badges: "subscriber/0", info: "subscriber/1", texte: ":coeur: :coeur:" }],
-    [22_400, { nom: "LaMouetteRieuse", badges: "moderator/1", texte: "plus que 1 follow, allez !" }],
+    [11_000, { nom: "moussaillon_42", premier: true, texte: "première fois ici, la D.A. est trop propre" }],
+    [12_800, { nom: "pub_bot_23", id: "pub", texte: "achetez des followers pas chers sur viewers-pas-chers.biz" }],
+    [14_400, { supprimer: "pub" }],
+    [15_800, { nom: "capitaine_frites", badges: "vip/1", mise: true, texte: "on veut le blind test ce soir !!" }],
+    [17_600, { nom: "zebulon", texte: "\u0001ACTION vient de follow la chaîne\u0001" }],
+    [19_800, { nom: "moussaillon_42", texte: "@LilianoBarhaw tu le lances quand le blind test ?" }],
+    [21_600, { nom: "LilianoBarhaw", badges: "broadcaster/1", texte: "à 1 250 follows on le lance :coeur:" }],
+    [23_200, { nom: "Bigorneau_TV", badges: "subscriber/0", info: "subscriber/1", texte: ":coeur: :coeur:" }],
   ],
-  vider: 24_400,
+  vider: 26_600,
 };
 
 export function demarrer({ scene, P }) {
   const ESSAI = (P.get("essai") || "").toLowerCase() === "chat";
   const brut = String(P.get("chat") || "").trim().toLowerCase().replace(/^@/, "");
   const CHAINE = !brut || brut === "oui" ? CHAINE_DEFAUT : /^[a-z0-9_]{3,25}$/.test(brut) ? brut : null;
-  const DUREE = /^\d{1,4}$/.test(P.get("duree") || "") ? Number(P.get("duree")) * 1_000 : 60_000;
+  const DUREE = /^\d{1,4}$/.test(P.get("duree") || "") ? Number(P.get("duree")) * 1_000 : 10_000;
   const MAX = /^\d{1,2}$/.test(P.get("max") || "") ? Math.max(1, Math.min(30, Number(P.get("max")))) : 10;
   const MONTRER_BOTS = P.get("bots") === "oui";
   const MONTRER_COMMANDES = P.get("commandes") === "oui";
@@ -228,21 +226,50 @@ export function demarrer({ scene, P }) {
     const haut = liste.getBoundingClientRect().top;
     for (const c of presentes()) if (c !== carte && c.getBoundingClientRect().bottom < haut - 20) { c.__part = true; clearTimeout(c.__minuteur); c.remove(); }
   }
-  // partir : en glissant à gauche (le temps est passé), ou en se brouillant (supprimé par un modo)
+  // partir : le temps est passé → le néon s'éteint (le contour se rallume, clignote et s'éteint, le texte s'efface, puis la
+  // carte glisse à gauche en rapetissant) ; supprimé par un modo → il se brouille
   function partir(carte, supprime = false) {
     if (!carte || carte.__part || !carte.isConnected) return;
     carte.__part = true;
     clearTimeout(carte.__minuteur);
-    const duree = supprime ? 460 : 520;
-    anime(carte, supprime ? [
-      { opacity: 1, transform: "translateX(0)", filter: "none" },
-      { opacity: 1, transform: "translateX(0.6rem) skewX(-9deg)", filter: "hue-rotate(-50deg) saturate(2.2)", offset: 0.2 },
-      { opacity: 0.85, transform: "translateX(-0.5rem) skewX(7deg)", filter: "hue-rotate(30deg) saturate(1.6)", offset: 0.42 },
-      { opacity: 0, transform: "translateX(-2.6rem) scaleY(0.55)", filter: "blur(4px)" },
-    ] : [
-      { opacity: 1, transform: "translateX(0) scale(1)" },
-      { opacity: 0, transform: "translateX(-2.8rem) scale(0.96)" },
-    ], { duration: duree, easing: supprime ? "ease-in" : "cubic-bezier(.5, 0, .9, .5)", fill: "forwards" });
+    if (carte.__lueur) carte.__lueur.cancel();
+    const duree = supprime ? 460 : 800;
+    if (supprime) {
+      anime(carte, [
+        { opacity: 1, transform: "translateX(0)", filter: "none" },
+        { opacity: 1, transform: "translateX(0.6rem) skewX(-9deg)", filter: "hue-rotate(-50deg) saturate(2.2)", offset: 0.2 },
+        { opacity: 0.85, transform: "translateX(-0.5rem) skewX(7deg)", filter: "hue-rotate(30deg) saturate(1.6)", offset: 0.42 },
+        { opacity: 0, transform: "translateX(-2.6rem) scaleY(0.55)", filter: "blur(4px)" },
+      ], { duration: duree, easing: "ease-in", fill: "forwards" });
+    } else {
+      const allume = Number(getComputedStyle(carte.__anneau).opacity) || 0;
+      const ombre = getComputedStyle(carte).boxShadow;
+      const eteinte = "0 0 0 rgba(255, 79, 154, 0)";
+      anime(carte.__anneau, [
+        { opacity: allume },
+        { opacity: 1, offset: 0.07 },
+        { opacity: 0.2, offset: 0.13 },
+        { opacity: 0.95, offset: 0.19 },
+        { opacity: 0.1, offset: 0.27 },
+        { opacity: 0.6, offset: 0.32 },
+        { opacity: 0, offset: 0.4 },
+        { opacity: 0 },
+      ], { duration: duree, fill: "forwards" });
+      anime(carte, [
+        { boxShadow: ombre === "none" ? eteinte : ombre },
+        { boxShadow: "0 0 3.6rem rgba(255, 79, 154, 0.6)", offset: 0.07 },
+        { boxShadow: eteinte, offset: 0.4 },
+        { boxShadow: eteinte },
+      ], { duration: duree, fill: "forwards" });
+      anime(carte.__reflet, [{ transform: "translateX(260%)" }, { transform: "translateX(-140%)" }], { duration: duree * 0.45, easing: "ease-in-out" });
+      anime(carte.__tete, [{ opacity: 1 }, { opacity: 1, offset: 0.3 }, { opacity: 0, offset: 0.8 }, { opacity: 0 }], { duration: duree, fill: "forwards" });
+      anime(carte.__texte, [{ opacity: 1 }, { opacity: 1, offset: 0.34 }, { opacity: 0, offset: 0.85 }, { opacity: 0 }], { duration: duree, fill: "forwards" });
+      anime(carte, [
+        { opacity: 1, transform: "translateX(0) scale(1)", easing: "cubic-bezier(.3, 0, .6, 1)" },
+        { opacity: 1, transform: "translateX(0.5rem) scale(1.015)", offset: 0.22, easing: "cubic-bezier(.55, 0, .9, .4)" },
+        { opacity: 0, transform: "translateX(-3.6rem) scale(0.92)" },
+      ], { duration: duree, fill: "forwards" });
+    }
     setTimeout(() => {
       if (carte === dernier) dernier = null;
       glisser(() => carte.remove());
@@ -471,7 +498,7 @@ export function demarrer({ scene, P }) {
       aideLigne = el("p", "aide-etat", "");
       aide = el("div", "aide",
         el("b", "", "Le chat Twitch pour OBS"),
-        el("p", "", "Les messages du chat s'affichent ici quand ils arrivent, puis s'en vont. Les commandes (!…) et les bots sont cachés ; un message supprimé par un modo disparaît aussi."),
+        el("p", "", "Les messages du chat s'affichent ici quand ils arrivent, restent 10 secondes, puis s'en vont. Les commandes (!…) et les bots sont cachés ; un message supprimé par un modo disparaît aussi."),
         el("p", "", "Dans OBS : une nouvelle source « Navigateur » avec cette adresse, en 560 × 1000. Tout grandit ou rapetisse avec la source."),
         aideLigne,
         lien);
