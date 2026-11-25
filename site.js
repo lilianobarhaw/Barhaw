@@ -401,13 +401,13 @@
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
     { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "mer", "barhaw-show", "evenements"] },
-    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "chasse", "chopper"] },
+    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "creatures", "chasse", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
     chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], mer: ["bouteille", "La course de barques du live"], tournoi: ["trophee", "Le TOURNOI BARHAW"], "barhaw-show": ["micro", "4 équipes, 4 jeux, en février"],
-    evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
+    evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], creatures: ["lanterne", "Les attraper, les collectionner, les faire évoluer"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
     faille: ["epees", "Les games de LoL entre potes"], bahriot: ["trophee", "Toute la flotte sur les jeux Riot"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
   };
@@ -750,7 +750,9 @@
   const SON_BOUCLES = { mer: 24, "jeu-quiz": 20, "jeu-memory": 18.2944, "jeu-course": 23.2798, "jeu-rumble": 26.1818, "jeu-docteur": 19.6018 };
   const SON_NIVEAUX = { pop: 0.5, souffle: 0.45, clic: 0.55, taiko: 0.85, impact: 0.9, carte: 0.75, paire: 0.6, "quiz-bon": 0.65, "quiz-faux": 0.55, saut: 0.4, tonneau: 0.7, cloche: 0.7, potion: 0.5, soin: 0.55, victoire: 0.65,
     "br-tic": 0.39, "br-boum": 0.61, "br-onde": 0.38, "br-charge": 0.45, "br-score": 0.26, "br-monte": 0.47, "br-tampon": 0.92,
-    "br-roulement": 0.76, "br-cymbale": 0.76, "br-fanfare": 0.64, "br-feux": 0.54, "br-acclame": 0.31, "br-paillettes": 0.58 };
+    "br-roulement": 0.76, "br-cymbale": 0.76, "br-fanfare": 0.64, "br-feux": 0.54, "br-acclame": 0.31, "br-paillettes": 0.58,
+    "cr-plouf": 1, "cr-bulles": 0.42, "cr-filet": 0.55, "cr-baleine": 0.22, "cr-pieces": 1, "cr-feu": 0.58, "cr-cristal": 0.29,
+    "cr-mignon": 0.46, "cr-nacree": 0.55, "cr-envol": 0.51 };
   // la SEMAINE BAHRIOT (js/bahriot-anim.js) : ses bruitages, préchargés quand ses animations arrivent
   const SONS_BAHRIOT = ["br-tic", "br-boum", "br-onde", "br-charge", "br-score", "br-monte", "br-tampon", "br-roulement", "br-cymbale", "br-fanfare", "br-feux", "br-acclame", "br-paillettes", "carte"];
   const SONS_JEUX = { rumble: ["cloche", "potion", "victoire", "quiz-faux"], quiz: ["clic", "quiz-bon", "quiz-faux", "souffle", "victoire"], docteur: ["soin", "quiz-faux", "victoire", "souffle"], memory: ["carte", "paire", "victoire"], course: ["clic", "saut", "tonneau", "impact", "pop", "victoire"] };
@@ -7972,6 +7974,499 @@
 
   // ---------- chargement ----------
   let vfRendue = null; // la VF au rendu d'avant (null : premier rendu)
+  // ---------- LES CRÉATURES DE GRAND LINE : la créature sauvage du Discord, le Bestiaire, la fiche ----------
+  // Des créatures marines inventées surgissent sur le Discord quand ça discute (le bot compte les messages, il ne les lit pas).
+  // Chaque membre lance un filet par créature, sur Discord ou ici : trois secousses, puis elle est attrapée… ou elle s'échappe
+  // (« 1 filet sur 2 » pour une commune, « 1 sur 8 » pour une épique). Le bot dit quelle créature est sur le Discord
+  // (donnees.creatures.sauvage) et ce que le membre a attrapé (action « creatures ») ; ce qu'est chaque créature (nom, type,
+  // texte, statistiques) et son dessin en 3D sont dans js/creatures-3d.js, chargé à l'approche de la partie.
+  // Actions du bot : « creatures » (le Bestiaire), « creatures-filet » { apparition }, « creatures-evoluer » { espece }.
+  const SONS_CREATURES = ["clic", "br-tic", "victoire", "quiz-faux", "br-paillettes", "br-monte", "br-onde", "br-boum", "br-roulement", "br-cymbale", "br-fanfare", "br-acclame", "br-feux",
+    "cr-plouf", "cr-bulles", "cr-filet", "cr-mignon", "cr-envol", "cr-nacree", "cr-baleine", "cr-pieces", "cr-feu", "cr-cristal"];
+  // le bruitage propre à certaines espèces, quand elles arrivent : [son, volume, retard]
+  const CR_SON_ESPECE = { celeste: ["cr-baleine", 0.9, 0.15], doublon: ["cr-pieces", 0.85, 0.2], braisilotl: ["cr-feu", 0.9, 0.1], narvelin: ["cr-cristal", 0.85, 0.2] };
+  const cr = {
+    mod: null, charge: false, vueSauvage: null, vueFiche: null, vueFicheNacree: false, atelier: null, ui: null, // la 3D
+    moi: null, demande: 0, occupe: false, message: null, // le Bestiaire du membre, ce que dit le bot
+    fiche: "piquebulle", nacree: false, sauvageVue: "", tampon: "", tamponRang: 0, discord: [], sig: "", sigSauvage: "", banniere: null,
+  };
+  const crInfos = () => (donnees?.creatures && typeof donnees.creatures === "object" ? donnees.creatures : null);
+  const crNum = (n) => `#${String(n).padStart(3, "0")}`;
+  const crReste = (fin) => {
+    const s = Math.max(0, Math.round((ms(fin) - Date.now()) / 1000));
+    return s >= 60 ? `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")}` : `${s} s`;
+  };
+  const crPossede = (id) => cr.moi?.attrapees?.[id] || null;
+  const crPuce = (texte, couleur, classe = "") => el("span", { class: `cr-puce ${classe}`, style: `--c:${couleur}`, text: texte });
+  // la rareté (commune → or) : son rang de 0 à 5 ; l'annonce quand elle surgit ; son émoji et son mot sur le Discord
+  const crRarete = (e) => (cr.mod && e ? cr.mod.RARETES[e.rarete] || cr.mod.RARETES.commune : null);
+  const CR_ANNONCE = ["", "PEU COMMUNE", "RARE\u00a0!", "ÉPIQUE\u00a0!", "LÉGENDAIRE\u00a0!", "EN OR\u00a0!"];
+  const CR_EMOJI = ["🌊", "🌊", "💎", "⚡", "🔥", "👑"];
+  const CR_MOT = ["sauvage", "peu commune", "RARE", "ÉPIQUE", "LÉGENDAIRE", "EN OR"];
+  const crPuceRarete = (R) => crPuce(R.nom, R.couleur, `rarete r${R.rang}`);
+  const crRgba = (hex, a) => { const n = Number.parseInt(String(hex).slice(1), 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; };
+  // la créature sur le Discord, si elle y est encore (et si on sait la dessiner)
+  const crSauvage = (s) => (s?.sauvage && cr.mod?.ESPECES?.[s.sauvage.espece] && ms(s.sauvage.fin) > Date.now() ? s.sauvage : null);
+  async function chargerCreatures3D() {
+    if (cr.charge) return;
+    cr.charge = true;
+    try {
+      cr.mod = await import("/js/creatures-3d.js");
+      cr.atelier = cr.mod.creerAtelier();
+      prechargerSons(SONS_CREATURES);
+      cr.sig = cr.sigSauvage = "";
+      rendreCreatures();
+    } catch { cr.charge = false; /* sans 3D : la partie dit ce qu'elle peut, en texte */ }
+  }
+  // (differer : la réponse est gardée pour après l'animation, pour ne rien dévoiler avant la fin du filet ou de l'évolution)
+  async function agirCreatures(action, extra = {}, { differer = false } = {}) {
+    let d = {};
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      d = await r.json().catch(() => ({}));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+    } catch { d = { erreur: "reseau", texte: "Impossible de joindre le bot. Vérifie ta connexion." }; }
+    if (!differer || d.erreur) appliquerCreatures(d);
+    return d;
+  }
+  function appliquerCreatures(d) {
+    if (d.creatures) cr.moi = d.creatures;
+    if (d.public) donnees.creatures = d.public; // ce qui a changé pour tout le monde (une créature attrapée, la suivante)
+  }
+
+  // ---------- la structure de la partie (faite une fois : les toiles 3D restent en place) ----------
+  function construireCreatures(z) {
+    const ui = {};
+    ui.toile = el("canvas", { class: "cr-toile", "aria-label": "La créature sauvage, sur l'eau" });
+    ui.tampon = el("div", { class: "cr-tampon", "aria-hidden": "true" });
+    ui.banniere = el("div", { class: "cr-banniere", "aria-hidden": "true" });
+    ui.nom = el("div", { class: "cr-sauvage-nom" });
+    ui.puces = el("div", { class: "cr-puces" });
+    ui.chrono = el("span", { class: "cr-chrono" });
+    ui.enVue = el("span", { class: "cr-en-vue" });
+    ui.action = el("div", { class: "cr-action" });
+    ui.texte = el("p", { class: "cr-sauvage-texte", role: "status" });
+    const sauvage = el("div", { class: "cr-sauvage carte" },
+      el("div", { class: "cr-scene" }, ui.toile, ui.banniere, ui.tampon,
+        ui.enVue, ui.chrono),
+      el("div", { class: "cr-sauvage-bas" }, el("div", { class: "cr-sauvage-titre" }, ui.nom, ui.puces), ui.texte, ui.action));
+    ui.carte = sauvage;
+    // la maquette du Discord : le message du bot, son bouton, et la suite (qui l'a attrapée)
+    ui.dImage = el("canvas", { class: "cr-d-image", width: 640, height: 360, "aria-hidden": "true" });
+    ui.dTitre = el("div", { class: "cr-d-titre" });
+    ui.dTexte = el("div", { class: "cr-d-texte" });
+    ui.dChamps = el("div", { class: "cr-d-champs" });
+    ui.dReste = el("span", {});
+    ui.dPied = el("div", { class: "cr-d-pied" });
+    ui.dBouton = el("button", { class: "cr-d-bouton", type: "button", onclick: () => lancerFiletCreature("discord") }, "🪢 Lancer le filet");
+    ui.dSuite = el("div", { class: "cr-d-suite" });
+    ui.dEmbed = el("div", { class: "cr-d-embed" }, ui.dTitre, ui.dTexte, ui.dChamps, ui.dImage, ui.dPied);
+    const discord = el("div", { class: "cr-discord" },
+      el("div", { class: "cr-d-salon" }, el("span", { class: "cr-d-diese", text: "#" }), "général", el("span", { class: "cr-d-etiquette", text: "Aperçu du Discord" })),
+      el("div", { class: "cr-d-message" }, el("img", { class: "cr-d-avatar", src: "/img/favicon-32.png", alt: "", width: 40, height: 40 }),
+        el("div", { class: "cr-d-corps" },
+          el("div", { class: "cr-d-auteur" }, el("b", { text: "BarhawBot" }), el("span", { class: "cr-d-app", text: "APP" }), el("time", { text: `Aujourd'hui à ${fmtHeure.format(new Date())}` })),
+          ui.dEmbed,
+          el("div", { class: "cr-d-boutons" }, ui.dBouton, el("a", { class: "cr-d-bouton gris", href: "#creatures-bestiaire" }, "📖 Mon Bestiaire")))),
+      ui.dSuite);
+    const rencontre = el("div", { class: "cr-rencontre" },
+      el("div", { class: "cr-cote" }, el("p", { class: "cr-legende", text: "Sur le site" }), sauvage),
+      el("div", { class: "cr-cote" }, el("p", { class: "cr-legende", text: "Sur le Discord" }), discord));
+    // le Bestiaire
+    ui.compte = el("span", { class: "cr-compte" });
+    ui.grille = el("ol", { class: "cr-grille", "aria-label": "Le Bestiaire" });
+    ui.raretes = el("div", { class: "cr-raretes", "aria-label": "Les raretés, de la plus courante à la plus rare" });
+    ui.connexion = el("div", { class: "cr-connexion" });
+    const bestiaire = el("div", { class: "cr-bestiaire", id: "creatures-bestiaire" },
+      el("div", { class: "cr-bloc-tete" }, el("h3", { class: "cr-h3" }, "Mon Bestiaire ", ui.compte), ui.connexion),
+      ui.raretes, ui.grille);
+    // la fiche
+    ui.fToile = el("canvas", { class: "cr-toile cr-fiche-toile", "aria-label": "La créature en 3D : fais-la tourner" });
+    ui.fNacree = el("button", { class: "cr-nacree", type: "button", "aria-pressed": "false", onclick: () => basculerNacree() }, "✨ Voir la nacrée");
+    ui.fNum = el("span", { class: "cr-f-num" });
+    ui.fNom = el("h3", { class: "cr-f-nom" });
+    ui.fPuces = el("div", { class: "cr-puces" });
+    ui.fIle = el("p", { class: "cr-f-ile" });
+    ui.fTexte = el("p", { class: "cr-f-texte" });
+    ui.fStats = el("div", { class: "cr-stats" });
+    ui.fLigne = el("div", { class: "cr-ligne", "aria-label": "Son évolution" });
+    ui.fAction = el("div", { class: "cr-f-action" });
+    ui.fiche = el("div", { class: "cr-fiche carte", id: "creatures-fiche" },
+      el("div", { class: "cr-f-vue" }, ui.fToile, el("span", { class: "cr-f-aide", text: "↻ Fais-la tourner" }), ui.fNacree),
+      el("div", { class: "cr-f-infos" }, el("div", { class: "cr-f-tete" }, ui.fNum, ui.fNom), ui.fPuces, ui.fIle, ui.fTexte, ui.fStats,
+        el("p", { class: "cr-f-sous", text: "Son évolution" }), ui.fLigne, ui.fAction));
+    const bientot = el("p", { class: "cr-bientot" }, el("b", { text: "Et ensuite : " }),
+      "les combats entre membres (/defi sur le Discord), les créatures légendaires qui surgissent pendant le live (!filet dans le chat Twitch) et les échanges.");
+    vider(z, rencontre, bestiaire, ui.fiche, bientot);
+    cr.ui = ui;
+    // le temps qui reste à la créature sauvage (sans refaire la carte)
+    setInterval(() => { if (!$("creatures")?.hidden && !document.hidden) majChrono(); }, 1000);
+  }
+
+  function rendreCreatures() {
+    const section = $("creatures"), z = $("creatures-zone");
+    const s = crInfos();
+    if (!section || !z) return;
+    section.hidden = !s || !document.documentElement.classList.contains("v4");
+    const lien = document.querySelector('a[data-lien="creatures"]');
+    if (lien) lien.hidden = section.hidden;
+    if (!s || section.hidden) return;
+    if (!cr.ui) {
+      construireCreatures(z);
+      const o = new IntersectionObserver((e) => { if (e.some((x) => x.isIntersecting)) { o.disconnect(); chargerCreatures3D(); } }, { rootMargin: "600px 0px" });
+      o.observe(section);
+    }
+    // le Bestiaire du membre : demandé au bot à l'arrivée, puis toutes les 5 minutes
+    if (moi?.connecte && !cr.occupe && (!cr.demande || Date.now() - cr.demande > 300_000)) {
+      cr.demande = Date.now();
+      agirCreatures("creatures").then(() => { cr.sig = cr.sigSauvage = ""; rendreCreatures(); });
+    }
+    if (!moi?.connecte) cr.moi = null;
+    majSauvage(s);
+    const sig = JSON.stringify([Boolean(cr.mod), cr.moi, Boolean(moi?.connecte), cr.fiche, cr.nacree, cr.occupe, s.total, s.connues, s.regles]);
+    if (sig !== cr.sig) { cr.sig = sig; majBestiaire(s); majFiche(s); }
+  }
+
+  // ---------- la créature sauvage (en 3D sur l'eau) et le message du bot sur le Discord, côte à côte ----------
+  function majSauvage(s) {
+    const ui = cr.ui;
+    if (!ui || !s) return;
+    const w = crSauvage(s);
+    const e = w ? cr.mod.ESPECES[w.espece] : null;
+    const R = w ? crRarete(e) : null;
+    // la vue 3D : créée une fois ; quand une autre créature surgit, elle sort de l'eau
+    if (cr.mod && !cr.vueSauvage) {
+      cr.vueSauvage = cr.mod.creerVueCreature(ui.toile, { espece: w?.espece || "piquebulle", nacree: Boolean(w?.nacree), mode: "sauvage", vide: !w, reduit: reduit.matches, surEvenement: evenementCreature });
+      cr.sauvageVue = w ? w.id : "";
+    } else if (cr.vueSauvage && !w && cr.sauvageVue && !cr.occupe) {
+      // elle repart au large
+      cr.sauvageVue = "";
+      cr.vueSauvage.partir();
+    } else if (cr.vueSauvage && w && w.id !== cr.sauvageVue && !cr.occupe) {
+      cr.sauvageVue = w.id;
+      cr.tampon = "";
+      cr.discord = [];
+      cr.message = null;
+      cr.vueSauvage.changer(w.espece, { nacree: Boolean(w.nacree) });
+    }
+    const tente = Boolean(w && cr.moi?.tente === w.id);
+    const sig = JSON.stringify([w, Boolean(cr.mod), Boolean(moi?.connecte), cr.moi?.filets, tente, cr.occupe, cr.message, cr.tampon, cr.discord]);
+    if (sig === cr.sigSauvage) return;
+    cr.sigSauvage = sig;
+    ui.enVue.classList.toggle("calme", !w);
+    ui.carte.dataset.rang = R ? String(R.rang) : "0";
+    ui.carte.style.setProperty("--rc", R ? R.couleur : "transparent");
+    vider(ui.enVue, el("i", { class: "point", "aria-hidden": "true" }), el("span", {}, w ? "Sur le Discord" : "La mer est calme", w ? el("span", { class: "cr-long", text: " en ce moment" }) : null));
+    vider(ui.tampon, tamponCreature());
+    if (!w) {
+      ui.nom.textContent = cr.mod ? "Calme plat" : "…";
+      vider(ui.puces);
+      ui.texte.textContent = cr.message?.texte || (cr.mod ? "Aucune créature en vue. Elles surgissent sur le Discord quand ça discute : reviens voir pendant le live !" : "Les créatures arrivent…");
+      ui.texte.classList.toggle("erreur", Boolean(cr.message?.erreur));
+      vider(ui.action);
+    } else {
+      const t = cr.mod.TYPES[e.type], rr = R;
+      ui.nom.textContent = `${e.nom} ${w.nacree ? "nacrée " : ""}sauvage\u00a0!`;
+      vider(ui.puces, crPuce(crNum(e.n), "#e3c1d9", "num"), crPuce(t.nom, t.couleur), crPuceRarete(rr), w.nacree ? crPuce("✨ Nacrée", "#ffe58a") : null);
+      ui.texte.textContent = cr.message?.texte || `Un filet par créature et par membre : ${rr.filet} l'attrape${w.nacree ? ". Et elle est nacrée : rarissime !" : "."}`;
+      ui.texte.classList.toggle("erreur", Boolean(cr.message?.erreur));
+      if (!moi?.connecte) vider(ui.action, el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter pour lancer un filet" }));
+      else {
+        const f = cr.moi?.filets;
+        const libelle = cr.occupe ? "🪢 Le filet est lancé…" : tente ? "✓ Filet lancé sur celle-ci" : "🪢 Lancer le filet";
+        vider(ui.action,
+          el("button", { class: "btn btn-plein cr-lancer", type: "button", disabled: cr.occupe || tente || f === 0, onclick: () => lancerFiletCreature("site") }, libelle),
+          typeof f === "number" ? el("span", { class: "cr-filets", text: f ? `${f} filet${f > 1 ? "s" : ""} aujourd'hui` : "Plus de filet aujourd'hui" }) : null);
+      }
+    }
+    // le Discord : le même moment, vu du serveur
+    // (la couleur du message : celle de sa rareté ; le titre dit si elle est rare, épique, légendaire, en or, nacrée)
+    ui.dEmbed.style.setProperty("--c", w ? R.couleur : "#4e5058");
+    const motRarete = w ? [R.rang ? CR_MOT[R.rang] : w.nacree ? "" : "sauvage", w.nacree ? "NACRÉE" : ""].filter(Boolean).join(" et ") : "";
+    ui.dTitre.textContent = w ? `${CR_EMOJI[R.rang]}${w.nacree ? "✨" : ""} Une créature ${motRarete} surgit des flots\u00a0: ${e.nom}\u00a0!` : "🌊 La mer est calme…";
+    ui.dTexte.textContent = w ? "Vos messages l'ont attirée ici. Lancez vos filets avant qu'elle reparte : un filet chacun !" : "Aucune créature pour l'instant. Discutez : elles arrivent quand le salon s'anime.";
+    vider(ui.dChamps, ...(w ? [
+      el("div", { class: "cr-d-champ" }, el("b", { text: "Rareté" }), el("span", { text: `${R.nom} · ${R.filet}` })),
+      el("div", { class: "cr-d-champ" }, el("b", { text: "Type" }), el("span", { text: cr.mod.TYPES[e.type].nom })),
+      el("div", { class: "cr-d-champ" }, el("b", { text: "Repart dans" }), ui.dReste),
+    ] : []));
+    ui.dPied.textContent = w ? `${crNum(e.n)} · ${e.ile} · Les Créatures de GRAND LINE` : "Les Créatures de GRAND LINE";
+    ui.dImage.hidden = !w;
+    ui.dBouton.disabled = !w || cr.occupe || tente;
+    const cleImage = w ? `${w.id}|${w.espece}|${w.nacree}` : "";
+    if (w && cr.atelier && ui.dImage.dataset.cle !== cleImage) { ui.dImage.dataset.cle = cleImage; dessinerImageDiscord(ui.dImage, w.espece, Boolean(w.nacree)); }
+    vider(ui.dSuite, ...cr.discord.map((t) => el("div", { class: "cr-d-message suite" }, el("img", { class: "cr-d-avatar", src: "/img/favicon-32.png", alt: "", width: 40, height: 40 }),
+      el("div", { class: "cr-d-corps" }, el("div", { class: "cr-d-auteur" }, el("b", { text: "BarhawBot" }), el("span", { class: "cr-d-app", text: "APP" })), el("div", { class: "cr-d-ligne", text: t })))));
+    majChrono();
+  }
+  function majChrono() {
+    const ui = cr.ui, s = crInfos();
+    if (!ui || !s) return;
+    const w = crSauvage(s);
+    // elle vient de repartir : la carte change
+    if (Boolean(w) !== Boolean(ui.chrono.textContent) && !cr.occupe) { cr.sigSauvage = ""; if (!w) { ui.chrono.textContent = ""; majSauvage(s); return; } }
+    const r = w ? crReste(w.fin) : "";
+    ui.chrono.textContent = w ? `Repart dans ${r}` : "";
+    ui.chrono.hidden = !w;
+    ui.dReste.textContent = r;
+  }
+  const tamponCreature = () => (cr.tampon ? el("span", { class: `cr-tampon-mot${/ATTRAP/.test(cr.tampon) ? ` or r${cr.tamponRang}` : /CHAPP/.test(cr.tampon) ? " gris" : ""}`, text: cr.tampon }) : null);
+  // une créature peu commune, rare, épique, légendaire ou en or surgit : le mot s'affiche sur l'eau, avec son bruitage
+  function annoncerRarete(rang) {
+    const ui = cr.ui;
+    if (!ui || !cr.mod || !(rang >= 1)) return;
+    const R = Object.values(cr.mod.RARETES).find((x) => x.rang === rang);
+    if (!R) return;
+    clearTimeout(cr.banniere);
+    vider(ui.banniere, el("span", { class: `cr-banniere-mot r${rang}`, style: `--c:${R.couleur};--l:${R.lueur}`, text: CR_ANNONCE[rang] }));
+    cr.banniere = setTimeout(() => vider(ui.banniere), rang >= 4 ? 3300 : 2500);
+    const sons = [[], [["br-onde", 0.6, 0]], [["br-paillettes", 0.85, 0]], [["br-boum", 0.6, 0], ["br-monte", 0.8, 0.12]],
+      [["br-roulement", 0.7, 0], ["br-cymbale", 0.9, 0.85]], [["br-roulement", 0.7, 0], ["br-fanfare", 0.9, 0.85], ["br-feux", 0.6, 1.3]]][rang] || [];
+    for (const [nom, volume, retard] of sons) jouerSon(nom, { volume, retard });
+  }
+  // l'image du message Discord : la créature sur un bout de mer (dessinée par l'atelier)
+  function dessinerImageDiscord(toile, id, nacree) {
+    const ctx = toile.getContext("2d");
+    const l = toile.width, h = toile.height;
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "#a9dcff"); g.addColorStop(0.4, "#6cc0f2"); g.addColorStop(0.42, "#2f8fd6"); g.addColorStop(1, "#14528f");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, l, h);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    for (let k = 0; k < 16; k++) { const x = (k * 97 + 31) % l, y = h * 0.47 + ((k * 53) % (h * 0.5)); ctx.beginPath(); ctx.ellipse(x, y, 16 + (k % 4) * 9, 3 + (k % 3), 0, 0, Math.PI * 2); ctx.fill(); }
+    const R = crRarete(cr.mod.ESPECES[id]);
+    if (R?.rang >= 2) {
+      const cx = l / 2, cy = h * 0.5;
+      if (R.rang >= 4) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.fillStyle = crRgba(R.lueur, 0.2);
+        for (let k = 0; k < 14; k++) { ctx.rotate((Math.PI * 2) / 14); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(l, -l * 0.1); ctx.lineTo(l, l * 0.1); ctx.closePath(); ctx.fill(); }
+        ctx.restore();
+      }
+      const halo = ctx.createRadialGradient(cx, cy, 8, cx, cy, h * (0.42 + R.rang * 0.03));
+      halo.addColorStop(0, crRgba(R.lueur, 0.8)); halo.addColorStop(0.45, crRgba(R.couleur, 0.32)); halo.addColorStop(1, crRgba(R.couleur, 0));
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, l, h);
+      if (R.rang === 5) {
+        for (let k = 0; k < 12; k++) {
+          const x = (k * 131 + 47) % l, y = 18 + ((k * 71) % (h * 0.42)), r = 7 + (k % 3) * 2;
+          ctx.fillStyle = "#c88a12"; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.8, k, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#ffd84a"; ctx.beginPath(); ctx.ellipse(x - 1, y - 1, r * 0.78, r * 0.6, k, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+    const creature = document.createElement("canvas");
+    creature.width = l; creature.height = h;
+    cr.atelier.dessiner(creature.getContext("2d"), id, { nacree, angle: -0.45, marge: 0.98, hauteur: 0.2 });
+    ctx.drawImage(creature, 0, 0);
+  }
+
+  // ---------- le filet : le bot décide, la 3D joue (trois secousses), le Discord raconte ----------
+  async function lancerFiletCreature(depuis) {
+    const s = crInfos();
+    const w = crSauvage(s);
+    if (!w || cr.occupe || !cr.vueSauvage) return;
+    if (!moi?.connecte) { location.href = "/api/auth/login"; return; }
+    cr.occupe = true;
+    cr.message = null;
+    cr.tampon = "";
+    const e = cr.mod.ESPECES[w.espece];
+    const qui = moi.nom || "Toi";
+    cr.discord = [`🪢 ${qui} lance son filet ${depuis === "discord" ? "depuis le Discord" : "depuis le site"}…`];
+    majSauvage(s);
+    jouerSon("clic", { volume: 0.6 });
+    const d = await agirCreatures("creatures-filet", { apparition: w.id }, { differer: true });
+    if (d.erreur || !["attrape", "echappe"].includes(d.issue)) {
+      cr.occupe = false;
+      cr.discord = [];
+      cr.message = { texte: d.texte || "Ça n'a pas marché, réessaie.", erreur: true };
+      cr.sig = cr.sigSauvage = "";
+      rendreCreatures();
+      return;
+    }
+    jouerSon("cr-filet", { volume: 0.9 });
+    await cr.vueSauvage.lancerFilet(d.issue);
+    appliquerCreatures(d);
+    cr.occupe = false;
+    const nouvelle = d.issue === "attrape" && d.nouvelle;
+    cr.message = d.issue === "attrape"
+      ? { texte: `Attrapée ! ${e.nom}${w.nacree ? " nacrée" : ""} rejoint ton Bestiaire${nouvelle ? " : c'est ta toute première !" : "."}` }
+      : { texte: `${e.nom} s'est échappée… Ton filet est perdu, mais la prochaine sera peut-être la bonne.` };
+    cr.discord.push(d.issue === "attrape"
+      ? `🎉 ${qui} a attrapé ${e.nom}${w.nacree ? " nacrée ✨" : ""} (${crNum(e.n)}) !${nouvelle ? " Nouvelle dans son Bestiaire." : ""}`
+      : `💨 ${e.nom} s'échappe du filet de ${qui}… Elle est toujours là : à vous !`);
+    if (d.issue === "attrape") { cr.fiche = w.espece; cr.nacree = Boolean(w.nacree); }
+    cr.sig = cr.sigSauvage = "";
+    rendreCreatures();
+  }
+  function evenementCreature(quoi, n) {
+    const vole = Boolean(cr.vueSauvage?.vole?.());
+    if (quoi === "entree") {
+      // elle sort de l'eau (ou descend du ciel), avec son bruitage à elle, et le carillon si elle est nacrée
+      jouerSon(vole ? "cr-envol" : "cr-plouf", { volume: vole ? 0.9 : 0.8 });
+      const propre = CR_SON_ESPECE[cr.vueSauvage?.espece?.()];
+      if (propre) jouerSon(propre[0], { volume: propre[1], retard: propre[2] });
+      if (crSauvage(crInfos())?.nacree) jouerSon("cr-nacree", { volume: 0.8, retard: 0.45 });
+      annoncerRarete(n);
+      return;
+    }
+    if (quoi === "partir") { jouerSon(vole ? "cr-envol" : "cr-plouf", { volume: 0.45 }); return; }
+    if (quoi === "filet") { if (!vole) jouerSon("cr-plouf", { volume: 0.4 }); return; }
+    cr.tamponRang = 0;
+    if (quoi === "secousse") {
+      cr.tampon = `${n}…`;
+      jouerSon("br-tic", { volume: 0.6 });
+      if (!vole) jouerSon("cr-bulles", { volume: 0.55 + 0.15 * (Number(n) || 1) });
+    }
+    else if (quoi === "attrape") {
+      cr.tampon = "ATTRAPÉE\u00a0!";
+      cr.tamponRang = Number(n) || 0;
+      jouerSon("victoire", { volume: 0.8 });
+      jouerSon("cr-mignon", { volume: 0.85, retard: 0.08 });
+      if (n >= 3) jouerSon("br-acclame", { volume: 0.8, retard: 0.25 });
+      if (n >= 4) jouerSon("br-fanfare", { volume: 0.8, retard: 0.15 });
+      if (n >= 5) jouerSon("br-feux", { volume: 0.7, retard: 0.6 });
+    }
+    else if (quoi === "echappe") { cr.tampon = "ÉCHAPPÉE…"; jouerSon("quiz-faux", { volume: 0.7 }); jouerSon(vole ? "cr-envol" : "cr-plouf", { volume: 0.6, retard: 0.35 }); }
+    else if (quoi === "evolution") { jouerSon("br-monte", { volume: 0.8 }); return; }
+    else if (quoi === "flash") { jouerSon("br-paillettes", { volume: 0.9 }); return; }
+    else return;
+    if (cr.ui) vider(cr.ui.tampon, tamponCreature());
+  }
+
+  // ---------- le Bestiaire : 30 cases ; attrapées en couleur, croisées en silhouette, les autres en point d'interrogation ----------
+  function majBestiaire(s) {
+    const ui = cr.ui;
+    if (!ui) return;
+    const total = Math.min(200, Math.max(1, Number(s.total) || 30));
+    const especes = cr.mod ? Object.entries(cr.mod.ESPECES) : [];
+    const parNum = new Map(especes.map(([id, e]) => [e.n, id]));
+    const pris = cr.moi?.attrapees || {};
+    const nb = Object.keys(pris).filter((id) => cr.mod?.ESPECES?.[id]).length;
+    ui.compte.textContent = moi?.connecte && cr.moi ? `${nb}/${total}` : "";
+    vider(ui.connexion, moi?.connecte ? null : el("a", { class: "btn btn-contour btn-petit", href: "/api/auth/login", text: "Se connecter avec Discord pour voir le tien" }));
+    if (cr.mod && !ui.raretes.childElementCount) {
+      vider(ui.raretes, ...Object.values(cr.mod.RARETES).sort((a, b) => a.rang - b.rang).map((R) =>
+        el("span", { class: `cr-rarete r${R.rang}`, style: `--c:${R.couleur}`, title: `${R.filet} l'attrape` }, el("i", { "aria-hidden": "true" }), R.nom)));
+    }
+    const vues = new Set((s.connues || []).filter((id) => cr.mod?.ESPECES?.[id]));
+    const cases = [];
+    for (let n = 1; n <= total; n++) {
+      const id = parNum.get(n);
+      const e = id ? cr.mod.ESPECES[id] : null;
+      const a = id ? pris[id] : null;
+      const etat = a ? "pris" : id && (vues.has(id) || e.ligne?.some((x) => x && pris[x])) ? "vu" : "inconnu";
+      const contenu = [el("span", { class: "cr-case-num", text: crNum(n) })];
+      if (etat !== "inconnu") {
+        contenu.push(el("canvas", { class: "cr-vignette", width: 160, height: 160, "data-espece": id, "data-silhouette": etat === "vu" ? "1" : "", "aria-hidden": "true" }),
+          el("span", { class: "cr-case-nom", text: etat === "pris" ? e.nom : "???" }));
+        if (a) contenu.push(el("span", { class: "cr-case-type", style: `--c:${cr.mod.TYPES[e.type].couleur}`, text: cr.mod.TYPES[e.type].nom }));
+        if (a?.n > 1) contenu.push(el("span", { class: "cr-case-x", text: `×${a.n}` }));
+        if (a?.nacree) contenu.push(el("span", { class: "cr-case-nacree", title: "Tu as sa version nacrée", text: "✨" }));
+      } else contenu.push(el("span", { class: "cr-case-mystere", "aria-hidden": "true", text: "?" }));
+      const ouvrir = () => {
+        cr.fiche = id;
+        cr.nacree = false;
+        cr.sig = "";
+        rendreCreatures();
+        cr.ui?.fiche.scrollIntoView({ behavior: reduit.matches ? "auto" : "smooth", block: "nearest" });
+      };
+      const R = etat !== "inconnu" ? crRarete(e) : null;
+      if (R && etat === "pris" && R.rang) contenu.push(el("span", { class: "cr-case-gemme", "aria-hidden": "true" }));
+      cases.push(el("li", { class: `cr-case ${etat}${id && id === cr.fiche && a ? " choisie" : ""}`, "data-rang": R ? String(R.rang) : null, style: R ? `--rc:${R.couleur};--rl:${R.lueur}` : null },
+        etat === "pris" ? el("button", { type: "button", class: "cr-case-bouton", "aria-label": `${e.nom} (${R.nom}), voir sa fiche`, onclick: ouvrir }, ...contenu)
+          : el("div", { class: "cr-case-bouton", title: etat === "vu" ? "Croisée, pas encore attrapée" : "Pas encore découverte" }, ...contenu)));
+    }
+    vider(ui.grille, ...cases);
+    if (cr.atelier) {
+      for (const c of ui.grille.querySelectorAll("canvas.cr-vignette")) {
+        try { cr.atelier.dessiner(c.getContext("2d"), c.dataset.espece, { silhouette: c.dataset.silhouette === "1", angle: -0.5, t: 1.2 }); } catch { /* une case vide */ }
+      }
+    }
+  }
+
+  // ---------- la fiche : la créature en grand (on la tourne au doigt), ce qu'elle est, son évolution ----------
+  function majFiche(s) {
+    const ui = cr.ui;
+    if (!ui || !cr.mod) return;
+    // la fiche montre une créature attrapée (sans compte : la première, pour l'exemple)
+    if (cr.moi && !crPossede(cr.fiche)) cr.fiche = Object.keys(cr.moi.attrapees || {}).find((id) => cr.mod.ESPECES[id]) || cr.fiche;
+    const id = cr.fiche, e = cr.mod.ESPECES[id];
+    if (!e) return;
+    const a = crPossede(id);
+    const t = cr.mod.TYPES[e.type], rr = crRarete(e);
+    ui.fNum.textContent = crNum(e.n);
+    ui.fNom.textContent = e.nom;
+    ui.fiche.dataset.rang = String(rr.rang);
+    ui.fiche.style.setProperty("--rc", rr.couleur);
+    ui.fiche.style.setProperty("--rl", rr.lueur);
+    vider(ui.fPuces, crPuce(t.nom, t.couleur), crPuceRarete(rr), a?.n ? crPuce(`×${a.n} dans ton Bestiaire`, "#e3c1d9", "num") : null);
+    ui.fIle.textContent = `Vit autour de ${e.ile.replace(/^L'/, "l'").replace(/^Le /, "le ").replace(/^La /, "la ")}.`;
+    ui.fTexte.textContent = e.texte;
+    vider(ui.fStats, ...[["Force", e.stats.force], ["Résistance", e.stats.resistance], ["Vitesse", e.stats.vitesse]].map(([k, v]) =>
+      el("div", { class: "cr-stat" }, el("span", { text: k }), el("i", { class: "cr-barre" }, el("i", { style: `width:${v}%` })), el("b", { text: v }))));
+    // la ligne d'évolution : chaque étape attrapée s'ouvre, les autres restent en silhouette
+    const ligne = e.ligne || [id];
+    const etapes = ligne.filter(Boolean);
+    vider(ui.fLigne, ...etapes.flatMap((x, k) => {
+      const pris = Boolean(crPossede(x));
+      const c = el("canvas", { class: "cr-mini", width: 96, height: 96, "aria-hidden": "true" });
+      const bloc = el(pris && x !== id ? "button" : "div", { class: `cr-etape${x === id ? " ici" : ""}${pris || x === id ? "" : " cachee"}`, ...(pris && x !== id ? { type: "button", onclick: () => { cr.fiche = x; cr.nacree = false; cr.sig = ""; rendreCreatures(); } } : {}) },
+        c, el("span", { text: pris || x === id ? cr.mod.ESPECES[x].nom : "???" }));
+      if (cr.atelier) { try { cr.atelier.dessiner(c.getContext("2d"), x, { silhouette: !pris && x !== id, angle: -0.5 }); } catch { /* vide */ } }
+      return k ? [el("span", { class: "cr-fleche", "aria-hidden": "true", text: "→" }), bloc] : [bloc];
+    }));
+    if (etapes.length < 2) ui.fLigne.append(el("span", { class: "cr-f-regle", text: rr.rang >= 3 ? "Pas d'évolution : elle est déjà au sommet." : "Pas d'évolution connue… pour l'instant." }));
+    // faire évoluer : la suivante dans la ligne, avec assez d'exemplaires
+    const k = ligne.indexOf(id);
+    const vers = k >= 0 ? ligne[k + 1] || null : null;
+    const besoin = Math.max(1, Number(s.regles?.evolution) || 3);
+    if (vers && a) {
+      const ok = (a.n || 0) >= besoin && !cr.occupe;
+      vider(ui.fAction,
+        el("button", { class: "btn btn-plein", type: "button", disabled: !ok, onclick: () => evoluerCreature(id, vers) }, cr.occupe ? "✨ Elle évolue…" : `✨ Faire évoluer en ${crPossede(vers) ? cr.mod.ESPECES[vers].nom : "???"}`),
+        el("span", { class: "cr-f-regle", text: ok ? `${besoin} ${e.nom} deviennent 1 ${crPossede(vers) ? cr.mod.ESPECES[vers].nom : "créature inconnue"} : tu en as ${a.n}.` : `Il faut ${besoin} ${e.nom} (tu en as ${a.n || 0}).` }));
+    } else vider(ui.fAction, el("span", { class: "cr-f-regle", text: !a ? "Attrape-la pour la faire évoluer." : k > 0 && !vers && etapes.length > 1 ? "Elle est à sa forme finale." : "" }));
+    // la 3D, et le bouton « nacrée » pour qui l'a dans sa version nacrée
+    const nacreeOk = Boolean(a?.nacree);
+    ui.fNacree.hidden = !nacreeOk;
+    if (!nacreeOk) cr.nacree = false;
+    ui.fNacree.setAttribute("aria-pressed", cr.nacree ? "true" : "false");
+    ui.fNacree.textContent = cr.nacree ? "✨ Nacrée" : "✨ Voir la nacrée";
+    if (!cr.vueFiche) cr.vueFiche = cr.mod.creerVueCreature(ui.fToile, { espece: id, nacree: cr.nacree, mode: "fiche", reduit: reduit.matches, surEvenement: evenementCreature });
+    else if (!cr.occupe && (cr.vueFiche.espece() !== id || cr.vueFicheNacree !== cr.nacree)) cr.vueFiche.changer(id, { nacree: cr.nacree });
+    cr.vueFicheNacree = cr.nacree;
+    ui.fiche.classList.toggle("nacree", cr.nacree);
+  }
+  function basculerNacree() {
+    cr.nacree = !cr.nacree;
+    if (cr.nacree) jouerSon("cr-nacree", { volume: 0.7 });
+    cr.sig = "";
+    rendreCreatures();
+  }
+  async function evoluerCreature(id, vers) {
+    if (cr.occupe || !cr.vueFiche) return;
+    cr.occupe = true;
+    cr.sig = "";
+    rendreCreatures();
+    const d = await agirCreatures("creatures-evoluer", { espece: id }, { differer: true });
+    if (d.erreur || !d.ok) {
+      cr.occupe = false;
+      cr.sig = "";
+      rendreCreatures();
+      return;
+    }
+    await cr.vueFiche.evoluer(vers);
+    appliquerCreatures(d);
+    cr.occupe = false;
+    cr.fiche = vers;
+    cr.nacree = false;
+    cr.vueFicheNacree = false;
+    cr.sig = "";
+    rendreCreatures();
+  }
+
   function rendreTout() {
     const vf = v4Ouverte();
     if (vfRendue === false && vf) vfEnDirect();
@@ -7986,6 +8481,7 @@
     rendreFideles();
     rendreBahriot();
     rendreGuerre();
+    rendreCreatures();
     rendreMer();
     rendreShow();
     rendreMaintenant();

@@ -30,11 +30,13 @@
 //          en direct du bot, et le panneau de Liliano et des capitaines (ouvrir la mer, le départ, la fermer)
 //   POST /api/chopper  { action: "fideles" | "fideles-code" | "fideles-retirer" }
 //        → les fidèles du stream : son temps sur le live, un code pour relier son Twitch (« !lier CODE » dans le chat), tout retirer
+//   POST /api/chopper  { action: "creatures" | "creatures-filet" | "creatures-evoluer", apparition, espece }
+//        → les Créatures de GRAND LINE (VF 1.0) : le Bestiaire du membre, un filet sur la créature du Discord, l'évolution
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "bahriot", "bahriot-inscrire", "bahriot-desinscrire", "guerre", "guerre-engager", "guerre-quitter", "guerre-voter", "mer", "mer-embarquer", "mer-regarder", "mer-lancer", "mer-depart", "mer-arreter", "valorant", "valorant-demander", "valorant-annuler", "valorant-retirer"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "bahriot", "bahriot-inscrire", "bahriot-desinscrire", "guerre", "guerre-engager", "guerre-quitter", "guerre-voter", "mer", "mer-embarquer", "mer-regarder", "mer-lancer", "mer-depart", "mer-arreter", "valorant", "valorant-demander", "valorant-annuler", "valorant-retirer", "creatures", "creatures-filet", "creatures-evoluer"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course", "traversee"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
@@ -121,6 +123,9 @@ export async function POST(req) {
     corps.accord = d.accord === true;
   }
   if (action === "quiz-repondre") corps.choix = d.choix === null ? null : entier(d.choix, 0, 3);
+  // les Créatures de GRAND LINE : la créature visée par le filet, l'espèce à faire évoluer (le bot vérifie le reste)
+  if (action === "creatures-filet") corps.apparition = /^c\d{1,9}-[a-z0-9]{4,12}$/.test(String(d.apparition || "")) ? String(d.apparition) : "";
+  if (action === "creatures-evoluer") corps.espece = /^[a-z]{3,20}$/.test(String(d.espece || "")) ? String(d.espece) : "";
   try {
     const r = await demanderBot("/chopper", { methode: "POST", corps, delai: 25000 });
     const reponse = await r.json().catch(() => ({ erreur: "Réponse du bot illisible." }));
