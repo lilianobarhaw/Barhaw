@@ -4712,11 +4712,11 @@ html.rature .gl-salle canvas { filter: none; } /* la GRAND LINE en 3D plein écr
 @keyframes rt-apparait { from { opacity: 0; } }
 .rt-tremble { animation: rt-tremble 0.5s steps(2) both; }
 @keyframes rt-tremble { 20% { transform: translate(-2px, 1px) skewX(-3deg); text-shadow: 2px 0 rgba(154, 34, 22, 0.6); } 40% { transform: translate(2px, -1px); } 60% { transform: translate(-1px, 0) skewX(2deg); } 80% { transform: translate(1px, 1px); } }
-.rt-murmure { position: fixed; z-index: 62; max-width: 260px; margin: 0; font-size: 27px; line-height: 1.05; color: #c03826; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); transform: rotate(-4deg); pointer-events: none; animation: rt-murmure 1.6s ease-out both; }
+.rt-murmure { position: fixed; z-index: 62; max-width: 300px; margin: 0; font-size: 33px; line-height: 1.05; color: #c03826; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); transform: rotate(-4deg); pointer-events: none; animation: rt-murmure 1.6s ease-out both; }
 .rt-murmure.part { animation: rt-murmure-part 1.6s ease-in both; }
 @keyframes rt-murmure { from { opacity: 0; filter: blur(6px); } }
 @keyframes rt-murmure-part { to { opacity: 0; filter: blur(8px); transform: rotate(-4deg) translateY(8px); } }
-.rt-journal-bouton { position: fixed; z-index: 63; left: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 10px; color: #dccbaa; background: #1a120d; border: 1.5px solid #4a3322; border-radius: 4px 12px 6px 10px; font-family: "Journal", Georgia, serif; font-size: 15px; cursor: pointer; box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.55); transition: transform 0.3s var(--rebond), border-color 0.3s; }
+.rt-journal-bouton { position: fixed; z-index: 63; left: clamp(14px, 3vw, 32px); bottom: calc(clamp(14px, 3vw, 28px) + 60px + env(safe-area-inset-bottom, 0px)); display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 10px; color: #dccbaa; background: #1a120d; border: 1.5px solid #4a3322; border-radius: 4px 12px 6px 10px; font-family: "Journal", Georgia, serif; font-size: 15px; cursor: pointer; box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.55); transition: transform 0.3s var(--rebond), border-color 0.3s; }
 .rt-journal-bouton:hover, .rt-journal-bouton:focus-visible { transform: rotate(-2deg) translateY(-2px); border-color: #9a2216; }
 
 /* le cadenas */
@@ -4769,7 +4769,7 @@ html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
 .ecrit .rt-texte span { animation: rt-ecrit 0.5s ease-out both; animation-delay: calc(var(--i) * 45ms); }
 @keyframes rt-ecrit { from { opacity: 0; filter: blur(3px); } }
 .rt-signature { margin: 22px 0 0; text-align: right; }
-.rt-nom { position: relative; display: inline-block; font-size: 40px; line-height: 1; color: #7a1a10; transform: rotate(-3deg); }
+.rt-nom { position: relative; display: inline-block; font-size: 54px; line-height: 1; color: #7a1a10; transform: rotate(-3deg); }
 .rt-nom::after { content: ""; position: absolute; left: -8%; right: -8%; top: 50%; height: 5px; background: #1a0705; border-radius: 3px; transform: scaleX(0) rotate(-4deg); transform-origin: 0 50%; transition: transform 1.6s cubic-bezier(0.6, 0.1, 0.3, 1); }
 .rt-nom.raye::after { transform: scaleX(1) rotate(-4deg); }
 .rt-livre-bas { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 22px; }

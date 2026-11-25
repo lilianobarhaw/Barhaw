@@ -8786,7 +8786,8 @@
     const etroit = innerWidth < 700;
     let style = etroit ? `left:${Math.round(rtHasard(6, 40))}vw;top:${Math.round(rtHasard(58, 74))}vh` : `left:${Math.round(Math.random() < 0.5 ? rtHasard(2, 14) : rtHasard(74, 84))}vw;top:${Math.round(rtHasard(22, 74))}vh`;
     const r = ou?.getBoundingClientRect();
-    if (r && r.bottom > 0 && r.top < innerHeight - 60) style = `left:${Math.max(8, Math.min(innerWidth - 200, Math.round(r.left - 40)))}px;top:${Math.round(Math.min(r.bottom + 6, innerHeight - 70))}px`;
+    // près d'un bouton : en dessous s'il est en haut de l'écran, au-dessus s'il est en bas (et au-dessus du bouton du journal)
+    if (r && r.bottom > 0 && r.top < innerHeight - 20) style = `left:${Math.max(8, Math.min(innerWidth - 220, Math.round(r.left - 10)))}px;top:${Math.round(r.top > innerHeight / 2 ? r.top - 118 : Math.min(r.bottom + 6, innerHeight - 70))}px`;
     const m = el("p", { class: "rt-main rt-murmure", style, "aria-hidden": "true", text: texte });
     document.body.append(m);
     setTimeout(() => m.classList.add("part"), 5200);
