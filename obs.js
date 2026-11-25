@@ -29,6 +29,8 @@
 // directement sur Twitch : js/obs-chat.js), ?objectifs (l'objectif sub et l'objectif follow, envoyés par le bot :
 // js/obs-objectifs.js) et ?sondage (les sondages Twitch de la chaîne, envoyés par le bot : js/obs-sondage.js).
 // ?essai=chat, ?essai=objectifs et ?essai=sondage : une démo en boucle, pour placer la source.
+// LES SONS QUI FONT PEUR : ?peur=<chaîne> (une récompense de points de chaîne → un son dans le micro du jeu, par OBS et un
+// câble audio virtuel : js/obs-peur.js) ; rien à l'écran. ?essai=peur : un son toutes les 8 s, pour régler le câble.
 (() => {
   "use strict";
   const P = new URLSearchParams(location.search);
@@ -53,6 +55,11 @@
     return;
   }
   // LES SONDAGES TWITCH (D.A. Néon) : envoyés par le bot (js/obs-sondage.js) ; 1rem = 10 px d'une source large de 600 px
+  if (P.has("peur") || ESSAI === "peur") {
+    // les sons qui font peur : rien à l'écran, seulement le son (vers le micro du jeu, par le câble audio virtuel)
+    import("/js/obs-peur.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
+    return;
+  }
   if (P.has("sondage") || ESSAI === "sondage") {
     document.documentElement.classList.add("w-sondage");
     import("/js/obs-sondage.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
