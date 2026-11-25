@@ -4546,3 +4546,72 @@ button.cr-etape:hover { border-color: rgba(255, 120, 190, 0.5); }
   .cr-stat { grid-template-columns: 82px minmax(0, 1fr) 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .cr-en-vue .point, .cr-tampon-mot, .cr-d-suite .cr-d-message.suite { animation: none; } }
+
+/* ============ LES CRÉATURES : les raretés (commune, peu commune, rare, épique, légendaire, or) ============ */
+/* l'annonce sur l'eau quand une créature peu commune ou plus rare surgit */
+.cr-banniere { position: absolute; inset: 0; display: grid; place-items: start center; padding-top: 7%; pointer-events: none; z-index: 2; }
+.cr-banniere-mot {
+  font-family: var(--titre); font-size: clamp(28px, 4.4vw, 54px); line-height: 1; letter-spacing: 0.02em; color: var(--l);
+  -webkit-text-stroke: 3px var(--encre); paint-order: stroke fill; text-shadow: 4px 5px 0 var(--c), 0 0 22px var(--l);
+  animation: cr-banniere 2.5s var(--rebond) both;
+}
+.cr-banniere-mot.r1 { font-size: clamp(18px, 2.6vw, 30px); text-shadow: 3px 4px 0 var(--c); }
+.cr-banniere-mot.r4, .cr-banniere-mot.r5 { white-space: nowrap; animation: cr-banniere 3.3s var(--rebond) both, cr-lueur-mot 0.55s ease-in-out 0.35s 6 alternate; }
+.cr-banniere-mot.r5 { font-size: clamp(32px, 5.2vw, 64px); }
+.cr-banniere-mot.r5 { color: #fff3b0; }
+@keyframes cr-banniere {
+  0% { opacity: 0; transform: scale(2.3) rotate(-7deg); }
+  12% { opacity: 1; transform: scale(0.9) rotate(2deg); }
+  20% { transform: scale(1.05) rotate(-1deg); }
+  27%, 82% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-14px) scale(0.96); }
+}
+@keyframes cr-lueur-mot { from { text-shadow: 4px 5px 0 var(--c), 0 0 10px var(--l); } to { text-shadow: 4px 5px 0 var(--c), 0 0 30px var(--l), 0 0 64px var(--l); } }
+/* le tampon « ATTRAPÉE ! » prend la couleur de la rareté */
+.cr-tampon-mot.or.r2 { text-shadow: 5px 6px 0 #2a6bd1; }
+.cr-tampon-mot.or.r3 { text-shadow: 5px 6px 0 #7b2fd1, 0 0 24px #d9a8ff; }
+.cr-tampon-mot.or.r4 { text-shadow: 5px 6px 0 #d1561a, 0 0 28px #ffc46b; }
+.cr-tampon-mot.or.r5 { color: #fff3b0; text-shadow: 5px 6px 0 #c88a12, 0 0 30px #ffd23f, 0 0 60px #fff0a0; }
+/* les puces de rareté : les plus rares brillent */
+.cr-puce.rarete.r3 { box-shadow: 0 0 12px color-mix(in srgb, var(--c) 55%, transparent); }
+.cr-puce.rarete.r4, .cr-puce.rarete.r5 {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--c) 34%, #1a0a1b) 38%, color-mix(in srgb, var(--c) 70%, #fff) 50%, color-mix(in srgb, var(--c) 34%, #1a0a1b) 62%) 0 0 / 260% 100%;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); animation: cr-reflet 2.8s linear infinite;
+}
+.cr-puce.rarete.r5 { border-color: #fff3b0; }
+@keyframes cr-reflet { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+/* la carte de la créature sauvage s'allume pour une épique, une légendaire, une en or */
+.cr-sauvage[data-rang="3"], .cr-sauvage[data-rang="4"], .cr-sauvage[data-rang="5"] { border-color: var(--rc); box-shadow: 0 0 0 1px var(--rc), 0 0 26px color-mix(in srgb, var(--rc) 40%, transparent); }
+.cr-sauvage[data-rang="5"] { animation: cr-carte-or 2.4s ease-in-out infinite alternate; }
+@keyframes cr-carte-or { from { box-shadow: 0 0 0 1px var(--rc), 0 0 18px color-mix(in srgb, var(--rc) 35%, transparent); } to { box-shadow: 0 0 0 2px #fff3b0, 0 0 40px color-mix(in srgb, var(--rc) 60%, transparent); } }
+/* la légende des raretés, au-dessus du Bestiaire */
+.cr-raretes { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: -2px 0 14px; font-size: 12.5px; font-weight: 800; color: var(--brume); }
+.cr-rarete { display: inline-flex; align-items: center; gap: 7px; cursor: help; }
+.cr-rarete i { width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 6px var(--c); }
+.cr-rarete.r5 i { background: linear-gradient(135deg, #fff3b0, #ffd23f 55%, #c88a12); }
+/* les cases du Bestiaire : le bord prend la couleur de la rareté ; les épiques palpitent, les légendaires et les or ont un reflet */
+.cr-case-gemme { position: absolute; top: 9px; left: 50%; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 2px; transform: rotate(45deg); background: var(--rc); box-shadow: 0 0 6px var(--rc); }
+.cr-case.pris[data-rang="1"] .cr-case-bouton { border-color: color-mix(in srgb, var(--rc) 65%, var(--ligne-douce)); }
+.cr-case.pris[data-rang="2"] .cr-case-bouton { border-color: var(--rc); box-shadow: inset 0 0 18px color-mix(in srgb, var(--rc) 22%, transparent); }
+.cr-case.pris[data-rang="3"] .cr-case-bouton { border-color: var(--rc); animation: cr-case-pouls 2.6s ease-in-out infinite; }
+.cr-case.pris[data-rang="4"] .cr-case-bouton, .cr-case.pris[data-rang="5"] .cr-case-bouton { overflow: hidden; border-color: var(--rc); box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 45%, transparent), inset 0 0 24px color-mix(in srgb, var(--rc) 25%, transparent); }
+.cr-case.pris[data-rang="5"] .cr-case-bouton {
+  border-color: #ffe27a;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 226, 122, 0.3), transparent 64%), linear-gradient(135deg, rgba(255, 210, 63, 0.18), rgba(255, 140, 210, 0.12), rgba(120, 220, 255, 0.14), rgba(255, 210, 63, 0.18)), var(--panneau);
+}
+.cr-case.pris[data-rang="4"] .cr-case-bouton::after, .cr-case.pris[data-rang="5"] .cr-case-bouton::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.26) 48%, transparent 58%) 0 0 / 300% 100%; animation: cr-reflet 3.4s linear infinite;
+}
+.cr-case.pris[data-rang="5"] .cr-case-bouton::after { background-image: linear-gradient(115deg, transparent 34%, rgba(255, 140, 210, 0.22) 42%, rgba(255, 255, 255, 0.34) 48%, rgba(120, 220, 255, 0.24) 54%, transparent 62%); }
+.cr-case.vu[data-rang] .cr-case-bouton { border-color: color-mix(in srgb, var(--rc) 38%, var(--ligne-douce)); }
+@keyframes cr-case-pouls { 0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--rc) 30%, transparent); } 50% { box-shadow: 0 0 18px color-mix(in srgb, var(--rc) 65%, transparent), inset 0 0 18px color-mix(in srgb, var(--rc) 22%, transparent); } }
+/* la fiche : le fond prend la lueur de la rareté (sauf en nacrée) */
+.cr-fiche:not(.nacree)[data-rang="2"] .cr-f-vue, .cr-fiche:not(.nacree)[data-rang="3"] .cr-f-vue { background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--rc) 30%, transparent), transparent 62%), linear-gradient(170deg, #2a1232, #160818); }
+.cr-fiche:not(.nacree)[data-rang="4"] .cr-f-vue, .cr-fiche:not(.nacree)[data-rang="5"] .cr-f-vue { background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--rl) 40%, transparent), color-mix(in srgb, var(--rc) 12%, transparent) 50%, transparent 70%), linear-gradient(170deg, #2e1430, #170819); }
+.cr-fiche[data-rang="3"], .cr-fiche[data-rang="4"], .cr-fiche[data-rang="5"] { border-color: color-mix(in srgb, var(--rc) 70%, var(--ligne-douce)); }
+@media (prefers-reduced-motion: reduce) {
+  .cr-banniere-mot, .cr-banniere-mot.r4, .cr-banniere-mot.r5 { animation: none; }
+  .cr-puce.rarete.r4, .cr-puce.rarete.r5, .cr-sauvage[data-rang="5"], .cr-case.pris[data-rang="3"] .cr-case-bouton,
+  .cr-case.pris[data-rang="4"] .cr-case-bouton::after, .cr-case.pris[data-rang="5"] .cr-case-bouton::after { animation: none; }
+}

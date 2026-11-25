@@ -7979,11 +7979,11 @@
   // (donnees.creatures.sauvage) et ce que le membre a attrapé (action « creatures ») ; ce qu'est chaque créature (nom, type,
   // texte, statistiques) et son dessin en 3D sont dans js/creatures-3d.js, chargé à l'approche de la partie.
   // Actions du bot : « creatures » (le Bestiaire), « creatures-filet » { id }, « creatures-evoluer » { espece }.
-  const SONS_CREATURES = ["souffle", "br-tic", "victoire", "quiz-faux", "br-paillettes", "br-monte"];
+  const SONS_CREATURES = ["souffle", "br-tic", "victoire", "quiz-faux", "br-paillettes", "br-monte", "br-onde", "br-boum", "br-roulement", "br-cymbale", "br-fanfare", "br-acclame", "br-feux"];
   const cr = {
     mod: null, charge: false, vueSauvage: null, vueFiche: null, vueFicheNacree: false, atelier: null, ui: null, // la 3D
     moi: null, demande: 0, occupe: false, message: null, // le Bestiaire du membre, ce que dit le bot
-    fiche: "piquebulle", nacree: false, sauvageVue: "", tampon: "", discord: [], sig: "", sigSauvage: "",
+    fiche: "piquebulle", nacree: false, sauvageVue: "", tampon: "", tamponRang: 0, discord: [], sig: "", sigSauvage: "", banniere: null,
   };
   const crInfos = () => (donnees?.creatures && typeof donnees.creatures === "object" ? donnees.creatures : null);
   const crNum = (n) => `#${String(n).padStart(3, "0")}`;
@@ -7993,6 +7993,13 @@
   };
   const crPossede = (id) => cr.moi?.attrapees?.[id] || null;
   const crPuce = (texte, couleur, classe = "") => el("span", { class: `cr-puce ${classe}`, style: `--c:${couleur}`, text: texte });
+  // la rareté (commune → or) : son rang de 0 à 5 ; l'annonce quand elle surgit ; son émoji et son mot sur le Discord
+  const crRarete = (e) => (cr.mod && e ? cr.mod.RARETES[e.rarete] || cr.mod.RARETES.commune : null);
+  const CR_ANNONCE = ["", "PEU COMMUNE", "RARE\u00a0!", "ÉPIQUE\u00a0!", "LÉGENDAIRE\u00a0!", "EN OR\u00a0!"];
+  const CR_EMOJI = ["🌊", "🌊", "💎", "⚡", "🔥", "👑"];
+  const CR_MOT = ["sauvage", "peu commune", "RARE", "ÉPIQUE", "LÉGENDAIRE", "EN OR"];
+  const crPuceRarete = (R) => crPuce(R.nom, R.couleur, `rarete r${R.rang}`);
+  const crRgba = (hex, a) => { const n = Number.parseInt(String(hex).slice(1), 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; };
   // la créature sur le Discord, si elle y est encore (et si on sait la dessiner)
   const crSauvage = (s) => (s?.sauvage && cr.mod?.ESPECES?.[s.sauvage.espece] && ms(s.sauvage.fin) > Date.now() ? s.sauvage : null);
   async function chargerCreatures3D() {
@@ -8027,6 +8034,7 @@
     const ui = {};
     ui.toile = el("canvas", { class: "cr-toile", "aria-label": "La créature sauvage, sur l'eau" });
     ui.tampon = el("div", { class: "cr-tampon", "aria-hidden": "true" });
+    ui.banniere = el("div", { class: "cr-banniere", "aria-hidden": "true" });
     ui.nom = el("div", { class: "cr-sauvage-nom" });
     ui.puces = el("div", { class: "cr-puces" });
     ui.chrono = el("span", { class: "cr-chrono" });
@@ -8034,9 +8042,10 @@
     ui.action = el("div", { class: "cr-action" });
     ui.texte = el("p", { class: "cr-sauvage-texte", role: "status" });
     const sauvage = el("div", { class: "cr-sauvage carte" },
-      el("div", { class: "cr-scene" }, ui.toile, ui.tampon,
+      el("div", { class: "cr-scene" }, ui.toile, ui.banniere, ui.tampon,
         ui.enVue, ui.chrono),
       el("div", { class: "cr-sauvage-bas" }, el("div", { class: "cr-sauvage-titre" }, ui.nom, ui.puces), ui.texte, ui.action));
+    ui.carte = sauvage;
     // la maquette du Discord : le message du bot, son bouton, et la suite (qui l'a attrapée)
     ui.dImage = el("canvas", { class: "cr-d-image", width: 640, height: 360, "aria-hidden": "true" });
     ui.dTitre = el("div", { class: "cr-d-titre" });
@@ -8061,10 +8070,11 @@
     // le Bestiaire
     ui.compte = el("span", { class: "cr-compte" });
     ui.grille = el("ol", { class: "cr-grille", "aria-label": "Le Bestiaire" });
+    ui.raretes = el("div", { class: "cr-raretes", "aria-label": "Les raretés, de la plus courante à la plus rare" });
     ui.connexion = el("div", { class: "cr-connexion" });
     const bestiaire = el("div", { class: "cr-bestiaire", id: "creatures-bestiaire" },
       el("div", { class: "cr-bloc-tete" }, el("h3", { class: "cr-h3" }, "Mon Bestiaire ", ui.compte), ui.connexion),
-      ui.grille);
+      ui.raretes, ui.grille);
     // la fiche
     ui.fToile = el("canvas", { class: "cr-toile cr-fiche-toile", "aria-label": "La créature en 3D : fais-la tourner" });
     ui.fNacree = el("button", { class: "cr-nacree", type: "button", "aria-pressed": "false", onclick: () => basculerNacree() }, "✨ Voir la nacrée");
@@ -8118,6 +8128,7 @@
     if (!ui || !s) return;
     const w = crSauvage(s);
     const e = w ? cr.mod.ESPECES[w.espece] : null;
+    const R = w ? crRarete(e) : null;
     // la vue 3D : créée une fois ; quand une autre créature surgit, elle sort de l'eau
     if (cr.mod && !cr.vueSauvage) {
       cr.vueSauvage = cr.mod.creerVueCreature(ui.toile, { espece: w?.espece || "piquebulle", nacree: Boolean(w?.nacree), mode: "sauvage", vide: !w, reduit: reduit.matches, surEvenement: evenementCreature });
@@ -8138,6 +8149,8 @@
     if (sig === cr.sigSauvage) return;
     cr.sigSauvage = sig;
     ui.enVue.classList.toggle("calme", !w);
+    ui.carte.dataset.rang = R ? String(R.rang) : "0";
+    ui.carte.style.setProperty("--rc", R ? R.couleur : "transparent");
     vider(ui.enVue, el("i", { class: "point", "aria-hidden": "true" }), el("span", {}, w ? "Sur le Discord" : "La mer est calme", w ? el("span", { class: "cr-long", text: " en ce moment" }) : null));
     vider(ui.tampon, tamponCreature());
     if (!w) {
@@ -8147,9 +8160,9 @@
       ui.texte.classList.toggle("erreur", Boolean(cr.message?.erreur));
       vider(ui.action);
     } else {
-      const t = cr.mod.TYPES[e.type], rr = cr.mod.RARETES[e.rarete];
+      const t = cr.mod.TYPES[e.type], rr = R;
       ui.nom.textContent = `${e.nom} ${w.nacree ? "nacrée " : ""}sauvage\u00a0!`;
-      vider(ui.puces, crPuce(crNum(e.n), "#e3c1d9", "num"), crPuce(t.nom, t.couleur), crPuce(rr.nom, rr.couleur), w.nacree ? crPuce("✨ Nacrée", "#ffe58a") : null);
+      vider(ui.puces, crPuce(crNum(e.n), "#e3c1d9", "num"), crPuce(t.nom, t.couleur), crPuceRarete(rr), w.nacree ? crPuce("✨ Nacrée", "#ffe58a") : null);
       ui.texte.textContent = cr.message?.texte || `Un filet par créature et par membre : ${rr.filet} l'attrape${w.nacree ? ". Et elle est nacrée : rarissime !" : "."}`;
       ui.texte.classList.toggle("erreur", Boolean(cr.message?.erreur));
       if (!moi?.connecte) vider(ui.action, el("a", { class: "btn btn-plein", href: "/api/auth/login", text: "Se connecter pour lancer un filet" }));
@@ -8162,11 +8175,13 @@
       }
     }
     // le Discord : le même moment, vu du serveur
-    ui.dEmbed.style.setProperty("--c", w ? cr.mod.TYPES[e.type].couleur : "#4e5058");
-    ui.dTitre.textContent = w ? `🌊${w.nacree ? "✨ Une créature NACRÉE" : " Une créature sauvage"} surgit des flots\u00a0: ${e.nom}\u00a0!` : "🌊 La mer est calme…";
+    // (la couleur du message : celle de sa rareté ; le titre dit si elle est rare, épique, légendaire, en or, nacrée)
+    ui.dEmbed.style.setProperty("--c", w ? R.couleur : "#4e5058");
+    const motRarete = w ? [R.rang ? CR_MOT[R.rang] : w.nacree ? "" : "sauvage", w.nacree ? "NACRÉE" : ""].filter(Boolean).join(" et ") : "";
+    ui.dTitre.textContent = w ? `${CR_EMOJI[R.rang]}${w.nacree ? "✨" : ""} Une créature ${motRarete} surgit des flots\u00a0: ${e.nom}\u00a0!` : "🌊 La mer est calme…";
     ui.dTexte.textContent = w ? "Vos messages l'ont attirée ici. Lancez vos filets avant qu'elle reparte : un filet chacun !" : "Aucune créature pour l'instant. Discutez : elles arrivent quand le salon s'anime.";
     vider(ui.dChamps, ...(w ? [
-      el("div", { class: "cr-d-champ" }, el("b", { text: "Rareté" }), el("span", { text: `${cr.mod.RARETES[e.rarete].nom} · ${cr.mod.RARETES[e.rarete].filet}` })),
+      el("div", { class: "cr-d-champ" }, el("b", { text: "Rareté" }), el("span", { text: `${R.nom} · ${R.filet}` })),
       el("div", { class: "cr-d-champ" }, el("b", { text: "Type" }), el("span", { text: cr.mod.TYPES[e.type].nom })),
       el("div", { class: "cr-d-champ" }, el("b", { text: "Repart dans" }), ui.dReste),
     ] : []));
@@ -8190,7 +8205,20 @@
     ui.chrono.hidden = !w;
     ui.dReste.textContent = r;
   }
-  const tamponCreature = () => (cr.tampon ? el("span", { class: `cr-tampon-mot${/ATTRAP/.test(cr.tampon) ? " or" : /CHAPP/.test(cr.tampon) ? " gris" : ""}`, text: cr.tampon }) : null);
+  const tamponCreature = () => (cr.tampon ? el("span", { class: `cr-tampon-mot${/ATTRAP/.test(cr.tampon) ? ` or r${cr.tamponRang}` : /CHAPP/.test(cr.tampon) ? " gris" : ""}`, text: cr.tampon }) : null);
+  // une créature peu commune, rare, épique, légendaire ou en or surgit : le mot s'affiche sur l'eau, avec son bruitage
+  function annoncerRarete(rang) {
+    const ui = cr.ui;
+    if (!ui || !cr.mod || !(rang >= 1)) return;
+    const R = Object.values(cr.mod.RARETES).find((x) => x.rang === rang);
+    if (!R) return;
+    clearTimeout(cr.banniere);
+    vider(ui.banniere, el("span", { class: `cr-banniere-mot r${rang}`, style: `--c:${R.couleur};--l:${R.lueur}`, text: CR_ANNONCE[rang] }));
+    cr.banniere = setTimeout(() => vider(ui.banniere), rang >= 4 ? 3300 : 2500);
+    const sons = [[], [["br-onde", 0.6, 0]], [["br-paillettes", 0.85, 0]], [["br-boum", 0.6, 0], ["br-monte", 0.8, 0.12]],
+      [["br-roulement", 0.7, 0], ["br-cymbale", 0.9, 0.85]], [["br-roulement", 0.7, 0], ["br-fanfare", 0.9, 0.85], ["br-feux", 0.6, 1.3]]][rang] || [];
+    for (const [nom, volume, retard] of sons) jouerSon(nom, { volume, retard });
+  }
   // l'image du message Discord : la créature sur un bout de mer (dessinée par l'atelier)
   function dessinerImageDiscord(toile, id, nacree) {
     const ctx = toile.getContext("2d");
@@ -8201,6 +8229,28 @@
     ctx.fillRect(0, 0, l, h);
     ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
     for (let k = 0; k < 16; k++) { const x = (k * 97 + 31) % l, y = h * 0.47 + ((k * 53) % (h * 0.5)); ctx.beginPath(); ctx.ellipse(x, y, 16 + (k % 4) * 9, 3 + (k % 3), 0, 0, Math.PI * 2); ctx.fill(); }
+    const R = crRarete(cr.mod.ESPECES[id]);
+    if (R?.rang >= 2) {
+      const cx = l / 2, cy = h * 0.5;
+      if (R.rang >= 4) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.fillStyle = crRgba(R.lueur, 0.2);
+        for (let k = 0; k < 14; k++) { ctx.rotate((Math.PI * 2) / 14); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(l, -l * 0.1); ctx.lineTo(l, l * 0.1); ctx.closePath(); ctx.fill(); }
+        ctx.restore();
+      }
+      const halo = ctx.createRadialGradient(cx, cy, 8, cx, cy, h * (0.42 + R.rang * 0.03));
+      halo.addColorStop(0, crRgba(R.lueur, 0.8)); halo.addColorStop(0.45, crRgba(R.couleur, 0.32)); halo.addColorStop(1, crRgba(R.couleur, 0));
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, l, h);
+      if (R.rang === 5) {
+        for (let k = 0; k < 12; k++) {
+          const x = (k * 131 + 47) % l, y = 18 + ((k * 71) % (h * 0.42)), r = 7 + (k % 3) * 2;
+          ctx.fillStyle = "#c88a12"; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.8, k, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#ffd84a"; ctx.beginPath(); ctx.ellipse(x - 1, y - 1, r * 0.78, r * 0.6, k, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
     const creature = document.createElement("canvas");
     creature.width = l; creature.height = h;
     cr.atelier.dessiner(creature.getContext("2d"), id, { nacree, angle: -0.45, marge: 0.98, hauteur: 0.2 });
@@ -8245,8 +8295,17 @@
     rendreCreatures();
   }
   function evenementCreature(quoi, n) {
+    if (quoi === "entree") { annoncerRarete(n); return; }
+    cr.tamponRang = 0;
     if (quoi === "secousse") { cr.tampon = `${n}…`; jouerSon("br-tic", { volume: 0.8 }); }
-    else if (quoi === "attrape") { cr.tampon = "ATTRAPÉE\u00a0!"; jouerSon("victoire", { volume: 0.8 }); }
+    else if (quoi === "attrape") {
+      cr.tampon = "ATTRAPÉE\u00a0!";
+      cr.tamponRang = Number(n) || 0;
+      jouerSon("victoire", { volume: 0.8 });
+      if (n >= 3) jouerSon("br-acclame", { volume: 0.8, retard: 0.25 });
+      if (n >= 4) jouerSon("br-fanfare", { volume: 0.8, retard: 0.15 });
+      if (n >= 5) jouerSon("br-feux", { volume: 0.7, retard: 0.6 });
+    }
     else if (quoi === "echappe") { cr.tampon = "ÉCHAPPÉE…"; jouerSon("quiz-faux", { volume: 0.7 }); }
     else if (quoi === "evolution") { jouerSon("br-monte", { volume: 0.8 }); return; }
     else if (quoi === "flash") { jouerSon("br-paillettes", { volume: 0.9 }); return; }
@@ -8265,6 +8324,10 @@
     const nb = Object.keys(pris).filter((id) => cr.mod?.ESPECES?.[id]).length;
     ui.compte.textContent = moi?.connecte && cr.moi ? `${nb}/${total}` : "";
     vider(ui.connexion, moi?.connecte ? null : el("a", { class: "btn btn-contour btn-petit", href: "/api/auth/login", text: "Se connecter avec Discord pour voir le tien" }));
+    if (cr.mod && !ui.raretes.childElementCount) {
+      vider(ui.raretes, ...Object.values(cr.mod.RARETES).sort((a, b) => a.rang - b.rang).map((R) =>
+        el("span", { class: `cr-rarete r${R.rang}`, style: `--c:${R.couleur}`, title: `${R.filet} l'attrape` }, el("i", { "aria-hidden": "true" }), R.nom)));
+    }
     const vues = new Set((s.connues || []).filter((id) => cr.mod?.ESPECES?.[id]));
     const cases = [];
     for (let n = 1; n <= total; n++) {
@@ -8287,8 +8350,10 @@
         rendreCreatures();
         cr.ui?.fiche.scrollIntoView({ behavior: reduit.matches ? "auto" : "smooth", block: "nearest" });
       };
-      cases.push(el("li", { class: `cr-case ${etat}${id && id === cr.fiche && a ? " choisie" : ""}` },
-        etat === "pris" ? el("button", { type: "button", class: "cr-case-bouton", "aria-label": `${e.nom}, voir sa fiche`, onclick: ouvrir }, ...contenu)
+      const R = etat !== "inconnu" ? crRarete(e) : null;
+      if (R && etat === "pris" && R.rang) contenu.push(el("span", { class: "cr-case-gemme", "aria-hidden": "true" }));
+      cases.push(el("li", { class: `cr-case ${etat}${id && id === cr.fiche && a ? " choisie" : ""}`, "data-rang": R ? String(R.rang) : null, style: R ? `--rc:${R.couleur};--rl:${R.lueur}` : null },
+        etat === "pris" ? el("button", { type: "button", class: "cr-case-bouton", "aria-label": `${e.nom} (${R.nom}), voir sa fiche`, onclick: ouvrir }, ...contenu)
           : el("div", { class: "cr-case-bouton", title: etat === "vu" ? "Croisée, pas encore attrapée" : "Pas encore découverte" }, ...contenu)));
     }
     vider(ui.grille, ...cases);
@@ -8308,10 +8373,13 @@
     const id = cr.fiche, e = cr.mod.ESPECES[id];
     if (!e) return;
     const a = crPossede(id);
-    const t = cr.mod.TYPES[e.type], rr = cr.mod.RARETES[e.rarete];
+    const t = cr.mod.TYPES[e.type], rr = crRarete(e);
     ui.fNum.textContent = crNum(e.n);
     ui.fNom.textContent = e.nom;
-    vider(ui.fPuces, crPuce(t.nom, t.couleur), crPuce(rr.nom, rr.couleur), a?.n ? crPuce(`×${a.n} dans ton Bestiaire`, "#e3c1d9", "num") : null);
+    ui.fiche.dataset.rang = String(rr.rang);
+    ui.fiche.style.setProperty("--rc", rr.couleur);
+    ui.fiche.style.setProperty("--rl", rr.lueur);
+    vider(ui.fPuces, crPuce(t.nom, t.couleur), crPuceRarete(rr), a?.n ? crPuce(`×${a.n} dans ton Bestiaire`, "#e3c1d9", "num") : null);
     ui.fIle.textContent = `Vit autour de ${e.ile.replace(/^L'/, "l'").replace(/^Le /, "le ").replace(/^La /, "la ")}.`;
     ui.fTexte.textContent = e.texte;
     vider(ui.fStats, ...[["Force", e.stats.force], ["Résistance", e.stats.resistance], ["Vitesse", e.stats.vitesse]].map(([k, v]) =>
@@ -8327,7 +8395,7 @@
       if (cr.atelier) { try { cr.atelier.dessiner(c.getContext("2d"), x, { silhouette: !pris && x !== id, angle: -0.5 }); } catch { /* vide */ } }
       return k ? [el("span", { class: "cr-fleche", "aria-hidden": "true", text: "→" }), bloc] : [bloc];
     }));
-    if (etapes.length < 2) ui.fLigne.append(el("span", { class: "cr-f-regle", text: "Elle n'évolue pas… mais elle est rare." }));
+    if (etapes.length < 2) ui.fLigne.append(el("span", { class: "cr-f-regle", text: rr.rang >= 3 ? "Pas d'évolution : elle est déjà au sommet." : "Pas d'évolution connue… pour l'instant." }));
     // faire évoluer : la suivante dans la ligne, avec assez d'exemplaires
     const k = ligne.indexOf(id);
     const vers = k >= 0 ? ligne[k + 1] || null : null;
