@@ -1,8 +1,9 @@
 // LES SONS QUI FONT PEUR dans OBS : la page /obs?peur=<chaîne>, une source navigateur rien que pour eux (obs.js la charge et
 // s'arrête là). Elle n'affiche rien : quand un viewer prend la récompense de points de chaîne choisie (/peur recompense sur le
 // Discord de Barhaw), le bot (lib/peur.js) envoie ici le nom d'un son, et la page le joue. Dans OBS, la surveillance audio de
-// cette source part dans un câble audio virtuel (VB-Cable) que le jeu d'horreur prend comme micro : le jeu « entend » le son
-// (et le live aussi). Le réglage pas à pas est dans le LISEZMOI du bot.
+// cette source part dans un câble audio virtuel (VB-Cable) que le jeu d'horreur prend comme micro : le jeu « entend » le son.
+// Une deuxième source avec la même adresse, sans « Contrôler l'audio via OBS », le joue dans le casque du streamer (le bot
+// envoie le son à toutes les pages de la chaîne). Le réglage pas à pas est dans le LISEZMOI du bot.
 // Les 6 sons (son/peur/) ont été fabriqués pour Barhaw : libres de droits. Rien n'est gardé, aucun pseudo n'arrive ici.
 // Réglages dans l'adresse : ?peur=<la chaîne Twitch> (sans rien : lilianobarhaw) · ?essai=peur (un son toutes les 8 s, sans
 // le bot : pour régler le câble). Hors du live (navigateur, ou « Interagir » dans OBS), bouger la souris montre l'état de la
@@ -152,7 +153,7 @@ export function demarrer({ P }) {
       aide = el("div", "aide",
         el("b", "", "Les sons qui font peur"),
         el("p", "", "Quand un viewer prend la récompense de points de chaîne choisie, un son passe ici. Dans OBS, sa surveillance audio va dans le câble audio virtuel que le jeu prend comme micro."),
-        el("p", "", "Dans OBS : une source « Navigateur » avec cette adresse, « Contrôler l'audio via OBS » coché ; Surveillance audio : « Surveiller et sortir » ; périphérique de surveillance : CABLE Input. Les boutons ci-dessous font passer un son pour essayer."),
+        el("p", "", "Dans OBS, deux sources « Navigateur » avec cette adresse : la première avec « Contrôler l'audio via OBS » coché, Surveillance audio « Surveillance seulement », périphérique de surveillance CABLE Input (pour le jeu) ; la seconde sans le cocher (pour ton casque). Les boutons ci-dessous font passer un son pour essayer."),
         aideLigne,
         boutons);
       document.body.append(aide);
