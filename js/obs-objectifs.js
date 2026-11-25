@@ -1,7 +1,8 @@
 // LES OBJECTIFS DU LIVE dans OBS (D.A. Néon) : la page /obs?objectifs, une source navigateur rien que pour eux (obs.js la
 // charge et s'arrête là). L'objectif sub (« 10 / 20 », débloque « TOURNOI BARHAW ») et l'objectif follow, dans un petit
 // panneau sombre. Le bot (lib/objectifs.js) compte et envoie tout en direct par son serveur (wss://…/objectifs, l'adresse
-// est dans /api/public). Ils se règlent sur Discord (/objectif) ou dans le chat (!objectif, toi et tes modos).
+// est dans /api/public). Ils se règlent sur Discord (/objectif) ou dans le chat (!objectif, toi et tes modos) ; une fois
+// la chaîne reliée (/objectif connecter), l'objectif sub suit le vrai nombre de subs donné par Twitch.
 // Les animations : un sub ou un follow fait sauter le chiffre et filer la barre (avec « +1 » et le pseudo) ; un objectif
 // atteint lance la fête (la barre s'illumine, le cadenas s'ouvre, des éclats, « OBJECTIF ATTEINT ! » et la récompense), puis
 // la ligne reste dorée. Au repos, un reflet passe de temps en temps sur les barres.
@@ -443,7 +444,7 @@ export function demarrer({ scene, P }) {
       aideLigne = el("p", "aide-etat", "");
       aide = el("div", "aide",
         el("b", "", "Les objectifs du live pour OBS"),
-        el("p", "", "L'objectif sub et l'objectif follow, en direct. Sur Discord : /objectif sub (le nombre visé, la récompense, et ton nombre de subs du moment), /objectif follow. Dans le chat : !objectif (toi et tes modos pour les changer)."),
+        el("p", "", "L'objectif sub et l'objectif follow, en direct. Sur Discord : /objectif sub et /objectif follow (le nombre visé et la récompense), et /objectif connecter une seule fois pour que le bot lise ton vrai nombre de subs. Dans le chat : !objectif (toi et tes modos pour les changer)."),
         el("p", "", "Dans OBS : une nouvelle source « Navigateur » avec cette adresse, en 600 × 440. Tout grandit ou rapetisse avec la source."),
         aideLigne,
         lien);
