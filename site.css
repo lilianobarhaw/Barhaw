@@ -4615,3 +4615,181 @@ button.cr-etape:hover { border-color: rgba(255, 120, 190, 0.5); }
   .cr-puce.rarete.r4, .cr-puce.rarete.r5, .cr-sauvage[data-rang="5"], .cr-case.pris[data-rang="3"] .cr-case-bouton,
   .cr-case.pris[data-rang="4"] .cr-case-bouton::after, .cr-case.pris[data-rang="5"] .cr-case-bouton::after { animation: none; }
 }
+
+/* ---------- LE SITE SECRET (VF 1.0) : « La Rature » (site.js : « LE SITE SECRET ») ----------
+   Polices : Reenie Beanie (la main de Rature) et IM Fell English (son journal), SIL Open Font License 1.1 : polices/rature/. */
+@font-face { font-family: "Rature"; font-style: normal; font-weight: 400; font-display: swap; src: url(/polices/rature/reenie-beanie-400.woff2) format("woff2"); }
+@font-face { font-family: "Journal"; font-style: normal; font-weight: 400; font-display: swap; src: url(/polices/rature/im-fell-english-400.woff2) format("woff2"); }
+@font-face { font-family: "Journal"; font-style: italic; font-weight: 400; font-display: swap; src: url(/polices/rature/im-fell-english-400-italique.woff2) format("woff2"); }
+.rt-main { font-family: "Rature", "Segoe Print", "Bradley Hand", cursive; font-weight: 400; letter-spacing: 0.01em; }
+.rt-lecteur { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.rt-symbole { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.rt-tache-svg path { fill: currentColor; }
+
+/* la tache d'encre du pied de page (le cadenas) */
+.rt-tache { display: inline-grid; place-items: center; vertical-align: -4px; width: 24px; height: 24px; margin-left: 2px; padding: 0; border: 0; background: none; color: var(--terne); opacity: 0.5; cursor: pointer; transition: opacity 0.4s, transform 0.4s var(--rebond); }
+.rt-tache:hover, .rt-tache:focus-visible { opacity: 1; transform: rotate(-14deg) scale(1.2); }
+.rt-tache.ouverte { color: #a32a1b; opacity: 0.85; }
+
+/* les marques et leur sceau */
+.rt-marque { padding: 0; border: 0; background: none; color: #2a1608; cursor: pointer; }
+.rt-marque-recit { position: absolute; right: 14px; bottom: 10px; opacity: 0.3; transition: opacity 0.5s, transform 0.5s var(--rebond); }
+.rt-marque-recit:hover, .rt-marque-recit:focus-visible { opacity: 0.9; transform: scale(1.25) rotate(18deg); }
+.rt-marque.rt-occupee { animation: rt-palpite 0.6s ease-in-out infinite alternate; }
+@keyframes rt-palpite { to { transform: scale(1.35); opacity: 1; } }
+.rt-sceau { position: absolute; z-index: 6; display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 4px 10px; width: max-content; max-width: 230px; padding: 10px 14px 12px; background: #e8dcc3; color: #241307; border: 2px solid #3a2412; border-radius: 6px 14px 8px 12px; box-shadow: 4px 5px 0 rgba(20, 8, 2, 0.55); transform: rotate(-2deg); animation: rt-sceau 0.6s var(--rebond) both; text-align: left; }
+.rt-sceau.part { animation: rt-sceau-part 0.9s ease-in both; }
+@keyframes rt-sceau { from { opacity: 0; transform: rotate(-9deg) scale(0.6); } }
+@keyframes rt-sceau-part { to { opacity: 0; filter: blur(4px); } }
+.rt-sceau-chiffre { font-family: "Journal", Georgia, serif; font-size: 30px; line-height: 1; }
+.rt-sceau .rt-symbole { width: 34px; height: 34px; }
+.rt-sceau-note { grid-column: 1 / -1; font-size: 21px; line-height: 1.05; color: #6b1510; }
+.recit-feuille .rt-sceau { right: 12px; bottom: 46px; }
+.rt-case .rt-sceau { left: 50%; top: 88%; translate: -50% 0; }
+.rt-marque-iv + .rt-sceau { position: relative; display: inline-grid; margin: 8px 0 0 10px; vertical-align: top; }
+
+/* la marque III : une 31e case, rayée */
+.rt-case { position: relative; }
+.cr-case.rt-case .rt-case-bouton { border-style: dashed; border-color: rgba(160, 40, 25, 0.45); background: radial-gradient(circle at 62% 58%, rgba(70, 12, 6, 0.55), transparent 46%), rgba(255, 255, 255, 0.02); }
+.rt-case-mystere { opacity: 0.4; }
+.rt-case-trait { position: absolute; left: 12%; right: 12%; top: 50%; height: 7px; background: #7a1d12; border-radius: 5px 3px 6px 2px; transform: rotate(-26deg); box-shadow: 0 0 6px rgba(120, 25, 12, 0.5); pointer-events: none; }
+.rt-case-trait::after { content: ""; position: absolute; left: 6%; right: 18%; top: 11px; height: 5px; background: #7a1d12; border-radius: 4px; transform: rotate(10deg); }
+
+/* la marque II : le Dernier Mot longe la carte, la nuit, sans sillage */
+.rt-navire { position: absolute; z-index: 4; left: -14%; top: 58%; width: 60px; height: 45px; padding: 0; border: 0; background: none; cursor: pointer; opacity: 0.8; animation: rt-navire-passe 75s linear infinite; }
+.rt-navire svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.8)); animation: rt-tangue 4s ease-in-out infinite; }
+.rt-navire-coque, .rt-navire-voiles, .rt-navire-pavillon { fill: #050304; stroke: #22202b; stroke-width: 1; }
+.rt-navire.arrete, .rt-navire.arrete svg { animation-play-state: paused; }
+.rt-navire:hover, .rt-navire:focus-visible { opacity: 1; }
+@keyframes rt-navire-passe { 0% { left: -14%; } 45% { left: 104%; } 100% { left: 104%; } }
+@keyframes rt-tangue { 50% { transform: translateY(2px) rotate(-2deg); } }
+
+/* la marque IV : à 3 h du matin */
+.rt-marque-iv { display: inline-block; margin-top: 6px; opacity: 0.45; color: var(--brume); transition: opacity 0.4s; }
+.rt-marque-iv:hover, .rt-marque-iv:focus-visible { opacity: 1; }
+
+/* les ratures : le mot barré à l'encre, le sien écrit au-dessus */
+[data-rature], .rt-glisse { position: relative; }
+.rt-glisse { display: inline-block; white-space: nowrap; }
+.rt-barre { position: relative; }
+.rt-barre::after { content: ""; position: absolute; left: -6%; right: -6%; top: 50%; height: max(3px, 0.13em); margin-top: -0.06em; background: #1a0705; border-radius: 3px; transform: scaleX(0) rotate(-2.5deg); transform-origin: 0 50%; transition: transform 0.55s cubic-bezier(0.6, 0.1, 0.3, 1); box-shadow: 0 0 0 0.5px rgba(90, 25, 12, 0.6); }
+.raye > .rt-barre::after { transform: scaleX(1) rotate(-2.5deg); }
+.rt-mot { position: absolute; left: 2%; bottom: 70%; z-index: 1; white-space: nowrap; font-family: "Rature", "Segoe Print", cursive; font-weight: 400; font-size: 0.74em; line-height: 1; letter-spacing: 0; text-transform: none; color: #d0442e; -webkit-text-fill-color: #d0442e; background: none; transform: rotate(-5deg); opacity: 0; transition: opacity 0.6s 0.45s; pointer-events: none; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 14px rgba(160, 30, 15, 0.35); }
+[data-rature] > .rt-mot { font-size: 0.9em; }
+.raye > .rt-mot { opacity: 1; }
+.rt-glisse .rt-mot { font-size: 1.6em; bottom: 52%; left: 0; }
+.rt-glisse .rt-barre::after { height: 2.5px; }
+
+/* le site raturé : l'encre et le vieux papier à la place du rose et du violet */
+html.rature {
+  --vide: #100c09; --abysse: #120e0a; --nuit: #19130f; --panneau: linear-gradient(170deg, #1d1611, #130e0b);
+  --verre: rgba(235, 215, 185, 0.04); --verre-fort: rgba(235, 215, 185, 0.07);
+  --violet: #6e5b48; --violet-clair: #bba68a; --rose: #9a2216; --rose-fonce: #6b1510;
+  --blanc: #ece0c8; --brume: #cdbd9f; --terne: #8d7d66;
+  --ligne: rgba(205, 180, 140, 0.22); --ligne-douce: rgba(205, 180, 140, 0.09);
+  --ombre: #2b1a10; --degrade: linear-gradient(100deg, #d8c6a2 0%, #9a2216 55%, #4a3322 100%);
+  --degrade-doux: linear-gradient(135deg, rgba(154, 34, 22, 0.16), rgba(80, 55, 35, 0.14));
+  --papier: #e9dcc2; --encre: #0b0705;
+}
+html.rature body { background-color: var(--vide); }
+html.rature .degrade { background: none; color: var(--blanc); -webkit-text-fill-color: currentColor; }
+html.rature .sfx { filter: grayscale(1) sepia(0.7) brightness(0.75); }
+html.rature img, html.rature video, html.rature iframe { filter: grayscale(0.75) sepia(0.45) contrast(1.05) brightness(0.82); }
+html.rature canvas, html.rature .gl-carte > svg { filter: grayscale(0.55) sepia(0.35) brightness(0.9); }
+html.rature .gl-salle canvas { filter: none; } /* la GRAND LINE en 3D plein écran : pas de filtre sur une grande toile (téléphones) */
+
+/* l'ambiance : la vignette et le grain, les coulures, l'ombre du navire, les empreintes, les murmures */
+.rt-vignette { position: fixed; inset: 0; z-index: 60; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(0, 0, 0, 0.6) 100%); }
+.rt-vignette::after { content: ""; position: absolute; inset: 0; opacity: 0.09; mix-blend-mode: overlay; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); }
+.rt-coulures { position: fixed; left: 0; right: 0; top: 0; height: 0; z-index: 61; pointer-events: none; }
+.rt-coulures i { position: absolute; top: 0; width: var(--w); height: 0; background: linear-gradient(#260804, #3d100a 70%, #4d150d); border-radius: 0 0 99px 99px; opacity: 0.92; box-shadow: inset -1px 0 0 rgba(255, 200, 180, 0.12); animation: rt-coule var(--d) cubic-bezier(0.3, 0.1, 0.2, 1) infinite; }
+.rt-coulures i::after { content: ""; position: absolute; left: 50%; bottom: -3px; width: calc(var(--w) * 1.7); height: calc(var(--w) * 1.9); margin-left: calc(var(--w) * -0.85); background: #4d150d; border-radius: 50% 50% 45% 45%; }
+@keyframes rt-coule { 0% { height: 0; opacity: 0.92; } 80% { height: var(--h); opacity: 0.92; } 100% { height: var(--h); opacity: 0; } }
+.rt-ombre-navire { position: fixed; z-index: 59; bottom: 8vh; left: -32vw; width: 26vw; max-width: 340px; aspect-ratio: 64 / 48; pointer-events: none; opacity: 0; filter: blur(1.5px); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 48'%3E%3Cpath d='M6 34h52l-7 9H14zM31 4v30M31 6 15 30h16zM33 8l15 22H33zM31 4h9l-3 3 3 3h-9' fill='%23000' stroke='%23000'/%3E%3C/svg%3E") no-repeat center / contain; }
+.rt-ombre-navire.passe { animation: rt-ombre-passe 60s linear both; }
+@keyframes rt-ombre-passe { 0% { left: -32vw; opacity: 0; } 8%, 92% { opacity: 0.3; } 100% { left: 110vw; opacity: 0; } }
+.rt-empreinte { position: absolute; z-index: 58; width: 54px; height: 70px; pointer-events: none; border-radius: 48% 52% 46% 54% / 58% 56% 44% 42%; background: repeating-radial-gradient(ellipse at 48% 60%, rgba(150, 120, 90, 0.42) 0 1.4px, transparent 1.6px 3.6px); transform: rotate(var(--r)); opacity: 0.6; -webkit-mask-image: radial-gradient(ellipse at 50% 55%, #000 55%, transparent 72%); mask-image: radial-gradient(ellipse at 50% 55%, #000 55%, transparent 72%); animation: rt-apparait 2.5s ease-out both; }
+@keyframes rt-apparait { from { opacity: 0; } }
+.rt-tremble { animation: rt-tremble 0.5s steps(2) both; }
+@keyframes rt-tremble { 20% { transform: translate(-2px, 1px) skewX(-3deg); text-shadow: 2px 0 rgba(154, 34, 22, 0.6); } 40% { transform: translate(2px, -1px); } 60% { transform: translate(-1px, 0) skewX(2deg); } 80% { transform: translate(1px, 1px); } }
+.rt-murmure { position: fixed; z-index: 62; max-width: 260px; margin: 0; font-size: 27px; line-height: 1.05; color: #c03826; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); transform: rotate(-4deg); pointer-events: none; animation: rt-murmure 1.6s ease-out both; }
+.rt-murmure.part { animation: rt-murmure-part 1.6s ease-in both; }
+@keyframes rt-murmure { from { opacity: 0; filter: blur(6px); } }
+@keyframes rt-murmure-part { to { opacity: 0; filter: blur(8px); transform: rotate(-4deg) translateY(8px); } }
+.rt-journal-bouton { position: fixed; z-index: 63; left: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 10px; color: #dccbaa; background: #1a120d; border: 1.5px solid #4a3322; border-radius: 4px 12px 6px 10px; font-family: "Journal", Georgia, serif; font-size: 15px; cursor: pointer; box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.55); transition: transform 0.3s var(--rebond), border-color 0.3s; }
+.rt-journal-bouton:hover, .rt-journal-bouton:focus-visible { transform: rotate(-2deg) translateY(-2px); border-color: #9a2216; }
+
+/* le cadenas */
+html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
+.rt-voile { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 16px; overflow-y: auto; overscroll-behavior: contain; background: radial-gradient(ellipse at 50% 40%, rgba(40, 20, 12, 0.92), rgba(4, 2, 1, 0.97) 70%); animation: rt-voile 0.5s ease-out both; }
+@keyframes rt-voile { from { opacity: 0; } }
+.rt-boite { position: relative; width: min(470px, 100%); padding: 26px 20px 20px; display: grid; justify-items: center; gap: 12px; text-align: center; color: #e2d5bc; background: #17110d; border: 1.5px solid #3b2a1d; border-radius: 10px 18px 12px 16px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.9), inset 0 0 40px rgba(0, 0, 0, 0.6); }
+.rt-fermer { position: absolute; top: 8px; right: 10px; width: 36px; height: 36px; padding: 0; border: 0; background: none; color: #a8957a; font-size: 18px; cursor: pointer; }
+.rt-fermer:hover, .rt-fermer:focus-visible { color: #f0e2c6; }
+.rt-titre { margin: 4px 0 0; font-size: 40px; line-height: 1; color: #ecdfc5; transform: rotate(-2deg); }
+.rt-indices { margin: 0; max-width: 32ch; font-size: 25px; line-height: 1.1; color: #cdb995; }
+.rt-cadenas { position: relative; margin-top: 54px; }
+.rt-anse { position: absolute; left: 50%; top: -64px; width: 150px; height: 100px; margin-left: -75px; border: 16px solid; border-color: #6a5f55 #3e3731 #3e3731 #6a5f55; border-bottom: 0; border-radius: 80px 80px 0 0; transform-origin: 88% 100%; transition: transform 0.6s var(--rebond); }
+.rt-anse.ouverte { transform: translateY(-26px) rotate(-16deg); }
+.rt-corps { position: relative; z-index: 1; display: flex; gap: 8px; padding: 14px 14px 12px; border: 2px solid #1d1209; border-radius: 14px 14px 22px 22px; background: radial-gradient(circle at 18% 30%, rgba(160, 80, 30, 0.35), transparent 22%), radial-gradient(circle at 80% 70%, rgba(130, 60, 20, 0.35), transparent 26%), linear-gradient(160deg, #6d4a2e 0%, #4a2f1b 45%, #2c1a0e 100%); box-shadow: inset 0 2px 0 rgba(255, 210, 160, 0.18), inset 0 -6px 14px rgba(0, 0, 0, 0.45), 0 10px 0 rgba(0, 0, 0, 0.35); }
+.rt-cadenas.refuse { animation: rt-refuse 0.5s ease-in-out; }
+@keyframes rt-refuse { 15%, 55% { transform: translateX(-7px) rotate(-1.5deg); } 35%, 75% { transform: translateX(7px) rotate(1.5deg); } }
+.rt-molette { display: grid; justify-items: center; gap: 3px; }
+.rt-fenetre { display: grid; grid-template-rows: 24px 46px 24px; align-items: center; justify-items: center; width: 62px; height: 98px; overflow: hidden; color: #eadfc8; background: linear-gradient(#0d0907, #1d140e 25%, #251a12 50%, #1d140e 75%, #0d0907); border: 2px solid #120b06; border-radius: 10px; box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.9); cursor: ns-resize; touch-action: none; user-select: none; }
+.rt-fenetre:focus-visible { outline: 2px solid #c9a56b; outline-offset: 2px; }
+.rt-voisin { display: grid; opacity: 0.28; }
+.rt-courant { display: grid; }
+.rt-fenetre.tourne-bas .rt-courant { animation: rt-tourne-bas 0.22s ease-out; }
+.rt-fenetre.tourne-haut .rt-courant { animation: rt-tourne-haut 0.22s ease-out; }
+@keyframes rt-tourne-bas { from { transform: translateY(-18px); opacity: 0.3; } }
+@keyframes rt-tourne-haut { from { transform: translateY(18px); opacity: 0.3; } }
+.rt-fleche { width: 46px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: rgba(0, 0, 0, 0.28); color: #dcc59c; font-size: 13px; cursor: pointer; }
+.rt-fleche:hover, .rt-fleche:focus-visible { background: rgba(0, 0, 0, 0.5); color: #fff1d6; }
+.rt-chiffre { font-family: "Journal", Georgia, serif; font-size: 16px; color: #e3cfa6; }
+.rt-tirer { margin-top: 8px; padding: 10px 22px; font-family: "Journal", Georgia, serif; font-size: 19px; color: #f1e3c6; background: #3a1712; border: 1.5px solid #6b2a1d; border-radius: 6px 12px 8px 10px; cursor: pointer; box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.5); transition: transform 0.2s, background 0.2s; }
+.rt-tirer:hover, .rt-tirer:focus-visible { background: #4a1d16; transform: translateY(-1px); }
+.rt-tirer:disabled { opacity: 0.6; cursor: wait; transform: none; }
+.rt-reponse { min-height: 30px; margin: 0; font-size: 27px; color: #cf3f2b; }
+
+/* l'encre qui envahit l'écran */
+.rt-inondation { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: #050302; clip-path: circle(0 at var(--x) var(--y)); animation: rt-inonde 1.4s cubic-bezier(0.7, 0, 0.3, 1) forwards; transition: opacity 1.5s; }
+@keyframes rt-inonde { to { clip-path: circle(150% at var(--x) var(--y)); } }
+.rt-inondation-mot { margin: 0; text-align: center; font-size: clamp(40px, 7vw, 78px); line-height: 1; color: #b9301f; opacity: 0; filter: blur(8px); transform: rotate(-4deg); transition: opacity 1.2s, filter 1.2s; }
+.rt-inondation.mot .rt-inondation-mot { opacity: 1; filter: none; }
+.rt-inondation.part { opacity: 0; }
+
+/* le journal de bord du Dernier Mot */
+.rt-journal { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 16px; overflow-y: auto; overscroll-behavior: contain; background: radial-gradient(ellipse at 50% 45%, rgba(30, 16, 8, 0.93), rgba(3, 2, 1, 0.98) 75%); animation: rt-voile 0.6s ease-out both; }
+.rt-livre { position: relative; width: min(640px, 100%); padding: 28px clamp(20px, 5vw, 48px) 20px; color: #2a1a0e; font-family: "Journal", Georgia, serif; background: radial-gradient(circle at 12% 18%, rgba(120, 70, 30, 0.22), transparent 30%), radial-gradient(circle at 86% 84%, rgba(90, 40, 15, 0.28), transparent 34%), radial-gradient(ellipse at 50% 50%, #e3d4b2, #c6b087 88%); border-radius: 3px 6px 4px 8px; box-shadow: inset 0 0 50px rgba(70, 35, 10, 0.55), inset 0 0 6px rgba(40, 20, 5, 0.6), 0 30px 90px -20px rgba(0, 0, 0, 0.95); }
+.rt-livre-titre { margin: 0 0 14px; text-align: center; font-style: italic; font-size: 15px; letter-spacing: 0.08em; color: #5a3a20; }
+.rt-page { min-height: 290px; }
+.rt-jour { margin: 0; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: #7a2a18; }
+.rt-page-titre { margin: 2px 0 14px; font-family: "Journal", Georgia, serif; font-style: italic; font-weight: 400; font-size: clamp(28px, 5vw, 36px); line-height: 1.05; color: #1e1009; }
+.rt-texte { margin: 0; font-size: clamp(18px, 2.6vw, 21px); line-height: 1.5; }
+.ecrit .rt-texte span { animation: rt-ecrit 0.5s ease-out both; animation-delay: calc(var(--i) * 45ms); }
+@keyframes rt-ecrit { from { opacity: 0; filter: blur(3px); } }
+.rt-signature { margin: 22px 0 0; text-align: right; }
+.rt-nom { position: relative; display: inline-block; font-size: 40px; line-height: 1; color: #7a1a10; transform: rotate(-3deg); }
+.rt-nom::after { content: ""; position: absolute; left: -8%; right: -8%; top: 50%; height: 5px; background: #1a0705; border-radius: 3px; transform: scaleX(0) rotate(-4deg); transform-origin: 0 50%; transition: transform 1.6s cubic-bezier(0.6, 0.1, 0.3, 1); }
+.rt-nom.raye::after { transform: scaleX(1) rotate(-4deg); }
+.rt-livre-bas { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 22px; }
+.rt-tourne { width: 44px; height: 36px; border: 1.5px solid #6a4a2c; border-radius: 6px; background: rgba(90, 55, 25, 0.12); color: #3a2412; cursor: pointer; }
+.rt-tourne:disabled { opacity: 0.3; cursor: default; }
+.rt-compte { min-width: 4ch; text-align: center; font-size: 15px; color: #5a3a20; }
+.rt-livre-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; }
+.rt-lien { padding: 6px 2px; border: 0; background: none; font-family: "Journal", Georgia, serif; font-size: 16px; color: #5a3a20; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.rt-lien-cadenas { color: #7a1a10; }
+@media (max-width: 720px) {
+  .rt-journal-bouton { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); font-size: 14px; }
+  .rt-fenetre { width: 56px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rt-coulures i { animation: none; height: calc(var(--h) * 0.45); }
+  .rt-navire, .rt-navire svg { animation: none; }
+  .rt-navire { left: 72%; }
+  .rt-ombre-navire { display: none; }
+  .ecrit .rt-texte span, .rt-tremble, .rt-empreinte { animation: none; }
+  .rt-barre::after, .rt-nom::after, .rt-anse { transition: none; }
+  .rt-inondation { animation: none; clip-path: none; }
+  .rt-murmure, .rt-murmure.part, .rt-sceau, .rt-sceau.part { animation-duration: 0.01s; }
+}

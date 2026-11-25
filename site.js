@@ -747,12 +747,14 @@
   // Les fichiers : son/*.m4a (AAC, de la banque Artlist), chargés un par un, la première fois qu'on en a besoin.
   // Web Audio : les boucles (la mer, les musiques) ont 0,5 s de marge de chaque côté et se rejouent sans blanc.
   const SON = { actif: false, ctx: null, maitre: null, tampons: new Map(), chargements: new Map(), boucles: {}, musiqueSite: null };
-  const SON_BOUCLES = { mer: 24, "jeu-quiz": 20, "jeu-memory": 18.2944, "jeu-course": 23.2798, "jeu-rumble": 26.1818, "jeu-docteur": 19.6018 };
+  const SON_BOUCLES = { "rt-drone": 24, mer: 24, "jeu-quiz": 20, "jeu-memory": 18.2944, "jeu-course": 23.2798, "jeu-rumble": 26.1818, "jeu-docteur": 19.6018 };
   const SON_NIVEAUX = { pop: 0.5, souffle: 0.45, clic: 0.55, taiko: 0.85, impact: 0.9, carte: 0.75, paire: 0.6, "quiz-bon": 0.65, "quiz-faux": 0.55, saut: 0.4, tonneau: 0.7, cloche: 0.7, potion: 0.5, soin: 0.55, victoire: 0.65,
     "br-tic": 0.39, "br-boum": 0.61, "br-onde": 0.38, "br-charge": 0.45, "br-score": 0.26, "br-monte": 0.47, "br-tampon": 0.92,
     "br-roulement": 0.76, "br-cymbale": 0.76, "br-fanfare": 0.64, "br-feux": 0.54, "br-acclame": 0.31, "br-paillettes": 0.58,
     "cr-plouf": 1, "cr-bulles": 0.42, "cr-filet": 0.55, "cr-baleine": 0.22, "cr-pieces": 1, "cr-feu": 0.58, "cr-cristal": 0.29,
-    "cr-mignon": 0.46, "cr-nacree": 0.55, "cr-envol": 0.51 };
+    "cr-mignon": 0.46, "cr-nacree": 0.55, "cr-envol": 0.51,
+    "rt-drone": 0.12, "rt-murmure": 0.36, "rt-voix": 0.3, "rt-plume": 0.6, "rt-cadenas": 1, "rt-ouvert": 1, "rt-goutte": 0.62,
+    "rt-grince": 0.19, "rt-page": 0.74, "rt-cliquet": 1 };
   // la SEMAINE BAHRIOT (js/bahriot-anim.js) : ses bruitages, préchargés quand ses animations arrivent
   const SONS_BAHRIOT = ["br-tic", "br-boum", "br-onde", "br-charge", "br-score", "br-monte", "br-tampon", "br-roulement", "br-cymbale", "br-fanfare", "br-feux", "br-acclame", "br-paillettes", "carte"];
   const SONS_JEUX = { rumble: ["cloche", "potion", "victoire", "quiz-faux"], quiz: ["clic", "quiz-bon", "quiz-faux", "souffle", "victoire"], docteur: ["soin", "quiz-faux", "victoire", "souffle"], memory: ["carte", "paire", "victoire"], course: ["clic", "saut", "tonneau", "impact", "pop", "victoire"] };
@@ -5925,6 +5927,7 @@
       ),
     );
     voile.addEventListener("click", (ev) => { if (ev.target === voile) fermerRecit(); });
+    if (p.id === "port") marqueRecit(voile.querySelector(".recit-feuille")); // le site secret : la marque I
     (document.fullscreenElement || document.body).append(voile);
     document.documentElement.classList.add("recit-ouvert");
     document.addEventListener("keydown", toucheRecit);
@@ -6379,6 +6382,7 @@
     if (infosGL()) carteGL.rendu.maj(donneesCarteGL(infosGL()));
     const b = $("gl-ouvrir-3d");
     if (b) b.hidden = !v4Ouverte() || SALLE.ouverte;
+    navireNoir(); // le site secret : la nuit, le Dernier Mot longe la carte
   }
 
   // ---------- la salle GRAND LINE (V4) : la carte en 3D en plein écran, la mer qui vit ; #grandline-3d l'ouvre directement ----------
@@ -8378,6 +8382,7 @@
         etat === "pris" ? el("button", { type: "button", class: "cr-case-bouton", "aria-label": `${e.nom} (${R.nom}), voir sa fiche`, onclick: ouvrir }, ...contenu)
           : el("div", { class: "cr-case-bouton", title: etat === "vu" ? "Croisée, pas encore attrapée" : "Pas encore découverte" }, ...contenu)));
     }
+    if (v4Ouverte()) cases.push(caseRaturee()); // le site secret : la marque III, une 31e case rayée
     vider(ui.grille, ...cases);
     if (cr.atelier) {
       for (const c of ui.grille.querySelectorAll("canvas.cr-vignette")) {
@@ -8467,6 +8472,490 @@
     rendreCreatures();
   }
 
+  // ---------- LE SITE SECRET (VF 1.0) : « La Rature » ----------
+  // Une tache d'encre tout en bas du site cache un cadenas à 4 molettes. Les 4 marques qui donnent le code sont semées
+  // dans GRAND LINE : le récit de Port Barhaw (I), le navire noir qui longe la carte la nuit (II), la case rayée du
+  // Bestiaire (III), la présentation de GRAND LINE à 3 h du matin (IV). Le serveur garde le code, les marques et tout ce
+  // que Rature écrit (api/rature.js) : ici, il n'y a que la mécanique. Le cadenas ouvert, Rature prend le site : ses
+  // ratures sur les titres, ses murmures, ce qui change quand on a le dos tourné, son journal de bord. « Refermer le
+  // cadenas » rend le site normal ; la tache le rouvre sans redemander le code.
+  const RT_SYMBOLES = ["plume", "ancre", "bougie", "cle", "lune", "vague", "sablier", "rouage", "coquillage", "pavillon", "etoile", "cloche"];
+  const RT_NOMS = { plume: "la plume", ancre: "l'ancre", bougie: "la bougie", cle: "la clé", lune: "la lune", vague: "la vague", sablier: "le sablier", rouage: "le rouage", coquillage: "le coquillage", pavillon: "le pavillon", etoile: "l'étoile", cloche: "la cloche" };
+  const RT_CHIFFRES = ["I", "II", "III", "IV"];
+  const RT_TRACES = {
+    plume: "M19.5 3.5c-6.5 1-11.5 5.5-13.6 12.4L4.6 20.4l3.2-2.1c6.6-2.3 11.4-7.4 11.7-14.8zM5.6 19.3 15 9.6M9.4 13.6l3.4.4M11.7 10.9l3 .3",
+    ancre: "M12 3.2a2 2 0 1 0 0 4 2 2 0 1 0 0-4zM12 7.2V20.6M8.2 10.4h7.6M4.6 13.6c.3 4.4 3.4 7 7.4 7s7.1-2.6 7.4-7M3.2 15.4l1.4-1.8 1.9 1.4M20.8 15.4l-1.4-1.8-1.9 1.4",
+    bougie: "M9.2 10.2h5.6v9.6H9.2zM12 3.2c1.9 1.7 2.1 3.6.1 5-2-1.3-1.8-3.2-.1-5zM12 8.2v2M6.6 19.8h10.8M14.8 12.4c-.8.3-1.1 1.2-.9 2.1",
+    cle: "M7.6 8.4m-4 0a4 4 0 1 0 8 0 4 4 0 1 0-8 0M11.6 8.4h9M17.6 8.4v3.2M20.6 8.4v4.2M7.6 7.2v2.4",
+    lune: "M15.2 3.4a8.8 8.8 0 1 0 5.6 13.3A7.2 7.2 0 0 1 15.2 3.4zM9 9.5l.6.4M7.5 14.2l.5.2",
+    vague: "M2.4 10.4c2.6-3.2 5.6-3.2 8.2 0s5.6 3.2 8.2 0c.8-1 1.6-1.6 2.6-1.8M2.4 16.2c2.6-3.2 5.6-3.2 8.2 0s5.6 3.2 8.2 0c.8-1 1.6-1.6 2.6-1.8",
+    sablier: "M6.4 3.4h11.2M6.4 20.6h11.2M7.6 3.4c0 4.8 8.8 5.6 8.8 8.6s-8.8 3.8-8.8 8.6M16.4 3.4c0 4.8-8.8 5.6-8.8 8.6s8.8 3.8 8.8 8.6M10.4 18.6h3.2",
+    rouage: "M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2zM12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1",
+    coquillage: "M12 20.4 3.8 10.6C5.6 4.2 18.4 4.2 20.2 10.6zM12 20.4 7.8 6.2M12 20.4V5.4M12 20.4l4.2-14.2M12 20.4 5.4 8.4M12 20.4l6.6-12M10.2 20.6h3.6",
+    pavillon: "M5.4 21V3M5.4 4.2h13.2l-3.2 4.2 3.2 4.2H5.4",
+    etoile: "M12 3.2l2.6 5.6 6.1.7-4.5 4.1 1.2 6.1L12 16.7l-5.4 3 1.2-6.1-4.5-4.1 6.1-.7z",
+    cloche: "M6.2 16.8c1-1.8 1.1-3.8 1.1-6.6a4.7 4.7 0 0 1 9.4 0c0 2.8.1 4.8 1.1 6.6zM4.4 16.8h15.2M10.8 19.8a1.3 1.3 0 0 0 2.4 0M12 3.4V5.4",
+  };
+  const RT = { contenu: null, actif: false, minuteur: 0, prochain: {}, cache: 0, retours: 0, depuisCache: 0, voie: null, observateur: null, derniereRature: 0, inactif: 0 };
+  const RT_CLE = "barhaw-rature", RT_ETEINT = "barhaw-rature-off", RT_SESSION = "barhaw-rature-contenu";
+  const SONS_RATURE = ["rt-drone", "rt-murmure", "rt-voix", "rt-plume", "rt-cadenas", "rt-ouvert", "rt-goutte", "rt-grince", "rt-page", "rt-cliquet"];
+  const rtLire = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const rtEcrire = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch {} };
+  const rtCode = () => { const c = String(rtLire(RT_CLE) || "").split("-"); return c.length === 4 && c.every((x) => RT_SYMBOLES.includes(x)) ? c : null; };
+  // (des fonctions, pas des constantes : la carte 2D peut demander le navire noir avant que ce bloc soit lu)
+  function rtHeure() { return Number.isInteger(window.__rtHeure) ? window.__rtHeure : Number.parseInt(new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "numeric", hourCycle: "h23" }).format(new Date()), 10) % 24; }
+  function rtNuit() { const h = rtHeure(); return h >= 22 || h < 6; }
+  const rtHasard = (a, b) => a + Math.random() * (b - a);
+  const rtUn = (l) => l[Math.floor(Math.random() * l.length)];
+  function rtSymbole(nom, taille = 24) {
+    const NS = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 24 24");
+    s.setAttribute("width", taille);
+    s.setAttribute("height", taille);
+    s.setAttribute("class", "rt-symbole");
+    s.setAttribute("aria-hidden", "true");
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", RT_TRACES[nom] || "");
+    s.append(p);
+    return s;
+  }
+  // une tache d'encre (le cadenas en bas, les marques) : un pâté irrégulier et deux éclaboussures
+  function rtTache(taille = 18) {
+    const NS = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 32 32");
+    s.setAttribute("width", taille);
+    s.setAttribute("height", taille);
+    s.setAttribute("aria-hidden", "true");
+    s.setAttribute("class", "rt-tache-svg");
+    for (const d of ["M16 5c4 0 5 3 8 4s4 5 2 8 1 6-3 8-6 2-9 1-6-2-7-6 1-6 0-9 5-6 9-6z", "M27 4a1.6 1.6 0 1 0 0 .1z", "M5 26a1.2 1.2 0 1 0 0 .1z"]) {
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", d);
+      s.append(p);
+    }
+    return s;
+  }
+  async function rtApi(corps = null, marque = 0) {
+    try {
+      const r = await fetch(marque ? `/api/rature?marque=${marque}` : "/api/rature", corps ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corps) } : {});
+      return await r.json().catch(() => ({ erreur: "reseau" }));
+    } catch { return { erreur: "reseau" }; }
+  }
+  // un bruitage de Rature (seulement si les sons du site sont allumés), jamais deux fois le même en moins de 0,4 s
+  const rtDernierSon = {};
+  function rtSon(nom, o = {}) {
+    if (performance.now() - (rtDernierSon[nom] || -1e9) < 400) return;
+    rtDernierSon[nom] = performance.now();
+    jouerSon(nom, o);
+  }
+
+  // ---------- les 4 marques ----------
+  // une marque se montre : son chiffre, son symbole, ce que Rature a écrit (ou « pas maintenant »)
+  async function montrerMarque(n, ancre) {
+    if (!ancre || ancre.classList.contains("rt-lue")) return;
+    ancre.classList.add("rt-occupee");
+    rtSon("rt-goutte", { volume: 0.8 });
+    const d = await rtApi(null, n);
+    ancre.classList.remove("rt-occupee");
+    document.querySelectorAll(`.rt-sceau[data-marque="${n}"]`).forEach((x) => x.remove());
+    const sceau = el("div", { class: "rt-sceau", "data-marque": String(n), role: "status" });
+    if (d.symbole && RT_SYMBOLES.includes(d.symbole)) {
+      sceau.append(el("span", { class: "rt-sceau-chiffre", text: RT_CHIFFRES[n - 1] }), rtSymbole(d.symbole, 34),
+        el("span", { class: "rt-main rt-sceau-note", text: String(d.note || "") }),
+        el("span", { class: "rt-lecteur", text: `Marque ${RT_CHIFFRES[n - 1]} : ${RT_NOMS[d.symbole]}.` }));
+      ancre.classList.add("rt-lue");
+      rtSon("rt-murmure", { volume: 0.5, retard: 0.3 });
+    } else sceau.append(el("span", { class: "rt-main rt-sceau-note", text: d.ferme ? "…" : String(d.texte || "…") }));
+    const scene = ancre.closest("#grandline-scene");
+    if (scene) {
+      const a = ancre.getBoundingClientRect(), b = scene.getBoundingClientRect();
+      sceau.style.left = `${Math.round(Math.min(Math.max(8, a.left - b.left - 40), b.width - 230))}px`;
+      sceau.style.top = `${Math.round(Math.min(a.bottom - b.top + 4, b.height - 120))}px`;
+    }
+    ancre.after(sceau);
+    setTimeout(() => { sceau.classList.add("part"); setTimeout(() => sceau.remove(), 900); ancre.classList.remove("rt-lue", "arrete"); }, 14_000);
+  }
+  // la marque I : une tache au bas de la page de Port Barhaw, dans le récit
+  function marqueRecit(feuille) {
+    if (!v4Ouverte() || !feuille || feuille.querySelector(".rt-marque")) return;
+    const b = el("button", { type: "button", class: "rt-marque rt-marque-recit", "aria-label": "Une tache d'encre au bas de la page", onclick: (ev) => montrerMarque(1, ev.currentTarget) }, rtTache(26));
+    feuille.append(b);
+  }
+  // la marque III : une 31e case, rayée, au bout du Bestiaire
+  function caseRaturee() {
+    const b = el("button", { type: "button", class: "cr-case-bouton rt-case-bouton", "aria-label": "Une case rayée, après la dernière", onclick: (ev) => montrerMarque(3, ev.currentTarget) },
+      el("span", { class: "cr-case-num", text: "#031" }), el("span", { class: "cr-case-mystere rt-case-mystere", "aria-hidden": "true", text: "?" }), el("span", { class: "rt-case-trait", "aria-hidden": "true" }));
+    return el("li", { class: "cr-case inconnu rt-case" }, b);
+  }
+  // la marque II : le Dernier Mot longe la carte, la nuit (22 h à 6 h, heure de Paris), sans laisser de sillage
+  function navireNoir() {
+    const scene = $("grandline-scene");
+    let n = scene?.querySelector(".rt-navire");
+    const voulu = Boolean(scene) && v4Ouverte() && carteGL?.type === "2d" && rtNuit() && !SALLE.ouverte;
+    if (!voulu) { n?.remove(); return; }
+    if (n) return;
+    const NS = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 64 48");
+    s.setAttribute("aria-hidden", "true");
+    for (const [d, c] of [["M6 34h52l-7 9H14z", "coque"], ["M31 4v30M31 6 15 30h16zM33 8l15 22H33z", "voiles"], ["M31 4h9l-3 3 3 3h-9", "pavillon"]]) {
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", d);
+      p.setAttribute("class", `rt-navire-${c}`);
+      s.append(p);
+    }
+    n = el("button", { type: "button", class: "rt-navire", "aria-label": "Un navire noir, au loin", onclick: (ev) => { ev.currentTarget.classList.add("arrete"); montrerMarque(2, ev.currentTarget); } }, s);
+    scene.append(n);
+  }
+  // la marque IV : à 3 h du matin, Rature raye le trésor dans la présentation de GRAND LINE
+  function marqueTroisHeures() {
+    const p = document.querySelector("#grandline .entete-section .sous");
+    if (!p) return;
+    const voulu = v4Ouverte() && rtHeure() === 3;
+    const deja = p.querySelector(".rt-glisse-iv");
+    if (!voulu) {
+      if (deja) { deja.replaceWith(document.createTextNode(deja.dataset.mot)); p.normalize(); }
+      p.parentNode.querySelector(".rt-marque-iv")?.remove();
+      return;
+    }
+    if (!deja) {
+      const t = [...p.childNodes].find((x) => x.nodeType === 3 && x.nodeValue.includes("trésor"));
+      if (t) {
+        const fin = t.splitText(t.nodeValue.indexOf("trésor"));
+        fin.splitText("trésor".length);
+        fin.replaceWith(el("span", { class: "rt-glisse rt-glisse-iv raye", "data-mot": "trésor" }, el("span", { class: "rt-barre", text: "trésor" }), el("span", { class: "rt-mot", "aria-hidden": "true", text: "néant" })));
+      }
+    }
+    if (!p.parentNode.querySelector(".rt-marque-iv")) p.after(el("button", { type: "button", class: "rt-marque rt-marque-iv", "aria-label": "Une tache d'encre, sous la présentation", onclick: (ev) => montrerMarque(4, ev.currentTarget) }, rtTache(22)));
+  }
+
+  // ---------- le cadenas ----------
+  function ouvrirCadenas(depuis) {
+    if ($("rt-cadenas")) return;
+    const etat = [0, 0, 0, 0];
+    let occupe = false;
+    const reponse = el("p", { class: "rt-main rt-reponse", role: "status", "aria-live": "polite" });
+    const molettes = etat.map((_, k) => {
+      const fenetre = el("div", { class: "rt-fenetre", role: "spinbutton", tabindex: "0", "aria-label": `Molette ${RT_CHIFFRES[k]}`, "aria-valuemin": "0", "aria-valuemax": String(RT_SYMBOLES.length - 1) });
+      const tourner = (sens) => {
+        if (occupe) return;
+        etat[k] = (etat[k] + sens + RT_SYMBOLES.length) % RT_SYMBOLES.length;
+        dessiner();
+        rtSon("rt-cliquet", { volume: 0.9 });
+        fenetre.classList.remove("tourne-haut", "tourne-bas");
+        void fenetre.offsetWidth;
+        fenetre.classList.add(sens > 0 ? "tourne-bas" : "tourne-haut");
+      };
+      const dessiner = () => {
+        const i = etat[k], N = RT_SYMBOLES.length;
+        vider(fenetre, el("span", { class: "rt-voisin" }, rtSymbole(RT_SYMBOLES[(i - 1 + N) % N], 22)), el("span", { class: "rt-courant" }, rtSymbole(RT_SYMBOLES[i], 40)), el("span", { class: "rt-voisin" }, rtSymbole(RT_SYMBOLES[(i + 1) % N], 22)));
+        fenetre.setAttribute("aria-valuenow", String(i));
+        fenetre.setAttribute("aria-valuetext", RT_NOMS[RT_SYMBOLES[i]]);
+      };
+      dessiner();
+      fenetre.addEventListener("keydown", (ev) => {
+        if (ev.key === "ArrowUp") { ev.preventDefault(); tourner(-1); }
+        else if (ev.key === "ArrowDown") { ev.preventDefault(); tourner(1); }
+      });
+      fenetre.addEventListener("wheel", (ev) => { ev.preventDefault(); tourner(ev.deltaY > 0 ? 1 : -1); }, { passive: false });
+      let y0 = null;
+      fenetre.addEventListener("pointerdown", (ev) => { y0 = ev.clientY; });
+      fenetre.addEventListener("pointerup", (ev) => { if (y0 !== null && Math.abs(ev.clientY - y0) > 14) tourner(ev.clientY < y0 ? 1 : -1); y0 = null; });
+      return el("div", { class: "rt-molette" },
+        el("button", { type: "button", class: "rt-fleche", "aria-label": `Molette ${RT_CHIFFRES[k]} : symbole précédent`, onclick: () => tourner(-1), text: "▲" }),
+        fenetre,
+        el("button", { type: "button", class: "rt-fleche", "aria-label": `Molette ${RT_CHIFFRES[k]} : symbole suivant`, onclick: () => tourner(1), text: "▼" }),
+        el("span", { class: "rt-chiffre", "aria-hidden": "true", text: RT_CHIFFRES[k] }));
+    });
+    const anse = el("div", { class: "rt-anse", "aria-hidden": "true" });
+    const corps = el("div", { class: "rt-corps" }, ...molettes);
+    const tirer = el("button", { type: "button", class: "rt-tirer", onclick: () => essayer() }, "Tirer sur l'anse");
+    const fermer = () => { voile.remove(); document.removeEventListener("keydown", echap); document.documentElement.classList.remove("rt-cadenas-ouvert"); (depuis || $("rt-tache"))?.focus?.(); };
+    const echap = (ev) => { if (ev.key === "Escape" && !occupe) fermer(); };
+    const voile = el("div", { class: "rt-voile", id: "rt-cadenas", role: "dialog", "aria-modal": "true", "aria-labelledby": "rt-cadenas-titre" },
+      el("div", { class: "rt-boite" },
+        el("button", { type: "button", class: "rt-fermer", "aria-label": "Laisser le cadenas", onclick: () => !occupe && fermer(), text: "✕" }),
+        el("p", { class: "rt-main rt-titre", id: "rt-cadenas-titre", text: "Quatre marques, dans ma mer." }),
+        el("p", { class: "rt-main rt-indices", text: "Une au départ. Une la nuit, sur l'eau. Une dans ce que vous attrapez. Une à l'heure où plus personne ne lit." }),
+        el("div", { class: "rt-cadenas" }, anse, corps),
+        tirer, reponse));
+    voile.addEventListener("click", (ev) => { if (ev.target === voile && !occupe) fermer(); });
+    document.body.append(voile);
+    document.documentElement.classList.add("rt-cadenas-ouvert");
+    document.addEventListener("keydown", echap);
+    voile.querySelector(".rt-fenetre").focus();
+    prechargerSons(SONS_RATURE);
+    const NON = ["Non.", "Pas comme ça.", "Tu as mal lu.", "Encore ?", "Ce n'est pas mon nom.", "Regarde mieux."];
+    let essais = 0;
+    async function essayer() {
+      if (occupe) return;
+      occupe = true;
+      tirer.disabled = true;
+      reponse.textContent = "";
+      const code = etat.map((i) => RT_SYMBOLES[i]);
+      const d = await rtApi({ code });
+      if (d.ok && d.journal) {
+        rtEcrire(RT_CLE, code.join("-"));
+        rtEcrire(RT_ETEINT, null);
+        try { sessionStorage.setItem(RT_SESSION, JSON.stringify(d)); } catch {}
+        RT.contenu = d;
+        anse.classList.add("ouverte");
+        rtSon("rt-ouvert", { volume: 1 });
+        setTimeout(() => inondation(voile.querySelector(".rt-cadenas"), () => { fermer(); activerRature({ premiere: true }); }), reduit.matches ? 200 : 650);
+        return;
+      }
+      occupe = false;
+      tirer.disabled = false;
+      voile.querySelector(".rt-cadenas").classList.remove("refuse");
+      void voile.offsetWidth;
+      voile.querySelector(".rt-cadenas").classList.add("refuse");
+      rtSon("rt-cadenas", { volume: 1 });
+      reponse.textContent = d.ferme ? "Pas encore." : d.erreur === "trop" ? String(d.texte || "Doucement.") : d.erreur === "reseau" ? "Le cadenas ne répond pas. Réessaie plus tard." : NON[essais++ % NON.length];
+    }
+  }
+  // l'encre envahit l'écran depuis le cadenas, puis le site revient… raturé
+  function inondation(depuis, ensuite) {
+    const r = depuis?.getBoundingClientRect();
+    const x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
+    const v = el("div", { class: "rt-inondation", style: `--x:${Math.round(x)}px;--y:${Math.round(y)}px`, "aria-hidden": "true" }, el("p", { class: "rt-main rt-inondation-mot", text: "Tu n'aurais pas dû." }));
+    document.body.append(v);
+    rtSon("rt-voix", { volume: 0.9 });
+    rtSon("rt-goutte", { volume: 0.9, retard: 0.5 });
+    const lent = !reduit.matches;
+    setTimeout(() => { ensuite(); v.classList.add("mot"); }, lent ? 1500 : 100);
+    setTimeout(() => v.classList.add("part"), lent ? 4300 : 1600);
+    setTimeout(() => { v.remove(); ouvrirJournal(); }, lent ? 5900 : 2000);
+  }
+
+  // ---------- le site raturé ----------
+  function rayer(e, par, anime) {
+    if (!e || e.dataset.rature) return;
+    e.dataset.rature = "1";
+    const barre = el("span", { class: "rt-barre" });
+    barre.append(...e.childNodes);
+    e.append(barre, el("span", { class: "rt-mot", "aria-hidden": "true", text: par }));
+    if (!anime) e.classList.add("raye");
+    else RT.observateur?.observe(e);
+  }
+  function derayer(e) {
+    if (!e?.dataset.rature) return;
+    const barre = e.querySelector(":scope > .rt-barre");
+    if (barre) e.replaceChildren(...barre.childNodes);
+    delete e.dataset.rature;
+    e.classList.remove("raye");
+  }
+  function appliquerRatures() {
+    if (!RT.actif || !RT.contenu) return;
+    for (const r of RT.contenu.ratures || []) {
+      let e = null;
+      try { e = document.querySelector(String(r.cible || "")); } catch {}
+      if (e) rayer(e, String(r.par || ""), true);
+    }
+  }
+  // un mot raturé de plus, quand on revient sur l'onglet : dans un paragraphe qu'on a sous les yeux
+  function glisserMot() {
+    const mots = RT.contenu?.mots || [];
+    if (!mots.length) return false;
+    const candidats = [...document.querySelectorAll("main p, section p, .carte p")].filter((p) => {
+      if (p.closest(".rt-voile, .rt-journal, .rt-sceau, [hidden]") || p.querySelector(".rt-glisse")) return false;
+      const r = p.getBoundingClientRect();
+      return r.bottom > 80 && r.top < innerHeight - 40 && (p.textContent || "").length > 40;
+    });
+    for (const p of candidats.sort(() => Math.random() - 0.5)) {
+      const textes = [...p.childNodes].filter((x) => x.nodeType === 3 && /\p{L}{5,}/u.test(x.nodeValue));
+      if (!textes.length) continue;
+      const t = rtUn(textes);
+      const l = [...t.nodeValue.matchAll(/\p{L}{5,}/gu)];
+      const m = rtUn(l);
+      const fin = t.splitText(m.index);
+      fin.splitText(m[0].length);
+      const s = el("span", { class: "rt-glisse", "data-mot": m[0] }, el("span", { class: "rt-barre", text: m[0] }), el("span", { class: "rt-mot", "aria-hidden": "true", text: rtUn(mots) }));
+      fin.replaceWith(s);
+      requestAnimationFrame(() => requestAnimationFrame(() => s.classList.add("raye")));
+      return true;
+    }
+    return false;
+  }
+  function empreinte() {
+    const e = el("i", { class: "rt-empreinte", "aria-hidden": "true", style: `left:${Math.round(rtHasard(6, 82))}vw;top:${Math.round(scrollY + rtHasard(0.15, 0.8) * innerHeight)}px;--r:${Math.round(rtHasard(-40, 40))}deg` });
+    document.body.append(e);
+  }
+  function murmure(texte, ou = null) {
+    if (!texte || document.querySelectorAll(".rt-murmure").length > 1) return;
+    const etroit = innerWidth < 700;
+    let style = etroit ? `left:${Math.round(rtHasard(6, 40))}vw;top:${Math.round(rtHasard(58, 74))}vh` : `left:${Math.round(Math.random() < 0.5 ? rtHasard(2, 14) : rtHasard(74, 84))}vw;top:${Math.round(rtHasard(22, 74))}vh`;
+    const r = ou?.getBoundingClientRect();
+    if (r && r.bottom > 0 && r.top < innerHeight - 60) style = `left:${Math.max(8, Math.min(innerWidth - 200, Math.round(r.left - 40)))}px;top:${Math.round(Math.min(r.bottom + 6, innerHeight - 70))}px`;
+    const m = el("p", { class: "rt-main rt-murmure", style, "aria-hidden": "true", text: texte });
+    document.body.append(m);
+    setTimeout(() => m.classList.add("part"), 5200);
+    setTimeout(() => m.remove(), 7000);
+  }
+  function battement() {
+    if (!RT.actif || document.hidden) return;
+    const t = performance.now(), P = RT.prochain;
+    if (t > P.murmure) { P.murmure = t + rtHasard(45_000, 95_000); murmure(rtUn(RT.contenu?.murmures || [])); if (Math.random() < 0.35) rtSon("rt-murmure", { volume: 0.35 }); }
+    if (t > P.grince) { P.grince = t + rtHasard(70_000, 160_000); rtSon("rt-grince", { volume: 0.6 }); }
+    if (!reduit.matches && t > P.tremble) {
+      P.tremble = t + rtHasard(50_000, 110_000);
+      const titres = [...document.querySelectorAll("h2.titre-section")].filter((h) => { const r = h.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
+      const h = titres.length ? rtUn(titres) : null;
+      if (h) { h.classList.add("rt-tremble"); setTimeout(() => h.classList.remove("rt-tremble"), 520); }
+    }
+    if (!reduit.matches && t > P.navire) {
+      P.navire = t + rtHasard(150_000, 260_000);
+      const o = document.querySelector(".rt-ombre-navire");
+      if (o) { o.classList.remove("passe"); void o.offsetWidth; o.classList.add("passe"); }
+    }
+    if (t - RT.inactif > 28_000 && !P.inactifDit) { P.inactifDit = true; murmure("Tu lis encore ?"); }
+  }
+  const rtBouge = () => { RT.inactif = performance.now(); RT.prochain.inactifDit = false; };
+  function rtVisibilite() {
+    if (!RT.actif) return;
+    if (document.hidden) { RT.cache = Date.now(); return; }
+    if (RT.cache && Date.now() - RT.cache > 2000 && RT.retours < 8) {
+      RT.retours += 1;
+      if (Math.random() < 0.65 ? glisserMot() : (empreinte(), true)) rtSon("rt-goutte", { volume: 0.7, retard: 0.2 });
+    }
+    RT.cache = 0;
+    if (sonActif()) lancerBoucle("rature", "rt-drone", SON_NIVEAUX["rt-drone"]);
+  }
+  async function activerRature({ premiere = false } = {}) {
+    if (RT.actif || !v4Ouverte()) return;
+    if (!RT.contenu) {
+      try { RT.contenu = JSON.parse(sessionStorage.getItem(RT_SESSION) || "null"); } catch {}
+      if (!RT.contenu?.journal) {
+        const code = rtCode();
+        if (!code) return;
+        const d = await rtApi({ code });
+        if (d.ok && d.journal) { RT.contenu = d; try { sessionStorage.setItem(RT_SESSION, JSON.stringify(d)); } catch {} }
+        else { if (d.ok === false) rtEcrire(RT_CLE, null); RT.contenu = null; rendreTache(); return; }
+      }
+    }
+    if (RT.actif || !v4Ouverte()) return;
+    RT.actif = true;
+    document.documentElement.classList.add("rature");
+    RT.observateur = "IntersectionObserver" in window ? new IntersectionObserver((l) => {
+      for (const x of l) {
+        if (!x.isIntersecting) continue;
+        RT.observateur.unobserve(x.target);
+        const attente = Math.max(0, RT.derniereRature + 700 - performance.now());
+        RT.derniereRature = performance.now() + attente;
+        setTimeout(() => { x.target.classList.add("raye"); rtSon("rt-plume", { volume: 0.8 }); }, attente + 350);
+      }
+    }, { threshold: 0.9 }) : null;
+    appliquerRatures();
+    document.body.append(
+      el("div", { class: "rt-coulures", "aria-hidden": "true" }, ...Array.from({ length: 7 }, (_, k) => el("i", { style: `left:${Math.round(4 + k * 14 + rtHasard(-4, 4))}%;--h:${Math.round(rtHasard(40, 190))}px;--d:${Math.round(rtHasard(40, 90))}s;--w:${rtHasard(3, 7).toFixed(1)}px;animation-delay:-${Math.round(rtHasard(0, 60))}s` }))),
+      el("div", { class: "rt-ombre-navire", "aria-hidden": "true" }),
+      el("div", { class: "rt-vignette", "aria-hidden": "true" }),
+      el("button", { type: "button", class: "rt-journal-bouton", id: "rt-journal-bouton", onclick: () => ouvrirJournal() }, rtSymbole("plume", 18), el("span", { text: "Le journal du Dernier Mot" })));
+    const t = performance.now();
+    RT.prochain = { murmure: t + (premiere ? 30_000 : 12_000), grince: t + 20_000, tremble: t + 25_000, navire: t + 40_000, inactifDit: false };
+    RT.inactif = t;
+    RT.retours = 0;
+    clearInterval(RT.minuteur);
+    RT.minuteur = setInterval(battement, 3000);
+    for (const ev of ["pointermove", "scroll", "keydown", "touchstart"]) window.addEventListener(ev, rtBouge, { passive: true });
+    document.addEventListener("visibilitychange", rtVisibilite);
+    prechargerSons(SONS_RATURE);
+    if (sonActif()) lancerBoucle("rature", "rt-drone", SON_NIVEAUX["rt-drone"]);
+    else if (premiere) setTimeout(() => murmure("Mets le son.", $("sons")), 9000);
+    rendreTache();
+  }
+  function eteindreRature({ choisi = true } = {}) {
+    if (!RT.actif) return;
+    RT.actif = false;
+    if (choisi) rtEcrire(RT_ETEINT, "1");
+    clearInterval(RT.minuteur);
+    RT.observateur?.disconnect();
+    RT.observateur = null;
+    for (const ev of ["pointermove", "scroll", "keydown", "touchstart"]) window.removeEventListener(ev, rtBouge);
+    document.removeEventListener("visibilitychange", rtVisibilite);
+    arreterBoucle("rature", 1.2);
+    document.querySelectorAll("[data-rature]").forEach(derayer);
+    document.querySelectorAll(".rt-glisse:not(.rt-glisse-iv)").forEach((s) => s.replaceWith(document.createTextNode(s.dataset.mot || "")));
+    document.querySelectorAll(".rt-coulures, .rt-ombre-navire, .rt-vignette, .rt-journal-bouton, .rt-murmure, .rt-empreinte").forEach((x) => x.remove());
+    document.documentElement.classList.remove("rature");
+    rendreTache();
+    if (choisi) murmure("Je reviendrai.", $("rt-tache"));
+  }
+
+  // ---------- le journal de bord du Dernier Mot ----------
+  function ouvrirJournal(k = 0) {
+    const pages = RT.contenu?.journal || [];
+    if (!pages.length || $("rt-journal")) return;
+    let n = Math.max(0, Math.min(pages.length - 1, k));
+    const feuille = el("div", { class: "rt-page" });
+    const compte = el("span", { class: "rt-compte" });
+    const avant = el("button", { type: "button", class: "rt-tourne", "aria-label": "Page précédente", onclick: () => aller(n - 1), text: "◀" });
+    const apres = el("button", { type: "button", class: "rt-tourne", "aria-label": "Page suivante", onclick: () => aller(n + 1), text: "▶" });
+    const fermer = () => { v.remove(); document.removeEventListener("keydown", touche); document.documentElement.classList.remove("rt-journal-ouvert"); $("rt-journal-bouton")?.focus(); };
+    const touche = (ev) => { if (ev.key === "Escape") fermer(); else if (ev.key === "ArrowLeft") aller(n - 1); else if (ev.key === "ArrowRight") aller(n + 1); };
+    const v = el("div", { class: "rt-journal", id: "rt-journal", role: "dialog", "aria-modal": "true", "aria-label": "Le journal de bord du Dernier Mot" },
+      el("div", { class: "rt-livre" },
+        el("p", { class: "rt-livre-titre", text: "Journal de bord du Dernier Mot" }),
+        feuille,
+        el("div", { class: "rt-livre-bas" }, avant, compte, apres),
+        el("div", { class: "rt-livre-actions" },
+          el("button", { type: "button", class: "rt-lien", onclick: () => fermer(), text: "Refermer le journal" }),
+          el("button", { type: "button", class: "rt-lien rt-lien-cadenas", onclick: () => { fermer(); eteindreRature(); }, text: "Refermer le cadenas" }))));
+    v.addEventListener("click", (ev) => { if (ev.target === v) fermer(); });
+    function aller(i) {
+      if (i < 0 || i >= pages.length) return;
+      if (i !== n || !feuille.childElementCount) rtSon("rt-page", { volume: 0.9 });
+      n = i;
+      const p = pages[n];
+      const mots = String(p.texte || "").split(" ");
+      const corps = el("p", { class: "rt-texte", "aria-label": p.texte }, ...mots.map((m, j) => el("span", { style: `--i:${j}`, "aria-hidden": "true", text: `${m} ` })));
+      vider(feuille,
+        el("p", { class: "rt-jour", text: String(p.jour || "") }),
+        el("h3", { class: "rt-page-titre", text: String(p.titre || "") }),
+        corps,
+        p.nom ? el("p", { class: "rt-signature" }, el("span", { class: "rt-main rt-nom", text: String(p.nom) })) : null);
+      feuille.classList.remove("ecrit");
+      void feuille.offsetWidth;
+      feuille.classList.add("ecrit");
+      if (p.nom) setTimeout(() => { const s = feuille.querySelector(".rt-nom"); if (s) { s.classList.add("raye"); rtSon("rt-plume", { volume: 0.9 }); } }, reduit.matches ? 400 : mots.length * 45 + 1800);
+      compte.textContent = `${n + 1} / ${pages.length}`;
+      avant.disabled = n === 0;
+      apres.disabled = n === pages.length - 1;
+    }
+    document.body.append(v);
+    document.documentElement.classList.add("rt-journal-ouvert");
+    document.addEventListener("keydown", touche);
+    aller(n);
+    apres.focus();
+  }
+
+  // la tache d'encre en bas du site : le cadenas (ou, une fois ouvert, de quoi rappeler ou renvoyer Rature)
+  function rendreTache() {
+    const pied = document.querySelector(".pied-petit");
+    let t = $("rt-tache");
+    if (!v4Ouverte() || !pied) { t?.remove(); return; }
+    if (!t) {
+      t = el("button", { type: "button", class: "rt-tache", id: "rt-tache", onclick: (ev) => {
+        if (RT.actif) { eteindreRature(); return; }
+        if (rtCode()) { rtEcrire(RT_ETEINT, null); activerRature(); return; }
+        ouvrirCadenas(ev.currentTarget);
+      } }, rtTache(16));
+      pied.append(" ", t);
+    }
+    const ouvert = Boolean(rtCode());
+    t.classList.toggle("ouverte", ouvert);
+    t.setAttribute("aria-label", RT.actif ? "Refermer le cadenas" : ouvert ? "Rouvrir le cadenas" : "Une tache d'encre");
+  }
+  function rendreRature() {
+    rendreTache();
+    navireNoir();
+    marqueTroisHeures();
+    if (!v4Ouverte()) { if (RT.actif) eteindreRature({ choisi: false }); return; }
+    if (RT.actif) appliquerRatures();
+    else if (rtCode() && rtLire(RT_ETEINT) !== "1") activerRature();
+  }
+  setInterval(() => { if (!document.hidden) { navireNoir(); marqueTroisHeures(); } }, 60_000);
+
   function rendreTout() {
     const vf = v4Ouverte();
     if (vfRendue === false && vf) vfEnDirect();
@@ -8482,6 +8971,7 @@
     rendreBahriot();
     rendreGuerre();
     rendreCreatures();
+    rendreRature();
     rendreMer();
     rendreShow();
     rendreMaintenant();
