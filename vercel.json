@@ -46,7 +46,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss://mer.95-170-26-39.sslip.io wss://irc-ws.chat.twitch.tv https://7tv.io https://api.betterttv.net https://api.frankerfacez.com; frame-src https://player.twitch.tv https://www.twitch.tv https://www.youtube-nocookie.com https://www.tiktok.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss://mer.95-170-26-39.sslip.io wss://irc-ws.chat.twitch.tv https://7tv.io https://api.betterttv.net https://api.frankerfacez.com ws://127.0.0.1:* ws://localhost:*; frame-src https://player.twitch.tv https://www.twitch.tv https://www.youtube-nocookie.com https://www.tiktok.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         }
       ]
     },

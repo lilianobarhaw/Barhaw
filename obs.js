@@ -31,8 +31,10 @@
 // ?essai=chat, ?essai=objectifs et ?essai=sondage : une démo en boucle, pour placer la source.
 // LA FÊTE : ?party (« !party » du streamer ou d'un modo dans le chat : 2 min de confettis et de lumières de boîte de nuit
 // par-dessus la cam ; js/obs-party.js). ?essai=party : une fête de 9 s toutes les 14 s.
-// LE BONK : ?bonk (une récompense de points de chaîne → un marteau gonflable tombe sur la tête du streamer, « BONK ! » et
-// des étoiles ; envoyé par le bot : js/obs-bonk.js). ?essai=bonk : un bonk toutes les 6 s, pour viser la tête.
+// LA PAGE DES EFFETS : ?effets (et l'ancienne adresse ?bonk), une seule source pour toutes les récompenses de points de chaîne
+// qui passent à l'écran (le BONK, la pluie d'emotes, les sons flippants, le séisme, le kraken, l'écran de veille, le dossier,
+// le chat qui prend la cam, le chaos, Mini-Liliano, la prison, la voix d'hélium) et « !replay », « !pub » ; envoyées par le
+// bot, jouées dans la scène en direct : js/obs-effets.js. ?essai=effets (tous à tour de rôle) ou ?essai=<un effet>.
 // LES SONS QUI FONT PEUR : ?peur=<chaîne> (une récompense de points de chaîne → un son dans le micro du jeu, par OBS et un
 // câble audio virtuel : js/obs-peur.js) ; rien à l'écran. ?essai=peur : un son toutes les 8 s, pour régler le câble.
 (() => {
@@ -63,9 +65,10 @@
     import("/js/obs-party.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
     return;
   }
-  if (P.has("bonk") || ESSAI === "bonk") {
-    // le BONK (points de chaîne) : un marteau gonflable sur la tête, par-dessus la cam
-    import("/js/obs-bonk.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
+  const EFFETS = ["effets", "bonk", "emotes", "flippant", "seisme", "kraken", "veille", "dossier", "controle", "chaos", "mini", "prison", "helium", "replay", "pub"];
+  if (P.has("effets") || P.has("bonk") || EFFETS.includes(ESSAI)) {
+    // la page des effets (points de chaîne, !replay, !pub) : par-dessus tout, dans toutes les scènes
+    import("/js/obs-effets.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
     return;
   }
   if (P.has("peur") || ESSAI === "peur") {
