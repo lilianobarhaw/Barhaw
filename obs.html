@@ -260,6 +260,31 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
 .aide p.aide-etat { color: var(--blanc); font-weight: 800; }
 /* la fête (!party, js/obs-party.js) : une toile grande comme la source, au-dessus de tout le reste de la page */
 .party-toile { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* le BONK (une récompense de points de chaîne, js/obs-bonk.js) : tout part de la cible, le haut de la tête du streamer */
+.bonk-degrades-boite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.bonk-degrades-boite svg { width: 0; height: 0; }
+.bonk { position: fixed; width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
+.bonk-cote, .bonk-marteau, .bonk-bulle { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.bonk.gauche .bonk-cote { transform: scaleX(-1); }
+.bonk-marteau { opacity: 0; }
+.bonk-manche, .bonk-tete, .bonk-onde, .bonk-trait, .bonk-etoile, .bonk-eclat, .bonk-bulle-in, .bonk-par { position: absolute; }
+.bonk-manche { left: 6rem; top: -15.2rem; width: 46rem; height: 5.4rem; transform-origin: 0 50%; transform: rotate(-14deg); }
+.bonk-tete { left: -11rem; top: -27rem; width: 22rem; height: 27rem; transform-origin: 50% 100%; }
+.bonk svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.bonk-onde { left: -16rem; top: -5.1rem; width: 32rem; height: 9rem; opacity: 0; }
+.bonk-trait { left: 0; top: -2.4rem; width: 6.5rem; height: 0.9rem; border-radius: 99rem; background: #fff; box-shadow: 0 0 0 0.3rem var(--encre); transform-origin: 0 50%; opacity: 0; }
+.bonk-etoile { left: -4.2rem; top: -4.2rem; width: 8.4rem; height: 8.4rem; opacity: 0; }
+.bonk-eclat { width: 4.8rem; height: 4.8rem; opacity: 0; }
+.bonk-bulle-in { left: -24rem; top: -15rem; width: 48rem; height: 30rem; transform: scale(0); }
+.bonk-par { left: 0; right: 0; top: 27.6rem; display: flex; justify-content: center; }
+.bonk-par span { display: block; padding: 0.5rem 2rem 0.8rem; background: var(--nuit); color: var(--blanc); border: 0.4rem solid var(--encre); border-radius: 99rem; box-shadow: 0.6rem 0.7rem 0 var(--ombre); font-family: var(--texte); font-weight: 800; font-size: 2.8rem; white-space: nowrap; opacity: 0; }
+.bonk-par b { color: var(--rose-clair); font-weight: 800; }
+/* la cible, pour viser la tête : seulement avec l'aide (« Interagir » dans OBS), jamais pendant un bonk du live */
+.bonk-mire { position: fixed; width: 0; height: 0; pointer-events: none; }
+.bonk-mire[hidden] { display: none; }
+.bonk-mire i { position: absolute; left: -3.6rem; top: -3.6rem; width: 7.2rem; height: 7.2rem; box-sizing: border-box; border: 0.5rem dashed var(--rose); border-radius: 50%; box-shadow: 0 0 0 0.3rem var(--encre); }
+.bonk-mire i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.2rem; height: 1.2rem; margin: -0.6rem; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 0.3rem var(--encre); }
+.bonk-mire span { position: absolute; left: 4.8rem; top: -1.9rem; white-space: nowrap; padding: 0.3rem 1.2rem 0.5rem; background: var(--rose); color: var(--encre); border: 0.3rem solid var(--encre); border-radius: 99rem; font-size: 2.2rem; font-weight: 800; }
 .aide-sons { display: flex; flex-wrap: wrap; gap: 0.6em; margin-top: 0.9em; }
 .aide-sons button { padding: 0.35em 0.9em 0.45em; background: var(--rose); color: var(--encre); border: 0.2rem solid var(--encre); border-radius: 99rem; font: inherit; font-weight: 800; cursor: pointer; }
 .aide a { display: inline-block; margin-top: 0.9em; padding: 0.35em 1em 0.45em; background: var(--rose); color: var(--encre); border: 0.2rem solid var(--encre); border-radius: 99rem; font-weight: 800; text-decoration: none; }
