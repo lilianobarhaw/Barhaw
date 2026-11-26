@@ -31,10 +31,9 @@
 // ?essai=chat, ?essai=objectifs et ?essai=sondage : une démo en boucle, pour placer la source.
 // LA FÊTE : ?party (« !party » du streamer ou d'un modo dans le chat : 2 min de confettis et de lumières de boîte de nuit
 // par-dessus la cam ; js/obs-party.js). ?essai=party : une fête de 9 s toutes les 14 s.
-// LA PAGE DES EFFETS : ?effets (et l'ancienne adresse ?bonk), une seule source pour toutes les récompenses de points de chaîne
-// qui passent à l'écran (le BONK, la pluie d'emotes, les sons flippants, le séisme, le kraken, l'écran de veille, le dossier,
-// le chat qui prend la cam, le chaos, Mini-Liliano, la prison, la voix d'hélium) et « !replay », « !pub » ; envoyées par le
-// bot, jouées dans la scène en direct : js/obs-effets.js. ?essai=effets (tous à tour de rôle) ou ?essai=<un effet>.
+// LA PAGE DES EFFETS : ?effets (et l'ancienne adresse ?bonk), une seule source pour le BONK (une récompense de points de
+// chaîne : un marteau gonflable tombe sur la tête du streamer) et « !replay » (les dernières secondes au ralenti, par la
+// télécommande d'OBS) ; envoyés par le bot, dans toutes les scènes : js/obs-effets.js. ?essai=effets, ?essai=bonk, ?essai=replay.
 // LES SONS QUI FONT PEUR : ?peur=<chaîne> (une récompense de points de chaîne → un son dans le micro du jeu, par OBS et un
 // câble audio virtuel : js/obs-peur.js) ; rien à l'écran. ?essai=peur : un son toutes les 8 s, pour régler le câble.
 (() => {
@@ -65,9 +64,9 @@
     import("/js/obs-party.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
     return;
   }
-  const EFFETS = ["effets", "bonk", "emotes", "flippant", "seisme", "kraken", "veille", "dossier", "controle", "chaos", "mini", "prison", "helium", "replay", "pub"];
+  const EFFETS = ["effets", "bonk", "replay"];
   if (P.has("effets") || P.has("bonk") || EFFETS.includes(ESSAI)) {
-    // la page des effets (points de chaîne, !replay, !pub) : par-dessus tout, dans toutes les scènes
+    // la page des effets (le BONK, !replay) : par-dessus tout, dans toutes les scènes
     import("/js/obs-effets.js").then((m) => m.demarrer({ scene, P })).catch(() => { /* le module viendra au prochain chargement */ });
     return;
   }

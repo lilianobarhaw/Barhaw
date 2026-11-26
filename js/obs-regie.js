@@ -1,37 +1,26 @@
 // LA RÉGIE de la page des effets (js/obs-effets.js) : elle pilote OBS par sa télécommande intégrée, le serveur WebSocket
 // d'OBS (OBS 28 et plus), sur le PC du streamer : ws://127.0.0.1:4455. Le mot de passe est tapé une fois dans l'aide de la page
 // (clic droit sur la source → Interagir) et gardé dans le navigateur d'OBS : il ne part nulle part ailleurs.
-// Ce qu'elle sait faire : trouver la scène en direct, la cam de cette scène (posée telle quelle, dans un groupe ou dans une
-// scène imbriquée, recadrée, retournée en miroir, avec ou sans cadre) et les autres sources ; les déplacer, les secouer, les
-// tourner, les rapetisser autour du centre de la cam (en gardant leur place de départ, remise à la fin, même si la page est
-// rechargée entre-temps) ; créer ses propres sources (un média pour le replay, un pour les sons flippants, une image pour le
-// dossier) ; lire les sons et les photos rangés sur le PC (ils ne vont jamais sur le site) ; allumer et éteindre le filtre
-// « BARHAW Hélium » des sources audio. Elle agit toujours sur la scène en direct : la scène principale comme la scène jeu.
+// Ce qu'elle fait :
+//   • « !replay » : le tampon de relecture d'OBS enregistre les dernières secondes, une source cachée (« BARHAW Replay »,
+//     glissée juste sous la page) les repasse au ralenti, puis se cache ;
+//   • le BONK : elle trouve la cam de la scène en direct (posée telle quelle, dans un groupe ou dans une scène imbriquée,
+//     recadrée, en miroir, avec ou sans cadre : la géométrie d'OBS refaite à l'identique) pour que la cible (le haut de la
+//     tête) suive la cam d'une scène à l'autre. Elle ne bouge rien.
 // Le protocole : obs-websocket 5 (Hello → Identify avec le mot de passe haché → Identified ; requêtes, lots, événements).
 
-const CLE_REMISE = "barhaw-obs-regie-a-remettre";
-const NOMS = { replay: "BARHAW Replay", sons: "BARHAW Sons flippants", dossier: "BARHAW Dossier", teinte: "BARHAW Teinte", helium: "BARHAW Hélium" };
+const NOMS = { replay: "BARHAW Replay" };
 // les sources de cam (Windows, Mac, Linux)
 const CAMS = new Set(["dshow_input", "av_capture_input", "av_capture_input_v2", "macos-avcapture", "macos-avcapture-fast", "v4l2_input"]);
 const EVENEMENTS = 1 | 64 | 256; // General, Outputs (le replay enregistré), MediaInputs (un média fini)
-const CHAMPS = ["positionX", "positionY", "rotation", "scaleX", "scaleY", "alignment", "boundsType", "boundsAlignment", "boundsWidth", "boundsHeight", "cropLeft", "cropRight", "cropTop", "cropBottom", "cropToBounds"];
 // la page des effets dans la liste des sources d'OBS (son adresse)
-const ADRESSE_PAGE = /\/obs(\.html)?\?(.*&)?(effets|bonk|essai=(effets|bonk|emotes|seisme|kraken|veille|dossier|controle|chaos|mini|prison|helium|flippant|replay|pub))\b/;
+const ADRESSE_PAGE = /\/obs(\.html)?\?(.*&)?(effets|bonk|essai=(effets|bonk|replay))\b/;
 
 async function hache(texte) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texte));
   let b = "";
   for (const x of new Uint8Array(d)) b += String.fromCharCode(x);
   return btoa(b);
-}
-// une place qu'on peut redonner à OBS (sans les tailles calculées, et sans cadre quand il n'y en a pas)
-export function placePropre(t) {
-  const p = {};
-  for (const c of CHAMPS) if (t && t[c] !== undefined && t[c] !== null) p[c] = t[c];
-  if (!p.boundsType || p.boundsType === "OBS_BOUNDS_NONE") { delete p.boundsWidth; delete p.boundsHeight; delete p.boundsAlignment; }
-  if (p.boundsWidth !== undefined && p.boundsWidth < 1) p.boundsWidth = 1;
-  if (p.boundsHeight !== undefined && p.boundsHeight < 1) p.boundsHeight = 1;
-  return p;
 }
 
 // ---------- la géométrie d'OBS (libobs/obs-scene.c : update_item_transform, calculate_bounds_data, add_alignment) ----------
@@ -108,24 +97,6 @@ export function boite(t) {
   const m = affine(t);
   return { ...vue(m, m.g), encadre: encadre(t) };
 }
-// la nouvelle place d'une source quand on bouge ce qu'elle montre autour d'un point (le centre de la cam) : déplacée de
-// (dx, dy), grossie ou rapetissée, tournée. L'alignement ne change pas : remettre la place de départ suffit, à la fin.
-// `pivot` est dans la scène de la source ; `versScene` change un déplacement de l'écran en déplacement dans cette scène.
-export function placeAutour(t0, { dx = 0, dy = 0, echelle = 1, rotation = 0 } = {}, pivot = null, versScene = null, sens = 1) {
-  const p0 = pivot || (() => { const b = boite(t0); return { x: b.cx, y: b.cy }; })();
-  const r = (rotation * sens * Math.PI) / 180;
-  const co = Math.cos(r);
-  const si = Math.sin(r);
-  const d = versScene ? { x: versScene.a * dx + versScene.c * dy, y: versScene.b * dx + versScene.d * dy } : { x: dx, y: dy };
-  const vx = (nombre(t0.positionX) - p0.x) * echelle;
-  const vy = (nombre(t0.positionY) - p0.y) * echelle;
-  let rot = (nombre(t0.rotation) + rotation * sens) % 360;
-  if (rot < 0) rot += 360;
-  const p = { positionX: p0.x + d.x + co * vx - si * vy, positionY: p0.y + d.y + si * vx + co * vy, rotation: rot };
-  if (encadre(t0)) { p.boundsWidth = Math.max(1, nombre(t0.boundsWidth, 1) * echelle); p.boundsHeight = Math.max(1, nombre(t0.boundsHeight, 1) * echelle); }
-  else { p.scaleX = (nombre(t0.scaleX, 1) || 1) * echelle; p.scaleY = (nombre(t0.scaleY, 1) || 1) * echelle; }
-  return p;
-}
 const estScene = (x) => x && (x.isGroup || x.sourceType === "OBS_SOURCE_TYPE_SCENE");
 
 export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal = console, WS = window.WebSocket } = {}) {
@@ -175,7 +146,7 @@ export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal 
         essais = 0;
         cache = { base: null };
         changer("reliee");
-        remettre().catch(() => {});
+        cacher(NOMS.replay).catch(() => {}); // (un replay coupé en plein milieu : sa source se cache)
       } else if (m.op === 5) {
         for (const f of ecouteurs.get(d.eventType) || []) { try { f(d.eventData || {}); } catch { /* rien */ } }
       } else if (m.op === 7 || m.op === 9) {
@@ -240,8 +211,7 @@ export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal 
     }
     return cache.base;
   }
-  // la source de cette page (pour ne pas la secouer, glisser le replay juste en dessous, et savoir qu'elle est à l'écran) :
-  // dans la scène, ou dans un de ses groupes ou scènes imbriquées
+  // la source de cette page (pour glisser le replay juste en dessous) : dans la scène, ou dans un de ses groupes
   async function moiDans(nomScene, liste = null) {
     const items = liste || await elements(nomScene);
     const essayer = async (sc, lst) => {
@@ -260,19 +230,17 @@ export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal 
     return null;
   }
 
-  // ---------- la cam de la scène en direct ----------
+  // ---------- la cam de la scène en direct (pour la cible du BONK) ----------
   // celle choisie dans l'aide pour cette scène (ou pour toutes), sinon la première cam visible ; dans la scène, ou dans un
-  // groupe ou une scène imbriquée (deux niveaux au plus). Renvoie de quoi la bouger : si elle est dans un petit groupe ou une
-  // petite scène (la cam et son cadre), c'est ce groupe qu'on bouge ; dans une grande (tout un habillage), la cam seule.
+  // groupe ou une scène imbriquée (deux niveaux au plus)
   async function chercher(nomScene, items, voulu, profondeur) {
     const visibles = items.filter((x) => x.sceneItemEnabled);
     let cam = voulu ? visibles.find((x) => x.sourceName === voulu) : null;
     if (!cam && !voulu) cam = visibles.find((x) => CAMS.has(x.inputKind));
     if (cam) {
-      // une scène ou un groupe choisis comme « cam » : on cherche la vraie cam dedans pour savoir où elle est
-      if (estScene(cam) && profondeur < 2) {
+      if (estScene(cam) && profondeur < 2) { // une scène ou un groupe choisis comme « cam » : la vraie cam est dedans
         const sous = await chercher(cam.sourceName, await dedans(cam), "", profondeur + 1);
-        if (sous) return [{ scene: nomScene, item: cam, choisi: true }, ...sous];
+        if (sous) return [{ scene: nomScene, item: cam }, ...sous];
       }
       return [{ scene: nomScene, item: cam }];
     }
@@ -295,38 +263,19 @@ export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal 
     const res = await lot(chemin.map((n) => ["GetSceneItemTransform", { sceneName: n.scene, sceneItemId: n.item.sceneItemId }]));
     const ts = chemin.map((n, i) => res[i]?.responseData?.sceneItemTransform);
     if (ts.some((t) => !t)) return null;
-    const ms = ts.map((t) => affine(t));
     let total = IDENTITE;
-    for (const m of ms) total = composer(total, m);
-    const g = ms[ms.length - 1].g;
+    for (const t of ts) total = composer(total, affine(t));
+    const g = affine(ts[ts.length - 1]).g;
     const ecran = vue(total, g);
     if (!(ecran.l > 1 && ecran.h > 1)) return null;
-    const base = await canevas();
-    // ce qu'on bouge : la cam, ou le groupe (ou la scène imbriquée) du dessus quand il n'est pas beaucoup plus grand qu'elle
-    let k = chemin.length - 1;
-    if (chemin.length > 1) {
-      const haut = vue(ms[0], ms[0].g);
-      if (chemin[0].choisi || haut.l * haut.h <= 2.5 * ecran.l * ecran.h) k = 0;
-    }
-    let audessus = IDENTITE;
-    for (let i = 0; i < k; i++) audessus = composer(audessus, ms[i]);
-    const versScene = k ? inverse(audessus) : null;
-    const pivot = k ? appliquer(versScene, ecran.cx, ecran.cy) : { x: ecran.cx, y: ecran.cy };
-    const sens = k && audessus.a * audessus.d - audessus.b * audessus.c < 0 ? -1 : 1;
-    const camItem = chemin[chemin.length - 1].item;
-    const versEcran = (u, v) => appliquer(total, u * g.sw, v * g.sh); // un point de l'image de la cam (0 à 1) → l'écran
     const inv = inverse(total);
     return {
       scene: nomScene,
-      source: camItem.sourceName,
-      cible: { scene: chemin[k].scene, id: chemin[k].item.sceneItemId },
-      dansScene: k > 0,
+      source: chemin[chemin.length - 1].item.sourceName,
       boite: ecran,
-      base,
-      versEcran,
+      base: await canevas(),
+      versEcran: (u, v) => appliquer(total, u * g.sw, v * g.sh), // un point de l'image de la cam (0 à 1) → l'écran
       depuisEcran: (x, y) => { const q = appliquer(inv, x, y); return { u: q.x / (g.sw || 1), v: q.y / (g.sh || 1) }; },
-      place: (t0, o) => placeAutour(t0, o, pivot, versScene, sens),
-      items,
     };
   }
   // pour la liste « ta cam » de l'aide : les sources d'image de la scène en direct (et de ses groupes)
@@ -342,79 +291,29 @@ export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal 
     return { scene: nomScene, liste };
   }
 
-  // ---------- garder les places de départ (et les remettre, même après un rechargement de la page) ----------
-  function noterRemise(places) {
-    try { localStorage.setItem(CLE_REMISE, JSON.stringify({ places: places.map((p) => ({ scene: p.scene, id: p.id, t: p.t })) })); } catch { /* pas de stockage */ }
-  }
-  async function remettre(places = null) {
-    let liste = places;
-    if (!liste) {
-      try { const a = JSON.parse(localStorage.getItem(CLE_REMISE) || "null"); liste = Array.isArray(a?.places) ? a.places : null; } catch { liste = null; }
-    }
-    if (liste?.length && pret()) {
-      await lot(liste.map((p) => ["SetSceneItemTransform", { sceneName: p.scene, sceneItemId: p.id, sceneItemTransform: placePropre(p.t) }])).catch(() => {});
-    }
-    try { localStorage.removeItem(CLE_REMISE); } catch { /* rien */ }
-    // un effet coupé en plein milieu : la teinte et l'hélium s'éteignent, le replay se cache
-    if (!places && pret()) {
-      await eteindreHelium().catch(() => {});
-      await enleverTeintes().catch(() => {});
-      await cacher(NOMS.replay).catch(() => {});
-    }
-  }
-  // un effet qui bouge des sources : items = [{ scene, id }] ; leurs places de départ sont notées, `etape(ms, places)` est
-  // appelée ~30 fois par seconde et renvoie [[place, nouvelle transformation]] ; tout est remis à la fin
-  async function animer({ items, duree, etape, fin = null }) {
-    const res = await lot(items.map((x) => ["GetSceneItemTransform", { sceneName: x.scene, sceneItemId: x.id }]));
-    const places = [];
-    items.forEach((x, i) => { const t = res[i]?.responseData?.sceneItemTransform; if (t) places.push({ ...x, t }); });
-    if (!places.length) return;
-    noterRemise(places);
-    const debut = performance.now();
-    let enVol = false;
-    await new Promise((ok) => {
-      const tic = () => {
-        const ms = performance.now() - debut;
-        if (ms >= duree || !pret()) { clearInterval(boucle); ok(); return; }
-        if (enVol) return;
-        let poses = [];
-        try { poses = etape(ms, places) || []; } catch (e) { journal.warn?.(`[régie] ${e.message}`); poses = []; }
-        if (!poses.length) return;
-        enVol = true;
-        lot(poses.map(([p, tr]) => ["SetSceneItemTransform", { sceneName: p.scene, sceneItemId: p.id, sceneItemTransform: tr }])).catch(() => {}).finally(() => { enVol = false; });
-      };
-      const boucle = setInterval(tic, 33);
-      tic();
-    });
-    if (fin) { try { await fin(places); } catch { /* rien */ } }
-    await remettre(places);
-  }
-
-  // ---------- les sources de la régie (créées la première fois, dans la scène en cours) ----------
+  // ---------- la source du replay (créée la première fois, dans la scène en cours) ----------
   async function source(nom, kind, reglagesSource, { activee = true } = {}) {
     const nomScene = await scene();
     const items = await elements(nomScene);
-    let item = items.find((x) => x.sourceName === nom);
-    let existe = Boolean(item);
-    if (!existe) existe = (await requete("GetInputSettings", { inputName: nom }).then(() => true).catch(() => false));
+    const item = items.find((x) => x.sourceName === nom);
+    const existe = Boolean(item) || (await requete("GetInputSettings", { inputName: nom }).then(() => true).catch(() => false));
     if (!existe) {
       const d = await requete("CreateInput", { sceneName: nomScene, inputName: nom, inputKind: kind, inputSettings: reglagesSource, sceneItemEnabled: activee });
-      return { scene: nomScene, id: d.sceneItemId, cree: true, items };
+      return { scene: nomScene, id: d.sceneItemId };
     }
     await requete("SetInputSettings", { inputName: nom, inputSettings: reglagesSource });
     if (!item) {
       const d = await requete("CreateSceneItem", { sceneName: nomScene, sourceName: nom, sceneItemEnabled: activee });
-      return { scene: nomScene, id: d.sceneItemId, cree: false, items };
+      return { scene: nomScene, id: d.sceneItemId };
     }
     if (item.sceneItemEnabled !== activee) await requete("SetSceneItemEnabled", { sceneName: nomScene, sceneItemId: item.sceneItemId, sceneItemEnabled: activee });
-    return { scene: nomScene, id: item.sceneItemId, cree: false, items };
+    return { scene: nomScene, id: item.sceneItemId };
   }
   async function cacher(nom) {
     const nomScene = await scene();
     const item = (await elements(nomScene)).find((x) => x.sourceName === nom);
     if (item?.sceneItemEnabled) await requete("SetSceneItemEnabled", { sceneName: nomScene, sceneItemId: item.sceneItemId, sceneItemEnabled: false });
   }
-  const chemin = (dossier, fichier) => `${String(dossier || "").replace(/[\\/]+$/, "").replace(/\\/g, "/")}/${fichier}`;
 
   // ---------- le replay : les dernières secondes, au ralenti, juste sous la page des effets ----------
   async function replay({ secondes = 20, vitesse = 65, surDebut = () => {} } = {}) {
@@ -454,63 +353,12 @@ export function creerRegie({ reglages = () => ({}), surEtat = () => {}, journal 
     await requete("SetSceneItemEnabled", { sceneName: s.scene, sceneItemId: s.id, sceneItemEnabled: false }).catch(() => {});
   }
 
-  // ---------- un son rangé sur le PC (les sons flippants d'Artlist) ----------
-  async function jouerFichier(dossier, fichier) {
-    const s = await source(NOMS.sons, "ffmpeg_source", { local_file: chemin(dossier, fichier), is_local_file: true, restart_on_activate: false, close_when_inactive: false, clear_on_media_end: true, looping: false });
-    await requete("SetInputAudioMonitorType", { inputName: NOMS.sons, monitorType: "OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT" }).catch(() => {});
-    await requete("TriggerMediaInputAction", { inputName: NOMS.sons, mediaAction: "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART" }).catch(() => {});
-    await new Promise((ok) => setTimeout(ok, 600));
-    const st = await requete("GetMediaInputStatus", { inputName: NOMS.sons }).catch(() => ({}));
-    if (!(Number(st.mediaDuration) > 0) || st.mediaState === "OBS_MEDIA_STATE_ERROR") throw Object.assign(new Error("son introuvable"), { code: "sons" });
-    return { scene: s.scene, duree: Number(st.mediaDuration) };
-  }
-
-  // ---------- une photo rangée sur le PC (le dossier) : lue par OBS, renvoyée en image à la page ----------
-  async function photo(dossier, fichier) {
-    await source(NOMS.dossier, "image_source", { file: chemin(dossier, fichier), unload: false }, { activee: false });
-    await new Promise((ok) => setTimeout(ok, 150));
-    const d = await requete("GetSourceScreenshot", { sourceName: NOMS.dossier, imageFormat: "jpg", imageWidth: 1280, imageCompressionQuality: 88 }).catch(() => null);
-    const img = String(d?.imageData || "");
-    return /^data:image\/(jpe?g|png);base64,/.test(img) && img.length > 1500 ? img : "";
-  }
-  // une image fixe de la cam (le gel, la météorite…) : pour les prochains effets
-  async function instantane(nomSource, largeur = 1280) {
-    const d = await requete("GetSourceScreenshot", { sourceName: nomSource, imageFormat: "jpg", imageWidth: largeur, imageCompressionQuality: 85 }).catch(() => null);
-    return String(d?.imageData || "");
-  }
-
-  // ---------- les filtres : la teinte de la cam (l'écran de veille), la voix d'hélium ----------
-  async function teinte(sourceCam, reglagesTeinte) {
-    const f = await requete("GetSourceFilter", { sourceName: sourceCam, filterName: NOMS.teinte }).catch(() => null);
-    if (!f) await requete("CreateSourceFilter", { sourceName: sourceCam, filterName: NOMS.teinte, filterKind: "color_filter_v2", filterSettings: reglagesTeinte });
-    else await requete("SetSourceFilterSettings", { sourceName: sourceCam, filterName: NOMS.teinte, filterSettings: reglagesTeinte, overlay: true });
-  }
-  async function enleverTeintes() {
-    const { inputs = [] } = await requete("GetInputList");
-    const res = await lot(inputs.map((x) => ["GetSourceFilter", { sourceName: x.inputName, filterName: NOMS.teinte }]));
-    const avec = inputs.filter((x, i) => res[i]?.requestStatus?.result);
-    await lot(avec.map((x) => ["RemoveSourceFilter", { sourceName: x.inputName, filterName: NOMS.teinte }])).catch(() => {});
-  }
-  async function sourcesHelium() {
-    const { inputs = [] } = await requete("GetInputList");
-    const res = await lot(inputs.map((x) => ["GetSourceFilter", { sourceName: x.inputName, filterName: NOMS.helium }]));
-    return inputs.filter((x, i) => res[i]?.requestStatus?.result).map((x) => x.inputName);
-  }
-  async function helium(allume) {
-    const sources = await sourcesHelium();
-    if (!sources.length) throw Object.assign(new Error("pas de filtre hélium"), { code: "helium" });
-    await lot(sources.map((s) => ["SetSourceFilterEnabled", { sourceName: s, filterName: NOMS.helium, filterEnabled: Boolean(allume) }]));
-    return sources.length;
-  }
-  async function eteindreHelium() { const s = await sourcesHelium(); if (s.length) await lot(s.map((x) => ["SetSourceFilterEnabled", { sourceName: x, filterName: NOMS.helium, filterEnabled: false }])); }
-
   return {
     connecter, couper: () => { clearTimeout(minuteur); couper(); changer("eteinte"); },
     etat: () => etat, pret, version: () => version,
     requete, lot, sur, attendreEvenement,
-    scene, elements, dedans, canevas, moiDans, camera, sourcesVideo,
-    animer, remettre, source, cacher,
-    replay, jouerFichier, photo, instantane, teinte, enleverTeintes, sourcesHelium, helium,
+    scene, elements, dedans, canevas, moiDans, camera, sourcesVideo, cacher,
+    replay,
     NOMS,
   };
 }

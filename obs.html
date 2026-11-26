@@ -285,101 +285,13 @@ body.fond { background: #1b1d26 repeating-conic-gradient(#20222c 0 25%, #1b1d26 
 .bonk-mire i { position: absolute; left: -3.6rem; top: -3.6rem; width: 7.2rem; height: 7.2rem; box-sizing: border-box; border: 0.5rem dashed var(--rose); border-radius: 50%; box-shadow: 0 0 0 0.3rem var(--encre); }
 .bonk-mire i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.2rem; height: 1.2rem; margin: -0.6rem; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 0.3rem var(--encre); }
 .bonk-mire span { position: absolute; left: 4.8rem; top: -1.9rem; white-space: nowrap; padding: 0.3rem 1.2rem 0.5rem; background: var(--rose); color: var(--encre); border: 0.3rem solid var(--encre); border-radius: 99rem; font-size: 2.2rem; font-weight: 800; }
-/* ---------- LA PAGE DES EFFETS (?effets, js/obs-effets.js et js/obs-cam.js) : une couche par effet, au-dessus de tout ---------- */
+/* ---------- LA PAGE DES EFFETS (?effets, js/obs-effets.js) : le BONK (plus haut) et « !replay » (js/obs-replay.js) ---------- */
 .fx { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 10; }
-.fx svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.fx-bandeau { position: absolute; left: 50%; top: 3.6rem; z-index: 3; display: flex; align-items: baseline; gap: 0.2rem; max-width: 150rem; padding: 1rem 2.8rem 1.3rem; background: var(--nuit); color: var(--blanc); border: 0.45rem solid var(--encre); border-radius: 99rem; box-shadow: 0.8rem 0.9rem 0 var(--ombre); white-space: nowrap; transform: translate(-50%, -3rem); opacity: 0; }
-.fx-bandeau b { font-family: var(--titre); font-weight: 400; font-size: 4.2rem; line-height: 1.05; color: var(--papier); text-shadow: 0.35rem 0.35rem 0 var(--rose-fonce); }
-.fx-bandeau span { font-weight: 800; font-size: 2.8rem; color: var(--rose-clair); overflow: hidden; text-overflow: ellipsis; }
-/* la pluie d'emotes */
-.pluie-emote { position: absolute; top: 0; width: auto; max-width: 18rem; object-fit: contain; filter: drop-shadow(0.4rem 0.5rem 0 rgba(18, 5, 13, 0.35)); will-change: transform; }
-/* la poussière, les gouttes, les bulles */
-.fx-grain { position: absolute; top: 0; border-radius: 35%; will-change: transform; }
-.fx-goutte { position: absolute; border-radius: 50%; border: 0.25rem solid var(--encre); will-change: transform; }
-.fx-bulle { position: absolute; bottom: 3%; border-radius: 50%; border: 0.3rem solid rgba(255, 255, 255, 0.85); background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.75), rgba(140, 210, 255, 0.18) 58%); will-change: transform; }
-/* le kraken : le tentacule (debout, trois fois plus haut que large), ses boucles autour de la cam, l'eau devant */
-.fx-tentacule { position: absolute; bottom: 0; aspect-ratio: 1 / 3; transform-origin: 50% 100%; will-change: transform; filter: drop-shadow(0.8rem 0.6rem 0 rgba(18, 5, 13, 0.3)); }
-.fx-tentacule.miroir svg, .fx-boucle.miroir svg { transform: scaleX(-1); }
-.fx-boucle { position: absolute; transform-origin: left center; will-change: transform; filter: drop-shadow(0.6rem 0.6rem 0 rgba(18, 5, 13, 0.3)); }
-.fx-boucle.miroir { transform-origin: right center; }
-.fx-eau { position: absolute; left: 0; right: 0; top: 0; height: 100%; transform: translateY(100%); will-change: transform; }
-.fx-eau-vague { position: absolute; left: 0; right: 0; top: -9rem; height: 10rem; overflow: hidden; }
-.fx-eau-vague svg { width: 150%; }
-.fx-eau-fond { position: absolute; left: 0; right: 0; top: 0.4rem; bottom: -12rem; overflow: hidden; background: linear-gradient(rgba(31, 95, 196, 0.94), rgba(18, 60, 143, 0.97) 35%, #0b2463); }
-.fx-rayons { position: absolute; inset: 0; background: repeating-linear-gradient(100deg, rgba(160, 220, 255, 0.1) 0 6rem, transparent 6rem 19rem); }
-/* l'écran de veille */
-.fx-coin { position: absolute; font-family: var(--titre); font-size: 9rem; line-height: 1; color: var(--or); -webkit-text-stroke: 0.6rem var(--encre); paint-order: stroke fill; text-shadow: 0.8rem 0.8rem 0 var(--rose-fonce); white-space: nowrap; }
-/* le dossier : la photo à la place de la cam, un tampon, qui l'a révélée */
-.fx-dossier { position: absolute; overflow: hidden; opacity: 0; }
-.fx-dossier-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.fx-dossier-fond { position: absolute; left: -6%; top: -6%; width: 112%; height: 112%; object-fit: cover; filter: blur(2.6rem) brightness(0.55) saturate(1.2); }
-.fx-tampon { position: absolute; left: 50%; top: 50%; padding: 1.2rem 3.4rem 1.8rem; font-family: var(--titre); font-size: 13rem; line-height: 1; letter-spacing: 0.04em; color: #ff2d55; border: 1.1rem solid #ff2d55; border-radius: 2.2rem; background: rgba(255, 240, 247, 0.18); text-shadow: 0 0 0.3rem rgba(255, 255, 255, 0.4); opacity: 0; white-space: nowrap; }
-.fx-tampon.petit { font-size: 5.4rem; padding: 0.6rem 1.6rem 0.9rem; border-width: 0.5rem; border-radius: 1.2rem; }
-.fx-legende { position: absolute; left: 0; right: 0; bottom: 5%; display: flex; justify-content: center; opacity: 0; }
-.fx-legende div { padding: 0.5rem 2rem 0.8rem; background: var(--nuit); color: var(--blanc); border: 0.4rem solid var(--encre); border-radius: 99rem; box-shadow: 0.6rem 0.7rem 0 var(--ombre); font-size: 2.8rem; font-weight: 800; white-space: nowrap; }
-.fx-legende b { color: var(--rose-clair); }
-/* le chat prend ta cam : le tableau de bord en haut */
-.fx-hud { position: absolute; left: 50%; top: 3rem; display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.6rem 3rem; padding: 2rem 3rem 2.2rem; background: var(--nuit); color: var(--blanc); border: 0.5rem solid var(--encre); border-radius: 2.6rem; box-shadow: 1rem 1.1rem 0 var(--ombre); transform: translate(-50%, -140%); }
-.fx-hud-titre { grid-column: 1; font-family: var(--titre); font-size: 4.4rem; line-height: 1.05; text-shadow: 0.4rem 0.4rem 0 var(--rose-fonce); }
-.fx-hud-aide { grid-column: 1; font-size: 2.6rem; font-weight: 800; color: var(--rose-clair); white-space: pre; }
-.fx-temps { grid-column: 1; justify-self: start; padding: 0.3rem 1.6rem 0.5rem; font-family: var(--titre); font-weight: 400; font-size: 3.6rem; color: var(--encre); background: var(--or); border: 0.35rem solid var(--encre); border-radius: 99rem; font-variant-numeric: tabular-nums; }
-.fx-pave { grid-column: 2; grid-row: 1 / span 3; display: grid; grid-template-columns: repeat(3, 7.4rem); grid-template-rows: repeat(3, 7.4rem); gap: 0.6rem; }
-.fx-fleche { position: relative; display: grid; place-items: center; background: var(--prune); border: 0.35rem solid var(--encre); border-radius: 1.6rem; }
-.fx-fleche.haut { grid-column: 2; grid-row: 1; } .fx-fleche.gauche { grid-column: 1; grid-row: 2; } .fx-fleche.droite { grid-column: 3; grid-row: 2; } .fx-fleche.bas { grid-column: 2; grid-row: 3; }
-.fx-fleche i { width: 0; height: 0; border: 1.4rem solid transparent; }
-.fx-fleche.haut i { border-bottom: 2rem solid var(--rose); border-top-width: 0; margin-top: -1.4rem; }
-.fx-fleche.bas i { border-top: 2rem solid var(--rose); border-bottom-width: 0; margin-top: -1.4rem; }
-.fx-fleche.gauche i { border-right: 2rem solid var(--rose); border-left-width: 0; margin-top: -1.4rem; }
-.fx-fleche.droite i { border-left: 2rem solid var(--rose); border-right-width: 0; margin-top: -1.4rem; }
-.fx-fleche b { position: absolute; bottom: 0.3rem; left: 0; right: 0; text-align: center; font-size: 1.9rem; font-weight: 800; color: var(--or); font-variant-numeric: tabular-nums; }
-/* le chaos : des bords rouges qui battent doucement (pas de flash), le titre en grand */
-.fx-alarme { position: absolute; inset: 0; box-shadow: inset 0 0 22rem 7rem rgba(255, 40, 70, 0.85); opacity: 0.05; }
-.fx-chaos-titre { position: absolute; left: 50%; top: 50%; font-family: var(--titre); font-size: 17rem; line-height: 1; color: #ff2d55; -webkit-text-stroke: 1rem var(--encre); paint-order: stroke fill; text-shadow: 1.4rem 1.4rem 0 var(--or); white-space: nowrap; opacity: 0; }
-/* Mini-Liliano : la loupe */
-.fx-loupe { position: absolute; aspect-ratio: 1; filter: drop-shadow(0.8rem 0.8rem 0 rgba(18, 5, 13, 0.3)); }
-/* la prison : les barreaux sur la cam, le panneau */
-.fx-prison { position: absolute; overflow: hidden; }
-.fx-barreaux { position: absolute; inset: 0; filter: drop-shadow(0.6rem 0 0 rgba(18, 5, 13, 0.35)); }
-.fx-panneau { position: absolute; left: 50%; top: 7%; display: grid; justify-items: center; gap: 0.4rem; padding: 1.4rem 3rem 1.8rem; background: #e8b25c; color: var(--encre); border: 0.5rem solid var(--encre); border-radius: 1.6rem; box-shadow: 0.8rem 0.9rem 0 rgba(18, 5, 13, 0.45), inset 0 -0.6rem 0 rgba(120, 60, 10, 0.25); transform: translate(-50%, -260%); }
-.fx-panneau-titre { font-family: var(--titre); font-size: 6.6rem; line-height: 1; color: #7a1f12; }
-.fx-panneau-aide { font-size: 3rem; font-weight: 800; }
-.fx-panneau-aide b { font-family: var(--titre); font-weight: 400; color: #7a1f12; font-variant-numeric: tabular-nums; }
-.fx-prison-temps { font-size: 2.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.fx-prison.petite .fx-panneau { padding: 0.8rem 1.6rem 1rem; border-width: 0.35rem; }
-.fx-prison.petite .fx-panneau-titre { font-size: 3.4rem; }
-.fx-prison.petite .fx-panneau-aide { font-size: 1.9rem; }
-.fx-prison.petite .fx-prison-temps { font-size: 1.6rem; }
-.fx-libere { position: absolute; left: 50%; top: 50%; font-family: var(--titre); font-size: 10rem; line-height: 1; color: var(--or); -webkit-text-stroke: 0.7rem var(--encre); paint-order: stroke fill; text-shadow: 0.9rem 0.9rem 0 var(--rose-fonce); white-space: nowrap; }
-.fx-prison.petite .fx-libere { font-size: 4.6rem; -webkit-text-stroke-width: 0.4rem; }
 /* le replay : un cadre par-dessus la vidéo au ralenti */
 .fx-replay-cadre { position: absolute; inset: 1.8rem; border: 0.9rem solid var(--rose); border-radius: 2.4rem; box-shadow: 0 0 0 0.4rem var(--encre), inset 0 0 0 0.4rem var(--encre), inset 0 0 6rem rgba(255, 79, 154, 0.45); }
 .fx-replay-titre { position: absolute; left: 5.4rem; top: 4.6rem; display: flex; align-items: center; gap: 1.4rem; padding: 0.8rem 2.6rem 1.2rem 2rem; font-family: var(--titre); font-size: 5.4rem; line-height: 1; color: var(--papier); background: var(--nuit); border: 0.45rem solid var(--encre); border-radius: 99rem; box-shadow: 0.7rem 0.8rem 0 var(--ombre); }
 .fx-replay-titre i { width: 2.6rem; height: 2.6rem; border-radius: 50%; background: #ff2d55; box-shadow: 0 0 0 0.35rem var(--encre); }
 .fx-replay-vitesse { position: absolute; right: 5.4rem; top: 5.2rem; padding: 0.6rem 2rem 0.9rem; font-weight: 800; font-size: 3rem; color: var(--encre); background: var(--or); border: 0.4rem solid var(--encre); border-radius: 99rem; }
-/* la fausse pub : un fond qui cache tout, la carte au milieu, « PUBLICITÉ » avant et après */
-.fx.pub { display: grid; place-items: center; }
-.fx-pub-fond { position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, #4a1a5a, transparent 60%), radial-gradient(ellipse at 80% 90%, #7a1d55, transparent 55%), #1a0a1e; opacity: 0; }
-.fx-pub-bumper { position: absolute; inset: 0; display: grid; place-items: center; background: #0d0710; opacity: 0; }
-.fx-pub-bruit { position: absolute; inset: 0; opacity: 0.16; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.5) 0 0.2rem, transparent 0.2rem 0.6rem), repeating-linear-gradient(90deg, rgba(255, 79, 154, 0.25) 0 0.4rem, transparent 0.4rem 1.6rem); }
-.fx-pub-bumper b { position: relative; max-width: 90%; text-align: center; font-family: var(--titre); font-weight: 400; font-size: 13rem; line-height: 1.1; letter-spacing: 0.06em; color: var(--papier); text-shadow: 0.9rem 0.9rem 0 var(--rose-fonce); }
-.fx-pub-bumper.fin b { font-size: 9rem; }
-.fx-pub-carte { position: relative; box-sizing: border-box; display: grid; justify-items: start; gap: 1.6rem; width: 128rem; padding: 5rem 6rem 5.4rem; background: var(--papier); color: var(--encre); border: 0.7rem solid var(--encre); border-radius: 4rem; box-shadow: 1.6rem 1.8rem 0 var(--rose); opacity: 0; }
-.fx-pub-carte.discord { box-shadow: 1.6rem 1.8rem 0 var(--violet); }
-.fx-pub-carte.grandline { grid-template-columns: 50rem 1fr; column-gap: 5rem; align-items: center; }
-.fx-pub-carte.grandline > :not(.fx-pub-image) { grid-column: 2; }
-.fx-pub-image { grid-column: 1; grid-row: 1 / span 5; width: 50rem; aspect-ratio: 4 / 3; object-fit: cover; border: 0.6rem solid var(--encre); border-radius: 2.4rem; rotate: -2deg; box-shadow: 0.9rem 1rem 0 var(--violet); }
-.fx-pub-sur { font-weight: 800; font-size: 3.2rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rose-fonce); }
-.fx-pub-titre { font-family: var(--titre); font-weight: 400; font-size: 11rem; line-height: 1; text-shadow: 0.7rem 0.7rem 0 var(--rose-clair); }
-.discord .fx-pub-titre { font-size: 9.6rem; text-shadow: 0.7rem 0.7rem 0 var(--violet-clair); }
-.fx-pub-texte { max-width: 100rem; font-size: 3.6rem; line-height: 1.3; color: var(--prune-texte); }
-.fx-pub-lien { padding: 0.9rem 3rem 1.2rem; font-weight: 800; font-size: 3.6rem; color: var(--papier); background: var(--encre); border-radius: 99rem; }
-.fx-pub-petit { font-size: 2.2rem; color: var(--prune-texte); opacity: 0.8; }
-/* la voix d'hélium : un ballon et le temps qui reste, en bas à droite */
-.fx-helium { position: absolute; left: 4rem; top: 6.4rem; display: flex; align-items: center; gap: 1.6rem; padding: 1.2rem 3rem 1.2rem 1.6rem; background: var(--nuit); color: var(--blanc); border: 0.45rem solid var(--encre); border-radius: 99rem; box-shadow: 0.8rem 0.9rem 0 var(--ombre); }
-.fx-ballon { width: 6.4rem; height: 11.7rem; margin: -4rem 0 -1rem; }
-.fx-helium-texte { display: grid; }
-.fx-helium-texte span { font-family: var(--titre); font-size: 3.4rem; line-height: 1.1; color: var(--rose-clair); }
-.fx-helium-texte b { font-family: var(--titre); font-weight: 400; font-size: 4.4rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
 /* l'aide de la page des effets : plus longue que les autres, elle défile */
 .aide.aide-effets { z-index: 100; top: 2.4vmin; bottom: auto; max-width: min(64rem, calc(100vw - 4.8vmin)); max-height: calc(100vh - 4.8vmin); overflow-y: auto; pointer-events: auto; }
 .bonk-mire { z-index: 99; }

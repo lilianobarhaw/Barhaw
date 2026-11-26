@@ -1,50 +1,34 @@
-// LA PAGE DES EFFETS (VF 1.0) : /obs?effets, UNE SEULE source navigateur pour toutes les récompenses de points de chaîne et
-// les commandes du chat qui passent à l'écran (obs.js la charge et s'arrête là ; l'ancienne adresse ?bonk mène ici aussi).
-//   • sans rien d'autre : le BONK (js/obs-bonk.js), la pluie d'emotes (js/obs-emotes.js), la prison, la fausse pub (« !pub ») ;
-//   • avec la régie (la télécommande d'OBS, js/obs-regie.js) : les sons flippants (des fichiers du PC), le séisme, le kraken,
-//     l'écran de veille, le dossier (une photo du PC), le chat qui prend la cam, le chaos total, Mini-Liliano, la voix d'hélium
-//     et « !replay » (js/obs-cam.js).
+// LA PAGE DES EFFETS (VF 1.0) : /obs?effets, UNE SEULE source navigateur pour le BONK (une récompense de points de chaîne) et
+// « !replay » (une commande du streamer et de ses modos). obs.js la charge et s'arrête là ; l'ancienne adresse ?bonk mène ici.
+//   • le BONK (js/obs-bonk.js) : un marteau gonflable tombe sur la tête du streamer ;
+//   • « !replay » (js/obs-replay.js) : avec la régie (la télécommande d'OBS, js/obs-regie.js), les dernières secondes
+//     repassent au ralenti sous un cadre « REPLAY ».
 // Le bot (lib/recompenses.js) envoie chaque effet à UNE seule page : celle qui est à l'écran. Dans OBS, la même source va
-// dans toutes les scènes (Ajouter → Navigateur → « Ajouter une source existante ») ; les effets agissent sur la scène en
-// direct (la grande cam de la scène principale, la petite cam de la scène jeu) et le BONK vise la tête dans la cam, où
-// qu'elle soit. Chaque genre d'effet attend son tour (un BONK à la fois, un effet de cam à la fois…).
-// Hors du live (navigateur, ou « Interagir » dans OBS) : bouger la souris montre l'aide (l'état, la régie, ta cam, les
-// dossiers du PC, un bouton pour essayer chaque effet) ; un clic hors de l'aide vise le haut de ta tête pour le BONK.
-// Rien n'est gardé au nom des viewers : seulement le pseudo de celui qui a pris la récompense, le temps de l'afficher.
+// dans toutes les scènes (Ajouter → Navigateur → « Ajouter une source existante ») ; avec la régie, le BONK vise la tête dans
+// la cam de la scène en direct (la grande cam de la scène principale, la petite cam de la scène jeu). Un BONK à la fois.
+// Hors du live (navigateur, ou « Interagir » dans OBS) : bouger la souris montre l'aide (l'état, la régie, ta cam, un bouton
+// pour essayer) ; un clic hors de l'aide vise le haut de ta tête pour le BONK.
+// Rien n'est gardé au nom des viewers : seulement le pseudo de celui qui a pris le BONK, le temps de l'afficher.
 // Réglages dans l'adresse : ?son=non · ?pseudo=non · ?taille=<%> (le marteau : 100 sans rien) · ?x= ?y= (la cible du BONK,
-// imposée) · ?essai=effets (tous les effets à tour de rôle, sans le bot) ou ?essai=<un effet> (bonk, emotes, prison, pub…).
+// imposée) · ?essai=effets (le BONK et le replay à tour de rôle, sans le bot) ou ?essai=bonk, ?essai=replay.
 import { creerBonk } from "./obs-bonk.js";
-import { pleuvoir, EMOTES_ESSAI } from "./obs-emotes.js";
 import { creerRegie } from "./obs-regie.js";
-import { creerEffetsCam } from "./obs-cam.js";
+import { creerReplay } from "./obs-replay.js";
 
 const CAPTURE = Boolean(window.__capture);
 const CLE_CIBLE = "barhaw-obs-bonk-cible";
 const CLE_REGLAGES = "barhaw-obs-regie";
 const DEFAUT = { x: 65, y: 42.5 };
-const DOSSIER_SONS = "C:\\Barhaw\\sons-flippants";
-const DOSSIER_PHOTOS = "C:\\Barhaw\\dossiers";
-const NOMS = {
-  bonk: "BONK", emotes: "Pluie d'emotes", flippant: "Son flippant", seisme: "Séisme", kraken: "Kraken", veille: "Écran de veille",
-  dossier: "Dossier", controle: "Le chat prend ta cam", chaos: "Chaos total", mini: "Mini-Liliano", prison: "Prison",
-  helium: "Voix d'hélium", replay: "Replay", pub: "Pub",
-};
+const NOMS = { bonk: "BONK", replay: "Replay" };
 const ACTIONS = Object.keys(NOMS);
-const AVEC_REGIE = new Set(["flippant", "seisme", "kraken", "veille", "dossier", "controle", "chaos", "mini", "helium", "replay"]);
-const FILE_DE = { bonk: "bonk", emotes: "emotes", flippant: "son", helium: "voix" }; // le reste passe à l'écran : « cam »
+const AVEC_REGIE = new Set(["replay"]);
 const RAISONS = {
   obs: "la régie n'est pas reliée à OBS",
-  cam: "je ne trouve pas ta cam dans la scène en direct",
-  sons: "les sons flippants ne sont pas dans le dossier choisi",
-  dossiers: "aucune photo dossier-1.jpg… dans le dossier choisi",
-  helium: "aucune source audio n'a le filtre « BARHAW Hélium »",
   tampon: "le tampon de relecture n'est pas activé dans OBS",
   demarre: "le tampon de relecture vient de démarrer : réessaie dans 20 secondes",
-  emotes: "aucune emote à faire tomber",
   plein: "trop d'effets attendent déjà leur tour",
   page: "la page des effets n'a pas pu le jouer",
 };
-const SONS_EFFETS = ["seisme", "kraken", "bloop", "coin", "dossier", "tampon", "controle", "bip", "sirene", "retrecit", "grandit", "prison", "clic", "libere", "replay", "pub", "pub-fin", "helium"];
 
 const el = (balise, classe, ...enfants) => {
   const n = document.createElement(balise);
@@ -56,7 +40,6 @@ const lire = async (adresse) => { try { const r = await fetch(adresse, { headers
 const pourcent = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return String(v ?? "").trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 10) / 10 : null; };
 const borne = (x, a, b) => Math.max(a, Math.min(b, x));
 const virgule = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
-const propreDossier = (d) => String(d || "").replace(/[\u0000-\u001f"<>|?*]/g, "").trim().slice(0, 200);
 
 export function demarrer({ P }) {
   const brut = (P.get("essai") || "").toLowerCase();
@@ -72,11 +55,11 @@ export function demarrer({ P }) {
   const L = {};
 
   // ---------- les réglages de la régie (gardés dans le navigateur d'OBS : ils ne partent nulle part) ----------
-  let R = { mdp: "", port: "4455", cams: {}, sons: DOSSIER_SONS, dossiers: DOSSIER_PHOTOS };
+  let R = { mdp: "", port: "4455", cams: {} };
   try { const m = JSON.parse(localStorage.getItem(CLE_REGLAGES) || "null"); if (m && typeof m === "object") R = { ...R, ...m, cams: m.cams && typeof m.cams === "object" ? m.cams : {} }; } catch { /* pas de stockage */ }
   const garder = () => { try { localStorage.setItem(CLE_REGLAGES, JSON.stringify(R)); } catch { /* pas de stockage */ } };
 
-  // ---------- les sons (son/bonk/, son/effets/) : chargés d'avance, un nouveau lecteur à chaque fois ----------
+  // ---------- les sons (son/bonk/, son/effets/replay) : chargés d'avance, un nouveau lecteur à chaque fois ----------
   const EXT = new Audio().canPlayType('audio/ogg; codecs="opus"') ? "ogg" : "mp3";
   const modeles = new Map();
   let bloque = false; // un navigateur qui attend un clic avant de laisser passer le son (pas OBS)
@@ -85,7 +68,7 @@ export function demarrer({ P }) {
     if (!a) { a = new Audio(`/son/${nom}.${EXT}`); a.preload = "auto"; modeles.set(nom, a); }
     return a;
   }
-  if (SON && !CAPTURE) { for (const s of ["bonk/bonk-1", "bonk/bonk-2", "bonk/bonk-3", ...SONS_EFFETS.map((x) => `effets/${x}`)]) modele(s); }
+  if (SON && !CAPTURE) { for (const s of ["bonk/bonk-1", "bonk/bonk-2", "bonk/bonk-3", "effets/replay"]) modele(s); }
   function sonner(nom, { vitesse = 1, volume = 1, boucle = false } = {}) {
     if (!/^[a-z]+\/[a-z0-9-]+$/.test(nom)) return null;
     if (CAPTURE) { // (les vidéos d'aperçu : la liste des sons, mixés ensuite)
@@ -102,8 +85,8 @@ export function demarrer({ P }) {
     return { arreter() { try { a.pause(); } catch { /* rien */ } } };
   }
 
-  // ---------- la régie et les effets ----------
-  let soucisVus = new Map();
+  // ---------- la régie, le replay, le BONK ----------
+  const soucisVus = new Map();
   const regie = creerRegie({
     reglages: () => R,
     surEtat: (e) => {
@@ -113,24 +96,20 @@ export function demarrer({ P }) {
       if (e === "refusee") signaler("obs");
     },
   });
-  const effets = creerEffetsCam({
-    regie,
-    sonner,
-    pseudo: PSEUDO,
-    dossiers: () => R.dossiers || DOSSIER_PHOTOS,
-    sons: () => R.sons || DOSSIER_SONS,
-    bot: { controle: (actif) => dire({ k: "controle", actif }), prison: (actif) => dire({ k: "prison", actif }) },
-  });
+  const replay = creerReplay({ regie, sonner });
   const bonk = creerBonk({ cible: () => cible, taille: TAILLE, pseudo: PSEUDO, sonner });
-  let photosTrouvees = null;
   let camVue = null; // { scene, nom, l, h }
-  async function preparer() { // (en arrière-plan : la cam de la scène en direct, les photos du dossier)
-    await voirCam();
-    photosTrouvees = (await effets.listerPhotos({ force: true }).catch(() => [])).length;
-    majAide();
+  async function preparer() { await voirCam(); } // (en arrière-plan : la cam de la scène en direct)
+  // la cam de la scène en direct, et sa boîte à l'écran en %
+  async function laCam() {
+    if (!regie.pret()) return null;
+    const cam = await regie.camera().catch(() => null);
+    if (!cam) return null;
+    const { base, boite: b } = cam;
+    return { cam, base, b, pct: { x: ((b.cx - b.l / 2) / base.l) * 100, y: ((b.cy - b.h / 2) / base.h) * 100, l: (b.l / base.l) * 100, h: (b.h / base.h) * 100 } };
   }
   async function voirCam() {
-    const c = await effets.laCam().catch(() => null);
+    const c = await laCam();
     camVue = c ? { scene: c.cam.scene, nom: c.cam.source, l: Math.round(c.b.l), h: Math.round(c.b.h) } : { scene: await regie.scene().catch(() => ""), nom: "" };
     majAide();
     return c;
@@ -154,7 +133,7 @@ export function demarrer({ P }) {
   async function viser(x, y, garde = true) {
     cible = { x: Math.round(borne(x, 2, 98) * 10) / 10, y: Math.round(borne(y, 2, 98) * 10) / 10 };
     if (regie.pret()) {
-      const c = await effets.laCam().catch(() => null);
+      const c = await laCam();
       if (c) {
         const q = c.cam.depuisEcran((cible.x / 100) * c.base.l, (cible.y / 100) * c.base.h);
         if (q.u > -0.25 && q.u < 1.25 && q.v > -0.4 && q.v < 1.25) { cible.u = Math.round(q.u * 10000) / 10000; cible.v = Math.round(q.v * 10000) / 10000; }
@@ -166,7 +145,7 @@ export function demarrer({ P }) {
   }
   async function cibleMaintenant() {
     if (!imposee && Number.isFinite(cible.u) && regie.pret()) {
-      const c = await effets.laCam().catch(() => null);
+      const c = await laCam();
       if (c) {
         const p = c.cam.versEcran(cible.u, cible.v);
         return { x: borne((p.x / c.base.l) * 100, 1, 99), y: borne((p.y / c.base.h) * 100, 1, 99), taille: TAILLE * borne(c.pct.h / 100, 0.42, 1) };
@@ -175,16 +154,16 @@ export function demarrer({ P }) {
     return { x: cible.x, y: cible.y, taille: TAILLE };
   }
 
-  // ---------- les files : chaque genre d'effet attend son tour ----------
-  const files = { bonk: [], emotes: [], son: [], voix: [], cam: [] };
-  const occupe = { bonk: false, emotes: false, son: false, voix: false, cam: false };
+  // ---------- les files : un BONK à la fois, un replay à la fois ----------
+  const files = { bonk: [], replay: [] };
+  const occupe = { bonk: false, replay: false };
   const vus = new Set(); // les numéros déjà reçus (le bot ne renvoie jamais deux fois le même, mais on ne rejoue rien)
   let joues = 0;
   let dernierRate = "";
   function demander(effet) {
     if (!effet || !ACTIONS.includes(effet.action)) return;
     if (effet.n) { if (vus.has(effet.n)) return; vus.add(effet.n); if (vus.size > 500) vus.clear(); }
-    const f = FILE_DE[effet.action] || "cam";
+    const f = effet.action;
     if (files[f].length >= 20) { rate(effet, "plein"); return; }
     files[f].push(effet);
     suivant(f);
@@ -196,22 +175,12 @@ export function demarrer({ P }) {
     majAide();
     try { await jouer(e); joues += 1; }
     catch (err) { rate(e, err?.code && RAISONS[err.code] ? err.code : "page"); if (!err?.code) console.warn("[effets]", err); }
-    finally { occupe[f] = false; majAide(); setTimeout(() => suivant(f), f === "cam" ? 400 : 250); }
+    finally { occupe[f] = false; majAide(); setTimeout(() => suivant(f), 250); }
   }
   async function jouer(e) {
     const par = typeof e.par === "string" ? e.par : "";
-    switch (e.action) {
-      case "bonk": return bonk.jouer(par, await cibleMaintenant());
-      case "emotes": { const ok = await pleuvoir({ images: e.images, par, pseudo: PSEUDO, essai: Boolean(e.essai) }); if (!ok) throw Object.assign(new Error("emotes"), { code: "emotes" }); return null; }
-      case "flippant": return effets.flippant();
-      case "chaos": return effets.chaos(par, Array.isArray(e.images) ? e.images : [], { essai: Boolean(e.essai) });
-      case "replay": return effets.replay(borne(Number(e.secondes) || 20, 5, 30));
-      case "pub": return effets.pub(e.quoi === "discord" ? "discord" : "grandline", typeof e.lien === "string" ? e.lien : "");
-      case "prison": return effets.prison(par, e.duree ? { duree: e.duree } : {});
-      case "controle": case "mini": return effets[e.action](par, e.duree ? { duree: e.duree } : {});
-      case "helium": return effets.helium(par, e.duree ? { duree: e.duree } : {});
-      default: return effets[e.action](par);
-    }
+    if (e.action === "bonk") return bonk.jouer(par, await cibleMaintenant());
+    return replay.jouer(borne(Number(e.secondes) || 20, 5, 30));
   }
   // un effet qui n'a pas pu passer : le bot le dit dans le chat (à celui qui l'a pris), l'aide le montre
   function rate(e, code) {
@@ -287,9 +256,7 @@ export function demarrer({ P }) {
         droit = m.droit !== false;
         titres = m.recompenses && typeof m.recompenses === "object" ? m.recompenses : (m.recompense ? { bonk: String(m.recompense) } : {});
         majAide();
-      } else if (m.k === "effet") demander({ n: Number(m.n) || 0, action: String(m.action || ""), par: typeof m.par === "string" ? m.par : "", images: m.images, secondes: m.secondes, quoi: m.quoi, lien: m.lien });
-      else if (m.k === "bouge") effets.bouger(String(m.dir || ""));
-      else if (m.k === "liberer") effets.liberer();
+      } else if (m.k === "effet") demander({ n: Number(m.n) || 0, action: String(m.action || ""), par: typeof m.par === "string" ? m.par : "", secondes: m.secondes });
       else if (m.k === "bonk") demander({ action: "bonk", par: typeof m.par === "string" ? m.par : "" }); // (le bot d'avant)
     };
     s.onclose = () => {
@@ -315,8 +282,7 @@ export function demarrer({ P }) {
     if (!adresse) return "⏳ Le bot ne propose pas encore la page des effets (sa mise à jour 1.28 n'est pas installée).";
     if (!branche) return "⏳ Connexion au bot…";
     if (!droit) return "⛔ Le bot ne voit pas encore tes récompenses : refais /objectif connecter sur le Discord de Barhaw.";
-    const n = Object.values(titres).filter(Boolean).length;
-    return `✅ Branchée au bot : ${n ? `${n} récompense${n > 1 ? "s" : ""} trouvée${n > 1 ? "s" : ""}` : "pas encore de récompense trouvée (sur Twitch : un mot de l'effet dans le titre, par exemple « BONK » ou « Séisme »)"}.`;
+    return `✅ Branchée au bot : ${titres.bonk ? `la récompense du BONK est « ${titres.bonk} »` : "pas encore de récompense du BONK trouvée (sur Twitch : « bonk » dans son titre)"}.`;
   }
   function etatRegie() {
     const e = regie.etat();
@@ -335,8 +301,6 @@ export function demarrer({ P }) {
     const camTexte = !regie.pret() ? "" : !camVue ? "Je cherche ta cam…" : camVue.nom ? `🎥 Dans la scène « ${camVue.scene} », ta cam : « ${camVue.nom} » (${camVue.l} × ${camVue.h}).` : `⚠️ Je ne trouve pas de cam dans la scène « ${camVue.scene} » : choisis-la ci-dessous.`;
     ecrire(L.cam, camTexte);
     L.cam.hidden = !camTexte;
-    ecrire(L.photos, photosTrouvees === null || !regie.pret() ? "" : photosTrouvees ? `🗂️ ${photosTrouvees} photo${photosTrouvees > 1 ? "s" : ""} trouvée${photosTrouvees > 1 ? "s" : ""} pour le dossier.` : "🗂️ Aucune photo pour le dossier : range-les en dossier-1.jpg, dossier-2.jpg… dans le dossier choisi.");
-    L.photos.hidden = !L.photos.textContent;
     const enCours = Object.values(occupe).filter(Boolean).length + Object.values(files).reduce((a, f) => a + f.length, 0);
     ecrire(L.file, dernierRate ? `⚠️ Dernier raté : ${dernierRate}.` : enCours ? `▶ ${enCours} effet${enCours > 1 ? "s" : ""} en cours ou en attente.` : "");
     L.file.hidden = !L.file.textContent;
@@ -383,14 +347,7 @@ export function demarrer({ P }) {
   }
   function essayer(action) {
     dernierRate = "";
-    const d = { action, par: "Moussaillon", essai: true };
-    if (action === "emotes") d.images = EMOTES_ESSAI;
-    if (action === "chaos") d.images = EMOTES_ESSAI;
-    if (action === "pub") d.quoi = Math.random() < 0.5 ? "discord" : "grandline";
-    if (action === "replay") d.secondes = 10;
-    if (action === "prison" || action === "controle" || action === "mini") d.duree = 15_000;
-    if (action === "helium") d.duree = 10_000;
-    demander(d);
+    demander({ action, par: "Moussaillon", essai: true, ...(action === "replay" ? { secondes: 10 } : {}) });
   }
   function montrerAide() {
     if (CAPTURE) return;
@@ -405,25 +362,19 @@ export function demarrer({ P }) {
       remplirCams(cams);
       cams.addEventListener("focus", () => remplirCams(cams));
       cams.addEventListener("change", () => { const sc = cams.dataset.scene || ""; if (cams.value) R.cams[sc] = cams.value; else delete R.cams[sc]; garder(); voirCam(); });
-      const sons = champ("text", R.sons || DOSSIER_SONS, DOSSIER_SONS, (v) => { R.sons = propreDossier(v) || DOSSIER_SONS; garder(); });
-      const photos = champ("text", R.dossiers || DOSSIER_PHOTOS, DOSSIER_PHOTOS, (v) => { R.dossiers = propreDossier(v) || DOSSIER_PHOTOS; garder(); photosTrouvees = null; if (regie.pret()) preparer(); });
       const essaisBoutons = el("div", "aide-sons", ...ACTIONS.map((a) => bouton(`▶ ${NOMS[a]}`, () => essayer(a), AVEC_REGIE.has(a) ? "regie" : "")));
       aide = el("div", "aide aide-effets",
-        el("b", "", "La page des effets (points de chaîne)"),
-        el("p", "", "Une seule source pour tout : BONK, pluie d'emotes, sons flippants, séisme, kraken, écran de veille, dossier, le chat prend ta cam, chaos, Mini-Liliano, prison, voix d'hélium, « !replay » et « !pub »."),
+        el("b", "", "La page des effets : le BONK et « !replay »"),
         el("p", "", "Dans OBS : une source « Navigateur » avec cette adresse, en 1920 × 1080, tout en haut de la liste des sources, « Contrôler l'audio via OBS » coché. Dans ta scène jeu (et les autres) : Ajouter → Navigateur → « Ajouter une source existante », la même."),
         ligne("bot", "aide-etat"),
         ligne("vue", "aide-alerte"),
-        el("b", "aide-titre", "La régie (pour les effets qui bougent ta cam)"),
+        el("b", "aide-titre", "La régie (pour « !replay », et pour que le BONK suive ta cam)"),
         el("p", "", "Dans OBS : Outils → Paramètres du serveur WebSocket → coche « Activer le serveur WebSocket », puis « Afficher les informations de connexion » et tape ici le mot de passe. Il reste dans OBS (dans cette source) : il ne part nulle part."),
         el("div", "aide-ligne", mdp, port, L.relier, oublier),
         ligne("regie", "aide-etat"),
         ligne("cam"),
         el("label", "aide-champ", el("span", "", "Ta cam dans la scène en direct"), cams),
-        el("label", "aide-champ", el("span", "", "Le dossier des sons flippants (flippant-01.aac…)"), sons),
-        el("label", "aide-champ", el("span", "", "Le dossier des photos (dossier-1.jpg, dossier-2.jpg…)"), photos),
-        ligne("photos"),
-        el("p", "aide-petit", "La régie crée elle-même trois sources cachées (BARHAW Replay, BARHAW Sons flippants, BARHAW Dossier) : laisse-les. Tout ce qu'elle bouge est remis à sa place à la fin."),
+        el("p", "aide-petit", "Pour « !replay » : OBS → Paramètres → Sortie → coche « Activer le tampon de relecture ». La régie crée elle-même une source cachée, « BARHAW Replay » : laisse-la."),
         el("b", "aide-titre", "Le BONK"),
         el("p", "", "Viser ta tête : clique ici là où est le haut de ta tête (la cible rose), dans ta scène principale. Les flèches du clavier l'ajustent."),
         ligne("cible"),
@@ -464,12 +415,11 @@ export function demarrer({ P }) {
   });
 
   window.__obsEffets = {
-    etat: () => ({ essai: ESSAI, adresse, lu, branche, droit, titres: { ...titres }, bloque, ext: EXT, joues, cible: { ...cible }, imposee, taille: TAILLE, vue: vue(), regie: regie.etat(), camVue, photos: photosTrouvees, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.length])), occupe: { ...occupe }, dernierRate }),
-    jouer: (action, d = {}) => demander({ ...d, action, ...(d.essai && !d.images && (action === "emotes" || action === "chaos") ? { images: EMOTES_ESSAI } : {}) }),
+    etat: () => ({ essai: ESSAI, adresse, lu, branche, droit, titres: { ...titres }, bloque, ext: EXT, joues, cible: { ...cible }, imposee, taille: TAILLE, vue: vue(), regie: regie.etat(), camVue, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.length])), occupe: { ...occupe }, dernierRate }),
+    jouer: (action, d = {}) => demander({ ...d, action }),
     viser: (x, y) => viser(x, y, false),
     cibleMaintenant,
     regie,
-    effets,
     reglages: (r) => { R = { ...R, ...r }; garder(); regie.connecter(); },
   };
 
@@ -477,7 +427,7 @@ export function demarrer({ P }) {
   if (ESSAI) {
     const tour = ESSAI === "tout" ? ACTIONS : [ESSAI];
     let i = 0;
-    const suivantEssai = () => { const a = tour[i++ % tour.length]; essayer(a); setTimeout(suivantEssai, a === "bonk" ? 6_000 : 12_000); };
+    const suivantEssai = () => { const a = tour[i++ % tour.length]; essayer(a); setTimeout(suivantEssai, a === "bonk" ? 6_000 : 20_000); };
     setTimeout(suivantEssai, 600);
   } else if (!CAPTURE) brancher();
 }
