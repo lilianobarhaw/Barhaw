@@ -1,20 +1,10 @@
-// LE BONK dans OBS : la page /obs?bonk, une source navigateur grande comme l'écran (1920 × 1080), transparente, au-dessus de
-// la cam (obs.js la charge et s'arrête là). Quand un viewer prend la récompense de points de chaîne « BONK », le bot
-// (lib/bonk.js) l'envoie ici : un gros marteau gonflable arrive en haut à droite, s'abat sur la tête du streamer, s'écrase et
-// rebondit, un « BONK ! » de BD éclate à côté et des étoiles tournent autour de la tête. Le pseudo de celui qui a payé
-// s'affiche sous le « BONK ! » (?pseudo=non pour l'enlever). « !bonk » dans le chat (le streamer ou un modo) : un essai gratuit.
-// Le marteau, les étoiles et le son (son/bonk/) ont été faits pour Barhaw : rien d'existant, libres de droits. Rien n'est gardé
-// (sauf la place de la cible, dans le navigateur d'OBS).
-// LA CIBLE : le haut de la tête, en pourcentage de l'écran (65 % depuis la gauche, 42,5 % depuis le haut sans rien). Pour la
-// changer : clic droit sur la source dans OBS → « Interagir », puis un clic là où est le haut de la tête (la cible rose se
-// voit dans l'aperçu d'OBS) ; les flèches du clavier l'ajustent. Elle est gardée dans le navigateur d'OBS ; ?x=<%>&y=<%>
-// dans l'adresse l'impose pour de bon.
-// Réglages dans l'adresse : ?x= ?y= (la cible) · ?taille=<%> (la taille du marteau : 100 sans rien, de 40 à 250) ·
-// ?son=non · ?pseudo=non · ?essai=bonk (un bonk toutes les 6 s, sans le bot, pour placer la source).
+// LE BONK (la page des effets, js/obs-effets.js) : un gros marteau gonflable arrive en haut à droite, s'abat sur la tête du
+// streamer (la cible : le haut de la tête), s'écrase et rebondit ; un « BONK ! » de BD éclate à côté, avec le pseudo de celui
+// qui l'a pris, et des étoiles tournent autour de la tête (2,9 s). La tête dans la moitié gauche : le marteau vient de la
+// gauche ; tout en haut : la bulle passe en dessous. Le marteau, les étoiles et les trois sons (son/bonk/) ont été faits pour
+// Barhaw : rien d'existant, libres de droits.
 
 const CAPTURE = Boolean(window.__capture);
-const DEFAUT = { x: 65, y: 42.5 };
-const CLE = "barhaw-obs-bonk-cible";
 const DUREE = 2900; // un bonk, du marteau qui arrive aux dernières étoiles
 const IMPACT = 430; // l'instant où le marteau touche la tête (le son est calé dessus)
 const SONS = ["bonk-1", "bonk-2", "bonk-3"];
@@ -34,9 +24,7 @@ const el = (balise, classe, ...enfants) => {
 };
 // les dessins (fixes, écrits ici : jamais de texte venu d'ailleurs dans ce HTML)
 const dessin = (classe, svg) => { const n = el("div", classe); n.innerHTML = svg; return n; };
-const lire = async (adresse) => { try { const r = await fetch(adresse, { headers: { Accept: "application/json" }, cache: "no-store" }); return await r.json(); } catch { return null; } };
 const doux = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-const pourcent = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return String(v ?? "").trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 10) / 10 : null; };
 function anime(n, images, options) {
   if (!n || typeof n.animate !== "function") return null;
   const a = n.animate(images, options);
@@ -102,63 +90,29 @@ const COULEURS_ETOILES = ["#ffcf5c", "#ff8fcb", "#ffcf5c", "#d1a6ff", "#ffe48a"]
 const TRAITS = [-168, -146, -34, -12, 164, 16]; // les traits de choc, autour du point d'impact (en degrés)
 const ECLATS = [{ x: -17, y: -21, t: 620 }, { x: 18, y: -25, t: 880 }, { x: -21, y: -6, t: 1180 }, { x: 20, y: -9, t: 1480 }, { x: -6, y: -27, t: 1760 }];
 
-export function demarrer({ P }) {
-  const ESSAI = (P.get("essai") || "").toLowerCase() === "bonk";
-  const SON = P.get("son") !== "non";
-  const PSEUDO = P.get("pseudo") !== "non";
-  const t = Number(P.get("taille"));
-  const TAILLE = /^\d{2,3}$/.test(P.get("taille") || "") ? Math.min(250, Math.max(40, t)) / 100 : 1;
-  const DANS_OBS = Boolean(window.obsstudio);
+export const DUREE_BONK = DUREE;
 
+// cible() → { x, y } en % de l'écran ; sonner(nom) joue un son de son/ (bonk/bonk-1…) ; jouer(par, { x, y, taille }) vise
+// ailleurs (la tête dans la cam de la scène en direct, plus petite dans la scène jeu)
+export function creerBonk({ cible = () => ({ x: 65, y: 42.5 }), taille: tailleDeBase = 1, pseudo = true, sonner = () => {} } = {}) {
   try { document.fonts.load('104px "Dela Gothic One"'); document.fonts.load('800 28px "M PLUS Rounded 1c"'); } catch { /* elles viendront */ }
-  const degrades = el("div", "bonk-degrades-boite");
-  degrades.innerHTML = DEGRADES;
-  document.body.append(degrades);
-
-  // ---------- la cible (le haut de la tête) ----------
-  const imposee = pourcent(P.get("x")) !== null && pourcent(P.get("y")) !== null;
-  function cibleDeDepart() {
-    if (imposee) return { x: pourcent(P.get("x")), y: pourcent(P.get("y")) };
-    try {
-      const m = JSON.parse(localStorage.getItem(CLE) || "null");
-      if (m && pourcent(m.x) !== null && pourcent(m.y) !== null) return { x: pourcent(m.x), y: pourcent(m.y) };
-    } catch { /* pas de stockage : la cible de départ */ }
-    return { ...DEFAUT };
+  if (!document.querySelector(".bonk-degrades-boite")) {
+    const degrades = el("div", "bonk-degrades-boite");
+    degrades.innerHTML = DEGRADES;
+    document.body.append(degrades);
   }
-  let cible = cibleDeDepart();
-  function viser(x, y, garder = true) {
-    cible = { x: Math.round(Math.min(98, Math.max(2, x)) * 10) / 10, y: Math.round(Math.min(98, Math.max(2, y)) * 10) / 10 };
-    if (garder) { try { localStorage.setItem(CLE, JSON.stringify(cible)); } catch { /* pas de stockage */ } }
-    placerMire();
-    majAide();
-  }
-
-  // ---------- le son (trois coups un peu différents, jamais deux fois le même de suite) ----------
-  const EXT = new Audio().canPlayType('audio/ogg; codecs="opus"') ? "ogg" : "mp3";
-  const audios = SONS.map((s) => { const a = new Audio(`/son/bonk/${s}.${EXT}`); a.preload = "auto"; return a; });
-  let dernierSon = -1;
-  let bloque = false; // un navigateur qui attend un clic avant de laisser passer le son (pas OBS)
-  function sonner() {
-    if (!SON || CAPTURE) return;
-    let i = Math.floor(Math.random() * audios.length);
-    if (i === dernierSon) i = (i + 1) % audios.length;
-    dernierSon = i;
-    const a = audios[i];
-    try { a.pause(); a.currentTime = 0; } catch { /* pas encore chargé */ }
-    const p = a.play();
-    if (p && typeof p.catch === "function") p.then(() => { if (bloque) { bloque = false; majAide(); } }).catch(() => { bloque = true; majAide(); });
-  }
-
-  // ---------- un bonk ----------
   let joues = 0;
-  function bonk(par = "") {
+  let dernierSon = -1;
+  function jouer(par = "", ou = null) {
     joues += 1;
-    const gauche = cible.x < 42; // la tête est à gauche : le marteau vient de la gauche, la bulle part à droite
-    const haut = cible.y < 22; // trop près du haut : la bulle passe en dessous
+    const c = ou && Number.isFinite(ou.x) && Number.isFinite(ou.y) ? ou : cible();
+    const taille = Number.isFinite(ou?.taille) && ou.taille > 0 ? ou.taille : tailleDeBase;
+    const gauche = c.x < 42; // la tête est à gauche : le marteau vient de la gauche, la bulle part à droite
+    const haut = c.y < 22; // trop près du haut : la bulle passe en dessous
     const racine = el("div", `bonk${gauche ? " gauche" : ""}`);
-    racine.style.left = `${cible.x}%`;
-    racine.style.top = `${cible.y}%`;
-    if (TAILLE !== 1) racine.style.transform = `scale(${TAILLE})`;
+    racine.style.left = `${c.x}%`;
+    racine.style.top = `${c.y}%`;
+    if (taille !== 1) racine.style.transform = `scale(${taille})`;
 
     // le marteau (retourné quand il vient de la gauche), l'onde et les traits du choc
     const cote = el("div", "bonk-cote");
@@ -181,7 +135,7 @@ export function demarrer({ P }) {
     const dedans = dessin("bonk-bulle-in", BULLE);
     const nom = String(par || "").replace(/[\u0000-\u001f\u007f<>`@]/g, "").trim().slice(0, 25);
     let ligne = null;
-    if (PSEUDO && nom) {
+    if (pseudo && nom) {
       ligne = el("span", "", "par ", el("b", "", nom));
       dedans.append(el("div", "bonk-par", ligne));
     }
@@ -269,162 +223,10 @@ export function demarrer({ P }) {
         { offset: 1, transform: "translateY(-0.6rem)", opacity: 0 },
       ], { duration: DUREE - 660, delay: 640, easing: "ease-out" });
     }
-    sonner();
-    setTimeout(() => racine.remove(), DUREE + 80);
+    sonner(`bonk/${SONS[(dernierSon = (dernierSon + 1 + Math.floor(Math.random() * (SONS.length - 1))) % SONS.length)]}`);
+    return new Promise((ok) => setTimeout(() => { racine.remove(); ok(); }, DUREE + 80));
   }
 
-  // un à la fois : ceux qui arrivent pendant un bonk attendent leur tour
-  const file = [];
-  let enCours = false;
-  function suivant() {
-    if (enCours || !file.length) return;
-    enCours = true;
-    bonk(file.shift());
-    setTimeout(() => { enCours = false; suivant(); }, DUREE + 350);
-  }
-  function demander(par) {
-    if (file.length >= 30) return;
-    file.push(par);
-    suivant();
-  }
 
-  // ---------- la connexion au serveur en direct du bot (l'adresse vient du site) ----------
-  let ws = null;
-  let adresse = "";
-  let lu = false;
-  let branche = false;
-  let recompense = "";
-  let droit = true;
-  let essais = 0;
-  let vu = 0;
-  let minuteur = null;
-  function debrancher() {
-    const s = ws;
-    ws = null;
-    branche = false;
-    if (s) { s.onopen = s.onmessage = s.onclose = s.onerror = null; try { s.close(); } catch { /* déjà fermée */ } }
-  }
-  function plusTard(ms) { clearTimeout(minuteur); minuteur = setTimeout(brancher, ms); }
-  async function brancher() {
-    clearTimeout(minuteur);
-    if (ws) return;
-    const d = await lire("/api/public");
-    if (ws) return;
-    if (d && !d.horsLigne) {
-      lu = true;
-      const x = d.bonk?.adresse;
-      adresse = typeof x === "string" && /^wss:\/\/[a-z0-9.-]+(:\d{1,5})?\/bonk$/i.test(x) ? x : "";
-    }
-    majAide();
-    if (!adresse) { plusTard(20_000); return; }
-    let s = null;
-    try { s = new WebSocket(adresse); } catch { s = null; }
-    if (!s) { plusTard(20_000); return; }
-    ws = s;
-    s.onopen = () => { vu = Date.now(); s.send(JSON.stringify({ k: "bonjour", role: "obs" })); };
-    s.onmessage = (e) => {
-      vu = Date.now();
-      let m = null;
-      try { m = JSON.parse(e.data); } catch { return; }
-      if (m?.k === "etat") { branche = true; essais = 0; recompense = String(m.recompense || "").slice(0, 60); droit = m.droit !== false; majAide(); }
-      else if (m?.k === "bonk") demander(typeof m.par === "string" ? m.par : "");
-    };
-    s.onclose = () => {
-      if (ws !== s) return;
-      debrancher();
-      essais += 1;
-      majAide();
-      plusTard(Math.min(30_000, 1_500 * 2 ** Math.min(essais, 5)));
-    };
-  }
-  setInterval(() => {
-    if (!ws || ws.readyState !== 1) return;
-    if (Date.now() - vu > 50_000) { debrancher(); majAide(); plusTard(1_000); return; }
-    try { ws.send(JSON.stringify({ k: "p", c: Date.now() })); } catch { /* elle se ferme */ }
-  }, 15_000);
-
-  // ---------- hors du live (navigateur, ou « Interagir » dans OBS) : l'aide, la cible, un bouton pour essayer ----------
-  let aide = null;
-  let aideLigne = null;
-  let cibleLigne = null;
-  let mire = null;
-  let aideMinuteur = null;
-  function placerMire() {
-    if (!mire) return;
-    mire.style.left = `${cible.x}%`;
-    mire.style.top = `${cible.y}%`;
-  }
-  function majAide() {
-    if (!aideLigne) return;
-    const etat = ESSAI ? "Essai : un bonk toutes les 6 secondes, sans le bot."
-      : !lu ? "Connexion au site…"
-      : !adresse ? "⏳ Le bot ne propose pas encore le BONK (sa mise à jour n'est pas installée)."
-      : branche && !droit ? "⛔ Le bot ne voit pas encore tes récompenses : refais /objectif connecter sur le Discord de Barhaw."
-      : branche ? `✅ Branchée au bot${recompense ? ` : récompense « ${recompense} »` : " : la récompense pas encore trouvée (sur Twitch, une récompense avec « bonk » dans son titre)"}.`
-      : "⏳ Connexion au bot…";
-    const plus = bloque ? " 🔇 Clique une fois sur la page pour autoriser le son." : "";
-    if (aideLigne.textContent !== etat + plus) aideLigne.textContent = etat + plus;
-    const c = `🎯 Cible : ${String(cible.x).replace(".", ",")} % depuis la gauche, ${String(cible.y).replace(".", ",")} % depuis le haut.${imposee ? " (Imposée par l'adresse : change ?x= et ?y= dans les propriétés de la source.)" : ` Pour la garder à coup sûr, ajoute à l'adresse : &x=${cible.x}&y=${cible.y}`}`;
-    if (cibleLigne.textContent !== c) cibleLigne.textContent = c;
-  }
-  function montrerAide() {
-    if (CAPTURE) return;
-    if (!aide) {
-      aideLigne = el("p", "aide-etat", "");
-      cibleLigne = el("p", "", "");
-      const essai = el("button", "", "▶ Essayer");
-      essai.type = "button";
-      essai.addEventListener("click", () => demander("Moussaillon"));
-      const zero = el("button", "", "↺ Cible de départ");
-      zero.type = "button";
-      zero.addEventListener("click", () => { try { localStorage.removeItem(CLE); } catch { /* rien */ } viser(DEFAUT.x, DEFAUT.y, false); });
-      aide = el("div", "aide",
-        el("b", "", "Le BONK (points de chaîne)"),
-        el("p", "", "Quand un viewer prend ta récompense « BONK », un gros marteau gonflable tombe sur ta tête, avec un « BONK ! » et des étoiles. « !bonk » dans ton chat (toi ou un modo) : un essai gratuit."),
-        el("p", "", "Dans OBS : une source « Navigateur » avec cette adresse, en 1920 × 1080 (tout l'écran), au-dessus de ta cam, « Contrôler l'audio via OBS » coché."),
-        el("p", "", "Viser ta tête : clic droit sur la source → « Interagir », puis clique ici là où est le haut de ta tête (la cible rose se voit dans l'aperçu d'OBS). Les flèches du clavier l'ajustent."),
-        aideLigne,
-        cibleLigne,
-        el("div", "aide-sons", essai, zero));
-      mire = el("div", "bonk-mire", el("i"), el("span", "", "le haut de ta tête"));
-      document.body.append(mire, aide);
-      placerMire();
-      majAide();
-    }
-    aide.hidden = false;
-    mire.hidden = false;
-    clearTimeout(aideMinuteur);
-    aideMinuteur = setTimeout(() => { if (aide) aide.hidden = true; if (mire) mire.hidden = true; }, DANS_OBS ? 10_000 : 15_000);
-  }
-  for (const geste of ["pointermove", "pointerdown", "keydown"]) window.addEventListener(geste, montrerAide, { passive: true });
-  // un clic (hors de l'aide) pose la cible ; un clic autorise aussi le son dans un navigateur
-  window.addEventListener("pointerdown", (e) => {
-    if (CAPTURE) return;
-    if (bloque) {
-      bloque = false;
-      const a = audios[0];
-      try { a.muted = true; a.play().then(() => { a.pause(); a.muted = false; a.currentTime = 0; }).catch(() => { a.muted = false; }); } catch { /* tant pis */ }
-    }
-    if (aide && aide.contains(e.target)) return;
-    viser((e.clientX / Math.max(1, window.innerWidth)) * 100, (e.clientY / Math.max(1, window.innerHeight)) * 100);
-  }, { passive: true });
-  window.addEventListener("keydown", (e) => {
-    const pas = e.shiftKey ? 2 : 0.5;
-    const dx = e.key === "ArrowLeft" ? -pas : e.key === "ArrowRight" ? pas : 0;
-    const dy = e.key === "ArrowUp" ? -pas : e.key === "ArrowDown" ? pas : 0;
-    if (!dx && !dy) return;
-    e.preventDefault();
-    viser(cible.x + dx, cible.y + dy);
-  });
-
-  window.__obsBonk = {
-    etat: () => ({ essai: ESSAI, adresse, lu, branche, recompense, droit, bloque, ext: EXT, joues, cible: { ...cible }, imposee, taille: TAILLE, file: file.length, enCours }),
-    bonk: (par = "") => demander(par),
-    viser: (x, y) => viser(x, y, false),
-  };
-
-  if (ESSAI) {
-    const tour = () => { demander("Moussaillon"); setTimeout(tour, 6_000); };
-    setTimeout(tour, 600);
-  } else brancher();
+  return { jouer, joues: () => joues };
 }
