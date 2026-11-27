@@ -7,7 +7,9 @@
 // dans toutes les scènes (Ajouter → Navigateur → « Ajouter une source existante ») ; avec la régie, le BONK vise la tête dans
 // la cam de la scène en direct (la grande cam de la scène principale, la petite cam de la scène jeu). Un BONK à la fois.
 // Hors du live (navigateur, ou « Interagir » dans OBS) : bouger la souris montre l'aide (l'état, la régie, ta cam, un bouton
-// pour essayer) ; un clic hors de l'aide vise le haut de ta tête pour le BONK.
+// pour essayer) ; un clic hors de l'aide vise le haut de ta tête pour le BONK. L'aide repart toute seule au bout de 20 s
+// (même après un clic sur un de ses boutons), tout de suite quand la fenêtre « Interagir » se ferme, et jamais plus de
+// 2 minutes sans rien toucher, même avec le curseur resté dans un champ : elle ne reste pas sur le live.
 // Rien n'est gardé au nom des viewers : seulement le pseudo de celui qui a pris le BONK, le temps de l'afficher.
 // Réglages dans l'adresse : ?son=non · ?pseudo=non · ?taille=<%> (le marteau : 100 sans rien) · ?x= ?y= (la cible du BONK,
 // imposée) · ?essai=effets (le BONK et le replay à tour de rôle, sans le bot) ou ?essai=bonk, ?essai=replay.
@@ -52,6 +54,7 @@ export function demarrer({ P }) {
   let aide = null; // l'aide (hors du live), sa cible rose, et ses lignes qui changent
   let mire = null;
   let aideMinuteur = null;
+  let derniereAction = 0; // (la dernière fois qu'on a bougé la souris ou tapé dans l'aide)
   const L = {};
 
   // ---------- les réglages de la régie (gardés dans le navigateur d'OBS : ils ne partent nulle part) ----------
@@ -318,7 +321,8 @@ export function demarrer({ P }) {
   function bouton(texte, f, classe = "") {
     const b = el("button", classe, texte);
     b.type = "button";
-    b.addEventListener("click", (e) => { e.stopPropagation(); f(); });
+    // (le bouton ne garde pas la main : sinon l'aide croirait qu'on s'en sert encore et resterait sur le live)
+    b.addEventListener("click", (e) => { e.stopPropagation(); f(); b.blur(); });
     return b;
   }
   function champ(type, valeur, place, change) {
@@ -390,9 +394,35 @@ export function demarrer({ P }) {
     }
     aide.hidden = false;
     mire.hidden = false;
-    clearTimeout(aideMinuteur);
-    aideMinuteur = setTimeout(() => { if (aide && !aide.contains(document.activeElement)) { aide.hidden = true; mire.hidden = true; } else montrerAide(); }, DANS_OBS ? 20_000 : 30_000);
+    derniereAction = Date.now();
+    armerCache();
   }
+  // l'aide reste tant qu'on tape dans un de ses champs (le mot de passe, le port, ta cam), mais pas plus de 2 minutes sans
+  // rien toucher ; un bouton cliqué ne la garde pas
+  const onTape = () => {
+    const a = document.activeElement;
+    return Boolean(aide && a && aide.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+  };
+  function armerCache() {
+    clearTimeout(aideMinuteur);
+    aideMinuteur = setTimeout(() => {
+      if (onTape() && Date.now() - derniereAction < 120_000) armerCache();
+      else cacherAide();
+    }, DANS_OBS ? 20_000 : 30_000);
+  }
+  function cacherAide() {
+    clearTimeout(aideMinuteur);
+    if (!aide) return;
+    try { if (aide.contains(document.activeElement)) document.activeElement.blur(); } catch { /* rien */ }
+    aide.hidden = true;
+    if (mire) mire.hidden = true;
+  }
+  // la fenêtre « Interagir » se ferme (ou on passe à une autre fenêtre) : l'aide part tout de suite après
+  window.addEventListener("blur", () => {
+    if (!aide || aide.hidden) return;
+    clearTimeout(aideMinuteur);
+    aideMinuteur = setTimeout(cacherAide, 1500);
+  });
   for (const geste of ["pointermove", "pointerdown", "keydown"]) window.addEventListener(geste, montrerAide, { passive: true });
   window.addEventListener("pointerdown", (e) => {
     if (CAPTURE) return;
