@@ -26,6 +26,8 @@ Le site ne stocke rien lui-même : tout vient du **bot Barhaw** sur le VPS (son 
 | `js/traversee-3d.js` | La Traversée (V4), le mini-jeu de GRAND LINE, en 3D : chargée seulement quand on ouvre le jeu (le moteur du jeu est dans `site.js`) |
 | `modeles/grandline/` | Les modèles 3D de GRAND LINE faits dans Blender : le navire, les 15 îles, le monstre marin, la mouette, la bouteille (`.glb` compactés, lus par `js/grandline-3d.js`) |
 | `outils/blender/` | Les scripts Blender qui fabriquent ces modèles (voir plus bas) ; jamais servis par le site |
+| `js/battle-3d.js` | Le Battle Royale (« L'Île sans retour ») en 3D : l'île, les avis de recherche des pirates, la marée, les duels ; chargé seulement à l'approche de la section |
+| `modeles/battle/` | L'île du Battle Royale faite dans Blender (`outils/blender/barhaw_battle_v5.py`) : le terrain et sa lumière dans une seule image, les plantes semées par le site (elles bougent au vent et s'enfoncent quand la mer monte) ; une version légère pour les téléphones. Sans ces fichiers, le site dessine l'île lui-même |
 | `js/gouter-3d.js`, `js/three-r170.module.min.js` | Le goûter de Chopper en 3D (chargé seulement à l'approche de la partie Chopper) et three.js, la bibliothèque 3D (licence MIT) |
 | `api/auth/login.js`, `api/auth/callback.js` | La connexion avec Discord (seulement le pseudo et l'image de profil) ; `/api/auth/logout` pour sortir |
 | `lib/session.js` | Session signée (cookie HttpOnly, 30 jours), cookies |
