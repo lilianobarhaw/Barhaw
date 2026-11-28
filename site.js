@@ -4897,9 +4897,11 @@
     if (BR.charge || BR.echec) return;
     BR.charge = true;
     try {
-      const { creerBattle3D } = await import("/js/battle-3d.js");
+      const { creerBattle3D, chargerIle } = await import("/js/battle-3d.js");
+      // l'île faite dans Blender (la version légère sur un petit écran) ; si elle ne vient pas, le site la dessine lui-même
+      const ile = await chargerIle({ petit: brPetit() });
       BR.rendu = creerBattle3D($("btl-toile"), {
-        couche: $("btl-couche"), petit: brPetit(), reduit: reduit.matches, photo: photoAffiche, son: brSon,
+        couche: $("btl-couche"), petit: brPetit(), reduit: reduit.matches, photo: photoAffiche, son: brSon, ile,
         surPirate: (k) => { const x = BR.d?.direct; if (x && !x.fini && !BR.rediff) { BR.choix = k; brRendreCote(); $("btl-cote")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } },
       });
       $("btl-toile").addEventListener("battle-perdu", () => { BR.echec = true; BR.rendu = null; $("btl-scene")?.classList.remove("btl-3d"); }, { once: true });

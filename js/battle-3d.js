@@ -14,7 +14,8 @@
 //     emporte celles du bord
 //   • la fin : les feux d'artifice, un faisceau de lumière sur l'affiche du survivant, la caméra tourne autour de lui
 //   • avant la battle : l'île tourne doucement, avec les affiches des têtes d'affiche et celle du dernier survivant
-// creerBattle3D(toile, { couche, petit, reduit, photo, surPirate, son }) → { etat(d), focus(k), pause(oui), vitesse(v), redimensionner(), arreter() }
+// creerBattle3D(toile, { couche, petit, reduit, photo, surPirate, son, ile }) → { etat(d), focus(k), pause(oui), vitesse(v), redimensionner(), arreter() }
+//   ile : l'île faite dans Blender (ce que renvoie chargerIle()) ; sans elle, le site dessine l'île lui-même
 //   d : { mode: "attente" | "direct", maree, round, pirates: [{ k, nom, avatar, portrait, prime, x, y, vivant, top, vies, mort }],
 //         suspense: { a, b } | null, dernier: { round, fil, duel } | null, fete: k du survivant | null,
 //         rythme: le temps (s) pour jouer les événements d'un round (7 par défaut) }
@@ -35,6 +36,121 @@ function rendreJuste(rendu, scene, camera) {
   try { rendu.render(scene, camera); } finally { THREE.ColorManagement.enabled = avant; }
 }
 
+// ---------- l'île faite dans Blender (outils/blender/barhaw_battle_v5.py) ----------
+// Le terrain, les épaves et les camps, avec leur lumière du soir cuite dans une image (l'atlas) ; la végétation par
+// « types » (un cocotier, un buisson…) que le site sème lui-même aux places écrites dans le modèle, d'un seul dessin par
+// type. Les fichiers sont compactés comme ceux de GRAND LINE (outils/blender/compacter_glb.py puis compresser_glb.py) :
+// ce petit lecteur sait les relire. Si le modèle ne vient pas (réseau, vieux navigateur), le site dessine l'île lui-même.
+const ECHELLE_ILE = 6; // une unité du modèle = 6 unités d'ici
+const TYPES_GLB = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
+const MAX_GLB = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
+const COMPOSANTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+async function telechargerGLB(url) {
+  // la version compressée (.glbz, 4 fois plus légère) si le navigateur sait la décompresser ; sinon le .glb
+  if (typeof DecompressionStream === "function") {
+    try {
+      const r = await fetch(`${url}z`);
+      if (r.ok && r.body) return await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+    } catch {}
+  }
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} : ${r.status}`);
+  return r.arrayBuffer();
+}
+// le chemin inverse de compresser_glb.py : les octets rangés par plans reviennent à leur place, puis chaque valeur
+// redevient la somme des écarts
+function defiltrerGLB(g, bin) {
+  for (const a of g.accessors || []) {
+    const v = g.bufferViews[a.bufferView];
+    const T = TYPES_GLB[a.componentType];
+    if (!T || T === Float32Array) continue;
+    const taille = T.BYTES_PER_ELEMENT;
+    const pas = v.byteStride || taille * COMPOSANTS[a.type];
+    const cols = pas / taille;
+    const n = a.count;
+    const debut = (v.byteOffset || 0) + (a.byteOffset || 0);
+    const plans = new Uint8Array(bin, debut, n * pas).slice();
+    const octets = new Uint8Array(bin, debut, n * pas);
+    for (let o = 0; o < taille; o++) for (let c = 0; c < cols; c++) {
+      const base = (o * cols + c) * n;
+      for (let i = 0; i < n; i++) octets[i * pas + c * taille + o] = plans[base + i];
+    }
+    const x = new T(bin, debut, n * cols);
+    for (let i = cols; i < x.length; i++) x[i] += x[i - cols];
+  }
+}
+function accesseurGLB(g, bin, i, brut = false) {
+  const a = g.accessors[i];
+  const v = g.bufferViews[a.bufferView];
+  const T = TYPES_GLB[a.componentType];
+  const k = COMPOSANTS[a.type];
+  const debut = (v.byteOffset || 0) + (a.byteOffset || 0);
+  if (brut) return new T(bin, debut, a.count * k);
+  const pas = (v.byteStride || T.BYTES_PER_ELEMENT * k) / T.BYTES_PER_ELEMENT;
+  const src = new T(bin, debut, pas * (a.count - 1) + k);
+  const max = a.normalized ? MAX_GLB[a.componentType] : 1;
+  const x = new Float32Array(a.count * k);
+  const e = a.extras || {};
+  for (let n = 0; n < a.count; n++) {
+    for (let c = 0; c < k; c++) {
+      let val = Math.max(-1, src[n * pas + c] / max);
+      if (e.centre) val = e.centre[c] + val * e.demi[c];
+      else if (e.min) val = e.min[c] + val * e.ecart[c];
+      x[n * k + c] = val;
+    }
+  }
+  return { x, k, srgb: Boolean(e.srgb) };
+}
+// une pièce du modèle : ses points, ses UV (dans l'atlas, ou le long de la lave), et « aVent » : ce que le vent fait bouger
+// (dans le modèle, c'est le vert de la couleur de sommet : 1 = immobile)
+function geometrieIle(g, bin, p) {
+  const geo = new THREE.BufferGeometry();
+  const at = p.attributes;
+  geo.setAttribute("position", new THREE.BufferAttribute(accesseurGLB(g, bin, at.POSITION).x, 3));
+  if (at.TEXCOORD_0 !== undefined) geo.setAttribute("uv", new THREE.BufferAttribute(accesseurGLB(g, bin, at.TEXCOORD_0).x, 2));
+  const n = geo.attributes.position.count;
+  const vent = new Float32Array(n);
+  if (at.COLOR_0 !== undefined) {
+    const { x, k, srgb } = accesseurGLB(g, bin, at.COLOR_0);
+    for (let i = 0; i < n; i++) { const v = x[i * k + 1]; vent[i] = Math.max(0, 1 - (srgb ? v : v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)); }
+  }
+  geo.setAttribute("aVent", new THREE.BufferAttribute(vent, 1));
+  if (p.indices !== undefined) geo.setIndex(new THREE.BufferAttribute(accesseurGLB(g, bin, p.indices, true), 1));
+  geo.computeBoundingSphere();
+  return geo;
+}
+async function lireImage(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} : ${r.status}`);
+  const blob = new Blob([await r.arrayBuffer()], { type: "image/webp" });
+  if (typeof createImageBitmap === "function") return createImageBitmap(blob, { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  // un vieux navigateur : l'image passe par une adresse « data: » (la page n'accepte pas les adresses « blob: »)
+  const adresse = await new Promise((ok, non) => { const l = new FileReader(); l.onload = () => ok(l.result); l.onerror = () => non(new Error(`${url} : illisible`)); l.readAsDataURL(blob); });
+  return new Promise((ok, non) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => non(new Error(`${url} : image refusée`)); i.src = adresse; });
+}
+// Va chercher l'île (la version légère sur un petit écran). Renvoie de quoi la poser (à passer à creerBattle3D : { ile }),
+// ou null si elle ne vient pas à temps : le site dessinera alors l'île lui-même.
+export async function chargerIle({ petit = false, modeles = "/modeles/battle/", attente = 15000 } = {}) {
+  const nom = `ile-battle-v5${petit ? "-leger" : ""}`;
+  try {
+    const lecture = (async () => {
+      const [buf, image] = await Promise.all([telechargerGLB(`${modeles}${nom}.glb`), lireImage(`${modeles}${nom}.webp`)]);
+      const dv = new DataView(buf);
+      if (dv.getUint32(0, true) !== 0x46546c67) throw new Error("pas un .glb");
+      const lj = dv.getUint32(12, true);
+      const g = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, lj)));
+      const lb = dv.getUint32(20 + lj, true);
+      const bin = buf.slice(28 + lj, 28 + lj + lb);
+      if (g.asset?.extras?.filtre === "delta-octets") defiltrerGLB(g, bin);
+      return { g, bin, image };
+    })();
+    lecture.catch(() => {});
+    return await Promise.race([lecture, new Promise((_, non) => setTimeout(() => non(new Error("trop long")), attente))]);
+  } catch {
+    return null;
+  }
+}
+
 // ---------- l'île (la même que sur les images du Discord) ----------
 const R = 44;
 const VOLCAN = { x: 7, z: -9, r: 19, h: 31 };
@@ -48,6 +164,7 @@ function bruit(x, y) {
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 function fbm(x, y, o = 5) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i++) { s += a * bruit(x * f, y * f); f *= 2.03; a *= 0.5; } return s; }
+const lisse01 = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export function hauteur(x, z) {
   const ang = Math.atan2(z, x);
   const bord = 1 + 0.42 * (fbm(Math.cos(ang) * 1.6 + 5, Math.sin(ang) * 1.6 + 5, 4) - 0.5);
@@ -55,8 +172,14 @@ export function hauteur(x, z) {
   let h = (1 - dd * dd) * 8 - 1.4;
   h += (fbm(x * 0.07 + 3, z * 0.07 + 7, 5) - 0.42) * 8 * Math.max(0, 1 - dd);
   const dv = Math.hypot(x - VOLCAN.x, z - VOLCAN.z) / VOLCAN.r;
-  h += Math.pow(Math.max(0, 1 - dv), 1.7) * VOLCAN.h * (0.85 + 0.3 * fbm(x * 0.2, z * 0.2, 3));
-  if (dv < 0.2) h -= ((0.2 - dv) / 0.2) * 8;
+  if (dv < 1) {
+    // le cône, creusé d'un vrai cratère (une cuvette dont le bord est à dv = 0,2 : le lac de lave est au fond)
+    h += Math.min(Math.pow(1 - dv, 1.7) * VOLCAN.h, 16 + 130 * dv * dv) * (0.85 + 0.3 * fbm(x * 0.2, z * 0.2, 3));
+    // les ravines qui descendent du bord du cratère (la lave les suit), et le grain de la roche
+    const av = Math.atan2(z - VOLCAN.z, x - VOLCAN.x);
+    const flanc = lisse01(0.2, 0.32, dv) * lisse01(1.0, 0.55, dv);
+    h += flanc * (Math.cos(av * 11 + 4 * fbm(x * 0.06 + 9, z * 0.06 + 4, 2)) * 1.5 + (fbm(x * 0.55 + 2, z * 0.55 + 8, 3) - 0.5) * 2);
+  }
   if (dd > 1) h = Math.min(h, -1.5 - (dd - 1) * 26);
   return h;
 }
@@ -148,7 +271,7 @@ function dessinerAffichette(c, { nom, prime, image, top, mort, vies = 0 }) {
   }
 }
 
-export function creerBattle3D(canvas, { couche = null, petit = false, reduit = false, photo = (u) => u, surPirate = () => {}, son = () => {} } = {}) {
+export function creerBattle3D(canvas, { couche = null, petit = false, reduit = false, photo = (u) => u, surPirate = () => {}, son = () => {}, ile = null } = {}) {
   let graine = 987654;
   const alea = () => (graine = (graine * 16807) % 2147483647) / 2147483647;
   const rendu = new THREE.WebGLRenderer({ canvas, antialias: !petit, alpha: false, powerPreference: "high-performance" });
@@ -208,7 +331,89 @@ void main(){
   ciel.renderOrder = -10;
   scene.add(ciel);
 
-  // ---------- le terrain ----------
+  // ---------- l'île faite dans Blender (si elle est arrivée) ----------
+  // Le corps (terrain, épaves, camps) s'affiche avec son image, telle quelle : sa lumière est déjà dedans. Les plantes
+  // sont semées ici (une InstancedMesh par type) ; le vent les fait frémir, et quand la mer couvre son pied chaque
+  // plante s'enfonce dans l'eau (aPied : la hauteur de son pied).
+  const uPlantes = { uT: { value: 0 }, uNiveau: { value: 0 } };
+  function poserIle({ g, bin, image }) {
+    const poses = [];
+    try {
+      const atlas = new THREE.Texture(image);
+      atlas.flipY = false; // les UV d'un .glb partent du haut de l'image
+      atlas.colorSpace = THREE.SRGBColorSpace;
+      atlas.minFilter = THREE.LinearMipmapLinearFilter;
+      atlas.anisotropy = 8;
+      atlas.needsUpdate = true;
+      const matCorps = new THREE.MeshBasicMaterial({ map: atlas, toneMapped: false });
+      const matPlantes = new THREE.MeshBasicMaterial({ map: atlas, toneMapped: false });
+      matPlantes.onBeforeCompile = (sh) => {
+        sh.uniforms.uT = uPlantes.uT;
+        sh.uniforms.uNiveau = uPlantes.uNiveau;
+        sh.vertexShader = sh.vertexShader
+          .replace("#include <common>", "#include <common>\nattribute float aVent;\nattribute float aPied;\nuniform float uT, uNiveau;")
+          .replace("#include <begin_vertex>", `#include <begin_vertex>
+            #ifdef USE_INSTANCING
+              float phase = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.29;
+              transformed.x += aVent * 0.03 * sin(uT * 1.6 + phase + position.y * 3.0);
+              transformed.z += aVent * 0.024 * sin(uT * 1.25 + phase * 1.7 + position.x * 2.0);
+            #endif`)
+          .replace("#include <project_vertex>", `vec4 mvPosition = vec4(transformed, 1.0);
+            #ifdef USE_INSTANCING
+              mvPosition = instanceMatrix * mvPosition;
+              float noye = smoothstep(aPied + 0.6, aPied + 2.0, uNiveau); // (pas avant que l'eau, vagues comprises, ne couvre son pied : son ombre au sol est cuite)
+              mvPosition.y -= noye * noye * 15.0;
+            #endif
+            mvPosition = modelViewMatrix * mvPosition;
+            gl_Position = projectionMatrix * mvPosition;`);
+      };
+      const racine = new THREE.Group();
+      racine.scale.setScalar(ECHELLE_ILE);
+      const laves = [], lacs = [];
+      const m4 = new THREE.Matrix4(), q0 = new THREE.Quaternion(), p0 = new THREE.Vector3(), s0 = new THREE.Vector3(), teinte = new THREE.Color();
+      for (const n of g.nodes || []) {
+        if (n.mesh === undefined) continue;
+        const ex = n.extras || {};
+        for (const p of g.meshes[n.mesh].primitives) {
+          const matiere = String(g.materials?.[p.material]?.name || "").split(".")[0];
+          if (ex.role === "type") {
+            // un type de plante : (x, y, z, taille, teinte) par pied, dans le repère du modèle (z vers le haut)
+            const pl = ex.places || [];
+            const nb = Math.floor(pl.length / 5);
+            if (!nb) continue;
+            const geo = geometrieIle(g, bin, p);
+            const im = new THREE.InstancedMesh(geo, matPlantes, nb);
+            const pied = new Float32Array(nb);
+            const fixe = ex.genre === "rocher" || ex.genre === "aiguilles"; // la pierre reste en place : la mer la recouvre
+            for (let i = 0; i < nb; i++) {
+              const e = pl[i * 5 + 3] * ECHELLE_ILE;
+              p0.set(pl[i * 5] * ECHELLE_ILE, pl[i * 5 + 2] * ECHELLE_ILE, -pl[i * 5 + 1] * ECHELLE_ILE);
+              im.setMatrixAt(i, m4.compose(p0, q0, s0.set(e, e, e)));
+              im.setColorAt(i, teinte.setScalar(pl[i * 5 + 4]));
+              pied[i] = fixe ? 1e6 : p0.y;
+            }
+            geo.setAttribute("aPied", new THREE.InstancedBufferAttribute(pied, 1));
+            im.frustumCulled = false;
+            scene.add(im);
+            poses.push(im);
+          } else if (matiere.startsWith("atlas")) racine.add(new THREE.Mesh(geometrieIle(g, bin, p), matCorps));
+          else if (matiere === "lave") { const m = new THREE.Mesh(geometrieIle(g, bin, p)); (ex.role === "lac" ? lacs : laves).push(m); racine.add(m); }
+          else if (matiere === "feu") racine.add(new THREE.Mesh(geometrieIle(g, bin, p), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.0, 0.25), toneMapped: false })));
+        }
+      }
+      if (!racine.children.length) throw new Error("île vide");
+      scene.add(racine);
+      poses.push(racine);
+      return { laves, lacs };
+    } catch {
+      for (const o of poses) scene.remove(o); // un modèle abîmé : on n'en garde rien, le site dessine l'île
+      return null;
+    }
+  }
+  const modele = ile ? poserIle(ile) : null;
+
+  // ---------- le terrain (quand le site dessine l'île lui-même) ----------
+  if (!modele) {
   const N = petit ? 150 : 240;
   const geoTerrain = new THREE.PlaneGeometry(TAILLE, TAILLE, N, N);
   geoTerrain.rotateX(-Math.PI / 2);
@@ -238,6 +443,7 @@ void main(){
     geoTerrain.setAttribute("color", new THREE.BufferAttribute(cols, 3));
   }
   scene.add(new THREE.Mesh(geoTerrain, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 })));
+  }
 
   // ---------- la lave, la lueur du volcan ----------
   // la lave coule : une texture de croûte et de bulles qui défile le long des coulées
@@ -258,14 +464,18 @@ void main(){
   const matLave = new THREE.MeshBasicMaterial({ color: C(0xffffff), map: texLave, toneMapped: false, fog: false });
   const matLac = new THREE.MeshBasicMaterial({ color: C(0xffffff), map: texLave.clone(), toneMapped: false });
   matLac.map.repeat.set(2, 2); matLac.map.needsUpdate = true;
-  const fondCratere = hauteur(VOLCAN.x, VOLCAN.z) + 0.6;
-  {
+  const fondCratere = hauteur(VOLCAN.x, VOLCAN.z) + 1.6; // le lac de lave, au fond du cratère
+  if (modele) {
+    for (const m of modele.laves) m.material = matLave;
+    for (const m of modele.lacs) m.material = matLac;
+  } else {
     const lac = new THREE.Mesh(new THREE.CircleGeometry(VOLCAN.r * 0.17, 40), matLac);
     lac.rotation.x = -Math.PI / 2;
     lac.position.set(VOLCAN.x, fondCratere, VOLCAN.z);
     scene.add(lac);
     for (const a0 of [0.6, 1.9, 2.6, 4.4, 5.3]) {
-      let x = VOLCAN.x + Math.cos(a0) * VOLCAN.r * 0.2, z = VOLCAN.z + Math.sin(a0) * VOLCAN.r * 0.2;
+      // (elles partent juste dehors du bord du cratère : sur la crête, elles retomberaient dedans)
+      let x = VOLCAN.x + Math.cos(a0) * VOLCAN.r * 0.225, z = VOLCAN.z + Math.sin(a0) * VOLCAN.r * 0.225;
       const pts = [];
       for (let k = 0; k < 90; k++) {
         const h = hauteur(x, z);
@@ -336,7 +546,7 @@ void main(){
   const VERTS = [0x2a5d30, 0x347238, 0x25563a, 0x3f7f36, 0x2f6a2c, 0x1f4a2a].map((c) => C(c));
   const FLEURS = [0xd6557c, 0xe7b24a, 0xb07ae0].map((c) => C(c));
   const bosquetsInfo = [];
-  {
+  if (!modele) {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     let n = 0, essais = 0, np = 0;
     const MAXP = petit ? 26 : 44;
@@ -362,7 +572,7 @@ void main(){
   }
   // ---------- les rochers et les épaves ----------
   const matRoche = new THREE.MeshStandardMaterial({ color: C(0x2c262c), roughness: 0.95, flatShading: true });
-  for (let k = 0; k < 14; k++) {
+  for (let k = 0; k < (modele ? 0 : 14); k++) {
     const a = alea() * Math.PI * 2, d = R * (0.95 + alea() * 0.35);
     const geo = new THREE.IcosahedronGeometry(1, 2);
     const p = geo.attributes.position;
@@ -406,9 +616,11 @@ void main(){
     g.rotation.set(incl * 0.5, rot, incl);
     scene.add(g);
   }
-  epave(-44, 30, 0.6, 0.38, 1.1);
-  epave(40, 36, -1.1, -0.3, 0.9);
-  epave(-30, -46, 2.2, 0.25, 0.8);
+  if (!modele) {
+    epave(-44, 30, 0.6, 0.38, 1.1);
+    epave(40, 36, -1.1, -0.3, 0.9);
+    epave(-30, -46, 2.2, 0.25, 0.8);
+  }
 
   // ---------- la mer (elle monte avec la marée) ----------
   const texH = (() => {
@@ -1344,7 +1556,10 @@ void main(){
     // la marée monte doucement jusqu'à son niveau
     niveau += (niveauCible - niveau) * Math.min(1, dt * 0.6);
     uMer.uNiveau.value = niveau;
-    // les palmiers et les bosquets sous l'eau disparaissent
+    // le modèle : le vent dans ses plantes, et la mer qui les avale une à une
+    uPlantes.uT.value = reduit ? 0 : t;
+    uPlantes.uNiveau.value = niveau;
+    // (l'île dessinée par le site) les palmiers sous l'eau disparaissent
     for (const p of palmiers) {
       p.groupe.visible = p.y > niveau + 0.3;
       if (!reduit) p.palmes.rotation.z = Math.sin(t * 1.3 + p.phase) * 0.05;
