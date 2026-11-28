@@ -1657,8 +1657,8 @@ html.v4 .sons[aria-pressed="true"] { color: var(--blanc); border-color: var(--ro
 /* les affiches en 3D (js/wanted-3d.js) : la toile déborde de l'affiche, pour que la photo puisse en sortir ;
    l'affiche de la page reste dessous (cachée), et revient toute seule sans WebGL */
 .w3d-toile { position: absolute; z-index: 1; display: block; pointer-events: none; }
-.wanted-apercu > .w3d-toile { left: -16%; top: -16%; width: 132%; height: 126%; }
-.mur > .w3d-toile { left: -3%; top: -14%; width: 106%; height: 118%; }
+.wanted-apercu > .w3d-toile { left: -45%; top: -18%; width: 190%; height: 138%; }
+.mur > .w3d-toile { left: -3%; top: -14%; width: 106%; height: 126%; }
 .w3d-pret .wanted-apercu .wanted-affiche, .w3d-pret .mur .wanted-affiche { opacity: 0; animation: none; }
 .wanted-apercu.placarde .wanted-affiche { animation: placarder 0.7s var(--rebond) both; }
 @keyframes placarder { 0% { opacity: 0; transform: translateY(-30px) rotate(-10deg) scale(1.15); } 100% { opacity: 1; transform: none; } }
@@ -1666,7 +1666,9 @@ html.v4 .sons[aria-pressed="true"] { color: var(--blanc); border-color: var(--ro
 .wanted-infos h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: 22px; }
 .wanted-infos p { margin: 0; }
 .wanted-titre-pirate { justify-self: start; padding: 3px 12px; border-radius: 99px; background: rgba(255, 212, 121, 0.14); border: 1.5px solid #ffd479; color: #ffe2a0; font-family: var(--fort); font-weight: 800; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
-.wanted-grosse-prime { font-family: var(--titre); font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05; }
+/* la prime tient toujours sur une ligne : sa taille suit la largeur de la colonne et le nombre de chiffres (--n, posé par site.js) */
+.wanted-infos { container-type: inline-size; }
+.wanted-grosse-prime { font-family: var(--titre); font-size: clamp(28px, 3.4vw, 40px); font-size: clamp(17px, calc(100cqw / (var(--n, 12) * 0.68)), 40px); line-height: 1.05; white-space: nowrap; }
 .wanted-rang { color: var(--brume); font-size: 14.5px; }
 .wanted-palier .album-barre { margin: 0 0 6px; }
 .wanted-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 13.5px; }
@@ -4832,7 +4834,7 @@ html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
 .btl-attente { align-self: flex-start; margin-top: auto; max-width: min(520px, 100%); padding: 18px 22px 20px; border-radius: 18px; background: linear-gradient(160deg, rgba(14, 6, 12, 0.88), rgba(40, 10, 20, 0.72)); border: 1.5px solid rgba(255, 190, 90, 0.45); box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.8); display: grid; gap: 4px; justify-items: start; }
 .btl-attente p { margin: 0; }
 .btl-attente-sur { font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: #ffb37a; }
-.btl-attente-date { font-family: var(--titre); font-size: clamp(20px, 2.6vw, 30px); line-height: 1.15; color: #fff; }
+.btl-attente-date { font-family: var(--titre); font-size: clamp(19px, 2.3vw, 27px); line-height: 1.15; color: #fff; }
 .btl-attente-dans { font-family: var(--fort); font-weight: 800; font-size: 15px; color: #ffd23f; }
 .btl-attente-chiffres { font-size: 14px; color: var(--brume); }
 .btl-attente-toi { margin-top: 6px !important; font-weight: 700; color: #9ff0c4; }
@@ -4841,23 +4843,60 @@ html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
 .btl-survivant span { font-family: var(--fort); font-weight: 800; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #3ddc84; }
 .btl-survivant b { font-family: var(--titre); font-weight: 400; font-size: 18px; color: #fff; }
 .btl-survivant small { color: var(--brume); font-size: 12px; }
-/* le face-à-face du duel du round, pendant le suspense */
-/* les deux cartes encadrent l'île (le duel reste visible au milieu), le VS tombe d'en haut */
-.btl-vs { position: absolute; inset: 0; pointer-events: none; }
+/* le face-à-face du duel du round : les deux avis de recherche de chaque côté de l'île (en 3D sur ordinateur, par
+   js/wanted-3d.js : la toile se pose par-dessus), le VS qui tombe d'en haut, puis le verdict */
+.btl-vs { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .btl-vs[hidden] { display: none; }
-.btl-vs-carte { position: absolute; top: 50%; translate: 0 -50%; width: min(210px, 24%); display: grid; justify-items: center; gap: 4px; padding: 14px 10px 12px; border-radius: 16px; background: rgba(12, 6, 10, 0.86); text-align: center; min-width: 0; animation: btl-vs-gauche 0.6s var(--rebond) both; }
-.btl-vs-carte.bleu { left: 18px; }
-.btl-vs-carte.rouge { right: 18px; animation-name: btl-vs-droite; }
+.btl-vs > .w3d-toile { left: 0; top: 0; width: 100%; height: 100%; }
+.w3d-pret .btl-vs .wanted-affiche { opacity: 0; animation: none !important; }
+.btl-vs-affiche { position: absolute; top: 53%; translate: 0 -50%; width: min(200px, 19%); }
+.btl-vs-affiche.bleu { left: 36px; }
+.btl-vs-affiche.rouge { right: 36px; }
+.btl-vs:not(.en-3d) .btl-vs-affiche { animation: btl-vs-gauche 0.6s var(--rebond) both; }
+.btl-vs:not(.en-3d) .btl-vs-affiche.rouge { animation-name: btl-vs-droite; }
+/* une lueur derrière chaque affiche : bleu contre rouge (comme sur l'île) */
+.btl-vs-affiche::before { content: ""; position: absolute; inset: -22% -42%; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, rgba(70, 140, 255, 0.85) 50%, rgba(70, 140, 255, 0.32) 74%, rgba(70, 140, 255, 0) 100%); animation: btl-halo 1.3s ease-in-out infinite; }
+.btl-vs-affiche.rouge::before { background: radial-gradient(closest-side, rgba(255, 60, 50, 0.85) 50%, rgba(255, 60, 50, 0.32) 74%, rgba(255, 60, 50, 0) 100%); animation-delay: -0.65s; }
+.btl-vs-affiche.gagne::before { background: radial-gradient(closest-side, rgba(255, 205, 60, 0.95) 50%, rgba(255, 205, 60, 0.4) 74%, rgba(255, 205, 60, 0) 100%); }
+.btl-vs-affiche.perdu::before { opacity: 0; transition: opacity 0.6s; animation: none; }
+.btl-vs-affiche.bleu .wanted-affiche.petite { rotate: -4deg; }
+.btl-vs-affiche.rouge .wanted-affiche.petite { rotate: 4deg; }
+/* sans la 3D (téléphone, pas de WebGL) : les affiches de la page tremblent, puis celle du perdant est tamponnée et tombe */
+.btl-vs:not(.verdict) .wanted-affiche { animation: btl-tremble 0.5s linear infinite; }
+.btl-vs-affiche.gagne .wanted-affiche { animation: btl-saut 0.7s var(--rebond) 2; }
+.btl-vs-affiche.perdu .wanted-affiche { animation: btl-chute 1s 1.1s ease-in forwards; }
+.btl-vs:not(.en-3d) .btl-vs-affiche.perdu::after, .btl-scene:not(.w3d-pret) .btl-vs-affiche.perdu::after {
+  content: "ÉLIMINÉ"; position: absolute; left: 50%; top: 40%; translate: -50% -50%; rotate: -17deg; padding: 2px 10px; border: 3px solid #c41e22; border-radius: 8px;
+  font-family: var(--titre); font-size: clamp(13px, 2.1vw, 22px); color: #c41e22; background: rgba(255, 240, 220, 0.12); animation: btl-tampon 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both, btl-chute 1s 1.1s ease-in forwards;
+}
 @keyframes btl-vs-gauche { from { opacity: 0; transform: translateX(-80px) rotate(-6deg); } }
 @keyframes btl-vs-droite { from { opacity: 0; transform: translateX(80px) rotate(6deg); } }
 @keyframes btl-vs-tombe { from { opacity: 0; transform: scale(2.4); } 60% { opacity: 1; } }
-.btl-vs-carte.bleu { border: 2px solid #7fb1ff; box-shadow: 0 0 30px rgba(90, 150, 255, 0.45); }
-.btl-vs-carte.rouge { border: 2px solid #ff6b5f; box-shadow: 0 0 30px rgba(255, 70, 60, 0.45); }
-.btl-vs-carte img, .btl-vs-sans { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.85); background: #2a1a10; }
-.btl-vs-carte strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--titre); font-weight: 400; font-size: 16px; }
-.btl-vs-carte span { font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ffd23f; }
-.btl-vs-mot { position: absolute; left: 50%; top: 58px; translate: -50% 0; margin: 0; font-family: var(--titre); font-size: 58px; line-height: 1; animation: btl-vs-tombe 0.5s 0.15s var(--rebond) both; background: linear-gradient(180deg, #fffbe2, #ffd23f 45%, #ff7a1f); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 14px rgba(255, 140, 40, 0.7)); }
-.btl-vs-enjeu { position: absolute; left: 50%; top: 124px; translate: -50% 0; white-space: nowrap; margin: 0; padding: 5px 14px; border-radius: 99px; background: rgba(12, 6, 10, 0.86); border: 1.5px solid #ffd23f; font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ffd23f; }
+@keyframes btl-halo { 50% { opacity: 0.55; transform: scale(1.08); } }
+@keyframes btl-tremble { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(-1.5px, 1px) rotate(-0.8deg); } 50% { transform: translate(1.5px, -1px) rotate(0.7deg); } 75% { transform: translate(-1px, -1px) rotate(-0.4deg); } }
+@keyframes btl-saut { 50% { transform: translateY(-14px) scale(1.05); } }
+@keyframes btl-chute { to { transform: translateY(150%) rotate(24deg); opacity: 0; } }
+@keyframes btl-tampon { from { opacity: 0; transform: scale(2.6); } }
+.btl-vs-mot { position: absolute; left: 50%; top: 58px; translate: -50% 0; margin: 0; font-family: var(--titre); font-size: 58px; line-height: 1; animation: btl-vs-tombe 0.5s 0.15s var(--rebond) both; background: linear-gradient(180deg, #fffbe2, #ffd23f 45%, #ff7a1f); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 14px rgba(255, 140, 40, 0.7)); transition: opacity 0.4s; }
+.btl-vs.verdict .btl-vs-mot { opacity: 0; }
+.btl-vs-enjeu { position: absolute; left: 50%; top: 124px; translate: -50% 0; max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; padding: 5px 14px; border-radius: 99px; background: rgba(12, 6, 10, 0.86); border: 1.5px solid #ffd23f; font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ffd23f; transition: top 0.4s var(--doux); }
+.btl-vs.verdict .btl-vs-enjeu { top: 72px; font-size: 15px; padding: 7px 18px; }
+/* les grands titres qui passent sur l'île : le round, la marée, le survivant */
+.btl-bandeau { position: absolute; left: 0; right: 0; top: 31%; z-index: 3; display: grid; justify-items: center; gap: 6px; padding: 0 12px; pointer-events: none; text-align: center; animation: btl-bandeau 2.3s var(--doux) both; }
+.btl-bandeau b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--titre); font-weight: 400; font-size: clamp(34px, 6.4vw, 80px); line-height: 1.05; letter-spacing: 0.02em; background: linear-gradient(180deg, #fffbe2, #ffd23f 45%, #ff7a1f); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 26px rgba(255, 140, 40, 0.6)); }
+.btl-bandeau span { padding: 5px 16px; border-radius: 99px; background: rgba(12, 6, 10, 0.84); border: 1.5px solid rgba(255, 210, 63, 0.7); font-family: var(--fort); font-weight: 800; font-size: clamp(11px, 1.5vw, 15px); letter-spacing: 0.16em; text-transform: uppercase; color: #ffe2a0; }
+.btl-bandeau.maree b { background-image: linear-gradient(180deg, #f1fdff, #8fdcff 50%, #2a8fd6); filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 26px rgba(60, 170, 255, 0.6)); }
+.btl-bandeau.maree span { border-color: rgba(143, 220, 255, 0.7); color: #d6f4ff; }
+.btl-bandeau.fete b { font-size: clamp(30px, 5.6vw, 70px); }
+@keyframes btl-bandeau { 0% { opacity: 0; transform: scale(1.7); filter: blur(8px); } 13% { opacity: 1; transform: scale(1); filter: blur(0); } 78% { opacity: 1; transform: scale(1.04); } 100% { opacity: 0; transform: scale(1.12) translateY(-12px); } }
+/* la rediff : ses boutons, à la place du compte à rebours */
+.btl-direct.rediff { color: #ffd98a; }
+.btl-direct.rediff .btl-point { background: #ffd23f; box-shadow: 0 0 10px #ffd23f; animation: none; }
+.btl-commandes { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 6px; }
+.btl-bouton { padding: 6px 13px; border-radius: 99px; border: 1.5px solid rgba(255, 255, 255, 0.22); background: rgba(12, 6, 10, 0.82); color: #fff; font: inherit; font-family: var(--fort); font-weight: 800; font-size: 12.5px; line-height: 1.3; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.btl-bouton:hover, .btl-bouton:focus-visible { border-color: #ffd23f; background: rgba(60, 30, 12, 0.92); }
+.btl-attente .btl-revoir { margin-top: 4px; border-color: #ffd23f; background: rgba(255, 210, 63, 0.14); color: #ffe9a8; }
+.btl-attente .btl-revoir:hover, .btl-attente .btl-revoir:focus-visible { background: rgba(255, 210, 63, 0.26); color: #fff; }
 /* sous l'île */
 .btl-grille { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 22px; margin-top: 22px; align-items: start; }
 .btl-fil, .btl-cote { padding: 24px 24px 22px; display: grid; gap: 12px; }
@@ -4898,6 +4937,7 @@ html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
   .btl-vs-enjeu { top: 98px; }
   .btl-survivant { left: 20px; right: auto; bottom: auto; top: 18px; justify-items: start; }
 }
+@keyframes btl-bandeau-calme { 0%, 100% { opacity: 0; } 15%, 80% { opacity: 1; } }
 .btl-court { display: none; }
 @media (max-width: 600px) {
   .btl-hud { padding: 12px; }
@@ -4911,18 +4951,19 @@ html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
   .btl-chiffres b { font-size: 14px; }
   .btl-attente { padding: 14px 16px 16px; }
   .br3-nom { font-size: 10.5px; padding: 2px 7px; }
-  /* sur téléphone : deux cartes compactes en bas, le duel au milieu */
-  .btl-vs-carte { top: auto; bottom: 96px; translate: none; width: calc(50% - 34px); grid-template-columns: 38px minmax(0, 1fr); justify-items: start; align-items: center; text-align: left; column-gap: 8px; row-gap: 0; padding: 8px 10px; }
-  .btl-vs-carte img, .btl-vs-sans { grid-row: 1 / 3; width: 38px; height: 38px; }
-  .btl-vs-carte strong { font-size: 13px; }
-  .btl-vs-carte span { font-size: 11.5px; }
-  .btl-vs-carte.bleu { left: 10px; }
-  .btl-vs-carte.rouge { right: 10px; }
-  .btl-vs-mot { top: auto; bottom: 104px; font-size: 26px; }
-  .btl-vs-enjeu { top: 50px; font-size: 11.5px; padding: 4px 11px; }
+  /* sur téléphone : les deux affiches en bas, le duel de l'île au-dessus */
+  .btl-vs-affiche { top: auto; bottom: 92px; translate: none; width: 27%; }
+  .btl-vs-affiche.bleu { left: 15%; }
+  .btl-vs-affiche.rouge { right: 15%; }
+  .btl-vs-mot { top: auto; bottom: 150px; font-size: 30px; }
+  .btl-vs-enjeu, .btl-vs.verdict .btl-vs-enjeu { top: 50px; font-size: 11.5px; padding: 4px 11px; }
+  .btl-bandeau { top: 22%; }
+  .btl-bouton { padding: 5px 10px; font-size: 12px; }
   .br3-flotte { font-size: 17px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .btl-point { animation: none; }
-  .btl-vs-carte, .btl-vs-mot { animation: none; }
+  .btl-vs .btl-vs-affiche, .btl-vs .btl-vs-affiche::before, .btl-vs .wanted-affiche, .btl-vs-mot { animation: none; }
+  .btl-vs-affiche.perdu .wanted-affiche { opacity: 0.35; }
+  .btl-bandeau { animation: btl-bandeau-calme 1.5s both; }
 }

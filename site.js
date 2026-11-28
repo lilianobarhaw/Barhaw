@@ -4565,27 +4565,37 @@
     const m = String(u || "").match(/^https:\/\/cdn\.discordapp\.com\/((?:guilds\/\d{5,25}\/users\/\d{5,25}\/)?avatars\/(?:\d{5,25}\/)?(?:a_)?[0-9a-f]{32}|embed\/avatars\/\d)\.(?:png|webp|jpg|jpeg|gif)(?:\?size=\d{1,4})?$/);
     return m ? `/api/chopper?image=avatar&u=${encodeURIComponent(m[1])}` : u;
   };
-  async function poser3D(nom, panneau, conteneur, entrees) {
+  // les bruitages des affiches (la pose, le tampon, la prime qui arrive, le personnage qui se cache…) : ceux du site
+  const SONS_AFFICHE = { pose: ["carte", 0.8], tampon: ["br-tampon", 1], prime: ["br-score", 0.6], cache: ["souffle", 0.4], coucou: ["pop", 0.9], tombe: ["souffle", 0.6], gagne: ["br-paillettes", 0.8] };
+  const sonsAffiche = {};
+  function sonAffiche(nom) {
+    const s = SONS_AFFICHE[nom];
+    // (plusieurs affiches arrivent souvent en même temps : un seul bruit)
+    if (!s || performance.now() - (sonsAffiche[nom] || 0) < 260) return;
+    sonsAffiche[nom] = performance.now();
+    jouerSon(s[0], { volume: s[1] });
+  }
+  async function poser3D(nom, panneau, conteneur, entrees, options = {}) {
     if (W3D.echec || !panneau) return;
     let v = W3D.vues.get(nom);
     if (!entrees.length || !conteneur) {
       panneau.classList.remove("w3d-pret");
-      v?.rendu?.placer([]);
-      v?.toile.remove();
-      if (v) v.conteneur = null;
+      if (v) { v.actif = false; v.rendu?.placer([]); v.rendu?.pause(true); v.toile.remove(); v.conteneur = null; }
       return;
     }
     if (!v) {
-      v = { toile: el("canvas", { class: "w3d-toile", "aria-hidden": "true" }), rendu: null, conteneur: null, panneau, visible: !("IntersectionObserver" in window) };
+      v = { toile: el("canvas", { class: "w3d-toile", "aria-hidden": "true" }), rendu: null, conteneur: null, panneau, actif: true, visible: !("IntersectionObserver" in window) };
       W3D.vues.set(nom, v);
       try {
         W3D.mod ||= await import("/js/wanted-3d.js");
-        v.rendu = W3D.mod.creerWanted3D(v.toile, { zone: panneau, petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche });
+        v.rendu = W3D.mod.creerWanted3D(v.toile, { zone: panneau, petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche, ...options });
       } catch {
         W3D.echec = true; // pas de WebGL : les affiches de la page restent
         W3D.vues.delete(nom);
         return;
       }
+      v.toile.addEventListener("wanted-son", (e) => sonAffiche(e.detail));
+      prechargerSons(["carte", "br-tampon", "br-score", "pop", "souffle"]);
       v.toile.addEventListener("wanted-pret", () => panneau.classList.toggle("w3d-pret", Boolean(v.conteneur && v.rendu.pretes())));
       v.toile.addEventListener("wanted-perdu", () => {
         W3D.echec = true;
@@ -4595,13 +4605,15 @@
       if (!W3D.observe && "IntersectionObserver" in window) {
         W3D.observe = new IntersectionObserver((e) => {
           for (const x of e) { const vue = [...W3D.vues.values()].find((y) => y.panneau === x.target); if (vue) vue.visible = x.isIntersecting; }
-          for (const x of W3D.vues.values()) x.rendu?.pause(!x.visible || document.hidden);
+          for (const x of W3D.vues.values()) x.rendu?.pause(!x.actif || !x.visible || document.hidden);
         }, { rootMargin: "120px 0px" });
-        document.addEventListener("visibilitychange", () => { for (const x of W3D.vues.values()) x.rendu?.pause(!x.visible || document.hidden); });
+        document.addEventListener("visibilitychange", () => { for (const x of W3D.vues.values()) x.rendu?.pause(!x.actif || !x.visible || document.hidden); });
       }
       W3D.observe?.observe(panneau);
+      if (!v.actif) { v.rendu.pause(true); return; } // (pendant le chargement, on n'en a plus voulu : la toile attend la prochaine fois)
     }
     if (!v.rendu) return;
+    v.actif = true;
     if (v.conteneur !== conteneur) {
       conteneur.append(v.toile);
       v.conteneur = conteneur;
@@ -4714,7 +4726,7 @@
         el("div", { class: `wanted-apercu${nouveau ? " placarde" : ""}` }, affiche(pourLa3D)),
         el("div", { class: "wanted-infos" },
           el("p", { class: "wanted-titre-pirate", text: p.titre }),
-          el("p", { class: "wanted-grosse-prime" }, el("b", { class: "degrade", text: berrys(p.prime) })),
+          el("p", { class: "wanted-grosse-prime", style: `--n: ${berrys(p.prime).length}` }, el("b", { class: "degrade", text: berrys(p.prime) })),
           el("p", { class: "wanted-rang", text: `N° ${p.rang} sur ${p.total} chasseur${p.total > 1 ? "s" : ""}${p.gainMois ? ` · ce mois-ci : +${berrys(p.gainMois)}${p.rangMois ? ` (n° ${p.rangMois})` : ""}` : ""}` }),
           prochain ? el("div", { class: "wanted-palier" },
             el("div", { class: "album-barre", "aria-hidden": "true" }, el("i", { style: `width:${Math.round(part * 100)}%` })),
@@ -4737,7 +4749,7 @@
     vider(z, contenu);
     const ap = z.querySelector(".wanted-apercu");
     const a = ap?.querySelector(".wanted-affiche");
-    poser3D("wanted", z, ap, a && pourLa3D ? [{ el: a, donnees: { ...pourLa3D, epingle: "rose" } }] : []);
+    poser3D("wanted", z, ap, a && pourLa3D ? [{ el: a, donnees: { ...pourLa3D, epingle: "rose", decor: true } }] : []);
   }
 
   // --- le mur des primes ---
@@ -4784,7 +4796,7 @@
       corps,
       s?.total ? el("p", { class: "note", text: `${s.total} avis de recherche placardé${s.total > 1 ? "s" : ""}. La prime ne baisse jamais ; le classement du mois repart à zéro le 1er.` }) : null,
     );
-    if (BR.vu && !BR.d?.direct) BR.rendu?.etat(brPourLa3D());
+    if (BR.vu && !brDirect()) BR.rendu?.etat(brPourLa3D());
     // les trois premières affiches en 3D (médailles : la punaise en or, en argent, en bronze)
     const mur = z.querySelector(".mur");
     const trois = ongletPrimes === "top" ? (s?.top || []).slice(0, 3) : [];
@@ -4815,10 +4827,21 @@
 
   // ---------- La Battle Royale de GRAND LINE : « L'Île sans retour » (lib/battle.js du bot), en 3D sur le site ----------
   // Le dernier dimanche du mois, tous les avis de recherche sont lâchés sur une île ; le bot joue un round toutes les
-  // 2 minutes. Le site montre l'île en 3D (js/battle-3d.js) : en direct pendant la battle (le duel du round, ceux qui
-  // tombent, la marée qui monte), sinon la prochaine battle et le dernier survivant. Le tonneau de rhum s'envoie d'ici.
+  // 2 minutes. Le site montre l'île en 3D (js/battle-3d.js) : en direct pendant la battle (le duel du round avec les deux
+  // avis de recherche en 3D face à face, ceux qui tombent, la marée qui monte, la fête du survivant), sinon la prochaine
+  // battle et le dernier survivant. Le tonneau de rhum s'envoie d'ici. Entre deux battles, on peut revoir la dernière
+  // (la rediff : son film, rejoué en accéléré), ou une battle de démonstration tant qu'il n'y en a pas eu.
   // Pas de résultat en avance : le bot montre au site l'île d'avant le round tant que Discord n'a pas montré le résultat.
-  const BR = { d: null, vu: false, charge: false, rendu: null, minuteur: 0, horloge: 0, choix: null, moi: null, message: null, occupe: false, decal: 0, rounds: new Map(), echec: false };
+  const BR = {
+    d: null, vu: false, charge: false, rendu: null, minuteur: 0, horloge: 0, choix: null, moi: null, message: null, occupe: false, decal: 0, rounds: new Map(), echec: false,
+    duel: null, // le face-à-face : { cle, a, b, enJeu, finale, round, phase: "suspense" | "verdict", t0, revele, res, gain }
+    duelFin: 0,
+    fete: null, // la fin d'une battle en direct, gardée à l'écran un moment : { direct, jusqua }
+    rediff: null, // la rediff qu'on regarde : { film, pirates, i, phase, vitesse, pause, direct, minuteur, fin, reste, morts }
+    rediffCharge: false,
+    vuCle: "", vuRound: -1, vuFini: false, // ce qu'on a déjà vu passer (pour annoncer ce qui change)
+    bandeaux: [], bandeau: 0, hud: null, sonFeu: 0, sonsPrets: false,
+  };
   // là où les têtes d'affiche attendent la prochaine battle (des places de l'île, comme sur la carte du bot)
   const BR_PLACES = [[366, 384], [282, 274], [406, 266], [437, 466], [262, 568], [554, 310], [166, 440], [296, 152], [434, 578], [544, 470], [487, 148], [162, 294]];
   const brMaintenant = () => Date.now() + BR.decal;
@@ -4830,29 +4853,44 @@
     return m ? `${m} min ${String(s % 60).padStart(2, "0")}` : `${s % 60} s`;
   };
   // « Dimanche 27 décembre · 21 h »
-  const brDate = (t) => {
+  const brDate = (t, { heure = true } = {}) => {
     const o = { timeZone: "Europe/Paris" };
     const jour = new Date(t).toLocaleDateString("fr-FR", { ...o, weekday: "long", day: "numeric", month: "long" });
     const [hh, mm] = new Date(t).toLocaleTimeString("fr-FR", { ...o, hour: "2-digit", minute: "2-digit" }).split(":");
-    return `${jour.charAt(0).toUpperCase()}${jour.slice(1)} · ${Number(hh)} h${mm === "00" ? "" : ` ${mm}`}`;
+    return `${jour.charAt(0).toUpperCase()}${jour.slice(1)}${heure ? ` · ${Number(hh)} h${mm === "00" ? "" : ` ${mm}`}` : ""}`;
   };
-  // la photo d'un pirate (les faux pirates des battles d'essai ont un portrait inventé)
-  const photoPirate = (p) => (p?.avatar ? photoAffiche(p.avatar) : Number.isInteger(p?.portrait) ? `/img/battle/portraits/${String(p.portrait).padStart(2, "0")}.png` : "");
+  // la photo d'un pirate (les faux pirates des battles d'essai et de la démo ont un portrait inventé)
+  const brPortrait = (p) => (Number.isInteger(p?.portrait) ? `/img/battle/portraits/${String(p.portrait).padStart(2, "0")}.png` : "");
+  const photoPirate = (p) => (p?.avatar ? photoAffiche(p.avatar) : brPortrait(p));
   const EMOJIS_BR = { duel: "⚔️", trahison: "🗡️", alliance: "🤝", bete: "🦑", absurde: "🐟", piege: "🪤", maree: "🌊", coffre: "💰", esquive: "💨", rhum: "" };
+  const brPetit = () => Math.min(window.innerWidth, window.innerHeight) < 700;
+  // les bruitages de la battle : ceux du site (rien si le son est coupé)
+  const BR_SONS = {
+    suspense: [["taiko", 0.8]], roulement: [["br-roulement", 0.9]], choc: [["br-boum", 0.9], ["br-cymbale", 0.5]], tombe: [["impact", 0.55, 1.3]], plouf: [["cr-plouf", 0.8]],
+    envol: [["cr-envol", 0.8]], bete: [["cr-baleine", 0.6, 2.6]], piege: [["impact", 0.45, 1]], epee: [["br-tic", 0.9]], coffre: [["cr-pieces", 0.8]], rhum: [["tonneau", 0.8]],
+    alliance: [["paire", 0.7]], maree: [["br-onde", 0.8]], feu: [["br-feux", 0.45]], victoire: [["br-fanfare", 0.9], ["br-acclame", 0.7, 0, 0.8]], bandeau: [["souffle", 0.5]],
+  };
+  function brSon(nom) {
+    if (nom === "feu") { if (performance.now() - BR.sonFeu < 1700) return; BR.sonFeu = performance.now(); }
+    for (const [fichier, volume, duree = 0, retard = 0] of BR_SONS[nom] || []) jouerSon(fichier, { volume, duree, retard });
+  }
+  // ce qu'on montre : la rediff si on la regarde, sinon la battle en direct (ou sa fin, gardée un moment à l'écran)
+  const brDirect = () => BR.rediff?.direct || BR.d?.direct || (BR.fete && BR.fete.jusqua > Date.now() ? BR.fete.direct : null);
   // ce que la 3D doit montrer
   function brPourLa3D() {
-    const d = BR.d;
-    if (d?.direct) {
-      const x = d.direct;
-      return { mode: "direct", maree: x.maree, round: x.round, pirates: x.pirates, suspense: x.suspense, dernier: x.dernier };
+    const x = brDirect();
+    if (x) {
+      const survivant = x.fini ? x.pirates.find((p) => p.vivant) : null;
+      return { mode: "direct", maree: x.maree, round: x.round, pirates: x.pirates, suspense: x.suspense, dernier: x.dernier, fete: survivant ? survivant.k : null, rythme: x.rediff ? 5 : 7 };
     }
     // en attendant : les têtes d'affiche du mur des primes sur l'île, et le dernier survivant couronné
+    const d = BR.d;
     const top = (infosChasse()?.primes?.top || []).slice(0, 10);
     const surv = d?.dernier?.gagnant;
-    const liste = surv && !top.some((x) => x.nom === surv.nom) ? [{ ...surv }, ...top.slice(0, 9)] : top;
+    const liste = surv && !top.some((y) => y.nom === surv.nom) ? [{ ...surv }, ...top.slice(0, 9)] : top;
     return {
       mode: "attente", maree: 0, round: 0, suspense: null, dernier: null,
-      pirates: liste.map((x, k) => ({ k, nom: x.nom, avatar: x.avatar, prime: x.prime, x: BR_PLACES[k][0], y: BR_PLACES[k][1], vivant: true, top: surv ? x.nom === surv.nom : k === 0, vies: 1 })),
+      pirates: liste.map((y, k) => ({ k, nom: y.nom, avatar: y.avatar, prime: y.prime, x: BR_PLACES[k][0], y: BR_PLACES[k][1], vivant: true, top: surv ? y.nom === surv.nom : k === 0, vies: 1 })),
     };
   }
   async function brCharger3D() {
@@ -4861,13 +4899,14 @@
     try {
       const { creerBattle3D } = await import("/js/battle-3d.js");
       BR.rendu = creerBattle3D($("btl-toile"), {
-        couche: $("btl-couche"), petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche,
-        surPirate: (k) => { if (BR.d?.direct && !BR.d.direct.fini) { BR.choix = k; brRendreCote(); $("btl-cote")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } },
+        couche: $("btl-couche"), petit: brPetit(), reduit: reduit.matches, photo: photoAffiche, son: brSon,
+        surPirate: (k) => { const x = BR.d?.direct; if (x && !x.fini && !BR.rediff) { BR.choix = k; brRendreCote(); $("btl-cote")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } },
       });
       $("btl-toile").addEventListener("battle-perdu", () => { BR.echec = true; BR.rendu = null; $("btl-scene")?.classList.remove("btl-3d"); }, { once: true });
       $("btl-scene").classList.add("btl-3d");
-      BR.rendu.etat(brPourLa3D());
+      BR.rendu.vitesse(BR.rediff?.vitesse || 1);
       BR.rendu.pause(!BR.vu || document.hidden);
+      BR.rendu.etat(brPourLa3D());
     } catch {
       BR.echec = true; // pas de WebGL : la scène reste une belle image fixe
       BR.rendu = null;
@@ -4875,6 +4914,7 @@
   }
   async function brCharger() {
     clearTimeout(BR.minuteur);
+    const avant = BR.d?.direct;
     try {
       const r = await fetch("/api/battle", { headers: { Accept: "application/json" } });
       const d = await r.json();
@@ -4885,9 +4925,17 @@
       if (!BR.d) BR.d = { horsLigne: true };
     }
     const x = BR.d?.direct;
-    if (x?.dernier && !BR.rounds.has(x.dernier.round)) BR.rounds.set(x.dernier.round, x.dernier);
-    if (!x) BR.rounds.clear();
-    if (x && moi?.connecte && !BR.moi) brMoi();
+    // la battle vient de finir : on garde la fête du survivant à l'écran un moment
+    if (avant?.fini && !x && !BR.d?.horsLigne) {
+      BR.fete = { direct: { ...avant, suspense: null }, jusqua: Date.now() + 40_000 };
+      setTimeout(() => { BR.fete = null; brRendre(); }, 40_200);
+    }
+    if (x) {
+      BR.fete = null;
+      if (BR.rediff) brRediffQuitter({ rendre: false }); // une vraie battle commence : on arrête la rediff
+      if (x.dernier && !BR.rounds.has(x.dernier.round)) BR.rounds.set(x.dernier.round, x.dernier);
+      if (moi?.connecte && !BR.moi) brMoi();
+    } else if (!BR.rediff && !BR.fete) BR.rounds.clear();
     brRendre();
     const ms = document.hidden ? 60_000 : x ? (x.suspense ? 1500 : 3000) : BR.vu ? 30_000 : 180_000;
     BR.minuteur = setTimeout(brCharger, ms);
@@ -4914,74 +4962,200 @@
     BR.message = { texte: d.texte || d.erreur || "C'est parti !", erreur: !d.ok };
     brRendreCote();
   }
+  // un grand titre passe sur l'île (le round, la marée, le survivant) ; ils passent l'un après l'autre
+  function brBandeau(titre, sous = "", classe = "") {
+    BR.bandeaux.push({ titre, sous, classe });
+    if (!BR.bandeau) brBandeauSuivant();
+  }
+  function brBandeauSuivant() {
+    const scene = $("btl-scene");
+    const b = BR.bandeaux.shift();
+    if (!b || !scene || !BR.vu || document.hidden) { BR.bandeaux.length = 0; BR.bandeau = 0; return; }
+    const e = el("div", { class: `btl-bandeau ${b.classe}`, "aria-hidden": "true" }, el("b", { text: b.titre }), b.sous ? el("span", { text: b.sous }) : null);
+    scene.append(e);
+    brSon("bandeau");
+    BR.bandeau = setTimeout(() => { e.remove(); BR.bandeau = 0; brBandeauSuivant(); }, reduit.matches ? 1500 : 2300);
+  }
+  // ce qui vient de changer sur l'île : un nouveau duel, son résultat, un nouveau round, la marée, la fin
+  function brSuivre() {
+    const x = brDirect();
+    const cle = x ? `${x.rediff ? "r" : "d"}${x.debut}` : "";
+    if (cle !== BR.vuCle) {
+      // une autre battle (ou plus de battle) : on repart de ce qu'on voit, sans rien annoncer
+      BR.vuCle = cle;
+      BR.vuRound = x ? x.dernier?.round ?? 0 : -1;
+      BR.vuFini = Boolean(x?.fini);
+      clearTimeout(BR.duelFin);
+      BR.duel = null;
+    }
+    if (!x) return;
+    const vitesse = BR.rediff?.vitesse || 1;
+    const s = x.suspense;
+    const cleDuel = s ? `${s.round}-${s.a}-${s.b}` : "";
+    if (s && BR.duel?.cle !== cleDuel) {
+      clearTimeout(BR.duelFin);
+      BR.duel = { cle: cleDuel, a: s.a, b: s.b, enJeu: s.enJeu, finale: s.finale, round: s.round, phase: "suspense", t0: Date.now(), revele: s.revele, roulement: false, res: null, gain: 0 };
+      brBandeau(s.finale ? "LA FINALE" : `ROUND ${s.round}`, s.finale ? "Les deux derniers pirates" : "Le duel du round", "duel");
+    }
+    const r = x.dernier?.round ?? 0;
+    if (r !== BR.vuRound) {
+      const suite = r === BR.vuRound + 1;
+      BR.vuRound = r;
+      const du = x.dernier?.duel;
+      if (suite && BR.duel?.phase === "suspense" && du && ((du.a === BR.duel.a && du.b === BR.duel.b) || (du.a === BR.duel.b && du.b === BR.duel.a))) {
+        // le résultat du duel qu'on attendait : le face-à-face reste encore un peu, avec le verdict
+        const tag = (x.dernier.fil || []).find((l) => l.type === "duel" && l.a === du.gagnant && l.b === du.perdant)?.tag || "";
+        BR.duel = { ...BR.duel, phase: "verdict", t0: Date.now(), res: du, gain: /฿/.test(tag) ? Number(tag.replace(/\D/g, "")) || 0 : 0 };
+        clearTimeout(BR.duelFin);
+        BR.duelFin = setTimeout(() => { BR.duel = null; brRendreVs(); }, (x.fini ? 3400 : 4700) / vitesse);
+      } else if (!s) {
+        clearTimeout(BR.duelFin);
+        BR.duel = null;
+        if (suite) brBandeau(x.dernier.finale ? "LA FINALE" : `ROUND ${r}`);
+      }
+      if (suite && x.dernier?.mareeMonte) brBandeau("LA MARÉE MONTE", x.maree >= 4 ? "Il ne reste que le volcan" : "L'île rétrécit", "maree");
+    } else if (!s && BR.duel?.phase === "suspense") BR.duel = null; // (le duel s'est arrêté sans résultat)
+    if (x.fini && !BR.vuFini) {
+      // le nom du survivant passe en grand (après le verdict du dernier duel, s'il est encore à l'écran)
+      const g = x.pirates.find((p) => p.vivant);
+      if (g) setTimeout(() => { if (brDirect()?.fini) brBandeau(g.nom, "survit à l'Île sans retour", "fete"); }, BR.duel ? 3500 / vitesse : 0);
+    }
+    BR.vuFini = Boolean(x.fini);
+  }
   function brRendre() {
+    brSuivre();
     BR.rendu?.etat(brPourLa3D());
     brRendreHud();
+    brRendreVs();
     brRendreFil();
     brRendreCote();
   }
-  // par-dessus l'île : le round, les chiffres, le compte à rebours ; le face-à-face pendant le suspense
+  // par-dessus l'île : le round, les chiffres, le compte à rebours (ou les boutons de la rediff). On ne refait le
+  // bandeau que s'il change vraiment (sinon un clic sur un de ses boutons pourrait se perdre) ; le chrono, lui, bouge seul.
   function brRendreHud() {
     const z = $("btl-hud");
     if (!z) return;
     const d = BR.d;
-    const x = d?.direct;
-    const vs = $("btl-vs");
+    const x = brDirect();
     if (x) {
-      const reste = x.suspense ? x.suspense.revele - brMaintenant() : x.prochainRound - brMaintenant();
-      vider(z,
-        el("div", { class: "btl-hud-haut" },
-          el("p", { class: "btl-direct" }, el("span", { class: "btl-point", "aria-hidden": "true" }), x.essai ? "ESSAI" : "EN DIRECT", el("b", { text: x.suspense?.finale ? "LA FINALE" : (x.suspense?.round || x.round) ? `ROUND ${x.suspense?.round || x.round} / ${x.rounds}` : "LE DÉBARQUEMENT" })),
-          x.fini ? el("p", { class: "btl-chrono", text: "C'est fini !" })
-            : x.suspense || reste > 0 ? el("p", { class: "btl-chrono" }, el("span", { class: "btl-long", text: x.suspense ? "Résultat dans " : "Prochain round dans " }), el("span", { class: "btl-court", "aria-hidden": "true", text: "⏱ " }), brDuree(Math.max(0, reste)))
-            : el("p", { class: "btl-chrono", text: "Le round se joue…" }),
-        ),
-        el("div", { class: "btl-chiffres" },
-          el("p", {}, el("b", { text: String(x.debout) }), el("span", { text: ` / ${x.total} debout` })),
-          el("p", {}, el("b", { class: "degrade", text: berrys(x.primeEnVie) }), el("span", { text: " en vie" })),
-          el("p", { class: "btl-maree", text: x.maree ? `🌊 Marée ${x.maree}/4` : "🌊 Marée basse" }),
-        ),
-      );
-      if (vs) {
-        const s = x.suspense;
-        vs.hidden = !s;
-        // on ne refait les cartes que pour un nouveau duel (sinon leur entrée rejouerait chaque seconde)
-        const cle = s ? `${x.round}-${s.a}-${s.b}` : "";
-        if (s && vs.dataset.cle !== cle) {
-          vs.dataset.cle = cle;
-          const a = x.pirates[s.a], b = x.pirates[s.b];
-          const carte = (p, cote) => el("div", { class: `btl-vs-carte ${cote}` },
-            photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 96, height: 96, referrerpolicy: "no-referrer" }) : el("span", { class: "btl-vs-sans" }),
-            el("strong", { text: p.nom }), el("span", { text: berrys(p.prime) }));
-          vider(vs, carte(a, "bleu"), el("p", { class: "btl-vs-mot", text: "VS" }), carte(b, "rouge"),
-            el("p", { class: "btl-vs-enjeu", text: `${s.finale ? "LA FINALE · " : ""}${berrys(s.enJeu)} de primes en jeu` }));
+      const R = x.rediff ? BR.rediff : null;
+      const etiquette = R ? (R.demo ? "DÉMO" : "REDIFF") : x.essai ? "ESSAI" : "EN DIRECT";
+      const round = x.fini ? "C'EST FINI" : x.suspense?.finale ? "LA FINALE" : (x.suspense?.round || x.round) ? `ROUND ${x.suspense?.round || x.round} / ${x.rounds}` : "LE DÉBARQUEMENT";
+      const cle = `d|${etiquette}|${round}|${x.debout}|${x.primeEnVie}|${x.maree}|${R ? `${R.pause}|${R.vitesse}` : ""}`;
+      if (BR.hud?.cle !== cle) {
+        const chrono = R ? null : el("p", { class: "btl-chrono" });
+        vider(z,
+          el("div", { class: "btl-hud-haut" },
+            el("p", { class: `btl-direct${R ? " rediff" : ""}` }, el("span", { class: "btl-point", "aria-hidden": "true" }), etiquette, el("b", { text: round })),
+            R ? el("div", { class: "btl-commandes" },
+              el("button", { type: "button", class: "btl-bouton", onclick: brRediffPause, "aria-label": R.pause ? "Reprendre la rediff" : "Mettre la rediff en pause" }, R.pause ? "▶" : "⏸", el("span", { class: "btl-long", text: R.pause ? " Reprendre" : " Pause" })),
+              el("button", { type: "button", class: "btl-bouton", onclick: brRediffVitesse, "aria-label": "Changer la vitesse de la rediff", text: R.vitesse === 1 ? "×1" : "×2" }),
+              el("button", { type: "button", class: "btl-bouton", onclick: () => brRediffQuitter(), "aria-label": "Fermer la rediff" }, "✕", el("span", { class: "btl-long", text: " Fermer" })),
+            ) : chrono,
+          ),
+          el("div", { class: "btl-chiffres" },
+            el("p", {}, el("b", { text: String(x.debout) }), el("span", { text: ` / ${x.total} debout` })),
+            el("p", {}, el("b", { class: "degrade", text: berrys(x.primeEnVie) }), el("span", { text: " en vie" })),
+            el("p", { class: "btl-maree", text: x.maree ? `🌊 Marée ${x.maree}/4` : "🌊 Marée basse" }),
+          ),
+        );
+        BR.hud = { cle, chrono, dans: null };
+      }
+      if (BR.hud.chrono) {
+        const reste = x.suspense ? x.suspense.revele - brMaintenant() : x.prochainRound - brMaintenant();
+        const texte = x.fini ? "🏆 Le survivant est là !" : x.suspense || reste > 0 ? brDuree(Math.max(0, reste)) : "Le round se joue…";
+        const long = x.fini || !(x.suspense || reste > 0) ? "" : x.suspense ? "Résultat dans " : "Prochain round dans ";
+        if (BR.hud.chrono.dataset.t !== long + texte) {
+          BR.hud.chrono.dataset.t = long + texte;
+          vider(BR.hud.chrono, long ? el("span", { class: "btl-long", text: long }) : null, long ? el("span", { class: "btl-court", "aria-hidden": "true", text: "⏱ " }) : null, texte);
         }
       }
-      if (vs && !x.suspense) vs.dataset.cle = "";
-    } else {
-      if (vs) { vs.hidden = true; vs.dataset.cle = ""; }
-      const p = d?.prochaine;
-      const der = d?.dernier;
-      const chasseur = Boolean(maChasse?.primes?.actif);
+      return;
+    }
+    const p = d?.prochaine;
+    const der = d?.dernier;
+    const chasseur = Boolean(maChasse?.primes?.actif);
+    const revoir = Boolean(der?.rediff);
+    const cle = `a|${p?.quand}|${p?.pirates}|${p?.primes}|${chasseur}|${der?.gagnant?.nom}|${der?.nb}|${revoir}|${BR.rediffCharge}|${Boolean(d?.horsLigne)}`;
+    if (BR.hud?.cle !== cle) {
+      const dans = p ? el("p", { class: "btl-attente-dans" }) : null;
       vider(z,
         el("div", { class: "btl-attente" },
           el("p", { class: "btl-attente-sur", text: p ? "Prochaine battle" : "La Battle Royale" }),
           el("p", { class: "btl-attente-date", text: p ? brDate(p.quand) : d?.horsLigne ? "Le bot fait une pause, reviens vite." : "Bientôt" }),
-          p ? el("p", { class: "btl-attente-dans", text: `dans ${brDuree(p.quand - brMaintenant())}` }) : null,
+          dans,
           p ? el("p", { class: "btl-attente-chiffres", text: `${p.pirates} pirate${p.pirates > 1 ? "s" : ""} · ${berrys(p.primes)} de primes en jeu` }) : null,
           chasseur ? el("p", { class: "btl-attente-toi", text: "⚔️ Tu y seras : ton avis de recherche te sert de billet." })
             : el("a", { class: "btn btn-plein btn-petit", href: "#wanted", text: "📜 Crée ton avis de recherche pour y être" }),
+          // revoir la dernière battle sur l'île (ou une battle de démonstration, tant qu'il n'y en a pas eu)
+          el("button", { type: "button", class: "btn btn-petit btl-revoir", disabled: BR.rediffCharge, onclick: brRediffOuvrir, text: BR.rediffCharge ? "Ça arrive…" : revoir ? "▶ Revoir la dernière battle" : "▶ Voir une battle (démo)" }),
         ),
         der?.gagnant ? el("div", { class: "btl-survivant" }, el("span", { text: "Dernier survivant" }), el("b", { text: der.gagnant.nom }), el("small", { text: `parmi ${der.nb} pirates` })) : null,
       );
+      BR.hud = { cle, chrono: null, dans };
     }
+    if (BR.hud.dans && p) {
+      const t = `dans ${brDuree(p.quand - brMaintenant())}`;
+      if (BR.hud.dans.textContent !== t) BR.hud.dans.textContent = t;
+    }
+  }
+  // le face-à-face du duel : les deux avis de recherche de chaque côté de l'île (en 3D sur ordinateur : la photo sort
+  // de l'affiche, elles tremblent pendant le suspense) ; au résultat, ÉLIMINÉ claque sur le perdant et son affiche se
+  // décroche, la prime du gagnant monte
+  function brRendreVs() {
+    const vs = $("btl-vs");
+    const scene = $("btl-scene");
+    if (!vs || !scene) return;
+    const x = brDirect();
+    const D = x ? BR.duel : null;
+    const a = D ? x.pirates[D.a] : null, b = D ? x.pirates[D.b] : null;
+    if (!D || !a || !b) {
+      if (!vs.hidden || vs.dataset.cle) { vs.hidden = true; vs.dataset.cle = ""; vs.className = "btl-vs"; vider(vs); poser3D("duel", scene, null, []); }
+      return;
+    }
+    if (vs.dataset.cle !== D.cle) {
+      vs.dataset.cle = D.cle;
+      const carte = (p, cote) => el("div", { class: `btl-vs-affiche ${cote}` }, affiche({ nom: p.nom, avatar: photoPirate(p), prime: p.prime, petite: true }));
+      vider(vs, carte(a, "bleu"), el("p", { class: "btl-vs-mot", text: "VS" }), carte(b, "rouge"), el("p", { class: "btl-vs-enjeu" }));
+      vs.hidden = false;
+    }
+    const verdict = D.phase === "verdict";
+    const [ea, eb] = vs.querySelectorAll(".btl-vs-affiche");
+    const enjeu = vs.querySelector(".btl-vs-enjeu");
+    if (!ea || !eb || !enjeu) return;
+    const en3D = !brPetit() && !W3D.echec; // les affiches en 3D par-dessus (sur les petits écrans, celles de la page suffisent)
+    vs.className = `btl-vs${verdict ? " verdict" : ""}${en3D ? " en-3d" : ""}`;
+    const gagnant = verdict ? x.pirates[D.res.gagnant] : null, perdant = verdict ? x.pirates[D.res.perdant] : null;
+    for (const [e, p] of [[ea, a], [eb, b]]) {
+      e.classList.toggle("gagne", Boolean(verdict && p.k === gagnant?.k));
+      e.classList.toggle("perdu", Boolean(verdict && p.k === perdant?.k && D.res.mort));
+    }
+    const texte = verdict
+      ? (D.res.mort ? `🏆 ${gagnant?.nom || "?"} l'emporte${D.gain ? ` : +${berrys(D.gain)}` : ""}` : `🛡️ ${perdant?.nom || "?"} tient bon !`)
+      : `${D.finale ? "LA FINALE · " : ""}${berrys(D.enJeu)} de primes en jeu`;
+    if (enjeu.textContent !== texte) enjeu.textContent = texte;
+    // le roulement de tambour, juste avant le résultat
+    if (!verdict && !D.roulement && D.revele - brMaintenant() < 2100) { D.roulement = true; brSon("roulement"); }
+    if (!en3D) return;
+    const tension = verdict ? 0 : Math.min(1, 0.25 + (Date.now() - D.t0) / 7000);
+    const donnees = (p, epingle) => ({
+      nom: p.nom, avatar: p.avatar || brPortrait(p), epingle,
+      prime: p.prime + (verdict && p.k === gagnant?.k && D.res.mort ? D.gain : 0),
+      tension, gagne: Boolean(verdict && p.k === gagnant?.k && D.res.mort),
+      tampon: verdict && p.k === perdant?.k && D.res.mort ? "elimine" : null,
+      tombe: Boolean(verdict && p.k === perdant?.k && D.res.mort),
+    });
+    poser3D("duel", scene, vs, [
+      { el: ea.querySelector(".wanted-affiche"), donnees: donnees(a, "argent") },
+      { el: eb.querySelector(".wanted-affiche"), donnees: donnees(b, "bronze") },
+    ], { ombre: false });
   }
   // sous l'île : ce qui s'est passé (les derniers rounds), ou le dernier podium
   function brRendreFil() {
     const z = $("btl-fil");
     if (!z) return;
     const d = BR.d;
-    const x = d?.direct;
+    const x = brDirect();
     if (x) {
       const rounds = [...BR.rounds.values()].sort((a, b) => b.round - a.round).slice(0, 4);
       vider(z, el("h3", { text: "Ce qui se passe sur l'île" }),
@@ -5004,14 +5178,28 @@
         el("li", { text: "🍺 Pendant la battle, chacun envoie un tonneau de rhum à un pirate : une vie de plus pour lui." }),
         el("li", { text: "🏆 10 000 ฿ pour chaque participant, 20 000 ฿ + 10 % de la prime pour chaque duel gagné, 1 000 000 ฿ et le tampon SURVIVANT pour le dernier debout. Personne ne mise, personne ne perd rien." }),
       ),
-      d?.survivants?.length > 1 ? el("p", { class: "note", text: `Les survivants : ${d.survivants.map((x) => x.nom).join(", ")}` }) : null,
+      d?.survivants?.length > 1 ? el("p", { class: "note", text: `Les survivants : ${d.survivants.map((y) => y.nom).join(", ")}` }) : null,
     );
   }
-  // à côté : le tonneau de rhum (pendant la battle), ou les têtes d'affiche
+  // à côté : le tonneau de rhum (pendant la battle), la rediff (quand on la regarde), ou les têtes d'affiche
   function brRendreCote() {
     const z = $("btl-cote");
     if (!z) return;
-    const x = BR.d?.direct;
+    const x = brDirect();
+    if (x?.rediff) {
+      const R = BR.rediff;
+      const debout = x.pirates.filter((p) => p.vivant).sort((a, b) => b.prime - a.prime).slice(0, 6);
+      vider(z, el("h3", { text: R.demo ? "Une battle de démonstration" : "La rediff" }),
+        el("p", { class: "note", text: R.demo
+          ? `Des pirates inventés, pour voir comment ça se passe.${BR.d?.prochaine ? ` La vraie : ${brDate(BR.d.prochaine.quand).toLowerCase()}.` : ""}`
+          : `La battle du ${brDate(R.debut, { heure: false }).toLowerCase()}, rejouée en accéléré.` }),
+        debout.length ? el("ol", { class: "btl-tetes" }, debout.map((p) => el("li", {},
+          photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 32, height: 32, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
+          el("span", { text: p.nom }), el("b", { text: berrys(p.prime) })))) : null,
+        el("p", { class: "note", text: x.fini ? "🏆 Et voilà le survivant." : `Encore debout : ${x.debout} sur ${x.total}.` }),
+        el("button", { class: "btn btn-petit", type: "button", onclick: () => brRediffQuitter(), text: "✕ Fermer" }));
+      return;
+    }
     if (!x || x.fini) {
       const top = (infosChasse()?.primes?.top || []).slice(0, 5);
       vider(z, el("h3", { text: "Les têtes d'affiche" }),
@@ -5044,6 +5232,114 @@
       BR.message ? el("p", { class: `note${BR.message.erreur ? " erreur" : ""}`, role: "status", text: BR.message.texte }) : null,
     );
   }
+
+  // --- la rediff : le film de la dernière battle (ou la démo), rejoué sur l'île en accéléré ---
+  // Le film : { pirates: [{ nom, avatar, portrait, prime }], film: [{ r, m, p: [[x, y, debout, vies]…], f, mm, fil, duel }…] }
+  // (une image par round ; la première est le débarquement). Chaque round se rejoue en deux temps, comme en direct : le
+  // suspense du duel (l'île d'avant le round), puis le résultat.
+  const BR_DUREES = { debut: 2.8, suspense: 3.8, resultat: 5.8, sansDuel: 4.4, fete: 12 }; // en secondes (à vitesse ×1)
+  async function brRediffOuvrir() {
+    if (BR.rediff || BR.rediffCharge || BR.d?.direct) return;
+    BR.rediffCharge = true;
+    brRendreHud();
+    let f = null;
+    if (BR.d?.dernier?.rediff) {
+      try { const d = await (await fetch("/api/battle?rediff=1", { headers: { Accept: "application/json" } })).json(); if (d?.film?.length > 1 && d.pirates?.length) f = d; } catch {}
+    }
+    if (!f) {
+      try { const d = await (await fetch("/img/battle/demo.json")).json(); if (d?.film?.length > 1 && d.pirates?.length) f = { ...d, demo: true }; } catch {}
+    }
+    BR.rediffCharge = false;
+    if (!f || BR.d?.direct) { brRendre(); return; }
+    BR.fete = null;
+    BR.rounds.clear();
+    BR.rediff = { ...f, cle: Date.now(), i: 0, phase: "debut", vitesse: 1, pause: false, direct: null, minuteur: 0, fin: 0, reste: 0, morts: new Map() };
+    prechargerSons([...new Set(Object.values(BR_SONS).flat().map((s) => s[0]))]);
+    brRediffMontrer();
+    $("btl-scene")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+  // l'état de l'île à ce moment du film, sous la même forme que le direct du bot
+  function brRediffDirect(R) {
+    const img = R.film[R.i], avant = R.film[Math.max(0, R.i - 1)];
+    const suspense = R.phase === "suspense";
+    const e = suspense ? avant : img;
+    const dernierDe = (f) => (f?.fil ? { round: f.r, finale: Boolean(f.f), mareeMonte: Boolean(f.mm), fil: f.fil, duel: f.duel || null } : null);
+    if (!suspense && img.fil) {
+      // ceux qui tombent à ce round, et comment (la ligne qui les concerne)
+      for (const l of img.fil) if (l.b != null && avant.p[l.b]?.[2] && !img.p[l.b]?.[2] && !R.morts.has(l.b)) R.morts.set(l.b, { round: img.r, cause: l.type === "trahison" ? "trahison" : l.type });
+      img.p.forEach((q, k) => { if (!q[2] && !R.morts.has(k)) R.morts.set(k, { round: img.r, cause: "duel" }); });
+    }
+    const debout = e.p.map((q, k) => (q[2] ? k : -1)).filter((k) => k >= 0);
+    const tete = [...debout].sort((a, b) => R.pirates[b].prime - R.pirates[a].prime)[0];
+    const fin = R.phase === "fete" || (R.phase === "resultat" && debout.length <= 1);
+    const t = Date.now();
+    return {
+      rediff: true, essai: false, debut: R.cle, round: e.r, rounds: R.rounds || R.film.length - 1, maree: e.m, debout: debout.length, total: R.pirates.length,
+      primeEnVie: debout.reduce((s, k) => s + (R.pirates[k].prime || 0), 0), totalPrimes: R.total || 0,
+      pirates: R.pirates.map((p, k) => ({
+        k, nom: p.nom, avatar: p.avatar || "", portrait: p.portrait ?? null, prime: p.prime, x: e.p[k][0], y: e.p[k][1],
+        vivant: Boolean(e.p[k][2]), vies: e.p[k][3] || 1, top: k === tete, kills: 0, mort: e.p[k][2] ? null : R.morts.get(k) || { round: e.r, cause: "duel" },
+      })),
+      dernier: dernierDe(e),
+      suspense: suspense ? { a: img.duel.a, b: img.duel.b, enJeu: img.duel.enJeu, finale: Boolean(img.f), round: img.r, revele: t + BR.decal + (BR_DUREES.suspense * 1000) / R.vitesse } : null,
+      prochainRound: 0, fini: fin, enAttente: false,
+    };
+  }
+  function brRediffMontrer() {
+    const R = BR.rediff;
+    if (!R) return;
+    R.direct = brRediffDirect(R);
+    if (R.direct.dernier) BR.rounds.set(R.direct.dernier.round, R.direct.dernier);
+    BR.rendu?.vitesse(R.vitesse);
+    brRendre();
+    const duree = R.phase === "debut" ? BR_DUREES.debut : R.phase === "suspense" ? BR_DUREES.suspense : R.phase === "fete" ? BR_DUREES.fete
+      : R.film[R.i].duel ? BR_DUREES.resultat : BR_DUREES.sansDuel + Math.max(0, (R.film[R.i].fil?.length || 0) - 3) * 0.5;
+    brRediffAttendre((duree * 1000) / R.vitesse);
+  }
+  function brRediffAttendre(ms) {
+    const R = BR.rediff;
+    clearTimeout(R.minuteur);
+    R.fin = Date.now() + ms;
+    R.minuteur = setTimeout(brRediffSuite, ms);
+  }
+  function brRediffSuite() {
+    const R = BR.rediff;
+    if (!R || R.pause) return;
+    if (R.phase === "fete") { brRediffQuitter(); return; }
+    if (R.phase === "suspense") R.phase = "resultat";
+    else if (R.i >= R.film.length - 1) R.phase = "fete";
+    else { R.i++; R.phase = R.film[R.i].duel ? "suspense" : "resultat"; }
+    brRediffMontrer();
+  }
+  function brRediffPause() {
+    const R = BR.rediff;
+    if (!R) return;
+    R.pause = !R.pause;
+    if (R.pause) { clearTimeout(R.minuteur); R.reste = Math.max(0, R.fin - Date.now()); } else brRediffAttendre(R.reste || 300);
+    brRendreHud();
+  }
+  function brRediffVitesse() {
+    const R = BR.rediff;
+    if (!R) return;
+    const reste = R.pause ? R.reste : Math.max(0, R.fin - Date.now());
+    const avant = R.vitesse;
+    R.vitesse = R.vitesse === 1 ? 2 : 1;
+    BR.rendu?.vitesse(R.vitesse);
+    if (R.pause) R.reste = (reste * avant) / R.vitesse; else brRediffAttendre((reste * avant) / R.vitesse);
+    brRendreHud();
+  }
+  function brRediffQuitter({ rendre = true } = {}) {
+    const R = BR.rediff;
+    if (!R) return;
+    clearTimeout(R.minuteur);
+    clearTimeout(BR.duelFin);
+    BR.rediff = null;
+    BR.duel = null;
+    BR.rounds.clear();
+    BR.bandeaux.length = 0;
+    BR.rendu?.vitesse(1);
+    if (rendre) brRendre();
+  }
   function brDemarrer() {
     const s = $("battle");
     if (!s) return;
@@ -5051,11 +5347,12 @@
       BR.vu = e.isIntersecting;
       BR.rendu?.pause(!BR.vu || document.hidden);
       if (BR.vu && !BR.charge) brCharger3D();
+      if (BR.vu && !BR.sonsPrets) { BR.sonsPrets = true; prechargerSons(["taiko", "br-roulement", "br-boum", "impact", "cr-plouf", "br-tic", "cr-pieces", "tonneau", "br-tampon", "carte"]); }
       if (BR.vu) brCharger();
     }, { threshold: 0.08 }).observe(s);
     document.addEventListener("visibilitychange", () => { BR.rendu?.pause(!BR.vu || document.hidden); });
-    // le compte à rebours bouge tout seul
-    BR.horloge = setInterval(() => { if (BR.vu && !document.hidden) brRendreHud(); }, 1000);
+    // le compte à rebours bouge tout seul, la tension du face-à-face monte
+    BR.horloge = setInterval(() => { if (BR.vu && !document.hidden) { brRendreHud(); if (BR.duel) brRendreVs(); } }, 1000);
     brCharger();
   }
 
