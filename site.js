@@ -4860,12 +4860,12 @@
     BR.charge = true;
     try {
       const { creerBattle3D } = await import("/js/battle-3d.js");
-      BR.rendu = creerBattle3D($("br-toile"), {
-        couche: $("br-couche"), petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche,
-        surPirate: (k) => { if (BR.d?.direct && !BR.d.direct.fini) { BR.choix = k; brRendreCote(); $("br-cote")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } },
+      BR.rendu = creerBattle3D($("btl-toile"), {
+        couche: $("btl-couche"), petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche,
+        surPirate: (k) => { if (BR.d?.direct && !BR.d.direct.fini) { BR.choix = k; brRendreCote(); $("btl-cote")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } },
       });
-      $("br-toile").addEventListener("battle-perdu", () => { BR.echec = true; BR.rendu = null; $("br-scene")?.classList.remove("br-3d"); }, { once: true });
-      $("br-scene").classList.add("br-3d");
+      $("btl-toile").addEventListener("battle-perdu", () => { BR.echec = true; BR.rendu = null; $("btl-scene")?.classList.remove("btl-3d"); }, { once: true });
+      $("btl-scene").classList.add("btl-3d");
       BR.rendu.etat(brPourLa3D());
       BR.rendu.pause(!BR.vu || document.hidden);
     } catch {
@@ -4922,24 +4922,24 @@
   }
   // par-dessus l'île : le round, les chiffres, le compte à rebours ; le face-à-face pendant le suspense
   function brRendreHud() {
-    const z = $("br-hud");
+    const z = $("btl-hud");
     if (!z) return;
     const d = BR.d;
     const x = d?.direct;
-    const vs = $("br-vs");
+    const vs = $("btl-vs");
     if (x) {
       const reste = x.suspense ? x.suspense.revele - brMaintenant() : x.prochainRound - brMaintenant();
       vider(z,
-        el("div", { class: "br-hud-haut" },
-          el("p", { class: "br-direct" }, el("span", { class: "br-point", "aria-hidden": "true" }), x.essai ? "ESSAI" : "EN DIRECT", el("b", { text: x.suspense?.finale ? "LA FINALE" : (x.suspense?.round || x.round) ? `ROUND ${x.suspense?.round || x.round} / ${x.rounds}` : "LE DÉBARQUEMENT" })),
-          x.fini ? el("p", { class: "br-chrono", text: "C'est fini !" })
-            : x.suspense || reste > 0 ? el("p", { class: "br-chrono" }, el("span", { class: "br-long", text: x.suspense ? "Résultat dans " : "Prochain round dans " }), el("span", { class: "br-court", "aria-hidden": "true", text: "⏱ " }), brDuree(Math.max(0, reste)))
-            : el("p", { class: "br-chrono", text: "Le round se joue…" }),
+        el("div", { class: "btl-hud-haut" },
+          el("p", { class: "btl-direct" }, el("span", { class: "btl-point", "aria-hidden": "true" }), x.essai ? "ESSAI" : "EN DIRECT", el("b", { text: x.suspense?.finale ? "LA FINALE" : (x.suspense?.round || x.round) ? `ROUND ${x.suspense?.round || x.round} / ${x.rounds}` : "LE DÉBARQUEMENT" })),
+          x.fini ? el("p", { class: "btl-chrono", text: "C'est fini !" })
+            : x.suspense || reste > 0 ? el("p", { class: "btl-chrono" }, el("span", { class: "btl-long", text: x.suspense ? "Résultat dans " : "Prochain round dans " }), el("span", { class: "btl-court", "aria-hidden": "true", text: "⏱ " }), brDuree(Math.max(0, reste)))
+            : el("p", { class: "btl-chrono", text: "Le round se joue…" }),
         ),
-        el("div", { class: "br-chiffres" },
+        el("div", { class: "btl-chiffres" },
           el("p", {}, el("b", { text: String(x.debout) }), el("span", { text: ` / ${x.total} debout` })),
           el("p", {}, el("b", { class: "degrade", text: berrys(x.primeEnVie) }), el("span", { text: " en vie" })),
-          el("p", { class: "br-maree", text: x.maree ? `🌊 Marée ${x.maree}/4` : "🌊 Marée basse" }),
+          el("p", { class: "btl-maree", text: x.maree ? `🌊 Marée ${x.maree}/4` : "🌊 Marée basse" }),
         ),
       );
       if (vs) {
@@ -4950,11 +4950,11 @@
         if (s && vs.dataset.cle !== cle) {
           vs.dataset.cle = cle;
           const a = x.pirates[s.a], b = x.pirates[s.b];
-          const carte = (p, cote) => el("div", { class: `br-vs-carte ${cote}` },
-            photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 96, height: 96, referrerpolicy: "no-referrer" }) : el("span", { class: "br-vs-sans" }),
+          const carte = (p, cote) => el("div", { class: `btl-vs-carte ${cote}` },
+            photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 96, height: 96, referrerpolicy: "no-referrer" }) : el("span", { class: "btl-vs-sans" }),
             el("strong", { text: p.nom }), el("span", { text: berrys(p.prime) }));
-          vider(vs, carte(a, "bleu"), el("p", { class: "br-vs-mot", text: "VS" }), carte(b, "rouge"),
-            el("p", { class: "br-vs-enjeu", text: `${s.finale ? "LA FINALE · " : ""}${berrys(s.enJeu)} de primes en jeu` }));
+          vider(vs, carte(a, "bleu"), el("p", { class: "btl-vs-mot", text: "VS" }), carte(b, "rouge"),
+            el("p", { class: "btl-vs-enjeu", text: `${s.finale ? "LA FINALE · " : ""}${berrys(s.enJeu)} de primes en jeu` }));
         }
       }
       if (vs && !x.suspense) vs.dataset.cle = "";
@@ -4964,41 +4964,41 @@
       const der = d?.dernier;
       const chasseur = Boolean(maChasse?.primes?.actif);
       vider(z,
-        el("div", { class: "br-attente" },
-          el("p", { class: "br-attente-sur", text: p ? "Prochaine battle" : "La Battle Royale" }),
-          el("p", { class: "br-attente-date", text: p ? brDate(p.quand) : d?.horsLigne ? "Le bot fait une pause, reviens vite." : "Bientôt" }),
-          p ? el("p", { class: "br-attente-dans", text: `dans ${brDuree(p.quand - brMaintenant())}` }) : null,
-          p ? el("p", { class: "br-attente-chiffres", text: `${p.pirates} pirate${p.pirates > 1 ? "s" : ""} · ${berrys(p.primes)} de primes en jeu` }) : null,
-          chasseur ? el("p", { class: "br-attente-toi", text: "⚔️ Tu y seras : ton avis de recherche te sert de billet." })
+        el("div", { class: "btl-attente" },
+          el("p", { class: "btl-attente-sur", text: p ? "Prochaine battle" : "La Battle Royale" }),
+          el("p", { class: "btl-attente-date", text: p ? brDate(p.quand) : d?.horsLigne ? "Le bot fait une pause, reviens vite." : "Bientôt" }),
+          p ? el("p", { class: "btl-attente-dans", text: `dans ${brDuree(p.quand - brMaintenant())}` }) : null,
+          p ? el("p", { class: "btl-attente-chiffres", text: `${p.pirates} pirate${p.pirates > 1 ? "s" : ""} · ${berrys(p.primes)} de primes en jeu` }) : null,
+          chasseur ? el("p", { class: "btl-attente-toi", text: "⚔️ Tu y seras : ton avis de recherche te sert de billet." })
             : el("a", { class: "btn btn-plein btn-petit", href: "#wanted", text: "📜 Crée ton avis de recherche pour y être" }),
         ),
-        der?.gagnant ? el("div", { class: "br-survivant" }, el("span", { text: "Dernier survivant" }), el("b", { text: der.gagnant.nom }), el("small", { text: `parmi ${der.nb} pirates` })) : null,
+        der?.gagnant ? el("div", { class: "btl-survivant" }, el("span", { text: "Dernier survivant" }), el("b", { text: der.gagnant.nom }), el("small", { text: `parmi ${der.nb} pirates` })) : null,
       );
     }
   }
   // sous l'île : ce qui s'est passé (les derniers rounds), ou le dernier podium
   function brRendreFil() {
-    const z = $("br-fil");
+    const z = $("btl-fil");
     if (!z) return;
     const d = BR.d;
     const x = d?.direct;
     if (x) {
       const rounds = [...BR.rounds.values()].sort((a, b) => b.round - a.round).slice(0, 4);
       vider(z, el("h3", { text: "Ce qui se passe sur l'île" }),
-        rounds.length ? rounds.map((r) => el("div", { class: "br-round" },
-          el("p", { class: "br-round-titre", text: r.finale ? "La finale" : `Round ${r.round}` }),
-          r.mareeMonte ? el("p", { class: "br-ligne maree", text: "🌊 La marée monte : l'île rétrécit." }) : null,
-          (r.fil || []).map((l) => el("p", { class: `br-ligne ${l.type}` }, `${EMOJIS_BR[l.type] ? `${EMOJIS_BR[l.type]} ` : ""}${l.texte}`, /฿/.test(l.tag || "") ? el("b", { text: ` ${l.tag}` }) : null)),
+        rounds.length ? rounds.map((r) => el("div", { class: "btl-round" },
+          el("p", { class: "btl-round-titre", text: r.finale ? "La finale" : `Round ${r.round}` }),
+          r.mareeMonte ? el("p", { class: "btl-ligne maree", text: "🌊 La marée monte : l'île rétrécit." }) : null,
+          (r.fil || []).map((l) => el("p", { class: `btl-ligne ${l.type}` }, `${EMOJIS_BR[l.type] ? `${EMOJIS_BR[l.type]} ` : ""}${l.texte}`, /฿/.test(l.tag || "") ? el("b", { text: ` ${l.tag}` }) : null)),
         )) : el("p", { class: "note", text: x.suspense ? "Le premier duel se joue…" : "Les pirates débarquent. Le premier round arrive." }));
       return;
     }
     const der = d?.dernier;
     vider(z, el("h3", { text: der ? "La dernière battle" : "Comment ça se passe" }),
-      der ? el("ol", { class: "br-podium" }, (der.podium || []).map((p, k) => el("li", { class: `rang-${k + 1}` },
+      der ? el("ol", { class: "btl-podium" }, (der.podium || []).map((p, k) => el("li", { class: `rang-${k + 1}` },
         p?.avatar ? el("img", { src: p.avatar, alt: "", width: 40, height: 40, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
-        el("span", { class: "br-podium-nom", text: p?.nom || "?" }),
+        el("span", { class: "btl-podium-nom", text: p?.nom || "?" }),
         el("b", { text: ["1 000 000 ฿", "250 000 ฿", "100 000 ฿"][k] || "" })))) : null,
-      el("ul", { class: "br-regles" },
+      el("ul", { class: "btl-regles" },
         el("li", { text: "⚔️ Un round toutes les 2 minutes, une quarantaine de minutes en tout : des duels, des créatures, des pièges, des trahisons. La marée monte 4 fois." }),
         el("li", { text: "💪 Plus ta prime est grosse, plus tu es fort. Mais les grosses têtes se font viser, et la chance compte toujours." }),
         el("li", { text: "🍺 Pendant la battle, chacun envoie un tonneau de rhum à un pirate : une vie de plus pour lui." }),
@@ -5009,13 +5009,13 @@
   }
   // à côté : le tonneau de rhum (pendant la battle), ou les têtes d'affiche
   function brRendreCote() {
-    const z = $("br-cote");
+    const z = $("btl-cote");
     if (!z) return;
     const x = BR.d?.direct;
     if (!x || x.fini) {
       const top = (infosChasse()?.primes?.top || []).slice(0, 5);
       vider(z, el("h3", { text: "Les têtes d'affiche" }),
-        top.length ? el("ol", { class: "br-tetes" }, top.map((p) => el("li", {},
+        top.length ? el("ol", { class: "btl-tetes" }, top.map((p) => el("li", {},
           p.avatar ? el("img", { src: p.avatar, alt: "", width: 32, height: 32, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
           el("span", { text: p.nom }), el("b", { text: berrys(p.prime) })))) : el("p", { class: "note", text: "Pas encore d'avis de recherche." }),
         el("p", { class: "note", text: "Les plus grosses primes du serveur : ce sont elles qu'on vise en premier sur l'île." }));
@@ -5026,20 +5026,20 @@
     const donne = BR.moi?.tonneau != null ? x.pirates[BR.moi.tonneau] : null;
     let action;
     if (!moi?.connecte) action = [el("p", { text: "Connecte-toi avec Discord pour envoyer ton tonneau de rhum à un pirate." }), el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Se connecter avec Discord" })];
-    else if (donne) action = el("p", { class: "br-donne", text: `🍺 Ton tonneau est parti vers ${donne.nom}.` });
+    else if (donne) action = el("p", { class: "btl-donne", text: `🍺 Ton tonneau est parti vers ${donne.nom}.` });
     else {
       const choisi = BR.choix != null ? x.pirates[BR.choix] : null;
       action = [
         el("p", { class: "note", text: "Choisis un pirate (ici, ou en cliquant son affiche sur l'île) : il pourra encaisser un coup de plus. Un tonneau par personne et par battle." }),
-        el("div", { class: "br-choix" }, vivants.slice(0, 24).map((p) => el("button", {
-          class: `br-pirate${BR.choix === p.k ? " choisi" : ""}${monPirate?.k === p.k ? " moi" : ""}`, type: "button", disabled: monPirate?.k === p.k,
+        el("div", { class: "btl-choix" }, vivants.slice(0, 24).map((p) => el("button", {
+          class: `btl-pirate${BR.choix === p.k ? " choisi" : ""}${monPirate?.k === p.k ? " moi" : ""}`, type: "button", disabled: monPirate?.k === p.k,
           onclick: () => { BR.choix = p.k; BR.rendu?.focus(p.k); brRendreCote(); },
         }, photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 28, height: 28, referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }), el("span", { text: p.nom }), el("small", { text: `${p.vies > 1 ? `${p.vies} vies · ` : ""}${berrys(p.prime)}` })))),
         el("button", { class: "btn btn-plein", type: "button", disabled: !choisi || BR.occupe, onclick: brTonneau, text: BR.occupe ? "Le tonneau roule…" : choisi ? `🍺 Envoyer le tonneau à ${choisi.nom}` : "🍺 Choisis un pirate" }),
       ];
     }
     vider(z, el("h3", { text: "Ton tonneau de rhum" }),
-      monPirate ? el("p", { class: "br-toi", text: monPirate.vivant ? `⚔️ Tu es sur l'île : ${monPirate.vies} vie${monPirate.vies > 1 ? "s" : ""}${monPirate.kills ? `, ${monPirate.kills} pirate${monPirate.kills > 1 ? "s" : ""} éliminé${monPirate.kills > 1 ? "s" : ""}` : ""}.` : `💀 Tu es tombé au round ${monPirate.mort?.round ?? "?"}. Tu peux encore aider un autre pirate.` }) : null,
+      monPirate ? el("p", { class: "btl-toi", text: monPirate.vivant ? `⚔️ Tu es sur l'île : ${monPirate.vies} vie${monPirate.vies > 1 ? "s" : ""}${monPirate.kills ? `, ${monPirate.kills} pirate${monPirate.kills > 1 ? "s" : ""} éliminé${monPirate.kills > 1 ? "s" : ""}` : ""}.` : `💀 Tu es tombé au round ${monPirate.mort?.round ?? "?"}. Tu peux encore aider un autre pirate.` }) : null,
       action,
       BR.message ? el("p", { class: `note${BR.message.erreur ? " erreur" : ""}`, role: "status", text: BR.message.texte }) : null,
     );
