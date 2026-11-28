@@ -401,13 +401,13 @@
   // sur ordinateur, une barre en bas de l'écran sur téléphone. Si la VF 1.0 se referme (le bot la retient), tout revient.
   const RUBRIQUES_VF = [
     { id: "live", nom: "Le Live", court: "Live", icone: "camera", liens: ["chaine", "boss-live", "mer", "barhaw-show", "evenements"] },
-    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "creatures", "chasse", "chopper"] },
+    { id: "aventure", nom: "L'Aventure", court: "Aventure", icone: "bouteille", liens: ["grandline", "guerre", "creatures", "chasse", "battle", "chopper"] },
     { id: "jeux", nom: "Les Jeux", court: "Jeux", icone: "borne", liens: ["jeux", "cartes", "faille"] },
     { id: "commu", nom: "La Commu", court: "Commu", icone: "chopes", liens: ["bahriot", "potes", "youtube", "discord"] },
   ];
   const LIENS_VF = {
     chaine: ["camera", "Le live, le tchat, le planning"], "boss-live": ["casque", "Le boss du live, tous ensemble"], mer: ["bouteille", "La course de barques du live"], tournoi: ["trophee", "Le TOURNOI BARHAW"], "barhaw-show": ["micro", "4 équipes, 4 jeux, en février"],
-    evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], creatures: ["lanterne", "Les attraper, les collectionner, les faire évoluer"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"],
+    evenements: ["lanterne", "Ce qui arrive bientôt"], grandline: ["bouteille", "La course des navires, La Traversée"], creatures: ["lanterne", "Les attraper, les collectionner, les faire évoluer"], chasse: ["panneau", "Les primes WANTED, le boss de la semaine"], battle: ["epees", "L'Île sans retour, une fois par mois"],
     chopper: ["gamelle", "La mascotte à faire vivre"], jeux: ["borne", "Les mini-jeux et leurs records"], cartes: ["coffre", "La collection de la commu"],
     faille: ["epees", "Les games de LoL entre potes"], bahriot: ["trophee", "Toute la flotte sur les jeux Riot"], potes: ["chopes", "Les streamers potes"], youtube: ["clap", "Les vidéos"], discord: ["cloche", "Rejoindre le serveur"],
   };
@@ -4350,7 +4350,7 @@
   const infosChasse = () => donnees?.chasse || null;
   const berrys = (n) => `${nombre(Math.round(Number(n) || 0))} ฿`;
   const imageBoss = (id) => imageCarte(id) || { src: "/img/chopper-visage.jpg", l: 480, h: 480 };
-  const SOURCES_PRIME = { depart: "Création de l'avis", messages: "Messages sur le Discord", lives: "Présence aux lives", cartes: "Cartes", jeux: "Jeux", chopper: "Chopper", faille: "Games de LoL", boss: "Coups au boss" };
+  const SOURCES_PRIME = { depart: "Création de l'avis", messages: "Messages sur le Discord", lives: "Présence aux lives", cartes: "Cartes", jeux: "Jeux", chopper: "Chopper", faille: "Games de LoL", boss: "Coups au boss", battle: "La Battle Royale" };
   const texteButin = (b) => [b.degats ? `⚔️ −${nombre(b.degats)} PV au boss` : "", b.berrys ? `+${berrys(b.berrys)}` : ""].filter(Boolean).join(" · ");
 
   function dureeCourte(t) {
@@ -4557,6 +4557,61 @@
     if (zone && (d.texte || d.erreur)) zone.prepend(el("p", { class: "note", role: "status", text: d.texte || d.erreur }));
   }
 
+  // --- les affiches en 3D (js/wanted-3d.js) : posées par-dessus les affiches de la page, qui restent là sans WebGL ---
+  // Une seule toile par panneau, gardée d'un rendu à l'autre (on la déplace dans le nouveau contenu, sans refaire de 3D).
+  const W3D = { mod: null, vues: new Map(), echec: false, observe: null };
+  // les photos Discord passent par le site : la 3D a besoin de lire leurs pixels (pour découper la personne)
+  const photoAffiche = (u) => {
+    const m = String(u || "").match(/^https:\/\/cdn\.discordapp\.com\/((?:guilds\/\d{5,25}\/users\/\d{5,25}\/)?avatars\/(?:\d{5,25}\/)?(?:a_)?[0-9a-f]{32}|embed\/avatars\/\d)\.(?:png|webp|jpg|jpeg|gif)(?:\?size=\d{1,4})?$/);
+    return m ? `/api/chopper?image=avatar&u=${encodeURIComponent(m[1])}` : u;
+  };
+  async function poser3D(nom, panneau, conteneur, entrees) {
+    if (W3D.echec || !panneau) return;
+    let v = W3D.vues.get(nom);
+    if (!entrees.length || !conteneur) {
+      panneau.classList.remove("w3d-pret");
+      v?.rendu?.placer([]);
+      v?.toile.remove();
+      if (v) v.conteneur = null;
+      return;
+    }
+    if (!v) {
+      v = { toile: el("canvas", { class: "w3d-toile", "aria-hidden": "true" }), rendu: null, conteneur: null, panneau, visible: !("IntersectionObserver" in window) };
+      W3D.vues.set(nom, v);
+      try {
+        W3D.mod ||= await import("/js/wanted-3d.js");
+        v.rendu = W3D.mod.creerWanted3D(v.toile, { zone: panneau, petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche });
+      } catch {
+        W3D.echec = true; // pas de WebGL : les affiches de la page restent
+        W3D.vues.delete(nom);
+        return;
+      }
+      v.toile.addEventListener("wanted-pret", () => panneau.classList.toggle("w3d-pret", Boolean(v.conteneur && v.rendu.pretes())));
+      v.toile.addEventListener("wanted-perdu", () => {
+        W3D.echec = true;
+        for (const x of W3D.vues.values()) { x.panneau.classList.remove("w3d-pret"); x.toile.remove(); try { x.rendu.arreter(); } catch {} }
+        W3D.vues.clear();
+      });
+      if (!W3D.observe && "IntersectionObserver" in window) {
+        W3D.observe = new IntersectionObserver((e) => {
+          for (const x of e) { const vue = [...W3D.vues.values()].find((y) => y.panneau === x.target); if (vue) vue.visible = x.isIntersecting; }
+          for (const x of W3D.vues.values()) x.rendu?.pause(!x.visible || document.hidden);
+        }, { rootMargin: "120px 0px" });
+        document.addEventListener("visibilitychange", () => { for (const x of W3D.vues.values()) x.rendu?.pause(!x.visible || document.hidden); });
+      }
+      W3D.observe?.observe(panneau);
+    }
+    if (!v.rendu) return;
+    if (v.conteneur !== conteneur) {
+      conteneur.append(v.toile);
+      v.conteneur = conteneur;
+    }
+    v.rendu.placer(entrees);
+    v.rendu.redimensionner();
+    panneau.classList.toggle("w3d-pret", v.rendu.pretes());
+    v.rendu.pause(!v.visible || document.hidden);
+  }
+
   // --- l'avis de recherche du membre ---
   function affiche({ nom, avatar, prime, inconnu = false, petite = false }) {
     return el("div", { class: `wanted-affiche${inconnu ? " inconnu" : ""}${petite ? " petite" : ""}` },
@@ -4620,9 +4675,11 @@
     if (!z) return;
     const p = maChasse?.primes;
     let contenu;
+    let pourLa3D = null;
     if (!moi?.connecte) {
+      pourLa3D = { nom: "Toi ?", inconnu: true };
       contenu = [
-        affiche({ nom: "Toi ?", inconnu: true }),
+        el("div", { class: "wanted-apercu" }, affiche(pourLa3D)),
         el("div", { class: "wanted-infos" },
           el("h3", { text: "Ton avis de recherche" }),
           el("p", { text: "Ta photo de profil sur une affiche WANTED, avec une prime en berrys qui monte avec tout ce que tu fais sur le Discord et sur le site." }),
@@ -4630,12 +4687,15 @@
         ),
       ];
     } else if (chassePasMembre) {
-      contenu = [affiche({ nom: moi.nom, inconnu: true }), el("div", { class: "wanted-infos" }, el("h3", { text: "Ton avis de recherche" }), el("p", { text: "Rejoins le Discord Barhaw pour entrer dans la chasse." }), el("a", { class: "btn btn-plein", href: "#discord", text: "Rejoindre le Discord" }))];
+      pourLa3D = { nom: moi.nom, inconnu: true };
+      contenu = [el("div", { class: "wanted-apercu" }, affiche(pourLa3D)), el("div", { class: "wanted-infos" }, el("h3", { text: "Ton avis de recherche" }), el("p", { text: "Rejoins le Discord Barhaw pour entrer dans la chasse." }), el("a", { class: "btn btn-plein", href: "#discord", text: "Rejoindre le Discord" }))];
     } else if (!p) {
-      contenu = [affiche({ nom: moi.nom, inconnu: true }), el("div", { class: "wanted-infos" }, el("h3", { text: "Ton avis de recherche" }), el("p", { class: "note", text: "Ta prime arrive…" }))];
+      pourLa3D = { nom: moi.nom, inconnu: true };
+      contenu = [el("div", { class: "wanted-apercu" }, affiche(pourLa3D)), el("div", { class: "wanted-infos" }, el("h3", { text: "Ton avis de recherche" }), el("p", { class: "note", text: "Ta prime arrive…" }))];
     } else if (!p.actif) {
+      pourLa3D = { nom: moi.nom, avatar: moi.avatar, prime: infosChasse()?.primes?.gains?.depart || 50000 };
       contenu = [
-        el("div", { class: "wanted-apercu" }, affiche({ nom: moi.nom, avatar: moi.avatar, prime: infosChasse()?.primes?.gains?.depart || 50000 })),
+        el("div", { class: "wanted-apercu" }, affiche(pourLa3D)),
         el("div", { class: "wanted-infos" },
           el("h3", { text: "Crée ton avis de recherche" }),
           el("p", { text: "Ta prime démarre à 50 000 ฿ (plus 10 000 par carte déjà dans ton album), puis elle monte avec :" }),
@@ -4649,8 +4709,9 @@
       const part = prochain ? Math.min(1, p.prime / prochain) : 1;
       const sources = Object.entries(p.sources || {}).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
       const maxSource = sources[0]?.[1] || 1;
+      pourLa3D = { nom: p.nom, avatar: p.avatar || moi.avatar, prime: p.prime, tampon: p.tampon || null };
       contenu = [
-        el("div", { class: `wanted-apercu${nouveau ? " placarde" : ""}` }, affiche({ nom: p.nom, avatar: p.avatar || moi.avatar, prime: p.prime })),
+        el("div", { class: `wanted-apercu${nouveau ? " placarde" : ""}` }, affiche(pourLa3D)),
         el("div", { class: "wanted-infos" },
           el("p", { class: "wanted-titre-pirate", text: p.titre }),
           el("p", { class: "wanted-grosse-prime" }, el("b", { class: "degrade", text: berrys(p.prime) })),
@@ -4674,6 +4735,9 @@
       ];
     }
     vider(z, contenu);
+    const ap = z.querySelector(".wanted-apercu");
+    const a = ap?.querySelector(".wanted-affiche");
+    poser3D("wanted", z, ap, a && pourLa3D ? [{ el: a, donnees: { ...pourLa3D, epingle: "rose" } }] : []);
   }
 
   // --- le mur des primes ---
@@ -4720,6 +4784,11 @@
       corps,
       s?.total ? el("p", { class: "note", text: `${s.total} avis de recherche placardé${s.total > 1 ? "s" : ""}. La prime ne baisse jamais ; le classement du mois repart à zéro le 1er.` }) : null,
     );
+    if (BR.vu && !BR.d?.direct) BR.rendu?.etat(brPourLa3D());
+    // les trois premières affiches en 3D (médailles : la punaise en or, en argent, en bronze)
+    const mur = z.querySelector(".mur");
+    const trois = ongletPrimes === "top" ? (s?.top || []).slice(0, 3) : [];
+    poser3D("mur", z, mur, mur ? [...mur.querySelectorAll(".wanted-affiche")].slice(0, trois.length).map((a, k) => ({ el: a, donnees: { nom: trois[k].nom, avatar: trois[k].avatar, prime: trois[k].prime, tampon: trois[k].tampon || null, epingle: ["or", "argent", "bronze"][k] } })) : []);
   }
 
   function rendreChasse() {
@@ -4742,6 +4811,252 @@
     if (!s || !("IntersectionObserver" in window)) return;
     new IntersectionObserver((e) => { chasseVue = e.some((x) => x.isIntersecting); }, { rootMargin: "200px 0px" }).observe(s);
     setInterval(() => { if (chasseVue && !document.hidden) rafraichirChasse(); }, 20_000);
+  }
+
+  // ---------- La Battle Royale de GRAND LINE : « L'Île sans retour » (lib/battle.js du bot), en 3D sur le site ----------
+  // Le dernier dimanche du mois, tous les avis de recherche sont lâchés sur une île ; le bot joue un round toutes les
+  // 2 minutes. Le site montre l'île en 3D (js/battle-3d.js) : en direct pendant la battle (le duel du round, ceux qui
+  // tombent, la marée qui monte), sinon la prochaine battle et le dernier survivant. Le tonneau de rhum s'envoie d'ici.
+  // Pas de résultat en avance : le bot montre au site l'île d'avant le round tant que Discord n'a pas montré le résultat.
+  const BR = { d: null, vu: false, charge: false, rendu: null, minuteur: 0, horloge: 0, choix: null, moi: null, message: null, occupe: false, decal: 0, rounds: new Map(), echec: false };
+  // là où les têtes d'affiche attendent la prochaine battle (des places de l'île, comme sur la carte du bot)
+  const BR_PLACES = [[366, 384], [282, 274], [406, 266], [437, 466], [262, 568], [554, 310], [166, 440], [296, 152], [434, 578], [544, 470], [487, 148], [162, 294]];
+  const brMaintenant = () => Date.now() + BR.decal;
+  const brDuree = (ms) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    const j = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (j) return `${j} j ${h} h`;
+    if (h) return `${h} h ${String(m).padStart(2, "0")}`;
+    return m ? `${m} min ${String(s % 60).padStart(2, "0")}` : `${s % 60} s`;
+  };
+  // « Dimanche 27 décembre · 21 h »
+  const brDate = (t) => {
+    const o = { timeZone: "Europe/Paris" };
+    const jour = new Date(t).toLocaleDateString("fr-FR", { ...o, weekday: "long", day: "numeric", month: "long" });
+    const [hh, mm] = new Date(t).toLocaleTimeString("fr-FR", { ...o, hour: "2-digit", minute: "2-digit" }).split(":");
+    return `${jour.charAt(0).toUpperCase()}${jour.slice(1)} · ${Number(hh)} h${mm === "00" ? "" : ` ${mm}`}`;
+  };
+  // la photo d'un pirate (les faux pirates des battles d'essai ont un portrait inventé)
+  const photoPirate = (p) => (p?.avatar ? photoAffiche(p.avatar) : Number.isInteger(p?.portrait) ? `/img/battle/portraits/${String(p.portrait).padStart(2, "0")}.png` : "");
+  const EMOJIS_BR = { duel: "⚔️", trahison: "🗡️", alliance: "🤝", bete: "🦑", absurde: "🐟", piege: "🪤", maree: "🌊", coffre: "💰", esquive: "💨", rhum: "" };
+  // ce que la 3D doit montrer
+  function brPourLa3D() {
+    const d = BR.d;
+    if (d?.direct) {
+      const x = d.direct;
+      return { mode: "direct", maree: x.maree, round: x.round, pirates: x.pirates, suspense: x.suspense, dernier: x.dernier };
+    }
+    // en attendant : les têtes d'affiche du mur des primes sur l'île, et le dernier survivant couronné
+    const top = (infosChasse()?.primes?.top || []).slice(0, 10);
+    const surv = d?.dernier?.gagnant;
+    const liste = surv && !top.some((x) => x.nom === surv.nom) ? [{ ...surv }, ...top.slice(0, 9)] : top;
+    return {
+      mode: "attente", maree: 0, round: 0, suspense: null, dernier: null,
+      pirates: liste.map((x, k) => ({ k, nom: x.nom, avatar: x.avatar, prime: x.prime, x: BR_PLACES[k][0], y: BR_PLACES[k][1], vivant: true, top: surv ? x.nom === surv.nom : k === 0, vies: 1 })),
+    };
+  }
+  async function brCharger3D() {
+    if (BR.charge || BR.echec) return;
+    BR.charge = true;
+    try {
+      const { creerBattle3D } = await import("/js/battle-3d.js");
+      BR.rendu = creerBattle3D($("br-toile"), {
+        couche: $("br-couche"), petit: Math.min(window.innerWidth, window.innerHeight) < 700, reduit: reduit.matches, photo: photoAffiche,
+        surPirate: (k) => { if (BR.d?.direct && !BR.d.direct.fini) { BR.choix = k; brRendreCote(); $("br-cote")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } },
+      });
+      $("br-toile").addEventListener("battle-perdu", () => { BR.echec = true; BR.rendu = null; $("br-scene")?.classList.remove("br-3d"); }, { once: true });
+      $("br-scene").classList.add("br-3d");
+      BR.rendu.etat(brPourLa3D());
+      BR.rendu.pause(!BR.vu || document.hidden);
+    } catch {
+      BR.echec = true; // pas de WebGL : la scène reste une belle image fixe
+      BR.rendu = null;
+    }
+  }
+  async function brCharger() {
+    clearTimeout(BR.minuteur);
+    try {
+      const r = await fetch("/api/battle", { headers: { Accept: "application/json" } });
+      const d = await r.json();
+      if (d?.maintenant) BR.decal = d.maintenant - Date.now();
+      if (d && !d.horsLigne) BR.d = d;
+      else if (!BR.d) BR.d = d;
+    } catch {
+      if (!BR.d) BR.d = { horsLigne: true };
+    }
+    const x = BR.d?.direct;
+    if (x?.dernier && !BR.rounds.has(x.dernier.round)) BR.rounds.set(x.dernier.round, x.dernier);
+    if (!x) BR.rounds.clear();
+    if (x && moi?.connecte && !BR.moi) brMoi();
+    brRendre();
+    const ms = document.hidden ? 60_000 : x ? (x.suspense ? 1500 : 3000) : BR.vu ? 30_000 : 180_000;
+    BR.minuteur = setTimeout(brCharger, ms);
+  }
+  // le membre connecté : son pirate sur l'île, son tonneau
+  async function brAgir(action, extra = {}) {
+    try {
+      const r = await fetch("/api/chopper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) { moi = { connecte: false }; rendreCompte(); }
+      if (d.moi) BR.moi = d.moi;
+      return d;
+    } catch {
+      return { erreur: "reseau", texte: "Le tonneau n'est pas parti, réessaie." };
+    }
+  }
+  async function brMoi() { await brAgir("battle"); brRendreCote(); }
+  async function brTonneau() {
+    if (BR.occupe || BR.choix == null) return;
+    BR.occupe = true;
+    brRendreCote();
+    const d = await brAgir("battle-rhum", { pour: BR.choix });
+    BR.occupe = false;
+    BR.message = { texte: d.texte || d.erreur || "C'est parti !", erreur: !d.ok };
+    brRendreCote();
+  }
+  function brRendre() {
+    BR.rendu?.etat(brPourLa3D());
+    brRendreHud();
+    brRendreFil();
+    brRendreCote();
+  }
+  // par-dessus l'île : le round, les chiffres, le compte à rebours ; le face-à-face pendant le suspense
+  function brRendreHud() {
+    const z = $("br-hud");
+    if (!z) return;
+    const d = BR.d;
+    const x = d?.direct;
+    const vs = $("br-vs");
+    if (x) {
+      const reste = x.suspense ? x.suspense.revele - brMaintenant() : x.prochainRound - brMaintenant();
+      vider(z,
+        el("div", { class: "br-hud-haut" },
+          el("p", { class: "br-direct" }, el("span", { class: "br-point", "aria-hidden": "true" }), x.essai ? "ESSAI" : "EN DIRECT", el("b", { text: x.suspense?.finale ? "LA FINALE" : (x.suspense?.round || x.round) ? `ROUND ${x.suspense?.round || x.round} / ${x.rounds}` : "LE DÉBARQUEMENT" })),
+          x.fini ? el("p", { class: "br-chrono", text: "C'est fini !" })
+            : x.suspense || reste > 0 ? el("p", { class: "br-chrono" }, el("span", { class: "br-long", text: x.suspense ? "Résultat dans " : "Prochain round dans " }), el("span", { class: "br-court", "aria-hidden": "true", text: "⏱ " }), brDuree(Math.max(0, reste)))
+            : el("p", { class: "br-chrono", text: "Le round se joue…" }),
+        ),
+        el("div", { class: "br-chiffres" },
+          el("p", {}, el("b", { text: String(x.debout) }), el("span", { text: ` / ${x.total} debout` })),
+          el("p", {}, el("b", { class: "degrade", text: berrys(x.primeEnVie) }), el("span", { text: " en vie" })),
+          el("p", { class: "br-maree", text: x.maree ? `🌊 Marée ${x.maree}/4` : "🌊 Marée basse" }),
+        ),
+      );
+      if (vs) {
+        const s = x.suspense;
+        vs.hidden = !s;
+        // on ne refait les cartes que pour un nouveau duel (sinon leur entrée rejouerait chaque seconde)
+        const cle = s ? `${x.round}-${s.a}-${s.b}` : "";
+        if (s && vs.dataset.cle !== cle) {
+          vs.dataset.cle = cle;
+          const a = x.pirates[s.a], b = x.pirates[s.b];
+          const carte = (p, cote) => el("div", { class: `br-vs-carte ${cote}` },
+            photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 96, height: 96, referrerpolicy: "no-referrer" }) : el("span", { class: "br-vs-sans" }),
+            el("strong", { text: p.nom }), el("span", { text: berrys(p.prime) }));
+          vider(vs, carte(a, "bleu"), el("p", { class: "br-vs-mot", text: "VS" }), carte(b, "rouge"),
+            el("p", { class: "br-vs-enjeu", text: `${s.finale ? "LA FINALE · " : ""}${berrys(s.enJeu)} de primes en jeu` }));
+        }
+      }
+      if (vs && !x.suspense) vs.dataset.cle = "";
+    } else {
+      if (vs) { vs.hidden = true; vs.dataset.cle = ""; }
+      const p = d?.prochaine;
+      const der = d?.dernier;
+      const chasseur = Boolean(maChasse?.primes?.actif);
+      vider(z,
+        el("div", { class: "br-attente" },
+          el("p", { class: "br-attente-sur", text: p ? "Prochaine battle" : "La Battle Royale" }),
+          el("p", { class: "br-attente-date", text: p ? brDate(p.quand) : d?.horsLigne ? "Le bot fait une pause, reviens vite." : "Bientôt" }),
+          p ? el("p", { class: "br-attente-dans", text: `dans ${brDuree(p.quand - brMaintenant())}` }) : null,
+          p ? el("p", { class: "br-attente-chiffres", text: `${p.pirates} pirate${p.pirates > 1 ? "s" : ""} · ${berrys(p.primes)} de primes en jeu` }) : null,
+          chasseur ? el("p", { class: "br-attente-toi", text: "⚔️ Tu y seras : ton avis de recherche te sert de billet." })
+            : el("a", { class: "btn btn-plein btn-petit", href: "#wanted", text: "📜 Crée ton avis de recherche pour y être" }),
+        ),
+        der?.gagnant ? el("div", { class: "br-survivant" }, el("span", { text: "Dernier survivant" }), el("b", { text: der.gagnant.nom }), el("small", { text: `parmi ${der.nb} pirates` })) : null,
+      );
+    }
+  }
+  // sous l'île : ce qui s'est passé (les derniers rounds), ou le dernier podium
+  function brRendreFil() {
+    const z = $("br-fil");
+    if (!z) return;
+    const d = BR.d;
+    const x = d?.direct;
+    if (x) {
+      const rounds = [...BR.rounds.values()].sort((a, b) => b.round - a.round).slice(0, 4);
+      vider(z, el("h3", { text: "Ce qui se passe sur l'île" }),
+        rounds.length ? rounds.map((r) => el("div", { class: "br-round" },
+          el("p", { class: "br-round-titre", text: r.finale ? "La finale" : `Round ${r.round}` }),
+          r.mareeMonte ? el("p", { class: "br-ligne maree", text: "🌊 La marée monte : l'île rétrécit." }) : null,
+          (r.fil || []).map((l) => el("p", { class: `br-ligne ${l.type}` }, `${EMOJIS_BR[l.type] ? `${EMOJIS_BR[l.type]} ` : ""}${l.texte}`, /฿/.test(l.tag || "") ? el("b", { text: ` ${l.tag}` }) : null)),
+        )) : el("p", { class: "note", text: x.suspense ? "Le premier duel se joue…" : "Les pirates débarquent. Le premier round arrive." }));
+      return;
+    }
+    const der = d?.dernier;
+    vider(z, el("h3", { text: der ? "La dernière battle" : "Comment ça se passe" }),
+      der ? el("ol", { class: "br-podium" }, (der.podium || []).map((p, k) => el("li", { class: `rang-${k + 1}` },
+        p?.avatar ? el("img", { src: p.avatar, alt: "", width: 40, height: 40, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
+        el("span", { class: "br-podium-nom", text: p?.nom || "?" }),
+        el("b", { text: ["1 000 000 ฿", "250 000 ฿", "100 000 ฿"][k] || "" })))) : null,
+      el("ul", { class: "br-regles" },
+        el("li", { text: "⚔️ Un round toutes les 2 minutes, une quarantaine de minutes en tout : des duels, des créatures, des pièges, des trahisons. La marée monte 4 fois." }),
+        el("li", { text: "💪 Plus ta prime est grosse, plus tu es fort. Mais les grosses têtes se font viser, et la chance compte toujours." }),
+        el("li", { text: "🍺 Pendant la battle, chacun envoie un tonneau de rhum à un pirate : une vie de plus pour lui." }),
+        el("li", { text: "🏆 10 000 ฿ pour chaque participant, 20 000 ฿ + 10 % de la prime pour chaque duel gagné, 1 000 000 ฿ et le tampon SURVIVANT pour le dernier debout. Personne ne mise, personne ne perd rien." }),
+      ),
+      d?.survivants?.length > 1 ? el("p", { class: "note", text: `Les survivants : ${d.survivants.map((x) => x.nom).join(", ")}` }) : null,
+    );
+  }
+  // à côté : le tonneau de rhum (pendant la battle), ou les têtes d'affiche
+  function brRendreCote() {
+    const z = $("br-cote");
+    if (!z) return;
+    const x = BR.d?.direct;
+    if (!x || x.fini) {
+      const top = (infosChasse()?.primes?.top || []).slice(0, 5);
+      vider(z, el("h3", { text: "Les têtes d'affiche" }),
+        top.length ? el("ol", { class: "br-tetes" }, top.map((p) => el("li", {},
+          p.avatar ? el("img", { src: p.avatar, alt: "", width: 32, height: 32, loading: "lazy", referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }),
+          el("span", { text: p.nom }), el("b", { text: berrys(p.prime) })))) : el("p", { class: "note", text: "Pas encore d'avis de recherche." }),
+        el("p", { class: "note", text: "Les plus grosses primes du serveur : ce sont elles qu'on vise en premier sur l'île." }));
+      return;
+    }
+    const vivants = x.pirates.filter((p) => p.vivant).sort((a, b) => b.prime - a.prime);
+    const monPirate = BR.moi?.pirate != null ? x.pirates[BR.moi.pirate] : null;
+    const donne = BR.moi?.tonneau != null ? x.pirates[BR.moi.tonneau] : null;
+    let action;
+    if (!moi?.connecte) action = [el("p", { text: "Connecte-toi avec Discord pour envoyer ton tonneau de rhum à un pirate." }), el("a", { class: "btn btn-plein btn-petit", href: "/api/auth/login", text: "Se connecter avec Discord" })];
+    else if (donne) action = el("p", { class: "br-donne", text: `🍺 Ton tonneau est parti vers ${donne.nom}.` });
+    else {
+      const choisi = BR.choix != null ? x.pirates[BR.choix] : null;
+      action = [
+        el("p", { class: "note", text: "Choisis un pirate (ici, ou en cliquant son affiche sur l'île) : il pourra encaisser un coup de plus. Un tonneau par personne et par battle." }),
+        el("div", { class: "br-choix" }, vivants.slice(0, 24).map((p) => el("button", {
+          class: `br-pirate${BR.choix === p.k ? " choisi" : ""}${monPirate?.k === p.k ? " moi" : ""}`, type: "button", disabled: monPirate?.k === p.k,
+          onclick: () => { BR.choix = p.k; BR.rendu?.focus(p.k); brRendreCote(); },
+        }, photoPirate(p) ? el("img", { src: photoPirate(p), alt: "", width: 28, height: 28, referrerpolicy: "no-referrer" }) : el("span", { class: "mur-sans" }), el("span", { text: p.nom }), el("small", { text: `${p.vies > 1 ? `${p.vies} vies · ` : ""}${berrys(p.prime)}` })))),
+        el("button", { class: "btn btn-plein", type: "button", disabled: !choisi || BR.occupe, onclick: brTonneau, text: BR.occupe ? "Le tonneau roule…" : choisi ? `🍺 Envoyer le tonneau à ${choisi.nom}` : "🍺 Choisis un pirate" }),
+      ];
+    }
+    vider(z, el("h3", { text: "Ton tonneau de rhum" }),
+      monPirate ? el("p", { class: "br-toi", text: monPirate.vivant ? `⚔️ Tu es sur l'île : ${monPirate.vies} vie${monPirate.vies > 1 ? "s" : ""}${monPirate.kills ? `, ${monPirate.kills} pirate${monPirate.kills > 1 ? "s" : ""} éliminé${monPirate.kills > 1 ? "s" : ""}` : ""}.` : `💀 Tu es tombé au round ${monPirate.mort?.round ?? "?"}. Tu peux encore aider un autre pirate.` }) : null,
+      action,
+      BR.message ? el("p", { class: `note${BR.message.erreur ? " erreur" : ""}`, role: "status", text: BR.message.texte }) : null,
+    );
+  }
+  function brDemarrer() {
+    const s = $("battle");
+    if (!s) return;
+    new IntersectionObserver(([e]) => {
+      BR.vu = e.isIntersecting;
+      BR.rendu?.pause(!BR.vu || document.hidden);
+      if (BR.vu && !BR.charge) brCharger3D();
+      if (BR.vu) brCharger();
+    }, { threshold: 0.08 }).observe(s);
+    document.addEventListener("visibilitychange", () => { BR.rendu?.pause(!BR.vu || document.hidden); });
+    // le compte à rebours bouge tout seul
+    BR.horloge = setInterval(() => { if (BR.vu && !document.hidden) brRendreHud(); }, 1000);
+    brCharger();
   }
 
   // ---------- La Faille des potes : le défi LoL de la semaine ----------
@@ -11373,6 +11688,7 @@
     chargerMoi();
     setInterval(charger, 60_000);
     suivreChasse();
+    brDemarrer();
     suivreFaille();
     suivreGrandLine();
     suivreMer();

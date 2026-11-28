@@ -74,6 +74,7 @@
     <a href="#cartes" data-lien="cartes">Cartes</a>
     <a href="#jeux" data-lien="jeux">Jeux</a>
     <a href="#chasse" data-lien="chasse">Chasse</a>
+    <a href="#battle" data-lien="battle" class="vf-seul">Battle Royale</a>
     <a href="#faille" data-lien="faille">Faille <span class="compteur compteur-direct" id="compteur-faille" title="En game maintenant" hidden></span></a>
     <a href="#discord" data-lien="discord" class="nav-discord">Discord</a>
     <div class="compte compte-menu" id="compte-menu"></div>
@@ -504,6 +505,26 @@
     <div class="chasse-grille">
       <div class="carte wanted-panneau revele" id="wanted"></div>
       <div class="carte primes-panneau revele" id="mur-primes"></div>
+    </div>
+  </section>
+
+  <!-- ===================== LA BATTLE ROYALE (VF 1.0) ===================== -->
+  <section id="battle" class="vf-seul" data-section aria-labelledby="titre-battle">
+    <span class="kanji" aria-hidden="true">決勝</span>
+    <div class="entete-section">
+      <p class="surtitre revele">La Battle Royale de GRAND LINE</p>
+      <h2 class="titre-section revele" id="titre-battle">L'Île sans <span class="degrade">retour.</span><img class="titre-objet" src="/img/objets/epees.webp" alt="" width="144" height="160" loading="lazy" decoding="async"></h2>
+      <p class="sous revele">Une fois par mois, tous ceux qui ont leur avis de recherche sont lâchés sur une île. Plus ta prime est grosse, plus tu es fort… et plus tu es une cible. Le dernier debout gagne 1 000 000 ฿ et le tampon SURVIVANT sur son affiche.</p>
+    </div>
+    <div class="br-scene revele" id="br-scene">
+      <canvas class="br-toile" id="br-toile" aria-hidden="true"></canvas>
+      <div class="br-couche" id="br-couche" aria-hidden="true"></div>
+      <div class="br-hud" id="br-hud" aria-live="polite"></div>
+      <div class="br-vs" id="br-vs" hidden></div>
+    </div>
+    <div class="br-grille">
+      <div class="carte br-fil revele" id="br-fil"></div>
+      <div class="carte br-cote revele" id="br-cote"></div>
     </div>
   </section>
 
