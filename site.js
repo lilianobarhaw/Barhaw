@@ -896,13 +896,15 @@
         if (SALLE.ouverte) merSon(true);
         const jeu = jeuEnCours();
         if (jeu) musiqueJeu(jeu);
+        brMusiqueReprendre();
       } else {
         for (const cle of Object.keys(SON.boucles)) arreterBoucle(cle, 0.3);
+        brMusiqueCouper(0.3);
         setTimeout(() => { if (!SON.actif) SON.ctx?.suspend().catch(() => {}); }, 400);
       }
     });
     // la musique du site prend le relais de celle d'un jeu (jamais les deux en même temps)
-    SON.musiqueSite?.addEventListener("play", () => finMusiqueJeu(0.4));
+    SON.musiqueSite?.addEventListener("play", () => { finMusiqueJeu(0.4); brMusiqueCouper(0.4); });
     // déjà allumés à la visite d'avant : le son se débloque au premier geste (les navigateurs l'exigent)
     const debloquer = () => { if (sonActif()) contexteSon(); };
     document.addEventListener("pointerdown", debloquer, { capture: true, passive: true });
@@ -4874,6 +4876,150 @@
     if (nom === "feu") { if (performance.now() - BR.sonFeu < 1700) return; BR.sonFeu = performance.now(); }
     for (const [fichier, volume, duree = 0, retard = 0] of BR_SONS[nom] || []) jouerSon(fichier, { volume, duree, retard });
   }
+  // ---------- la musique des combats ----------
+  // Les morceaux fournis par Liliano (musique/battle/) : un thème par duel (sept, à tour de rôle), celui de la finale, et
+  // l'ending quand la battle est finie. Chaque thème est coupé pour que son temps fort tombe à 10 s du début du fichier :
+  // en direct, on le lance calé sur l'heure du résultat (même si on arrive en cours de duel). Dans la rediff, où les
+  // rounds défilent vite, les thèmes s'enchaînent sans se couper ; seul celui de la finale est calé sur son verdict.
+  // Les thèmes passent par Web Audio, comme les bruitages (calés à la milliseconde, et sans nouveau geste à faire sur
+  // iPhone). L'ending, long, est lu au fil de l'eau par une balise audio : elle naît pendant un geste du visiteur (Safari
+  // l'exige), et son niveau est déjà réglé dans le fichier (sur iPhone, le volume d'une balise ne se règle pas).
+  // Jamais sans les sons du site, jamais par-dessus la musique du site ou celle de BOSS LIVE, ni en économie de données ;
+  // et tout se tait si on quitte la section ou l'onglet.
+  const BRM = { cle: "", src: null, gain: null, jeton: 0, fin: 0, tampons: new Map(), el: null, fondu: 0, file: 0 };
+  const BRM_DUELS = 7, BRM_COUP = 10, BRM_VOLUME = 0.5, BRM_RETARD = 0.5;
+  const brTheme = (round, finale) => (finale ? "finale" : `duel-${(((round || 1) - 1) % BRM_DUELS + BRM_DUELS) % BRM_DUELS + 1}`);
+  const brMusiquePermise = () => sonActif() && !document.hidden && BR.vu && !(SON.musiqueSite && !SON.musiqueSite.paused) && !(BL.son && !BL.son.paused)
+    && !navigator.connection?.saveData && !/2g$/.test(navigator.connection?.effectiveType || "");
+  // un thème décodé (on n'en garde que deux : celui qui joue et le suivant)
+  function brTampon(cle) {
+    if (BRM.tampons.has(cle)) return BRM.tampons.get(cle);
+    const ctx = contexteSon();
+    if (!ctx) return Promise.resolve(null);
+    const p = fetch(`/musique/battle/${cle}.m4a`)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+      .then((a) => new Promise((ok, ko) => ctx.decodeAudioData(a, ok, ko)))
+      .catch(() => { BRM.tampons.delete(cle); return null; });
+    BRM.tampons.set(cle, p);
+    for (const k of [...BRM.tampons.keys()]) {
+      if (BRM.tampons.size <= 2) break;
+      if (k !== cle && k !== BRM.cle) BRM.tampons.delete(k);
+    }
+    return p;
+  }
+  function brMusiqueCouper(fondu = 1.2) {
+    clearTimeout(BRM.fin);
+    BRM.jeton++;
+    BRM.cle = "";
+    const { src, gain } = BRM;
+    BRM.src = null;
+    BRM.gain = null;
+    if (src && SON.ctx) {
+      const t = SON.ctx.currentTime, d = Math.max(0.03, fondu);
+      try {
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), t);
+        gain.gain.linearRampToValueAtTime(0.0001, t + d);
+        src.stop(t + d + 0.05);
+      } catch {}
+    }
+    // l'ending : son volume descend (là où il se règle), puis la balise s'arrête
+    const el = BRM.el;
+    clearInterval(BRM.fondu);
+    if (!el || el.paused) return;
+    if (fondu <= 0.05) { el.pause(); return; }
+    const v0 = el.volume, t0 = performance.now();
+    BRM.fondu = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / (fondu * 1000));
+      try { el.volume = v0 * (1 - k); } catch {}
+      if (k >= 1) { clearInterval(BRM.fondu); el.pause(); }
+    }, 80);
+  }
+  // un thème : cale() dit quand il part et d'où ({ dans, depuis }, en secondes), relu quand le morceau est prêt (null : trop
+  // tard, on ne joue rien) ; suite() est appelée s'il va jusqu'au bout
+  async function brJouerTheme(cle, cale, suite = null) {
+    if (!brMusiquePermise()) return;
+    const ctx = contexteSon();
+    if (!ctx) return;
+    brMusiqueCouper(0.5);
+    const jeton = BRM.jeton;
+    BRM.cle = cle;
+    const b = await brTampon(cle);
+    if (jeton !== BRM.jeton) return;
+    const c = b && brMusiquePermise() ? cale() : null;
+    if (!c || c.depuis > b.duration - 1) { BRM.cle = ""; return; }
+    const src = ctx.createBufferSource();
+    src.buffer = b;
+    const g = ctx.createGain();
+    const t0 = ctx.currentTime + Math.max(0, c.dans);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(BRM_VOLUME, t0 + (c.depuis > 0.05 ? 0.4 : 0.03)); // (pris en route : il entre en douceur)
+    src.connect(g).connect(SON.maitre);
+    src.start(t0, Math.max(0, c.depuis));
+    src.onended = () => {
+      if (BRM.src !== src) return; // (coupé : rien à faire)
+      BRM.src = null;
+      BRM.gain = null;
+      BRM.cle = "";
+      if (suite) suite();
+    };
+    BRM.src = src;
+    BRM.gain = g;
+  }
+  // la rediff : un thème après l'autre, tant qu'elle tourne
+  function brMusiqueFil() {
+    if (!BR.rediff || BR.rediff.pause || BRM.cle || !brMusiquePermise()) return;
+    const n = BRM.file++;
+    brJouerTheme(`duel-${(n % BRM_DUELS) + 1}`, () => (BR.rediff ? { dans: 0, depuis: 0 } : null), brMusiqueFil);
+    brTampon(`duel-${((n + 1) % BRM_DUELS) + 1}`); // (le suivant arrive d'avance)
+  }
+  // le duel commence : son thème, calé pour que le coup tombe au verdict (si le verdict est loin, il attend son heure).
+  // En direct, le résultat s'affiche un instant après l'heure du bot (le temps de le lui demander) : BRM_RETARD.
+  function brMusiqueDuel(D) {
+    if (BR.rediff && !D.finale) { brMusiqueFil(); return; }
+    brJouerTheme(brTheme(D.round, D.finale), () => {
+      if (BR.duel?.cle !== D.cle || BR.duel.phase !== "suspense") return null;
+      const reste = (D.revele - brMaintenant()) / 1000 + (BR.rediff ? 0 : BRM_RETARD);
+      return reste > BRM_COUP ? { dans: reste - BRM_COUP, depuis: 0 } : { dans: 0, depuis: BRM_COUP - reste };
+    });
+  }
+  // on revient sur la battle (l'onglet, la section, ou les sons qu'on rallume) : la musique du moment reprend
+  function brMusiqueReprendre() {
+    if (BRM.cle) return;
+    if (BR.duel?.phase === "suspense") brMusiqueDuel(BR.duel);
+    else if (BR.rediff) brMusiqueFil();
+  }
+  // le morceau du prochain duel arrive d'avance (il part alors à la seconde près)
+  function brMusiquePrevoir(round, finale) {
+    if (BR.rediff || !brMusiquePermise()) return;
+    brTampon(brTheme(round, finale));
+  }
+  // la battle est finie : l'ending (il prend la suite du thème de la finale, et dure tant qu'on reste là)
+  function brEnding() {
+    if (BRM.cle === "fin" || !brMusiquePermise()) return;
+    brMusiqueCouper(1.5);
+    clearInterval(BRM.fondu);
+    const el = BRM.el || (BRM.el = new Audio());
+    const jeton = BRM.jeton;
+    BRM.cle = "fin";
+    if (!el.getAttribute("src")) {
+      el.preload = "auto";
+      el.src = "/musique/battle/fin.m4a";
+      el.addEventListener("ended", () => { if (BRM.cle === "fin") BRM.cle = ""; });
+    }
+    try { el.currentTime = 0; } catch {}
+    try { el.volume = 0; } catch {}
+    el.play().then(() => {
+      if (jeton !== BRM.jeton) return; // (coupé entre-temps : brMusiqueCouper s'en est chargé)
+      const t0 = performance.now();
+      BRM.fondu = setInterval(() => {
+        const k = Math.min(1, (performance.now() - t0) / 2500);
+        try { el.volume = k; } catch {}
+        if (k >= 1) clearInterval(BRM.fondu);
+      }, 80);
+    }).catch(() => { if (jeton === BRM.jeton) BRM.cle = ""; });
+  }
   // ce qu'on montre : la rediff si on la regarde, sinon la battle en direct (ou sa fin, gardée un moment à l'écran)
   const brDirect = () => BR.rediff?.direct || BR.d?.direct || (BR.fete && BR.fete.jusqua > Date.now() ? BR.fete.direct : null);
   // ce que la 3D doit montrer
@@ -4990,6 +5136,9 @@
       BR.vuFini = Boolean(x?.fini);
       clearTimeout(BR.duelFin);
       BR.duel = null;
+      BR.musiqueRound = -1;
+      if (x || BRM.cle !== "fin") brMusiqueCouper(1); // (l'ending, lui, continue après la fête)
+      if (BR.rediff) { BRM.file = 0; brMusiqueFil(); }
     }
     if (!x) return;
     const vitesse = BR.rediff?.vitesse || 1;
@@ -4998,6 +5147,7 @@
     if (s && BR.duel?.cle !== cleDuel) {
       clearTimeout(BR.duelFin);
       BR.duel = { cle: cleDuel, a: s.a, b: s.b, enJeu: s.enJeu, finale: s.finale, round: s.round, phase: "suspense", t0: Date.now(), revele: s.revele, roulement: false, res: null, gain: 0 };
+      brMusiqueDuel(BR.duel);
       brBandeau(s.finale ? "LA FINALE" : `ROUND ${s.round}`, s.finale ? "Les deux derniers pirates" : "Le duel du round", "duel");
     }
     const r = x.dernier?.round ?? 0;
@@ -5011,17 +5161,23 @@
         BR.duel = { ...BR.duel, phase: "verdict", t0: Date.now(), res: du, gain: /฿/.test(tag) ? Number(tag.replace(/\D/g, "")) || 0 : 0 };
         clearTimeout(BR.duelFin);
         BR.duelFin = setTimeout(() => { BR.duel = null; brRendreVs(); }, (x.fini ? 3400 : 4700) / vitesse);
+        // la musique du duel reste un moment sur le verdict, puis s'efface (celle de la finale laisse la place à l'ending)
+        clearTimeout(BRM.fin);
+        if (!x.fini && !BR.rediff) BRM.fin = setTimeout(() => brMusiqueCouper(3), 8500);
       } else if (!s) {
         clearTimeout(BR.duelFin);
         BR.duel = null;
         if (suite) brBandeau(x.dernier.finale ? "LA FINALE" : `ROUND ${r}`);
       }
       if (suite && x.dernier?.mareeMonte) brBandeau("LA MARÉE MONTE", x.maree >= 4 ? "Il ne reste que le volcan" : "L'île rétrécit", "maree");
-    } else if (!s && BR.duel?.phase === "suspense") BR.duel = null; // (le duel s'est arrêté sans résultat)
+    } else if (!s && BR.duel?.phase === "suspense") { BR.duel = null; brMusiqueCouper(1); } // (le duel s'est arrêté sans résultat)
+    if (r !== BR.musiqueRound && !x.fini) { BR.musiqueRound = r; brMusiquePrevoir(r + 1, x.debout <= 2); }
     if (x.fini && !BR.vuFini) {
       // le nom du survivant passe en grand (après le verdict du dernier duel, s'il est encore à l'écran)
       const g = x.pirates.find((p) => p.vivant);
       if (g) setTimeout(() => { if (brDirect()?.fini) brBandeau(g.nom, "survit à l'Île sans retour", "fete"); }, BR.duel ? 3500 / vitesse : 0);
+      // l'ending prend la suite du thème de la finale
+      setTimeout(() => { if (brDirect()?.fini) brEnding(); }, BR.duel ? 6500 / vitesse : 800);
     }
     BR.vuFini = Boolean(x.fini);
   }
@@ -5308,7 +5464,7 @@
   function brRediffSuite() {
     const R = BR.rediff;
     if (!R || R.pause) return;
-    if (R.phase === "fete") { brRediffQuitter(); return; }
+    if (R.phase === "fete") { brRediffQuitter({ fin: true }); return; }
     if (R.phase === "suspense") R.phase = "resultat";
     else if (R.i >= R.film.length - 1) R.phase = "fete";
     else { R.i++; R.phase = R.film[R.i].duel ? "suspense" : "resultat"; }
@@ -5318,7 +5474,7 @@
     const R = BR.rediff;
     if (!R) return;
     R.pause = !R.pause;
-    if (R.pause) { clearTimeout(R.minuteur); R.reste = Math.max(0, R.fin - Date.now()); } else brRediffAttendre(R.reste || 300);
+    if (R.pause) { clearTimeout(R.minuteur); R.reste = Math.max(0, R.fin - Date.now()); } else { brRediffAttendre(R.reste || 300); brMusiqueReprendre(); }
     brRendreHud();
   }
   function brRediffVitesse() {
@@ -5331,7 +5487,7 @@
     if (R.pause) R.reste = (reste * avant) / R.vitesse; else brRediffAttendre((reste * avant) / R.vitesse);
     brRendreHud();
   }
-  function brRediffQuitter({ rendre = true } = {}) {
+  function brRediffQuitter({ rendre = true, fin = false } = {}) {
     const R = BR.rediff;
     if (!R) return;
     clearTimeout(R.minuteur);
@@ -5340,6 +5496,7 @@
     BR.duel = null;
     BR.rounds.clear();
     BR.bandeaux.length = 0;
+    if (!fin || BRM.cle !== "fin") brMusiqueCouper(0.8); // (la rediff va jusqu'au bout : son ending continue)
     BR.rendu?.vitesse(1);
     if (rendre) brRendre();
   }
@@ -5349,11 +5506,19 @@
     new IntersectionObserver(([e]) => {
       BR.vu = e.isIntersecting;
       BR.rendu?.pause(!BR.vu || document.hidden);
+      if (!BR.vu) brMusiqueCouper(1.5); else brMusiqueReprendre();
       if (BR.vu && !BR.charge) brCharger3D();
       if (BR.vu && !BR.sonsPrets) { BR.sonsPrets = true; prechargerSons(["taiko", "br-roulement", "br-boum", "impact", "cr-plouf", "br-tic", "cr-pieces", "tonneau", "br-tampon", "carte"]); }
       if (BR.vu) brCharger();
     }, { threshold: 0.08 }).observe(s);
-    document.addEventListener("visibilitychange", () => { BR.rendu?.pause(!BR.vu || document.hidden); });
+    document.addEventListener("visibilitychange", () => { BR.rendu?.pause(!BR.vu || document.hidden); if (document.hidden) brMusiqueCouper(0); else brMusiqueReprendre(); });
+    // la balise de l'ending naît pendant un geste du visiteur : Safari (iPhone compris) la laisse alors jouer plus tard
+    const gestes = ["pointerup", "touchend", "click", "keydown"];
+    const naitre = () => {
+      for (const g of gestes) document.removeEventListener(g, naitre, true);
+      if (!BRM.el) { BRM.el = new Audio(); BRM.el.preload = "none"; }
+    };
+    for (const g of gestes) document.addEventListener(g, naitre, { capture: true, passive: true });
     // le compte à rebours bouge tout seul, la tension du face-à-face monte
     BR.horloge = setInterval(() => { if (BR.vu && !document.hidden) { brRendreHud(); if (BR.duel) brRendreVs(); } }, 1000);
     brCharger();
@@ -8094,7 +8259,7 @@
     BL.victoire.play().catch(() => {});
   }
   function blSon(jouer, { debut = false, fondu = false, victoire = false } = {}) {
-    if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; BL.son.addEventListener("play", () => finMusiqueJeu(0.4)); }
+    if (!BL.son) { BL.son = new Audio("/musique/boss-live.mp3"); BL.son.loop = true; BL.son.volume = 0.5; BL.son.preload = "none"; BL.son.addEventListener("play", () => { finMusiqueJeu(0.4); brMusiqueCouper(0.4); }); }
     const b = $("bl-son");
     clearInterval(BL.fondu);
     if (jouer) blVictoire(false);
