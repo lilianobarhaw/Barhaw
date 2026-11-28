@@ -23,6 +23,18 @@
 //   couche : un calque (div) au-dessus de la toile, pour les étiquettes (noms, gains qui s'envolent)
 import * as THREE from "./three-r170.module.min.js";
 
+// Les couleurs : d'autres modules du site coupent la gestion des couleurs de three.js pour toute la page (ColorManagement,
+// partagé par tous). Selon l'ordre de chargement, les mêmes couleurs sortaient alors délavées. Ici, chaque couleur écrite
+// en sRGB (0xrrggbb, "#rrggbb") est donc convertie à la main : le rendu est le même dans les deux cas.
+const C = (v) => (v && v.isColor ? v : (typeof v === "string" ? new THREE.Color().setStyle(v, THREE.LinearSRGBColorSpace) : new THREE.Color().setHex(v, THREE.LinearSRGBColorSpace)).convertSRGBToLinear());
+// (au moment de dessiner, three.js convertit encore la couleur de la brume et du fond : on lui rend sa gestion des couleurs
+// le temps d'une image, puis on la remet comme on l'a trouvée)
+function rendreJuste(rendu, scene, camera) {
+  const avant = THREE.ColorManagement.enabled;
+  THREE.ColorManagement.enabled = true;
+  try { rendu.render(scene, camera); } finally { THREE.ColorManagement.enabled = avant; }
+}
+
 // ---------- l'île (la même que sur les images du Discord) ----------
 const R = 44;
 const VOLCAN = { x: 7, z: -9, r: 19, h: 31 };
@@ -178,9 +190,9 @@ vec3 ciel(vec3 d){
   return c;
 }`;
   const uCiel = {
-    uSoleil: { value: SOLEIL }, uZenith: { value: new THREE.Color(0x081a44) }, uMilieu: { value: new THREE.Color(0x2a3f86) },
-    uHorizon: { value: new THREE.Color(0xff9a4a) }, uSoleilC: { value: new THREE.Color(0xffb060) },
-    uNuageSombre: { value: new THREE.Color(0x2a2a5a) }, uNuageBord: { value: new THREE.Color(0xffc070) },
+    uSoleil: { value: SOLEIL }, uZenith: { value: C(0x081a44) }, uMilieu: { value: C(0x2a3f86) },
+    uHorizon: { value: C(0xff9a4a) }, uSoleilC: { value: C(0xffb060) },
+    uNuageSombre: { value: C(0x2a2a5a) }, uNuageBord: { value: C(0xffc070) },
     uT: { value: 0 }, uEclair: { value: 0 },
   };
   const ciel = new THREE.Mesh(new THREE.SphereGeometry(1400, 48, 24), new THREE.ShaderMaterial({
@@ -207,8 +219,8 @@ void main(){
     const nrm = geoTerrain.attributes.normal;
     const cols = new Float32Array(pos.count * 3);
     const c = new THREE.Color();
-    const sable = new THREE.Color(0xd9b27a), sableMouille = new THREE.Color(0x8a6a48), herbe = new THREE.Color(0x3c7a3a), jungle = new THREE.Color(0x1f4a2a);
-    const roche = new THREE.Color(0x4a4048), rocheSombre = new THREE.Color(0x231c22), cendre = new THREE.Color(0x1a1418), braise = new THREE.Color(0x5a1a0e);
+    const sable = C(0xd9b27a), sableMouille = C(0x8a6a48), herbe = C(0x3c7a3a), jungle = C(0x1f4a2a);
+    const roche = C(0x4a4048), rocheSombre = C(0x231c22), cendre = C(0x1a1418), braise = C(0x5a1a0e);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i), h = pos.getY(i), pente = 1 - nrm.getY(i);
       const n = fbm(x * 0.15 + 9, z * 0.15 + 2, 3);
@@ -243,8 +255,8 @@ void main(){
     }
     const t = texture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
   })();
-  const matLave = new THREE.MeshBasicMaterial({ color: 0xffffff, map: texLave, toneMapped: false, fog: false });
-  const matLac = new THREE.MeshBasicMaterial({ color: 0xffffff, map: texLave.clone(), toneMapped: false });
+  const matLave = new THREE.MeshBasicMaterial({ color: C(0xffffff), map: texLave, toneMapped: false, fog: false });
+  const matLac = new THREE.MeshBasicMaterial({ color: C(0xffffff), map: texLave.clone(), toneMapped: false });
   matLac.map.repeat.set(2, 2); matLac.map.needsUpdate = true;
   const fondCratere = hauteur(VOLCAN.x, VOLCAN.z) + 0.6;
   {
@@ -274,7 +286,7 @@ void main(){
       }
     }
   }
-  const lueurVolcan = new THREE.PointLight(0xff5a1a, 900, 120, 1.6);
+  const lueurVolcan = new THREE.PointLight(C(0xff5a1a), 900, 120, 1.6);
   lueurVolcan.position.set(VOLCAN.x, fondCratere + 6, VOLCAN.z);
   scene.add(lueurVolcan);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: lueur("rgba(255,120,40,1)"), transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -283,8 +295,8 @@ void main(){
   scene.add(halo);
 
   // ---------- la végétation ----------
-  const matTronc = new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.9 });
-  const matPalme = new THREE.MeshStandardMaterial({ color: 0x2f6a2e, roughness: 0.8, side: THREE.DoubleSide });
+  const matTronc = new THREE.MeshStandardMaterial({ color: C(0x5a4030), roughness: 0.9 });
+  const matPalme = new THREE.MeshStandardMaterial({ color: C(0x2f6a2e), roughness: 0.8, side: THREE.DoubleSide });
   const palmiers = [];
   function palmier(x, z, taille) {
     const y = hauteur(x, z);
@@ -320,9 +332,9 @@ void main(){
     palmiers.push({ groupe, palmes, y, phase: alea() * 9 });
   }
   const NB = petit ? 700 : 1400;
-  const bosquets = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), NB);
-  const VERTS = [0x2a5d30, 0x347238, 0x25563a, 0x3f7f36, 0x2f6a2c, 0x1f4a2a].map((c) => new THREE.Color(c));
-  const FLEURS = [0xd6557c, 0xe7b24a, 0xb07ae0].map((c) => new THREE.Color(c));
+  const bosquets = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: C(0xffffff), roughness: 0.95, flatShading: true }), NB);
+  const VERTS = [0x2a5d30, 0x347238, 0x25563a, 0x3f7f36, 0x2f6a2c, 0x1f4a2a].map((c) => C(c));
+  const FLEURS = [0xd6557c, 0xe7b24a, 0xb07ae0].map((c) => C(c));
   const bosquetsInfo = [];
   {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
@@ -349,7 +361,7 @@ void main(){
     scene.add(bosquets);
   }
   // ---------- les rochers et les épaves ----------
-  const matRoche = new THREE.MeshStandardMaterial({ color: 0x2c262c, roughness: 0.95, flatShading: true });
+  const matRoche = new THREE.MeshStandardMaterial({ color: C(0x2c262c), roughness: 0.95, flatShading: true });
   for (let k = 0; k < 14; k++) {
     const a = alea() * Math.PI * 2, d = R * (0.95 + alea() * 0.35);
     const geo = new THREE.IcosahedronGeometry(1, 2);
@@ -368,8 +380,8 @@ void main(){
     r.rotation.set(alea(), alea() * 6, alea());
     scene.add(r);
   }
-  const matBois = new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.9 });
-  const matVoile = new THREE.MeshStandardMaterial({ color: 0x6a1a1a, roughness: 0.9, side: THREE.DoubleSide });
+  const matBois = new THREE.MeshStandardMaterial({ color: C(0x3a2618), roughness: 0.9 });
+  const matVoile = new THREE.MeshStandardMaterial({ color: C(0x6a1a1a), roughness: 0.9, side: THREE.DoubleSide });
   function epave(x, z, rot, incl, taille = 1) {
     const g = new THREE.Group();
     const forme = new THREE.Shape();
@@ -413,7 +425,7 @@ void main(){
   })();
   const geoMer = new THREE.PlaneGeometry(1400, 1400, petit ? 90 : 160, petit ? 90 : 160);
   geoMer.rotateX(-Math.PI / 2);
-  const uMer = { ...uCiel, uCam: { value: new THREE.Vector3() }, uH: { value: texH }, uTaille: { value: TAILLE }, uNiveau: { value: 0 }, uEau: { value: new THREE.Color(0x14506e) }, uEauProfonde: { value: new THREE.Color(0x062038) } };
+  const uMer = { ...uCiel, uCam: { value: new THREE.Vector3() }, uH: { value: texH }, uTaille: { value: TAILLE }, uNiveau: { value: 0 }, uEau: { value: C(0x14506e) }, uEauProfonde: { value: C(0x062038) } };
   const mer = new THREE.Mesh(geoMer, new THREE.ShaderMaterial({
     uniforms: uMer,
     vertexShader: `
@@ -467,7 +479,7 @@ void main(){
   for (let k = 0; k < (petit ? 70 : 170); k++) {
     const t = alea();
     const lum = Math.max(0, 1 - t * 4);
-    const col = new THREE.Color(0x2a2230).lerp(new THREE.Color(0x0e0a12), Math.min(1, t * 1.4)).add(new THREE.Color(0.7 * lum, 0.16 * lum, 0.03 * lum));
+    const col = C(0x2a2230).lerp(C(0x0e0a12), Math.min(1, t * 1.4)).add(new THREE.Color(0.7 * lum, 0.16 * lum, 0.03 * lum));
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, color: col, transparent: true, opacity: 0.2 - t * 0.1, depthWrite: false }));
     s.userData = { t, ox: (alea() - 0.5) * (3 + t * 26), oz: (alea() - 0.5) * (3 + t * 14), v: 0.012 + alea() * 0.01, k2: 5 + t * 24 + alea() * 6 };
     scene.add(s);
@@ -484,7 +496,7 @@ void main(){
   // ---------- un peu de vie : des mouettes, des navires à l'ancre, des torches, des lucioles, des îles au loin ----------
   const mouettes = [];
   {
-    const matM = new THREE.MeshBasicMaterial({ color: 0xffe2c8, side: THREE.DoubleSide });
+    const matM = new THREE.MeshBasicMaterial({ color: C(0xffe2c8), side: THREE.DoubleSide });
     const geoAile = new THREE.BufferGeometry();
     geoAile.setAttribute("position", new THREE.BufferAttribute(new Float32Array([0, 0, -0.36, 0, 0, 0.36, 1.55, 0, 0.1]), 3));
     for (let k = 0; k < (petit ? 6 : 12); k++) {
@@ -499,8 +511,8 @@ void main(){
   // les navires de ceux qui sont venus voir (à l'ancre, une lanterne à la poupe)
   const navires = [];
   {
-    const matCoque = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.85 });
-    const matToile = new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x3a2a1a, emissiveIntensity: 0.35 });
+    const matCoque = new THREE.MeshStandardMaterial({ color: C(0x4a3020), roughness: 0.85 });
+    const matToile = new THREE.MeshStandardMaterial({ color: C(0xe9dcc0), roughness: 0.9, side: THREE.DoubleSide, emissive: C(0x3a2a1a), emissiveIntensity: 0.35 });
     const texLanterne = lueur("rgba(255,190,90,1)");
     const formeCoque = new THREE.Shape();
     formeCoque.moveTo(7, 0); formeCoque.quadraticCurveTo(4, 2.4, -3, 2.3); formeCoque.quadraticCurveTo(-7, 2, -7, 0);
@@ -543,7 +555,7 @@ void main(){
     const texFlamme = lueur("rgba(255,170,70,1)");
     const texSol = lueur("rgba(255,140,60,1)", 96);
     const geoPoteau = new THREE.CylinderGeometry(0.1, 0.14, 2.6, 5);
-    const matPoteau = new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.9 });
+    const matPoteau = new THREE.MeshStandardMaterial({ color: C(0x3a2618), roughness: 0.9 });
     const geoSol = new THREE.CircleGeometry(1, 20);
     const haut = new THREE.Vector3(0, 0, 1), nrm = new THREE.Vector3();
     const NT = petit ? 7 : 14;
@@ -559,7 +571,7 @@ void main(){
       if (!ok || h > 13) continue;
       const poteau = new THREE.Mesh(geoPoteau, matPoteau);
       poteau.position.set(x, h + 1.2, z);
-      const flamme = new THREE.Sprite(new THREE.SpriteMaterial({ map: texFlamme, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      const flamme = new THREE.Sprite(new THREE.SpriteMaterial({ map: texFlamme, color: C(0xffffff), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
       flamme.position.set(x, h + 2.9, z);
       const e = 0.4;
       nrm.set(hauteur(x - e, z) - hauteur(x + e, z), 2 * e, hauteur(x, z - e) - hauteur(x, z + e)).normalize();
@@ -592,7 +604,7 @@ void main(){
   scene.add(lucioles);
   // des îles au loin, dans la brume
   {
-    const matLoin = new THREE.MeshBasicMaterial({ color: 0x4a3558, fog: false });
+    const matLoin = new THREE.MeshBasicMaterial({ color: C(0x4a3558), fog: false });
     for (const [a, d, r, h] of [[0.5, 760, 110, 30], [1.35, 900, 170, 42], [2.7, 820, 90, 52], [3.9, 860, 150, 28], [5.2, 780, 100, 38], [5.75, 940, 190, 46]]) {
       const geo = new THREE.ConeGeometry(r, h, 11, 3);
       const q = geo.attributes.position;
@@ -609,23 +621,23 @@ void main(){
 
   // ---------- les lumières ----------
   // (une lumière d'appoint suit la caméra : le premier plan n'est jamais dans le noir, quel que soit le côté de l'île)
-  const appoint = new THREE.DirectionalLight(0xc6d4ff, 0.7);
+  const appoint = new THREE.DirectionalLight(C(0xc6d4ff), 0.7);
   appoint.position.set(0, 0, 0);
   appoint.target.position.set(0, -0.25, -1);
   camera.add(appoint, appoint.target);
   scene.add(camera);
-  const soleil = new THREE.DirectionalLight(0xffb070, 3.0);
+  const soleil = new THREE.DirectionalLight(C(0xffb070), 3.0);
   soleil.position.copy(SOLEIL).multiplyScalar(300).setY(120);
   scene.add(soleil);
-  scene.add(new THREE.HemisphereLight(0x5a78c0, 0x201814, 0.85));
-  const lune = new THREE.DirectionalLight(0x8aa0ff, 0.5);
+  scene.add(new THREE.HemisphereLight(C(0x5a78c0), C(0x201814), 0.85));
+  const lune = new THREE.DirectionalLight(C(0x8aa0ff), 0.5);
   lune.position.set(-120, 160, 120);
   scene.add(lune);
-  scene.fog = new THREE.FogExp2(new THREE.Color(0xff9a4a).multiplyScalar(0.45).lerp(new THREE.Color(0x2a3f86), 0.5), 0.0026);
+  scene.fog = new THREE.FogExp2(C(0xff9a4a).multiplyScalar(0.45).lerp(C(0x2a3f86), 0.5), 0.0026);
 
   // ---------- les pirates ----------
   const pirates = new Map(); // k → { groupe, affiche, tex, c, d, pos, ... }
-  const matPiquet = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.9 });
+  const matPiquet = new THREE.MeshStandardMaterial({ color: C(0x4a3020), roughness: 0.9 });
   const geoPiquet = new THREE.CylinderGeometry(0.16, 0.2, 3.2, 6);
   const geoAffiche = new THREE.PlaneGeometry(3.4, 4.76);
   const texCouronne = texture((() => {
@@ -661,7 +673,7 @@ void main(){
     groupe.add(piquet);
     const tete = new THREE.Group(); // l'affiche (elle se tourne vers la caméra)
     tete.position.y = 3.6;
-    const affiche = new THREE.Mesh(geoAffiche, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.22 }));
+    const affiche = new THREE.Mesh(geoAffiche, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, side: THREE.DoubleSide, emissive: C(0xffffff), emissiveMap: tex, emissiveIntensity: 0.22 }));
     affiche.position.y = 2.38;
     tete.add(affiche);
     const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: texHaloOr, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -784,14 +796,14 @@ void main(){
 
   // ---------- les événements du round : chacun son animation ----------
   // le tonneau de rhum : il descend du ciel en parachute, à côté du pirate
-  const matTonneau = new THREE.MeshStandardMaterial({ color: 0x8a5a2c, roughness: 0.8 });
-  const matCercle = new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.6 });
-  const matParachute = new THREE.MeshStandardMaterial({ color: 0xf2e6d0, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x403020, emissiveIntensity: 0.5 });
+  const matTonneau = new THREE.MeshStandardMaterial({ color: C(0x8a5a2c), roughness: 0.8 });
+  const matCercle = new THREE.MeshStandardMaterial({ color: C(0x2a2018), roughness: 0.6 });
+  const matParachute = new THREE.MeshStandardMaterial({ color: C(0xf2e6d0), roughness: 0.9, side: THREE.DoubleSide, emissive: C(0x403020), emissiveIntensity: 0.5 });
   const geoTonneau = new THREE.CylinderGeometry(0.62, 0.62, 1.3, 10);
   const geoCercle = new THREE.TorusGeometry(0.64, 0.06, 5, 12).rotateX(Math.PI / 2);
   const geoParachute = new THREE.SphereGeometry(2.1, 12, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
   const geoSuspentes = new THREE.BufferGeometry().setFromPoints([[1.5, 1.5], [-1.5, 1.5], [1.5, -1.5], [-1.5, -1.5]].flatMap(([x, z]) => [new THREE.Vector3(x, 2.7, z), new THREE.Vector3(0, 0.65, 0)]));
-  const matSuspentes = new THREE.LineBasicMaterial({ color: 0xd8c8a8 });
+  const matSuspentes = new THREE.LineBasicMaterial({ color: C(0xd8c8a8) });
   function evtRhum(p) {
     const g = new THREE.Group();
     const c1 = new THREE.Mesh(geoCercle, matCercle), c2 = new THREE.Mesh(geoCercle, matCercle);
@@ -821,8 +833,8 @@ void main(){
     }, () => scene.remove(g));
   }
   // le coffre : il sort du sol, s'ouvre, l'or jaillit
-  const matCoffre = new THREE.MeshStandardMaterial({ color: 0x6a4022, roughness: 0.8 });
-  const matOr = new THREE.MeshStandardMaterial({ color: 0xffc83d, roughness: 0.35, metalness: 0.3, emissive: 0x6a4a00, emissiveIntensity: 0.7 });
+  const matCoffre = new THREE.MeshStandardMaterial({ color: C(0x6a4022), roughness: 0.8 });
+  const matOr = new THREE.MeshStandardMaterial({ color: C(0xffc83d), roughness: 0.35, metalness: 0.3, emissive: C(0x6a4a00), emissiveIntensity: 0.7 });
   const geoCaisse = new THREE.BoxGeometry(1.7, 0.95, 1.15), geoFerrure = new THREE.BoxGeometry(0.22, 1.0, 1.2);
   const geoCouvercle = new THREE.BoxGeometry(1.7, 0.36, 1.15), geoFerrure2 = new THREE.BoxGeometry(0.22, 0.4, 1.2);
   function evtCoffre(p, tag) {
@@ -886,7 +898,7 @@ void main(){
     g.computeVertexNormals();
     return g;
   })();
-  const matTentacule = new THREE.MeshStandardMaterial({ color: 0x6a3a8a, roughness: 0.45, emissive: 0x2a0f3a, emissiveIntensity: 0.9 });
+  const matTentacule = new THREE.MeshStandardMaterial({ color: C(0x6a3a8a), roughness: 0.45, emissive: C(0x2a0f3a), emissiveIntensity: 0.9 });
   function evtBete(p, tag) {
     const meurt = Boolean(p.aTomber);
     const g = new THREE.Group();
@@ -921,7 +933,7 @@ void main(){
   const geoTrou = new THREE.CircleGeometry(1, 22);
   function evtPiege(p) {
     const bx = p.groupe.position.x, bz = p.groupe.position.z;
-    const m = new THREE.Mesh(geoTrou, new THREE.MeshBasicMaterial({ color: 0x050304, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+    const m = new THREE.Mesh(geoTrou, new THREE.MeshBasicMaterial({ color: C(0x050304), transparent: true, opacity: 0, depthWrite: false, fog: false }));
     coucherAuSol(m, bx, bz);
     m.position.set(bx, sol(bx, bz) + 0.25, bz);
     m.scale.setScalar(3.2);
@@ -1538,7 +1550,7 @@ void main(){
     dt *= facteur;
     horloge += dt;
     animer(Math.min(dt, 0.05 * facteur));
-    rendu.render(scene, camera);
+    rendreJuste(rendu, scene, camera);
   }
   let avant = performance.now();
   function image(maintenant) {
@@ -1568,7 +1580,7 @@ void main(){
   return {
     etat, focus, pause, redimensionner,
     vitesse(v) { facteur = Math.max(0.25, Math.min(4, Number(v) || 1)); },
-    avancer(dt, rendre = true) { horloge += dt; animer(Math.min(dt, 0.05)); if (rendre) rendu.render(scene, camera); },
+    avancer(dt, rendre = true) { horloge += dt; animer(Math.min(dt, 0.05)); if (rendre) rendreJuste(rendu, scene, camera); },
     arreter() {
       arrete = true;
       pause(true);

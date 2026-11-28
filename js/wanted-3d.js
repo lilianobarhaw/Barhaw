@@ -24,6 +24,18 @@
 //   coucou, tombe, gagne) pour les bruitages
 import * as THREE from "./three-r170.module.min.js";
 
+// Les couleurs : d'autres modules du site coupent la gestion des couleurs de three.js pour toute la page (ColorManagement,
+// partagé par tous). Selon l'ordre de chargement, les mêmes couleurs sortaient alors délavées. Ici, chaque couleur écrite
+// en sRGB (0xrrggbb, "#rrggbb") est donc convertie à la main : le rendu est le même dans les deux cas.
+const C = (v) => (v && v.isColor ? v : (typeof v === "string" ? new THREE.Color().setStyle(v, THREE.LinearSRGBColorSpace) : new THREE.Color().setHex(v, THREE.LinearSRGBColorSpace)).convertSRGBToLinear());
+// (au moment de dessiner, three.js convertit encore la couleur de la brume et du fond : on lui rend sa gestion des couleurs
+// le temps d'une image, puis on la remet comme on l'a trouvée)
+function rendreJuste(rendu, scene, camera) {
+  const avant = THREE.ColorManagement.enabled;
+  THREE.ColorManagement.enabled = true;
+  try { rendu.render(scene, camera); } finally { THREE.ColorManagement.enabled = avant; }
+}
+
 const RATIO = 860 / 600; // hauteur / largeur de l'affiche (comme celle du bot)
 const ENCRE = "#3b2410";
 const ENCRE_FONCE = "#1e120a";
@@ -671,7 +683,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
   const segX = petit ? 16 : 26, segY = petit ? 23 : 37;
   const geoPapier = new THREE.PlaneGeometry(W, H, segX, segY);
   const base = Float32Array.from(geoPapier.attributes.position.array);
-  const matPapier = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide });
+  const matPapier = new THREE.MeshStandardMaterial({ color: C(0xffffff), roughness: 0.86, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide });
   // la feuille de métal brille : un reflet la balaie de temps en temps, un autre suit l'inclinaison de l'affiche
   // uBrille : x = où passe le reflet qui balaie, y = la lueur de fond, z = la force des reflets, w = où est le reflet de l'inclinaison
   const uPapier = { uBrille: { value: new THREE.Vector4(-1, 0.05, 1, 0.65) } };
@@ -695,7 +707,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
   const fl = P.fenetre.l * W;
   const fy = H / 2 - P.fenetre.haut * H - fl / 2; // le centre de la fenêtre
   const fond = 0.07;
-  const matBois = new THREE.MeshStandardMaterial({ color: rang.sombre ? 0x120c08 : 0x2a170b, roughness: 0.8, side: THREE.DoubleSide });
+  const matBois = new THREE.MeshStandardMaterial({ color: C(rang.sombre ? 0x120c08 : 0x2a170b), roughness: 0.8, side: THREE.DoubleSide });
   const parois = new THREE.Group();
   for (const [x, y, rz, l] of [[0, fl / 2, 0, fl], [0, -fl / 2, Math.PI, fl], [fl / 2, 0, -Math.PI / 2, fl], [-fl / 2, 0, Math.PI / 2, fl]]) {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(l, fond), matBois);
@@ -705,7 +717,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
     parois.add(p);
   }
   corps.add(parois);
-  const matPlaque = new THREE.MeshStandardMaterial({ color: 0xfff1dc, roughness: 0.9 });
+  const matPlaque = new THREE.MeshStandardMaterial({ color: C(0xfff1dc), roughness: 0.9 });
   const plaque = new THREE.Mesh(new THREE.PlaneGeometry(fl, fl), matPlaque);
   plaque.position.set(0, fy, -fond);
   plaque.receiveShadow = true;
@@ -722,7 +734,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
     uRelief: { value: 0.1 }, uCadre: { value: new THREE.Vector4(0.5, -0.5, 0.05, 0) },
     uVie: { value: new THREE.Vector4(0, 1, 0, 0) }, uCache: { value: new THREE.Vector2(0, 0) },
   };
-  const matPerso = new THREE.MeshStandardMaterial({ color: 0xdccfbf, roughness: 0.72, metalness: 0, alphaTest: 0.42, side: THREE.DoubleSide });
+  const matPerso = new THREE.MeshStandardMaterial({ color: C(0xdccfbf), roughness: 0.72, metalness: 0, alphaTest: 0.42, side: THREE.DoubleSide });
   const relief = (s) => {
     for (const k of Object.keys(uniformes)) s.uniforms[k] = uniformes[k];
     s.vertexShader = s.vertexShader
@@ -773,7 +785,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
   corps.add(tampon);
   // la punaise
   const punaise = new THREE.Group();
-  const matPunaise = new THREE.MeshStandardMaterial({ color: EPINGLES[epingle] || EPINGLES.rose, roughness: 0.28, metalness: epingle === "or" || epingle === "argent" ? 0.55 : 0.05 });
+  const matPunaise = new THREE.MeshStandardMaterial({ color: C(EPINGLES[epingle] || EPINGLES.rose), roughness: 0.28, metalness: epingle === "or" || epingle === "argent" ? 0.55 : 0.05 });
   const tete = new THREE.Mesh(new THREE.SphereGeometry(0.045, 20, 14), matPunaise);
   tete.scale.set(1, 1, 0.75);
   tete.position.z = 0.055;
@@ -791,7 +803,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
   if (rang.sceau) {
     sceau = new THREE.Group();
     const doree = rang.sceau !== 0xb02a2a;
-    const cire = new THREE.MeshStandardMaterial({ color: rang.sceau, roughness: doree ? 0.34 : 0.3, metalness: doree ? 0.35 : 0.02 });
+    const cire = new THREE.MeshStandardMaterial({ color: C(rang.sceau), roughness: doree ? 0.34 : 0.3, metalness: doree ? 0.35 : 0.02 });
     const disque = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.076, 0.02, 30), cire);
     disque.rotation.x = Math.PI / 2;
     disque.castShadow = true;
@@ -805,7 +817,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
     }
     const empreinte = new THREE.Mesh(new THREE.ExtrudeGeometry(forme, { depth: 0.008, bevelEnabled: false }), cire);
     empreinte.position.z = 0.008;
-    const matRuban = new THREE.MeshStandardMaterial({ color: rang.sombre ? 0xc9a02c : 0x9a1f2e, roughness: 0.62, side: THREE.DoubleSide });
+    const matRuban = new THREE.MeshStandardMaterial({ color: C(rang.sombre ? 0xc9a02c : 0x9a1f2e), roughness: 0.62, side: THREE.DoubleSide });
     for (const [dx, rz, l] of [[-0.026, 0.2, 0.2], [0.03, -0.13, 0.17]]) {
       const fr = new THREE.Shape();
       fr.moveTo(-0.027, 0); fr.lineTo(0.027, 0); fr.lineTo(0.027, -l); fr.lineTo(0, -l + 0.03); fr.lineTo(-0.027, -l); fr.closePath();
@@ -845,7 +857,7 @@ function creerAffiche({ petit, epingle = "rose", rang = RANGS[1] }) {
     }
   }
   // sur une affiche noire, la prime est dorée : elle luit un peu
-  if (rang.sombre) { prime.material.emissive = new THREE.Color(0x7a5410); prime.material.emissiveMap = texPrime; }
+  if (rang.sombre) { prime.material.emissive = C(0x7a5410); prime.material.emissiveMap = texPrime; }
 
   const mats = { matPapier, matPlaque, matPerso, matTampon };
   return {
@@ -870,8 +882,8 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
   camera.lookAt(0, 0, 0);
 
   // les lumières : la lanterne (chaude, elle vacille), un peu de ciel, et deux lumières de côté (rose et violet, le site)
-  scene.add(new THREE.HemisphereLight(0xffe7c4, 0x251630, 0.75));
-  const lanterne = new THREE.DirectionalLight(0xffd29a, 2.6);
+  scene.add(new THREE.HemisphereLight(C(0xffe7c4), C(0x251630), 0.75));
+  const lanterne = new THREE.DirectionalLight(C(0xffd29a), 2.6);
   lanterne.position.set(-2.6, 3.4, 6.5);
   lanterne.castShadow = true;
   lanterne.shadow.mapSize.set(petit ? 1024 : 2048, petit ? 1024 : 2048);
@@ -879,11 +891,11 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
   lanterne.shadow.normalBias = 0.015;
   lanterne.shadow.radius = 5;
   scene.add(lanterne, lanterne.target);
-  const froid = new THREE.DirectionalLight(0xa9b8ff, 0.42);
+  const froid = new THREE.DirectionalLight(C(0xa9b8ff), 0.42);
   froid.position.set(3, -1.5, 4);
   scene.add(froid);
-  const rose = new THREE.PointLight(0xff5fa8, 6, 7, 1.6);
-  const violet = new THREE.PointLight(0x8f6bff, 4.5, 7, 1.6);
+  const rose = new THREE.PointLight(C(0xff5fa8), 6, 7, 1.6);
+  const violet = new THREE.PointLight(C(0x8f6bff), 4.5, 7, 1.6);
   scene.add(rose, violet);
   // le mur (invisible : seulement l'ombre des affiches)
   const mur = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.3 }));
@@ -937,7 +949,7 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
   function eclats(x, y, s, n = 16, couleur = 0xffd978) {
     if (reduit) return;
     for (let k = 0; k < n; k++) {
-      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: texPoint, color: couleur, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }));
+      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: texPoint, color: C(couleur), transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }));
       const a = Math.random() * Math.PI * 2, v = 0.5 + Math.random() * 1.3;
       m.position.set(x + (Math.random() - 0.5) * 0.5 * s, y + (Math.random() - 0.5) * 0.08 * s, 0.4 * s);
       m.scale.setScalar(0.07 * s);
@@ -952,7 +964,7 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
     texVieux ||= texture(dessinerPapier(petit ? 256 : 384, { nom: "? ? ?" }, RANGS[1], { trou: false }).papier);
     const g = new THREE.Group();
     for (const [dx, dy, rz, k, teinte] of [[-0.07, -0.04, 0.095, 0.97, 0x9c8f7c], [0.085, 0.03, -0.08, 0.93, 0x857a6c]]) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, RATIO), new THREE.MeshStandardMaterial({ map: texVieux, color: teinte, roughness: 0.95, alphaTest: 0.5 }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, RATIO), new THREE.MeshStandardMaterial({ map: texVieux, color: C(teinte), roughness: 0.95, alphaTest: 0.5 }));
       m.position.set(dx, dy, g.children.length * -0.004);
       m.rotation.z = rz;
       m.scale.setScalar(k);
@@ -1052,7 +1064,7 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
     mp.normalMap = texture(reliefPapier(petit ? 160 : 256), false);
     mp.normalScale = new THREE.Vector2(0.55, 0.55);
     mp.emissiveMap = metal ? texture(metal) : null;
-    mp.emissive = new THREE.Color(metal ? R.eclat : 0x000000);
+    mp.emissive = C(metal ? R.eclat : 0x000000);
     mp.needsUpdate = true;
     anciennes.forEach((t) => t?.dispose());
     x.primeAffichee = x.primeAffichee ?? 0;
@@ -1495,7 +1507,7 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
   function dessiner(dt) {
     horloge += dt;
     animer(Math.min(dt, 0.05));
-    rendu.render(scene, camera);
+    rendreJuste(rendu, scene, camera);
   }
   let avant = performance.now();
   function image(maintenant) {
@@ -1520,7 +1532,7 @@ export function creerWanted3D(toileGL, { zone = toileGL.parentElement, petit = f
     avancer(dt, rendre = true) {
       horloge += dt;
       animer(Math.min(dt, 0.05));
-      if (rendre) rendu.render(scene, camera);
+      if (rendre) rendreJuste(rendu, scene, camera);
     },
     pretes: () => liste.length > 0 && liste.every((x) => x.pret),
     arreter() {
