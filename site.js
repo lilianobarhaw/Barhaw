@@ -4919,6 +4919,9 @@
       const r = await fetch("/api/battle", { headers: { Accept: "application/json" } });
       const d = await r.json();
       if (d?.maintenant) BR.decal = d.maintenant - Date.now();
+      // pendant le suspense du dernier duel, le bot sait déjà que la battle est finie : ici, rien n'est fini avant le
+      // résultat (sinon la fête partirait sur l'un des deux finalistes, avec « C'EST FINI », avant le verdict)
+      if (d?.direct?.suspense) d.direct.fini = false;
       if (d && !d.horsLigne) BR.d = d;
       else if (!BR.d) BR.d = d;
     } catch {
