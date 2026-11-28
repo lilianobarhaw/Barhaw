@@ -1620,7 +1620,7 @@ html.v4 .sons[aria-pressed="true"] { color: var(--blanc); border-color: var(--ro
 .boss-regles b { flex: none; max-width: 48%; text-align: right; font-family: var(--fort); font-weight: 800; color: var(--blanc); }
 
 .chasse-grille { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr); gap: 22px; margin-top: 22px; align-items: start; }
-.wanted-panneau { padding: 28px 26px 26px; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 26px; align-items: start; }
+.wanted-panneau { padding: 28px 26px 26px; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 26px 44px; align-items: start; } /* de l'air : l'affiche 3D se balance */
 /* l'affiche : papier ancien, encre brune, une punaise */
 .wanted-affiche {
   position: relative; display: grid; justify-items: center; gap: 4px; padding: 14px 15px 12px; rotate: -1.5deg; color: #3b2410; text-align: center;
@@ -1654,6 +1654,12 @@ html.v4 .sons[aria-pressed="true"] { color: var(--blanc); border-color: var(--ro
 .wanted-affiche.petite .wanted-nom { font-size: 11cqw; }
 .wanted-affiche.petite .wanted-prime { font-size: 11.5cqw; }
 .wanted-apercu { position: relative; }
+/* les affiches en 3D (js/wanted-3d.js) : la toile déborde de l'affiche, pour que la photo puisse en sortir ;
+   l'affiche de la page reste dessous (cachée), et revient toute seule sans WebGL */
+.w3d-toile { position: absolute; z-index: 1; display: block; pointer-events: none; }
+.wanted-apercu > .w3d-toile { left: -16%; top: -16%; width: 132%; height: 126%; }
+.mur > .w3d-toile { left: -3%; top: -14%; width: 106%; height: 118%; }
+.w3d-pret .wanted-apercu .wanted-affiche, .w3d-pret .mur .wanted-affiche { opacity: 0; animation: none; }
 .wanted-apercu.placarde .wanted-affiche { animation: placarder 0.7s var(--rebond) both; }
 @keyframes placarder { 0% { opacity: 0; transform: translateY(-30px) rotate(-10deg) scale(1.15); } 100% { opacity: 1; transform: none; } }
 .wanted-infos { display: grid; gap: 12px; align-content: start; min-width: 0; }
@@ -1687,7 +1693,7 @@ html.v4 .sons[aria-pressed="true"] { color: var(--blanc); border-color: var(--ro
 .onglets { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--verre); border: 1px solid var(--ligne-douce); }
 .onglet { padding: 6px 12px; border: 0; border-radius: 99px; background: none; color: var(--terne); font-family: var(--fort); font-weight: 800; font-size: 12px; cursor: pointer; }
 .onglet.actif { background: var(--degrade); color: #fff; }
-.mur { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: end; padding: 20px 4px 4px; }
+.mur { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: end; padding: 20px 4px 4px; }
 .mur-affiche { position: relative; display: grid; justify-items: center; gap: 8px; }
 .mur-affiche .wanted-affiche { width: 100%; }
 .mur-affiche.rang-1 { order: 2; }
@@ -4792,4 +4798,131 @@ html.rt-cadenas-ouvert, html.rt-journal-ouvert { overflow: hidden; }
   .rt-barre::after, .rt-nom::after, .rt-anse { transition: none; }
   .rt-inondation { animation: none; clip-path: none; }
   .rt-murmure, .rt-murmure.part, .rt-sceau, .rt-sceau.part { animation-duration: 0.01s; }
+}
+
+/* ===================== LA BATTLE ROYALE DE GRAND LINE (js/battle-3d.js) ===================== */
+.br-scene {
+  position: relative; overflow: hidden; margin-top: 8px; aspect-ratio: 16 / 8; min-height: 380px;
+  border: 2px solid var(--ligne-douce); border-radius: var(--rayon);
+  background: #12050d url(/img/battle/ile.webp) center / cover no-repeat;
+  box-shadow: 0 30px 80px -40px rgba(255, 90, 40, 0.55);
+}
+.br-toile { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 0.8s var(--doux); touch-action: pan-y; cursor: grab; }
+.br-scene.br-3d .br-toile { opacity: 1; }
+.br-toile:active { cursor: grabbing; }
+.br-couche { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.br3-nom, .br3-flotte { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; will-change: transform; }
+.br3-nom { padding: 3px 9px; border-radius: 99px; background: rgba(12, 6, 10, 0.82); border: 1.5px solid #ffd23f; color: #fff; font-family: var(--fort); font-weight: 800; font-size: 12px; }
+.br3-nom.bleu { border-color: #7fb1ff; box-shadow: 0 0 18px rgba(90, 150, 255, 0.6); }
+.br3-nom.rouge { border-color: #ff6b5f; box-shadow: 0 0 18px rgba(255, 70, 60, 0.6); }
+.br3-flotte { font-family: var(--titre); font-size: 22px; color: #ffd23f; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6), 0 0 18px rgba(255, 180, 60, 0.8); }
+.br3-flotte.vert { color: #3ddc84; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6), 0 0 18px rgba(61, 220, 132, 0.7); }
+.br3-flotte.bleu { color: #9fd0ff; font-size: 17px; }
+.br-hud { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 18px 20px; }
+.br-hud a, .br-hud button { pointer-events: auto; }
+.br-hud-haut { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.br-direct { display: flex; align-items: center; gap: 9px; margin: 0; padding: 6px 14px; border-radius: 99px; background: rgba(12, 6, 10, 0.78); font-family: var(--fort); font-weight: 800; font-size: 12px; letter-spacing: 0.12em; color: #ff8a8a; }
+.br-direct b { color: #fff; letter-spacing: 0.08em; }
+.br-point { width: 9px; height: 9px; border-radius: 50%; background: #ff3b3b; box-shadow: 0 0 10px #ff3b3b; animation: br-pouls 1.2s ease-in-out infinite; }
+@keyframes br-pouls { 50% { opacity: 0.35; } }
+.br-chrono { margin: 0; padding: 6px 14px; border-radius: 99px; background: rgba(12, 6, 10, 0.78); font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ffe2a0; }
+.br-chiffres { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
+.br-chiffres p { margin: 0; padding: 7px 14px; border-radius: 12px; background: rgba(12, 6, 10, 0.78); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 13px; color: var(--brume); }
+.br-chiffres b { font-family: var(--titre); font-weight: 400; font-size: 18px; color: #fff; }
+.br-attente { align-self: flex-start; margin-top: auto; max-width: min(520px, 100%); padding: 18px 22px 20px; border-radius: 18px; background: linear-gradient(160deg, rgba(14, 6, 12, 0.88), rgba(40, 10, 20, 0.72)); border: 1.5px solid rgba(255, 190, 90, 0.45); box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.8); display: grid; gap: 4px; justify-items: start; }
+.br-attente p { margin: 0; }
+.br-attente-sur { font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: #ffb37a; }
+.br-attente-date { font-family: var(--titre); font-size: clamp(20px, 2.6vw, 30px); line-height: 1.15; color: #fff; }
+.br-attente-dans { font-family: var(--fort); font-weight: 800; font-size: 15px; color: #ffd23f; }
+.br-attente-chiffres { font-size: 14px; color: var(--brume); }
+.br-attente-toi { margin-top: 6px !important; font-weight: 700; color: #9ff0c4; }
+.br-attente .btn { margin-top: 8px; }
+.br-survivant { position: absolute; right: 20px; bottom: 20px; display: grid; justify-items: end; padding: 10px 14px; border-radius: 14px; background: rgba(12, 6, 10, 0.8); border: 1.5px solid #3ddc84; }
+.br-survivant span { font-family: var(--fort); font-weight: 800; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #3ddc84; }
+.br-survivant b { font-family: var(--titre); font-weight: 400; font-size: 18px; color: #fff; }
+.br-survivant small { color: var(--brume); font-size: 12px; }
+/* le face-à-face du duel du round, pendant le suspense */
+/* les deux cartes encadrent l'île (le duel reste visible au milieu), le VS tombe d'en haut */
+.br-vs { position: absolute; inset: 0; pointer-events: none; }
+.br-vs[hidden] { display: none; }
+.br-vs-carte { position: absolute; top: 50%; translate: 0 -50%; width: min(210px, 24%); display: grid; justify-items: center; gap: 4px; padding: 14px 10px 12px; border-radius: 16px; background: rgba(12, 6, 10, 0.86); text-align: center; min-width: 0; animation: br-vs-gauche 0.6s var(--rebond) both; }
+.br-vs-carte.bleu { left: 18px; }
+.br-vs-carte.rouge { right: 18px; animation-name: br-vs-droite; }
+@keyframes br-vs-gauche { from { opacity: 0; transform: translateX(-80px) rotate(-6deg); } }
+@keyframes br-vs-droite { from { opacity: 0; transform: translateX(80px) rotate(6deg); } }
+@keyframes br-vs-tombe { from { opacity: 0; transform: scale(2.4); } 60% { opacity: 1; } }
+.br-vs-carte.bleu { border: 2px solid #7fb1ff; box-shadow: 0 0 30px rgba(90, 150, 255, 0.45); }
+.br-vs-carte.rouge { border: 2px solid #ff6b5f; box-shadow: 0 0 30px rgba(255, 70, 60, 0.45); }
+.br-vs-carte img, .br-vs-sans { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.85); background: #2a1a10; }
+.br-vs-carte strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--titre); font-weight: 400; font-size: 16px; }
+.br-vs-carte span { font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ffd23f; }
+.br-vs-mot { position: absolute; left: 50%; top: 58px; translate: -50% 0; margin: 0; font-family: var(--titre); font-size: 58px; line-height: 1; animation: br-vs-tombe 0.5s 0.15s var(--rebond) both; background: linear-gradient(180deg, #fffbe2, #ffd23f 45%, #ff7a1f); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 14px rgba(255, 140, 40, 0.7)); }
+.br-vs-enjeu { position: absolute; left: 50%; top: 124px; translate: -50% 0; white-space: nowrap; margin: 0; padding: 5px 14px; border-radius: 99px; background: rgba(12, 6, 10, 0.86); border: 1.5px solid #ffd23f; font-family: var(--fort); font-weight: 800; font-size: 13px; color: #ffd23f; }
+/* sous l'île */
+.br-grille { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 22px; margin-top: 22px; align-items: start; }
+.br-fil, .br-cote { padding: 24px 24px 22px; display: grid; gap: 12px; }
+.br-fil h3, .br-cote h3 { margin: 0; font-family: var(--titre); font-weight: 400; font-size: 22px; }
+.br-round { display: grid; gap: 5px; padding-bottom: 10px; border-bottom: 1px solid var(--ligne-douce); }
+.br-round:last-child { border-bottom: 0; }
+.br-round-titre { margin: 0; font-family: var(--fort); font-weight: 800; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: #ffb37a; }
+.br-ligne { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.br-ligne b { color: #ffd23f; font-family: var(--fort); font-weight: 800; }
+.br-ligne.maree { color: #9fe9e1; }
+.br-podium { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.br-podium li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--verre); }
+.br-podium li.rang-1 { border: 1.5px solid #ffd23f; }
+.br-podium img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.br-podium-nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.br-podium b { font-family: var(--fort); font-weight: 800; color: #ffd23f; }
+.br-regles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; color: var(--brume); }
+.br-tetes { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.br-tetes li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.br-tetes img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.br-tetes span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br-tetes b { font-family: var(--fort); font-weight: 800; font-size: 13px; }
+.br-choix { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow-y: auto; padding: 2px; }
+.br-pirate { display: grid; grid-template-columns: 28px auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 5px 10px 5px 5px; border-radius: 99px; background: var(--verre); border: 1.5px solid transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.br-pirate img, .br-pirate .mur-sans { grid-row: 1 / 3; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.br-pirate span { font-weight: 700; line-height: 1.1; }
+.br-pirate small { font-size: 11px; color: var(--terne); line-height: 1.1; }
+.br-pirate:hover { border-color: rgba(255, 210, 63, 0.5); }
+.br-pirate.choisi { border-color: #ffd23f; background: rgba(255, 210, 63, 0.12); }
+.br-pirate.moi { opacity: 0.45; cursor: not-allowed; }
+.br-toi, .br-donne { margin: 0; font-weight: 700; }
+.br-donne { color: #3ddc84; }
+.br-cote .note.erreur { color: #ff9a9a; }
+@media (max-width: 900px) {
+  .br-scene { aspect-ratio: 4 / 5; min-height: 460px; }
+  .br-grille { grid-template-columns: 1fr; }
+  .br-vs-mot { font-size: 40px; top: 52px; }
+  .br-vs-enjeu { top: 98px; }
+  .br-survivant { left: 20px; right: auto; bottom: auto; top: 18px; justify-items: start; }
+}
+.br-court { display: none; }
+@media (max-width: 600px) {
+  .br-hud { padding: 12px; }
+  .br-hud-haut { flex-wrap: nowrap; gap: 6px; }
+  .br-direct { padding: 5px 10px; gap: 6px; font-size: 10.5px; letter-spacing: 0.08em; white-space: nowrap; }
+  .br-chrono { padding: 5px 10px; font-size: 11.5px; white-space: nowrap; }
+  .br-long { display: none; }
+  .br-court { display: inline; }
+  .br-chiffres { gap: 5px; }
+  .br-chiffres p { padding: 5px 9px; font-size: 11px; white-space: nowrap; }
+  .br-chiffres b { font-size: 14px; }
+  .br-attente { padding: 14px 16px 16px; }
+  .br3-nom { font-size: 10.5px; padding: 2px 7px; }
+  /* sur téléphone : deux cartes compactes en bas, le duel au milieu */
+  .br-vs-carte { top: auto; bottom: 96px; translate: none; width: calc(50% - 34px); grid-template-columns: 38px minmax(0, 1fr); justify-items: start; align-items: center; text-align: left; column-gap: 8px; row-gap: 0; padding: 8px 10px; }
+  .br-vs-carte img, .br-vs-sans { grid-row: 1 / 3; width: 38px; height: 38px; }
+  .br-vs-carte strong { font-size: 13px; }
+  .br-vs-carte span { font-size: 11.5px; }
+  .br-vs-carte.bleu { left: 10px; }
+  .br-vs-carte.rouge { right: 10px; }
+  .br-vs-mot { top: auto; bottom: 104px; font-size: 26px; }
+  .br-vs-enjeu { top: 50px; font-size: 11.5px; padding: 4px 11px; }
+  .br3-flotte { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .br-point { animation: none; }
+  .br-vs-carte, .br-vs-mot { animation: none; }
 }

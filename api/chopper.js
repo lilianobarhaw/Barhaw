@@ -2,6 +2,8 @@
 //   GET  /api/chopper?image=carte                 → sa carte (PNG)
 //   GET  /api/chopper?image=anim&type=nourrir     → une de ses animations (GIF) ; aussi jouer, niveau, grandit, defi, deprime, gueri
 //   GET  /api/chopper?image=wanted&cle=…          → l'affiche WANTED d'un chasseur (PNG), par la clé publique de son avis de recherche
+//   GET  /api/chopper?image=avatar&u=avatars/…    → une photo de profil Discord (PNG 256), relayée depuis cdn.discordapp.com :
+//        les affiches 3D lisent ses pixels pour découper la personne, ce qu'un navigateur n'accepte que d'une image du site
 //   POST /api/chopper  { action: "etat" | "nourrir" | "jouer" | "parler" | "jeu-debut" | "jeu-fin", message, partie, score }
 //        → au nom du membre connecté avec Discord ; le bot vérifie qu'il est sur le serveur Barhaw
 //          et applique les mêmes règles que sur Discord (une fois par jour pour nourrir et jouer).
@@ -30,20 +32,38 @@
 //          en direct du bot, et le panneau de Liliano et des capitaines (ouvrir la mer, le départ, la fermer)
 //   POST /api/chopper  { action: "fideles" | "fideles-code" | "fideles-retirer" }
 //        → les fidèles du stream : son temps sur le live, un code pour relier son Twitch (« !lier CODE » dans le chat), tout retirer
+//   POST /api/chopper  { action: "battle" | "battle-rhum", pour }
+//        → la Battle Royale de GRAND LINE : son pirate sur l'île et son tonneau ; envoyer son tonneau de rhum au pirate n° pour
 //   POST /api/chopper  { action: "creatures" | "creatures-filet" | "creatures-evoluer", apparition, espece }
 //        → les Créatures de GRAND LINE (VF 1.0) : le Bestiaire du membre, un filet sur la créature du Discord, l'évolution
 import { json, lireSession, memeSite } from "../lib/session.js";
 import { demanderBot } from "../lib/bot.js";
 
 const ANIMATIONS = new Set(["nourrir", "jouer", "niveau", "grandit", "defi", "deprime", "gueri"]);
-const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "bahriot", "bahriot-inscrire", "bahriot-desinscrire", "guerre", "guerre-engager", "guerre-quitter", "guerre-voter", "mer", "mer-embarquer", "mer-regarder", "mer-lancer", "mer-depart", "mer-arreter", "valorant", "valorant-demander", "valorant-annuler", "valorant-retirer", "creatures", "creatures-filet", "creatures-evoluer"]);
+const ACTIONS = new Set(["etat", "nourrir", "jouer", "parler", "jeu-debut", "jeu-fin", "cartes", "carte-tirer", "jeux", "jeu-ouvrir", "rumble-fin", "quiz-repondre", "docteur-fin", "memory-fin", "course-fin", "traversee-fin", "chasse", "prime-activer", "prime-retirer", "boss-attaquer", "faille", "faille-lier", "faille-verifier", "faille-retirer", "grandline", "grandline-voter", "grandline-bouteille", "flotte", "flotte-choisir", "fideles", "fideles-code", "fideles-retirer", "boss-live", "boss-live-frapper", "bahriot", "bahriot-inscrire", "bahriot-desinscrire", "guerre", "guerre-engager", "guerre-quitter", "guerre-voter", "mer", "mer-embarquer", "mer-regarder", "mer-lancer", "mer-depart", "mer-arreter", "valorant", "valorant-demander", "valorant-annuler", "valorant-retirer", "creatures", "creatures-filet", "creatures-evoluer", "battle", "battle-rhum"]);
 const JEUX = new Set(["rumble", "quiz", "docteur", "memory", "course", "traversee"]);
 const NIVEAUX = new Set(["facile", "moyen", "difficile"]);
 const entier = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : -1);
 
+// le chemin d'une photo de profil sur le CDN de Discord (rien d'autre n'est relayé)
+const PHOTO = /^((?:guilds\/\d{5,25}\/users\/\d{5,25}\/)?avatars\/(?:\d{5,25}\/)?(?:a_)?[0-9a-f]{32}|embed\/avatars\/\d)$/;
+async function photo(chemin) {
+  if (!PHOTO.test(chemin)) return json({ erreur: "Photo inconnue." }, 404);
+  try {
+    const r = await fetch(`https://cdn.discordapp.com/${chemin}.png?size=256`, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok || !/^image\//.test(r.headers.get("content-type") || "")) return json({ erreur: "Photo introuvable." }, 404, { "Cache-Control": "public, s-maxage=300" });
+    const corps = await r.arrayBuffer();
+    if (corps.byteLength > 2_000_000) return json({ erreur: "Photo trop lourde." }, 404);
+    return new Response(corps, { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400, s-maxage=604800, immutable", "X-Content-Type-Options": "nosniff" } });
+  } catch {
+    return json({ erreur: "Photo indisponible." }, 404, { "Cache-Control": "public, s-maxage=60" });
+  }
+}
+
 export async function GET(req) {
   const u = new URL(req.url);
   const image = u.searchParams.get("image");
+  if (image === "avatar") return photo(String(u.searchParams.get("u") || ""));
   let chemin = "";
   if (image === "carte") chemin = "/chopper/carte";
   if (image === "anim" && ANIMATIONS.has(u.searchParams.get("type"))) {
@@ -126,6 +146,8 @@ export async function POST(req) {
   // les Créatures de GRAND LINE : la créature visée par le filet, l'espèce à faire évoluer (le bot vérifie le reste)
   if (action === "creatures-filet") corps.apparition = /^c\d{1,9}-[a-z0-9]{4,12}$/.test(String(d.apparition || "")) ? String(d.apparition) : "";
   if (action === "creatures-evoluer") corps.espece = /^[a-z]{3,20}$/.test(String(d.espece || "")) ? String(d.espece) : "";
+  // la Battle Royale : le numéro du pirate qui reçoit le tonneau de rhum (le bot vérifie le reste)
+  if (action === "battle-rhum") corps.pour = entier(d.pour, 0, 999);
   try {
     const r = await demanderBot("/chopper", { methode: "POST", corps, delai: 25000 });
     const reponse = await r.json().catch(() => ({ erreur: "Réponse du bot illisible." }));
