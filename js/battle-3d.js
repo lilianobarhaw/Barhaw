@@ -3,13 +3,23 @@
 //     qui monte à chaque marée (elle rétrécit l'île), le ciel d'orage au coucher du soleil
 //   • les pirates : chacun est une petite affiche WANTED plantée sur un piquet, avec sa photo et sa prime, là où le bot
 //     l'a placé (les mêmes places que sur l'image du Discord) ; la tête de liste a une couronne et un cadre doré
-//   • le duel du round : la caméra va vers les deux pirates, leurs affiches grandissent et s'éclairent (bleu contre rouge)
-//     pendant le suspense ; au résultat, le perdant tombe (le sabre, la mer, la créature, le piège : chacun sa façon),
-//     le gagnant saute, « +425 000 ฿ » s'envole. Les tombés restent en petites tombes ; la marée emporte celles du bord
+//   • la vie autour : des mouettes, des navires à l'ancre (une lanterne à la poupe), des torches que la marée éteint,
+//     des lucioles dans la jungle, des îles au loin dans la brume
+//   • le duel du round : pendant le suspense, les deux pirates viennent se faire face dans un cercle de lumière (bleu
+//     contre rouge), la caméra va vers eux, les étincelles montent ; au résultat ils chargent : le choc, l'onde, le
+//     perdant vole en arrière et tombe (ou tient bon), le gagnant saute, « +425 000 ฿ » s'envole
+//   • chaque événement du round a son animation, l'une après l'autre : le tonneau de rhum descend en parachute, le
+//     coffre sort du sol et s'ouvre, un lien de lumière relie les alliés, les tentacules de la créature, le sol qui
+//     s'ouvre (le piège), la vague de la marée, la charge d'un duel. Les tombés restent en petites tombes ; la marée
+//     emporte celles du bord
+//   • la fin : les feux d'artifice, un faisceau de lumière sur l'affiche du survivant, la caméra tourne autour de lui
 //   • avant la battle : l'île tourne doucement, avec les affiches des têtes d'affiche et celle du dernier survivant
-// creerBattle3D(toile, { couche, petit, reduit, photo, surPirate }) → { etat(d), focus(k), pause(oui), redimensionner(), arreter() }
-//   d : { mode: "attente" | "direct", maree, round, pirates: [{ k, nom, avatar, prime, x, y, vivant, top, vies, mort }],
-//         suspense: { a, b } | null, dernier: { round, fil, duel } | null, survivant: { nom, avatar, prime } | null }
+// creerBattle3D(toile, { couche, petit, reduit, photo, surPirate, son }) → { etat(d), focus(k), pause(oui), vitesse(v), redimensionner(), arreter() }
+//   d : { mode: "attente" | "direct", maree, round, pirates: [{ k, nom, avatar, portrait, prime, x, y, vivant, top, vies, mort }],
+//         suspense: { a, b } | null, dernier: { round, fil, duel } | null, fete: k du survivant | null,
+//         rythme: le temps (s) pour jouer les événements d'un round (7 par défaut) }
+//   son(nom) : la page joue le bruitage si elle veut (suspense, choc, tombe, plouf, envol, bete, piege, epee, coffre,
+//   rhum, alliance, maree, feu, victoire)
 //   couche : un calque (div) au-dessus de la toile, pour les étiquettes (noms, gains qui s'envolent)
 import * as THREE from "./three-r170.module.min.js";
 
@@ -74,7 +84,7 @@ function chargerImage(url) {
 const TITRE = (t) => `400 ${t}px "Dela Gothic One", "M PLUS Rounded 1c", sans-serif`;
 const FORT = (t) => `800 ${t}px "M PLUS Rounded 1c", system-ui, sans-serif`;
 // la petite affiche d'un pirate (sa photo, sa prime) ; grise et barrée quand il est tombé
-function dessinerAffichette(c, { nom, prime, image, top, mort }) {
+function dessinerAffichette(c, { nom, prime, image, top, mort, vies = 0 }) {
   const g = c.getContext("2d");
   const L = c.width, H = c.height;
   g.clearRect(0, 0, L, H);
@@ -107,6 +117,16 @@ function dessinerAffichette(c, { nom, prime, image, top, mort }) {
   g.fillText(n.length > 16 ? `${n.slice(0, 15)}…` : n, L / 2, H * 0.83);
   g.font = TITRE(L * 0.13);
   g.fillText(`${court(prime)} ฿`, L / 2, H * 0.93);
+  // les vies en plus (les tonneaux de rhum reçus) : des petits cœurs dans le coin de la photo
+  for (let k = 0; k < Math.min(3, vies) && vies >= 2; k++) {
+    const x = f.x + L * 0.085 + k * L * 0.125, y = f.y + L * 0.085, r = L * 0.048;
+    g.beginPath();
+    g.moveTo(x, y + r * 0.9);
+    g.bezierCurveTo(x - r * 1.7, y - r * 0.2, x - r * 0.7, y - r * 1.35, x, y - r * 0.45);
+    g.bezierCurveTo(x + r * 0.7, y - r * 1.35, x + r * 1.7, y - r * 0.2, x, y + r * 0.9);
+    g.lineWidth = L * 0.022; g.strokeStyle = "#fff7ef"; g.stroke();
+    g.fillStyle = "#e0314b"; g.fill();
+  }
   if (mort) {
     g.globalCompositeOperation = "saturation";
     g.fillStyle = "#000"; g.fillRect(0, 0, L, H);
@@ -116,7 +136,7 @@ function dessinerAffichette(c, { nom, prime, image, top, mort }) {
   }
 }
 
-export function creerBattle3D(canvas, { couche = null, petit = false, reduit = false, photo = (u) => u, surPirate = () => {} } = {}) {
+export function creerBattle3D(canvas, { couche = null, petit = false, reduit = false, photo = (u) => u, surPirate = () => {}, son = () => {} } = {}) {
   let graine = 987654;
   const alea = () => (graine = (graine * 16807) % 2147483647) / 2147483647;
   const rendu = new THREE.WebGLRenderer({ canvas, antialias: !petit, alpha: false, powerPreference: "high-performance" });
@@ -300,7 +320,9 @@ void main(){
     palmiers.push({ groupe, palmes, y, phase: alea() * 9 });
   }
   const NB = petit ? 700 : 1400;
-  const bosquets = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x1e4224, roughness: 0.95, flatShading: true }), NB);
+  const bosquets = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), NB);
+  const VERTS = [0x2a5d30, 0x347238, 0x25563a, 0x3f7f36, 0x2f6a2c, 0x1f4a2a].map((c) => new THREE.Color(c));
+  const FLEURS = [0xd6557c, 0xe7b24a, 0xb07ae0].map((c) => new THREE.Color(c));
   const bosquetsInfo = [];
   {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
@@ -318,6 +340,7 @@ void main(){
         s.set(k, k * (0.8 + alea() * 0.5), k);
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), alea() * 6.28);
         bosquets.setMatrixAt(n, m.compose(p, q, s));
+        bosquets.setColorAt(n, alea() < 0.035 ? FLEURS[Math.floor(alea() * FLEURS.length)] : VERTS[Math.floor(alea() * VERTS.length)]);
         bosquetsInfo.push({ h, m: m.clone() });
         n++;
       }
@@ -458,7 +481,139 @@ void main(){
   geoBraises.setAttribute("position", new THREE.BufferAttribute(posBraises, 3));
   scene.add(new THREE.Points(geoBraises, new THREE.PointsMaterial({ color: new THREE.Color(6, 1.6, 0.3), size: 0.4, sizeAttenuation: true })));
 
+  // ---------- un peu de vie : des mouettes, des navires à l'ancre, des torches, des lucioles, des îles au loin ----------
+  const mouettes = [];
+  {
+    const matM = new THREE.MeshBasicMaterial({ color: 0xffe2c8, side: THREE.DoubleSide });
+    const geoAile = new THREE.BufferGeometry();
+    geoAile.setAttribute("position", new THREE.BufferAttribute(new Float32Array([0, 0, -0.36, 0, 0, 0.36, 1.55, 0, 0.1]), 3));
+    for (let k = 0; k < (petit ? 6 : 12); k++) {
+      const g = new THREE.Group();
+      const ad = new THREE.Mesh(geoAile, matM), ag = new THREE.Mesh(geoAile, matM);
+      ag.scale.x = -1;
+      g.add(ad, ag);
+      scene.add(g);
+      mouettes.push({ g, ad, ag, r: 24 + alea() * 46, h: 22 + alea() * 26, v: (0.1 + alea() * 0.14) * (alea() < 0.5 ? -1 : 1), ph: alea() * 9, cx: (alea() - 0.5) * 22, cz: (alea() - 0.5) * 22 });
+    }
+  }
+  // les navires de ceux qui sont venus voir (à l'ancre, une lanterne à la poupe)
+  const navires = [];
+  {
+    const matCoque = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.85 });
+    const matToile = new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x3a2a1a, emissiveIntensity: 0.35 });
+    const texLanterne = lueur("rgba(255,190,90,1)");
+    const formeCoque = new THREE.Shape();
+    formeCoque.moveTo(7, 0); formeCoque.quadraticCurveTo(4, 2.4, -3, 2.3); formeCoque.quadraticCurveTo(-7, 2, -7, 0);
+    formeCoque.quadraticCurveTo(-7, -2, -3, -2.3); formeCoque.quadraticCurveTo(4, -2.4, 7, 0);
+    const geoCoque = new THREE.ExtrudeGeometry(formeCoque, { depth: 2.6, bevelEnabled: true, bevelSize: 0.4, bevelThickness: 0.5, bevelSegments: 2 });
+    const voile = (l, h) => {
+      const geo = new THREE.PlaneGeometry(l, h, 6, 6);
+      const pv = geo.attributes.position;
+      for (let i = 0; i < pv.count; i++) pv.setZ(i, Math.cos((pv.getX(i) / l) * Math.PI) * 0.7 * (0.5 + (pv.getY(i) / h + 0.5) * 0.5));
+      geo.computeVertexNormals();
+      return new THREE.Mesh(geo, matToile);
+    };
+    const places = [[1.72, 0.5, 1], [3.1, 2.2, 0.85], [4.25, -0.6, 0.95], [5.4, 1.2, 0.8], [0.45, -1.9, 0.9]];
+    for (const [a, rot, taille] of places.slice(0, petit ? 3 : 5)) {
+      const g = new THREE.Group();
+      const coque = new THREE.Mesh(geoCoque, matCoque);
+      coque.rotation.x = Math.PI / 2;
+      coque.position.y = 1.5;
+      const mat1 = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 12, 6), matCoque);
+      mat1.position.set(0.6, 7.2, 0);
+      const mat2 = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 8.5, 6), matCoque);
+      mat2.position.set(-3.6, 5.4, 0);
+      const v1 = voile(5.4, 6.4); v1.position.set(0.6, 8.2, 0.3); v1.rotation.y = Math.PI / 2;
+      const v2 = voile(3.8, 4.4); v2.position.set(-3.6, 6.2, 0.3); v2.rotation.y = Math.PI / 2;
+      const lanterne = new THREE.Sprite(new THREE.SpriteMaterial({ map: texLanterne, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      lanterne.position.set(-6.4, 3.6, 0);
+      lanterne.scale.setScalar(3.4);
+      g.add(coque, mat1, mat2, v1, v2, lanterne);
+      g.scale.setScalar(taille);
+      const d = R * 1.62 + alea() * 16;
+      g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+      g.rotation.y = rot;
+      scene.add(g);
+      navires.push({ g, lanterne, taille, rot, ph: alea() * 9 });
+    }
+  }
+  // les torches plantées autour de l'île : une flamme, et sa lueur sur le sol (la marée les éteint)
+  const torches = [];
+  {
+    const texFlamme = lueur("rgba(255,170,70,1)");
+    const texSol = lueur("rgba(255,140,60,1)", 96);
+    const geoPoteau = new THREE.CylinderGeometry(0.1, 0.14, 2.6, 5);
+    const matPoteau = new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.9 });
+    const geoSol = new THREE.CircleGeometry(1, 20);
+    const haut = new THREE.Vector3(0, 0, 1), nrm = new THREE.Vector3();
+    const NT = petit ? 7 : 14;
+    for (let k = 0; k < NT; k++) {
+      const a = (k / NT) * Math.PI * 2 + alea() * 0.3;
+      // on avance depuis la mer jusqu'à une hauteur de plage ou de talus
+      const vise = 1.8 + (k % 3) * 2.1;
+      let x = 0, z = 0, h = -9, ok = false;
+      for (let d = R * 1.25; d > 6; d -= 0.6) {
+        x = Math.cos(a) * d; z = Math.sin(a) * d; h = hauteur(x, z);
+        if (h >= vise) { ok = true; break; }
+      }
+      if (!ok || h > 13) continue;
+      const poteau = new THREE.Mesh(geoPoteau, matPoteau);
+      poteau.position.set(x, h + 1.2, z);
+      const flamme = new THREE.Sprite(new THREE.SpriteMaterial({ map: texFlamme, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      flamme.position.set(x, h + 2.9, z);
+      const e = 0.4;
+      nrm.set(hauteur(x - e, z) - hauteur(x + e, z), 2 * e, hauteur(x, z - e) - hauteur(x, z + e)).normalize();
+      const lueurSol = new THREE.Mesh(geoSol, new THREE.MeshBasicMaterial({ map: texSol, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      lueurSol.quaternion.setFromUnitVectors(haut, nrm);
+      lueurSol.position.set(x + nrm.x * 0.35, h + 0.35, z + nrm.z * 0.35);
+      lueurSol.scale.setScalar(5.5);
+      scene.add(poteau, flamme, lueurSol);
+      torches.push({ poteau, flamme, lueurSol, y: h, ph: alea() * 9 });
+    }
+  }
+  // les lucioles de la jungle
+  const NL = petit ? 26 : 60;
+  const baseLucioles = new Float32Array(NL * 4);
+  const geoLucioles = new THREE.BufferGeometry();
+  geoLucioles.setAttribute("position", new THREE.BufferAttribute(new Float32Array(NL * 3), 3));
+  {
+    let n = 0, essais = 0;
+    while (n < NL && essais < 4000) {
+      essais++;
+      const x = (alea() - 0.5) * R * 1.8, z = (alea() - 0.5) * R * 1.8, h = hauteur(x, z);
+      if (h < 2 || h > 12 || Math.hypot(x - VOLCAN.x, z - VOLCAN.z) < VOLCAN.r * 0.55) continue;
+      baseLucioles.set([x, h, z, alea() * 9], n * 4);
+      n++;
+    }
+  }
+  const lucioles = new THREE.Points(geoLucioles, new THREE.PointsMaterial({ map: lueur("rgba(220,255,140,1)", 48), color: new THREE.Color(1.6, 2.1, 0.7), size: 0.9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+  lucioles.frustumCulled = false;
+  lucioles.visible = !reduit;
+  scene.add(lucioles);
+  // des îles au loin, dans la brume
+  {
+    const matLoin = new THREE.MeshBasicMaterial({ color: 0x4a3558, fog: false });
+    for (const [a, d, r, h] of [[0.5, 760, 110, 30], [1.35, 900, 170, 42], [2.7, 820, 90, 52], [3.9, 860, 150, 28], [5.2, 780, 100, 38], [5.75, 940, 190, 46]]) {
+      const geo = new THREE.ConeGeometry(r, h, 11, 3);
+      const q = geo.attributes.position;
+      for (let i = 0; i < q.count; i++) {
+        const k = 0.72 + 0.56 * fbm(q.getX(i) * 0.02 + a * 7, q.getZ(i) * 0.02 + a * 3, 3);
+        q.setXYZ(i, q.getX(i) * k, q.getY(i) * (0.8 + 0.4 * k), q.getZ(i) * k);
+      }
+      const m = new THREE.Mesh(geo, matLoin);
+      m.position.set(Math.cos(a) * d, h / 2 - 4, Math.sin(a) * d);
+      m.rotation.y = a * 3;
+      scene.add(m);
+    }
+  }
+
   // ---------- les lumières ----------
+  // (une lumière d'appoint suit la caméra : le premier plan n'est jamais dans le noir, quel que soit le côté de l'île)
+  const appoint = new THREE.DirectionalLight(0xc6d4ff, 0.7);
+  appoint.position.set(0, 0, 0);
+  appoint.target.position.set(0, -0.25, -1);
+  camera.add(appoint, appoint.target);
+  scene.add(camera);
   const soleil = new THREE.DirectionalLight(0xffb070, 3.0);
   soleil.position.copy(SOLEIL).multiplyScalar(300).setY(120);
   scene.add(soleil);
@@ -495,6 +650,8 @@ void main(){
   })());
   const texHaloBleu = lueur("rgba(90,150,255,1)"), texHaloRouge = lueur("rgba(255,70,60,1)"), texHaloOr = lueur("rgba(255,200,70,1)");
   const sol = (x, z) => Math.max(hauteur(x, z), niveau + 0.3);
+  const lisse = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const adresse = (d) => (d.avatar ? photo(d.avatar) : d.portrait != null ? `/img/battle/portraits/${String(d.portrait).padStart(2, "0")}.png` : "");
   function creerPirate(d) {
     const c = toile(160, 224);
     const tex = texture(c);
@@ -523,17 +680,29 @@ void main(){
     tombe.visible = false;
     groupe.add(tombe);
     scene.add(groupe);
-    const p = { k: d.k, d, c, tex, groupe, tete, affiche, aura, couronne, tombe, image: null, pos: { x: 0, z: 0 }, cible: { x: 0, z: 0 }, etat: "debout", anim: null, phase: Math.random() * 9, echelle: 1 };
+    const p = {
+      k: d.k, d, c, tex, groupe, tete, affiche, aura, couronne, tombe, image: null, photo: null, pos: { x: 0, z: 0 }, cible: { x: 0, z: 0 },
+      etat: "debout", anim: null, phase: Math.random() * 9, echelle: 1,
+      // aTomber : il est éliminé, mais il reste debout jusqu'à ce que son événement soit joué ; fige : il ne bouge plus (tombé)
+      // saut, elan, trajet : un petit saut, une charge vers quelqu'un, le bond quand il change de place ; arene : sa place de duel
+      aTomber: null, fige: false, saut: null, elan: null, arene: null, trajet: 0, vite: 0,
+    };
     const m = versMonde(d.x, d.y);
     p.pos = { ...m }; p.cible = { ...m };
     redessiner(p);
-    chargerImage(d.avatar ? photo(d.avatar) : d.portrait != null ? `/img/battle/portraits/${String(d.portrait).padStart(2, "0")}.png` : "")
-      .then((img) => { p.image = img; redessiner(p); })
-      .catch(() => {});
+    chargerPhoto(p);
     return p;
   }
+  // la photo du pirate (rechargée si ce numéro devient quelqu'un d'autre : une autre battle, la rediff)
+  function chargerPhoto(p) {
+    const u = adresse(p.d);
+    if (u === p.photo) return;
+    p.photo = u;
+    p.image = null;
+    chargerImage(u).then((img) => { if (p.photo === u) { p.image = img; redessiner(p); } }).catch(() => {});
+  }
   function redessiner(p) {
-    dessinerAffichette(p.c, { nom: p.d.nom, prime: p.d.prime, image: p.image, top: p.d.top && p.d.vivant, mort: !p.d.vivant });
+    dessinerAffichette(p.c, { nom: p.d.nom, prime: p.d.prime, image: p.image, top: p.d.top && p.d.vivant, mort: !p.d.vivant && !p.aTomber, vies: p.d.vivant ? p.d.vies : 0 });
     p.tex.needsUpdate = true;
   }
 
@@ -556,30 +725,436 @@ void main(){
     if (e.textContent !== texte) e.textContent = texte;
     return e;
   }
-  // les éclats (le sabre, la mer, la poussière)
+  // les éclats (le sabre, la mer, la poussière, les feux d'artifice)
   const eclats = [];
   const texEclat = lueur("rgba(255,255,255,1)", 64);
-  function gerbe(pos, couleur, n = 26, force = 9, gravite = 18) {
+  function gerbe(pos, couleur, n = 26, force = 9, gravite = 18, vie = 1, taille = 1) {
+    if (reduit) n = Math.min(n, 8);
     for (let k = 0; k < n; k++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texEclat, color: couleur, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
       s.position.copy(pos);
       const a = Math.random() * Math.PI * 2, b = Math.random() * 0.9 + 0.2;
-      s.userData = { v: new THREE.Vector3(Math.cos(a) * Math.cos(b), Math.sin(b) * 1.4, Math.sin(a) * Math.cos(b)).multiplyScalar(force * (0.4 + Math.random() * 0.8)), vie: 0, max: 0.7 + Math.random() * 0.6, g: gravite, s: 0.5 + Math.random() * 0.7 };
+      s.userData = { v: new THREE.Vector3(Math.cos(a) * Math.cos(b), Math.sin(b) * 1.4, Math.sin(a) * Math.cos(b)).multiplyScalar(force * (0.4 + Math.random() * 0.8)), vie: 0, max: (0.7 + Math.random() * 0.6) * vie, g: gravite, s: (0.5 + Math.random() * 0.7) * taille };
       s.scale.setScalar(s.userData.s);
       scene.add(s);
       eclats.push(s);
     }
+  }
+  // les effets : des choses qui ne vivent qu'un moment (maj(u) de 0 à 1, puis fin())
+  const effets = [];
+  function effet(duree, maj, fin = null) { effets.push({ t0: horloge, duree, maj, fin }); }
+  const geoAnneau = new THREE.RingGeometry(0.8, 1, 48);
+  const hautZ = new THREE.Vector3(0, 0, 1), nrmSol = new THREE.Vector3();
+  const geoArene = new THREE.CylinderGeometry(1, 1, 1, 56, 1, true).translate(0, 0.5, 0);
+  const texArene = texture((() => {
+    const c = toile(8, 64);
+    const g = c.getContext("2d");
+    const d = g.createLinearGradient(0, 0, 0, 64);
+    d.addColorStop(0, "rgba(255,255,255,0)"); d.addColorStop(0.55, "rgba(255,255,255,0.22)"); d.addColorStop(1, "rgba(255,255,255,1)");
+    g.fillStyle = d; g.fillRect(0, 0, 8, 64);
+    return c;
+  })());
+  // (une chose plate posée sur le sol suit sa pente)
+  function coucherAuSol(m, x, z) {
+    const e = 0.5;
+    nrmSol.set(sol(x - e, z) - sol(x + e, z), 2 * e, sol(x, z - e) - sol(x, z + e)).normalize();
+    m.quaternion.setFromUnitVectors(hautZ, nrmSol);
+  }
+  // une onde qui s'élargit sur le sol (le choc d'un duel, quelqu'un qui tient bon, la marée)
+  function anneau(x, z, couleur, rayon, duree = 0.8, y = null) {
+    const m = new THREE.Mesh(geoAnneau, new THREE.MeshBasicMaterial({ color: couleur, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+    if (y === null) { coucherAuSol(m, x, z); m.position.set(x, sol(x, z) + 0.7, z); } else { m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); }
+    scene.add(m);
+    effet(duree, (u) => { m.scale.setScalar(rayon * (0.12 + 0.88 * (1 - (1 - u) ** 3))); m.material.opacity = 1 - u; }, () => { scene.remove(m); m.material.dispose(); });
+  }
+  // un signal là où il se passe quelque chose (on le voit même de loin) : une onde au sol et un trait de lumière
+  const geoTrait = new THREE.CylinderGeometry(0.5, 0.5, 1, 10, 1, true).translate(0, 0.5, 0);
+  function signal(x, z, couleur) {
+    anneau(x, z, couleur, 7, 0.9);
+    if (reduit) return;
+    const m = new THREE.Mesh(geoTrait, new THREE.MeshBasicMaterial({ map: texArene, color: couleur, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+    m.position.set(x, sol(x, z), z);
+    scene.add(m);
+    effet(1.1, (u) => { m.scale.set(1 + u * 1.5, 38 * Math.min(1, u * 5), 1 + u * 1.5); m.material.opacity = 0.75 * Math.min(1, u * 8) * (1 - u); }, () => { scene.remove(m); m.material.dispose(); });
+  }
+  const BLANC = new THREE.Color(1, 0.96, 0.84), OR = new THREE.Color(1, 0.8, 0.28), BLEU = new THREE.Color(0.5, 0.75, 1), ROUGE = new THREE.Color(1, 0.3, 0.22), TERRE = new THREE.Color(0.85, 0.7, 0.5);
+  // un point au-dessus de l'affiche d'un pirate (marge : de combien au-dessus de son bord), ou devant son milieu
+  const auDessus = (p, marge = 1.5) => new THREE.Vector3(p.groupe.position.x, p.groupe.position.y + 8.4 * p.echelle + marge, p.groupe.position.z);
+  const auMilieu = (p) => new THREE.Vector3(p.groupe.position.x, p.groupe.position.y + 6 * p.echelle, p.groupe.position.z);
+
+  // ---------- les événements du round : chacun son animation ----------
+  // le tonneau de rhum : il descend du ciel en parachute, à côté du pirate
+  const matTonneau = new THREE.MeshStandardMaterial({ color: 0x8a5a2c, roughness: 0.8 });
+  const matCercle = new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.6 });
+  const matParachute = new THREE.MeshStandardMaterial({ color: 0xf2e6d0, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x403020, emissiveIntensity: 0.5 });
+  const geoTonneau = new THREE.CylinderGeometry(0.62, 0.62, 1.3, 10);
+  const geoCercle = new THREE.TorusGeometry(0.64, 0.06, 5, 12).rotateX(Math.PI / 2);
+  const geoParachute = new THREE.SphereGeometry(2.1, 12, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const geoSuspentes = new THREE.BufferGeometry().setFromPoints([[1.5, 1.5], [-1.5, 1.5], [1.5, -1.5], [-1.5, -1.5]].flatMap(([x, z]) => [new THREE.Vector3(x, 2.7, z), new THREE.Vector3(0, 0.65, 0)]));
+  const matSuspentes = new THREE.LineBasicMaterial({ color: 0xd8c8a8 });
+  function evtRhum(p) {
+    const g = new THREE.Group();
+    const c1 = new THREE.Mesh(geoCercle, matCercle), c2 = new THREE.Mesh(geoCercle, matCercle);
+    c1.position.y = 0.38; c2.position.y = -0.38;
+    const para = new THREE.Mesh(geoParachute, matParachute);
+    para.position.y = 2.6;
+    const fils = new THREE.LineSegments(geoSuspentes, matSuspentes);
+    g.add(new THREE.Mesh(geoTonneau, matTonneau), c1, c2, para, fils);
+    scene.add(g);
+    const ph = Math.random() * 6;
+    let pose = false;
+    effet(2.3, (u) => {
+      const bx = p.groupe.position.x + 3.2, bz = p.groupe.position.z + 1.1;
+      const ys = sol(bx, bz) + 1.25;
+      const k = Math.min(1, u / 0.8), e = 1 - (1 - k) ** 2;
+      g.position.set(bx + Math.sin(u * 8 + ph) * 1.5 * (1 - k), ys + 32 * (1 - e), bz);
+      g.rotation.z = Math.sin(u * 8 + ph) * 0.25 * (1 - k);
+      para.scale.set(1, 0.75 * (k < 1 ? 1 : Math.max(0.04, 1 - (u - 0.8) * 10)), 1); // la toile retombe
+      fils.visible = k < 1;
+      g.scale.setScalar(1.9 * (u > 0.9 ? Math.max(0.001, 1 - (u - 0.9) / 0.1) : 1));
+      if (k >= 1 && !pose) {
+        pose = true;
+        gerbe(new THREE.Vector3(bx, ys, bz), new THREE.Color(1, 0.75, 0.35), 18, 6, 14);
+        if (p.etat === "debout") { flotter("🍺 +1 VIE", auDessus(p, 2), "vert"); p.saut = horloge; }
+        son("rhum");
+      }
+    }, () => scene.remove(g));
+  }
+  // le coffre : il sort du sol, s'ouvre, l'or jaillit
+  const matCoffre = new THREE.MeshStandardMaterial({ color: 0x6a4022, roughness: 0.8 });
+  const matOr = new THREE.MeshStandardMaterial({ color: 0xffc83d, roughness: 0.35, metalness: 0.3, emissive: 0x6a4a00, emissiveIntensity: 0.7 });
+  const geoCaisse = new THREE.BoxGeometry(1.7, 0.95, 1.15), geoFerrure = new THREE.BoxGeometry(0.22, 1.0, 1.2);
+  const geoCouvercle = new THREE.BoxGeometry(1.7, 0.36, 1.15), geoFerrure2 = new THREE.BoxGeometry(0.22, 0.4, 1.2);
+  function evtCoffre(p, tag) {
+    const g = new THREE.Group();
+    const caisse = new THREE.Mesh(geoCaisse, matCoffre), ferrure = new THREE.Mesh(geoFerrure, matOr);
+    caisse.position.y = ferrure.position.y = 0.48;
+    const charniere = new THREE.Group();
+    charniere.position.set(0, 0.95, -0.575);
+    const couvercle = new THREE.Mesh(geoCouvercle, matCoffre), ferrure2 = new THREE.Mesh(geoFerrure2, matOr);
+    couvercle.position.set(0, 0.18, 0.575); ferrure2.position.set(0, 0.18, 0.575);
+    charniere.add(couvercle, ferrure2);
+    const eclat = new THREE.Sprite(new THREE.SpriteMaterial({ map: texHaloOr, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    eclat.position.y = 1.5;
+    g.add(caisse, ferrure, charniere, eclat);
+    g.scale.setScalar(0.001);
+    scene.add(g);
+    let ouvert = false;
+    effet(2.6, (u) => {
+      const bx = p.groupe.position.x - 3.4, bz = p.groupe.position.z + 1.2;
+      const ys = sol(bx, bz);
+      g.position.set(bx, ys, bz);
+      g.rotation.y = Math.atan2(camera.position.x - bx, camera.position.z - bz);
+      const k = Math.min(1, u / 0.14) + Math.sin(Math.min(1, u / 0.3) * Math.PI) * 0.25;
+      g.scale.setScalar(Math.max(0.001, 2.4 * k * (u > 0.88 ? Math.max(0, 1 - (u - 0.88) / 0.12) : 1)));
+      const o = lisse(0.22, 0.4, u);
+      charniere.rotation.x = -o * 1.9;
+      eclat.material.opacity = o * (1 - lisse(0.75, 0.95, u)) * 0.95;
+      eclat.scale.setScalar(2 + o * 5 + Math.sin(horloge * 9) * 0.4);
+      if (o > 0.5 && !ouvert) {
+        ouvert = true;
+        gerbe(new THREE.Vector3(bx, ys + 1.5, bz), OR, 26, 8, 16);
+        if (tag && p.etat === "debout") { flotter(`💰 ${tag}`, auDessus(p, 2), "or"); p.saut = horloge; }
+        son("coffre");
+      }
+    }, () => { scene.remove(g); eclat.material.dispose(); });
+  }
+  // l'alliance : un lien de lumière entre les deux pirates, quelques secondes
+  const geoLien = new THREE.CylinderGeometry(0.24, 0.24, 1, 6).rotateX(Math.PI / 2).translate(0, 0, 0.5);
+  function evtAlliance(pa, pb) {
+    const m = new THREE.Mesh(geoLien, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 1.6, 2.4), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    scene.add(m);
+    const A = new THREE.Vector3(), B = new THREE.Vector3();
+    let dit = false;
+    effet(6.5, (u) => {
+      A.copy(auMilieu(pa));
+      B.copy(auMilieu(pb));
+      m.position.copy(A);
+      m.lookAt(B);
+      const gros = 1 + Math.sin(horloge * 6) * 0.3;
+      m.scale.set(gros, gros, Math.max(0.01, A.distanceTo(B)));
+      const ensemble = pa.etat === "debout" && pb.etat === "debout";
+      m.material.opacity = ensemble ? Math.min(1, u * 10) * (1 - lisse(0.82, 1, u)) * (0.55 + 0.3 * Math.sin(horloge * 5)) : 0;
+      if (!dit) { dit = true; flotter("🤝 ALLIANCE", A.clone().lerp(B, 0.5).setY(Math.max(A.y, B.y) + 4), "bleu"); son("alliance"); }
+    }, () => { scene.remove(m); m.material.dispose(); });
+  }
+  // la créature : trois tentacules sortent autour du pirate (il esquive, ou elles l'emportent)
+  const geoTentacule = (() => {
+    const g = new THREE.CylinderGeometry(0.1, 0.55, 8, 7, 8).translate(0, 4, 0);
+    const q = g.attributes.position;
+    for (let i = 0; i < q.count; i++) { const y = q.getY(i); q.setX(i, q.getX(i) + Math.sin(y * 0.55) * 0.75 * (y / 8)); }
+    g.computeVertexNormals();
+    return g;
+  })();
+  const matTentacule = new THREE.MeshStandardMaterial({ color: 0x6a3a8a, roughness: 0.45, emissive: 0x2a0f3a, emissiveIntensity: 0.9 });
+  function evtBete(p, tag) {
+    const meurt = Boolean(p.aTomber);
+    const g = new THREE.Group();
+    const bras = [0, 2.1, 4.2].map((a) => {
+      const m = new THREE.Mesh(geoTentacule, matTentacule);
+      m.position.set(Math.cos(a) * 3, 0, Math.sin(a) * 3);
+      m.rotation.y = Math.PI - a; // elle se courbe vers le pirate
+      m.scale.set(1.5, 0.001, 1.5);
+      g.add(m);
+      return m;
+    });
+    const bx = p.groupe.position.x, bz = p.groupe.position.z, ys = sol(bx, bz);
+    g.position.set(bx, ys - 0.4, bz);
+    scene.add(g);
+    gerbe(new THREE.Vector3(bx, ys + 0.5, bz), new THREE.Color(0.6, 0.45, 0.9), 22, 7, 14);
+    son("bete");
+    let fait = false;
+    effet(meurt ? 2.2 : 1.8, (u) => {
+      const sort = lisse(0, 0.28, u) * (1 - lisse(0.6, 0.98, u));
+      bras.forEach((m, k) => {
+        m.scale.set(1.5, Math.max(0.001, 1.5 * sort * (0.9 + 0.15 * Math.sin(horloge * 5 + k * 2))), 1.5);
+        m.rotation.z = Math.sin(horloge * 6 + k * 2.1) * 0.22 + (meurt ? lisse(0.3, 0.5, u) * 0.35 : 0);
+      });
+      if (u > 0.42 && !fait) {
+        fait = true;
+        if (meurt) tomber(p, "bete");
+        else if (p.etat === "debout") { p.saut = horloge; flotter(tag || "ESQUIVE", auDessus(p, 2), "bleu"); }
+      }
+    }, () => scene.remove(g));
+  }
+  // le piège : le sol s'ouvre sous le pirate
+  const geoTrou = new THREE.CircleGeometry(1, 22);
+  function evtPiege(p) {
+    const bx = p.groupe.position.x, bz = p.groupe.position.z;
+    const m = new THREE.Mesh(geoTrou, new THREE.MeshBasicMaterial({ color: 0x050304, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+    coucherAuSol(m, bx, bz);
+    m.position.set(bx, sol(bx, bz) + 0.25, bz);
+    m.scale.setScalar(3.2);
+    scene.add(m);
+    son("piege");
+    let fait = false;
+    effet(2, (u) => {
+      m.material.opacity = lisse(0, 0.12, u) * (1 - lisse(0.7, 1, u)) * 0.92;
+      if (u > 0.1 && !fait) { fait = true; if (p.aTomber) tomber(p, "piege"); }
+    }, () => { scene.remove(m); m.material.dispose(); });
+  }
+  function evtMaree(p) {
+    anneau(p.groupe.position.x, p.groupe.position.z, BLEU, 9, 1, niveau + 0.6);
+    if (p.aTomber) tomber(p, "maree");
+  }
+  function evtAbsurde(p) {
+    const ou = auDessus(p, 26);
+    if (p.aTomber) tomber(p, "absurde");
+    effet(1.5, () => {}, () => { flotter("✨", ou, "or"); gerbe(ou, BLANC, 10, 4, 2); });
+  }
+  // un duel (ou une trahison) qui n'est pas celui du round : le gagnant charge, les étincelles, le perdant tombe ou tient bon
+  function evtDuel(pa, pb, tag, trahison = false) {
+    pa.elan = { x: pb.groupe.position.x, z: pb.groupe.position.z, t0: horloge };
+    let fait = false;
+    effet(0.6, (u) => {
+      if (u < 0.42 || fait) return;
+      fait = true;
+      gerbe(auMilieu(pb), trahison ? ROUGE : BLANC, 26, 10);
+      son("epee");
+      if (pb.aTomber) {
+        tomber(pb, trahison ? "trahison" : "duel");
+        if (tag) flotter(/฿/.test(tag) ? tag : `🗡️ ${tag}`, auDessus(pa, 2), /฿/.test(tag) ? "or" : "rouge");
+        if (pa.etat === "debout") pa.saut = horloge + 0.15;
+      } else if (pb.etat === "debout") {
+        flotter(tag || "TIENT BON", auDessus(pb, 2), "bleu");
+        anneau(pb.groupe.position.x, pb.groupe.position.z, BLEU, 5, 0.6);
+      }
+    });
+  }
+  function evtEsquive(p) {
+    gerbe(new THREE.Vector3(p.groupe.position.x, p.groupe.position.y + 1, p.groupe.position.z), TERRE, 10, 4, 8);
+    p.saut = horloge;
+    flotter("💨", auDessus(p, 1.5), "bleu");
+  }
+  function jouer(l) {
+    const pa = l.a != null ? pirates.get(l.a) : null, pb = l.b != null ? pirates.get(l.b) : null;
+    const ou = (l.type === "rhum" || l.type === "coffre" || l.type === "esquive" || l.type === "alliance" ? pa : pb) || pa || pb;
+    if (ou) signal(ou.groupe.position.x, ou.groupe.position.z, { rhum: new THREE.Color(0.5, 1, 0.6), coffre: OR, alliance: BLEU, esquive: BLEU, bete: new THREE.Color(0.75, 0.5, 1), maree: BLEU, trahison: ROUGE }[l.type] || BLANC);
+    if (l.type === "rhum" && pa) evtRhum(pa);
+    else if (l.type === "duel" && pa && pb) evtDuel(pa, pb, l.tag);
+    else if (l.type === "trahison" && pa && pb) evtDuel(pa, pb, l.tag || "TRAHISON", true);
+    else if (l.type === "maree" && pb) evtMaree(pb);
+    else if (l.type === "bete" && pb) evtBete(pb, l.tag);
+    else if (l.type === "piege" && pb) evtPiege(pb);
+    else if (l.type === "absurde" && pb) evtAbsurde(pb);
+    else if (l.type === "coffre" && pa) evtCoffre(pa, l.tag);
+    else if (l.type === "alliance" && pa && pb) evtAlliance(pa, pb);
+    else if (l.type === "esquive" && pa) evtEsquive(pa);
+  }
+  // la file des événements du round (ils se jouent l'un après l'autre)
+  const file = [];
+  function programmer(dr, vedette, rythme = 7) {
+    const lignes = (dr.fil || []).filter((l) => !(vedette && l.type === "duel" && l.a === dr.duel.gagnant && l.b === dr.duel.perdant));
+    const rhums = lignes.filter((l) => l.type === "rhum"), autres = lignes.filter((l) => l.type !== "rhum");
+    rhums.forEach((l, i) => file.push({ t0: horloge + 0.2 + i * 0.45, l }));
+    const debut = vedette ? 3 : 0.5;
+    const pas = Math.min(1.3, Math.max(0.45, (rythme - debut) / Math.max(1, autres.length)));
+    autres.forEach((l, i) => file.push({ t0: horloge + debut + i * pas, l }));
+    file.sort((a, b) => a.t0 - b.t0);
+  }
+  // tout ce qui attendait est réglé tout de suite (un nouveau round arrive, on quitte la page)
+  function solder() {
+    file.length = 0;
+    for (const p of pirates.values()) if (p.aTomber) { p.aTomber = null; p.etat = "tombe"; p.fige = true; p.anim = null; redessiner(p); poserTombe(p); }
+  }
+
+  // ---------- le duel du round : face à face pendant le suspense, puis le choc ----------
+  let combat = null; // { a, b, mx, mz, axe, sep, phase: "face" | "choc", t0, res, tag, cercle }
+  let tremblement = 0;
+  function commencerCombat(pa, pb) {
+    finirCombat();
+    let mx = (pa.cible.x + pb.cible.x) / 2, mz = (pa.cible.z + pb.cible.z) / 2;
+    // l'arène reste au sec (la marée monte), sur le flanc du volcan s'il le faut
+    for (let k = 0; k < 40 && hauteur(mx, mz) < niveauCible + 1.2; k++) { mx += (VOLCAN.x - mx) * 0.1; mz += (VOLCAN.z - mz) * 0.1; }
+    let ax = pb.cible.x - pa.cible.x, az = pb.cible.z - pa.cible.z;
+    // côte à côte autour du volcan (à la même hauteur), chacun du côté d'où il vient
+    const vx = mx - VOLCAN.x, vz = mz - VOLCAN.z, lv = Math.hypot(vx, vz);
+    if (lv > 5) {
+      const tx = -vz / lv, tz = vx / lv, sens = tx * ax + tz * az < 0 ? -1 : 1;
+      ax = tx * sens; az = tz * sens;
+    } else {
+      const la = Math.hypot(ax, az);
+      if (la > 0.01) { ax /= la; az /= la; } else { ax = 1; az = 0; }
+    }
+    const sep = 5.4;
+    pa.arene = { x: mx - ax * sep, z: mz - az * sep };
+    pb.arene = { x: mx + ax * sep, z: mz + az * sep };
+    for (const p of [pa, pb]) p.trajet = Math.hypot(p.arene.x - p.pos.x, p.arene.z - p.pos.z);
+    // l'arène : un mur de lumière autour des deux pirates (il dépasse de la jungle)
+    const cercle = new THREE.Mesh(geoArene, new THREE.MeshBasicMaterial({ map: texArene, color: new THREE.Color(1.7, 1.15, 0.4), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+    cercle.position.set(mx, Math.min(sol(pa.arene.x, pa.arene.z), sol(pb.arene.x, pb.arene.z), sol(mx, mz)) - 0.5, mz);
+    cercle.scale.set(10.5, 4.6, 10.5);
+    scene.add(cercle);
+    combat = { a: pa, b: pb, mx, mz, axe: { x: ax, z: az }, sep, phase: "face", t0: horloge, res: null, tag: "", cercle, prochaine: 0, etapes: 0 };
+    focusCible = viser(pa, pb);
+    focusJusqua = Infinity;
+  }
+  function finirCombat() {
+    if (!combat) return;
+    scene.remove(combat.cercle);
+    combat.cercle.material.dispose();
+    for (const p of [combat.a, combat.b]) {
+      p.arene = null;
+      if (p.etat === "debout") p.trajet = Math.hypot(p.cible.x - p.pos.x, p.cible.z - p.pos.z);
+    }
+    combat = null;
+  }
+  const decal = { x: 0, y: 0, z: 0 };
+  // où est un duelliste par rapport à sa place, pendant le choc : il charge, puis le perdant recule
+  function decalageCombat(p) {
+    decal.x = decal.y = decal.z = 0;
+    const c = combat;
+    if (c.phase !== "choc" || p.etat !== "debout") return decal;
+    const u = horloge - c.t0, moi = p === c.a ? -1 : 1;
+    const ax = c.axe.x * moi, az = c.axe.z * moi, course = c.sep - 1.7;
+    if (u < 0.28) { const k = (u / 0.28) ** 2; decal.x = -ax * course * k; decal.z = -az * course * k; return decal; }
+    const v = Math.min(1, (u - 0.28) / 0.55), e = 1 - (1 - v) ** 3;
+    const perdant = p.k === c.res.perdant;
+    const recul = perdant ? 2.4 * (1 - lisse(1.5, 2.4, u)) : 0;
+    decal.x = -ax * course * (1 - e) + ax * recul * e;
+    decal.z = -az * course * (1 - e) + az * recul * e;
+    decal.y = perdant ? Math.sin(v * Math.PI) * 0.9 : 0;
+    return decal;
+  }
+  function animerCombat() {
+    const c = combat;
+    const u = horloge - c.t0;
+    if (c.phase === "face") {
+      c.cercle.material.opacity = Math.min(0.8, u * 1.2) * (0.62 + 0.38 * Math.sin(horloge * 5));
+      c.cercle.rotation.y = horloge * 0.4;
+      // la tension monte : des étincelles entre les deux, de plus en plus souvent
+      if (!reduit && u > 1 && horloge >= c.prochaine) {
+        c.prochaine = horloge + Math.max(0.16, 0.8 - u * 0.06) * (0.6 + Math.random() * 0.8);
+        gerbe(new THREE.Vector3(c.mx, sol(c.mx, c.mz) + 6 + Math.random() * 3, c.mz), BLANC, 5, 5, 10);
+      }
+      return;
+    }
+    c.cercle.material.opacity = Math.max(0, 0.8 * (1 - u / 0.6));
+    c.cercle.scale.set(10.5 + u * 9, 4.6 * Math.max(0.1, 1 - u), 10.5 + u * 9);
+    const G = pirates.get(c.res.gagnant), P = pirates.get(c.res.perdant);
+    if (u >= 0.28 && c.etapes < 1) {
+      // le choc
+      c.etapes = 1;
+      const M = new THREE.Vector3(c.mx, sol(c.mx, c.mz) + 6, c.mz);
+      gerbe(M, BLANC, 54, 17, 16);
+      gerbe(M, OR, 20, 9, 10);
+      anneau(c.mx, c.mz, OR, 17, 0.7);
+      const eclair = new THREE.Sprite(new THREE.SpriteMaterial({ map: texEclat, color: BLANC, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      eclair.position.copy(M);
+      scene.add(eclair);
+      effet(0.3, (v) => { eclair.scale.setScalar(12 + v * 26); eclair.material.opacity = 1 - v; }, () => { scene.remove(eclair); eclair.material.dispose(); });
+      if (!reduit) tremblement = 0.55;
+      son("choc");
+    }
+    if (u >= 0.34 && c.etapes < 2) {
+      c.etapes = 2;
+      if (P && c.res.mort && P.aTomber) {
+        // il vole en arrière et tombe là où il atterrit
+        const moi = P === c.a ? -1 : 1;
+        P.pos = { x: P.groupe.position.x, z: P.groupe.position.z };
+        P.arene = null;
+        P.cible = { x: c.mx + c.axe.x * moi * (c.sep + 4.5), z: c.mz + c.axe.z * moi * (c.sep + 4.5) };
+        P.vite = 6;
+        P.saut = horloge;
+        tomber(P, "duel");
+      } else if (P && P.etat === "debout") {
+        flotter("TIENT BON", auDessus(P, 2), "bleu");
+        anneau(P.arene?.x ?? P.pos.x, P.arene?.z ?? P.pos.z, BLEU, 6, 0.7);
+      }
+    }
+    if (u >= 0.62 && c.etapes < 3) {
+      c.etapes = 3;
+      if (G && G.etat === "debout") {
+        G.saut = horloge;
+        if (c.res.mort) gerbe(auDessus(G, 0), OR, 30, 9, 15);
+        if (c.tag && /฿/.test(c.tag)) flotter(c.tag, auDessus(G, 2.5), "or");
+      }
+    }
+    if (u >= 1.1 && c.etapes < 4) { c.etapes = 4; if (G && G.etat === "debout") G.saut = horloge; }
+    if (u > 2.7) finirCombat();
+  }
+
+  // ---------- la fête du survivant : les feux d'artifice, un faisceau de lumière sur son affiche ----------
+  let fete = null; // { p, prochain }
+  const faisceau = new THREE.Mesh(new THREE.CylinderGeometry(5, 0.7, 80, 18, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.1, 0.4), transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+  faisceau.visible = false;
+  scene.add(faisceau);
+  const FEUX = [new THREE.Color(1, 0.35, 0.6), new THREE.Color(1, 0.8, 0.3), new THREE.Color(0.45, 0.8, 1), new THREE.Color(0.6, 1, 0.5), new THREE.Color(0.8, 0.55, 1), BLANC];
+  function feu() {
+    const a = Math.random() * Math.PI * 2, d = 10 + Math.random() * 30;
+    const c = fete ? fete.p.groupe.position : new THREE.Vector3(0, 10, 0);
+    const ou = new THREE.Vector3(c.x + Math.cos(a) * d, c.y + 20 + Math.random() * 26, c.z + Math.sin(a) * d);
+    const couleur = FEUX[Math.floor(Math.random() * FEUX.length)];
+    // la fusée monte, puis éclate
+    const fusee = new THREE.Sprite(new THREE.SpriteMaterial({ map: texEclat, color: couleur, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    fusee.scale.setScalar(1.1);
+    scene.add(fusee);
+    effet(0.55, (u) => { fusee.position.set(ou.x, niveau + 4 + (ou.y - niveau - 4) * (1 - (1 - u) ** 2), ou.z); fusee.material.opacity = 0.9; }, () => {
+      scene.remove(fusee); fusee.material.dispose();
+      gerbe(ou, couleur.clone().multiplyScalar(1.8), petit ? 30 : 58, 17, 7, 1.6, 2.3);
+      gerbe(ou, BLANC, 10, 7, 5, 1.2, 1.6);
+      son("feu");
+    });
   }
 
   // ---------- l'état reçu du bot ----------
   let mode = "attente";
   let suspense = null; // { a, b }
   let dernierRound = -1;
+  let dernierNiveau = 0;
   let focusCible = null; // { x, y, z, distance }
   let focusJusqua = 0;
   function etat(d) {
+    const modeAvant = mode;
     mode = d.mode || "attente";
+    if (mode !== modeAvant) { solder(); finirCombat(); dernierRound = -1; }
     niveauCible = NIVEAUX[Math.max(0, Math.min(4, d.maree || 0))];
+    const dr = d.dernier;
+    const nouveau = Boolean(dr && dr.round !== dernierRound);
+    // on n'anime le résultat d'un round que si on l'a vu arriver (pas en rouvrant l'onglet, pas en en rattrapant plusieurs)
+    const anime = nouveau && dernierRound >= 0 && dr.round === dernierRound + 1 && !enPause && mode === "direct";
+    if (nouveau || (dr == null && dernierRound >= 0)) solder();
+    if (dr == null) dernierRound = d.round === 0 && mode === "direct" ? 0 : -1; // avant le premier round : on verra arriver le round 1
     const vus = new Set();
     for (const x of d.pirates || []) {
       vus.add(x.k);
@@ -587,56 +1162,96 @@ void main(){
       if (!p) { p = creerPirate(x); pirates.set(x.k, p); }
       const avant = p.d;
       p.d = x;
-      const m = versMonde(x.x, x.y);
-      p.cible = m;
-      if (avant.vivant && !x.vivant && p.etat === "debout") tomber(p, x.mort?.cause || "duel");
-      else if (!x.vivant && p.etat === "debout") { p.etat = "tombe"; poserTombe(p); }
-      if (avant.top !== x.top || avant.prime !== x.prime || avant.vivant !== x.vivant || avant.nom !== x.nom) redessiner(p);
+      if (x.vivant && p.etat !== "debout") relever(p); // une autre battle, une rediff qui recommence
+      if (!p.fige) {
+        const m = versMonde(x.x, x.y);
+        if (Math.hypot(m.x - p.cible.x, m.z - p.cible.z) > 2) p.trajet = Math.hypot(m.x - p.pos.x, m.z - p.pos.z);
+        p.cible = m;
+      }
+      if (!x.vivant && p.etat === "debout" && !p.aTomber) {
+        if (anime && avant.vivant) p.aTomber = x.mort?.cause || "duel"; // il tombera quand son événement sera joué
+        else { p.etat = "tombe"; p.fige = true; poserTombe(p); }
+      }
+      if (avant.avatar !== x.avatar || avant.portrait !== x.portrait) chargerPhoto(p);
+      if (avant.top !== x.top || avant.prime !== x.prime || avant.vivant !== x.vivant || avant.nom !== x.nom || avant.vies !== x.vies) redessiner(p);
       p.couronne.visible = Boolean(x.top && x.vivant);
     }
-    for (const [k, p] of pirates) if (!vus.has(k)) { scene.remove(p.groupe); p.tex.dispose(); pirates.delete(k); etiquettes.get(k)?.remove(); etiquettes.delete(k); }
-    // le suspense du duel : la caméra va vers les deux pirates
-    const s = d.suspense && pirates.get(d.suspense.a) && pirates.get(d.suspense.b) ? d.suspense : null;
-    if (s && (!suspense || suspense.a !== s.a || suspense.b !== s.b)) {
-      focusCible = viser(pirates.get(s.a), pirates.get(s.b));
-      focusJusqua = Infinity;
+    for (const [k, p] of pirates) if (!vus.has(k)) {
+      if (combat && (combat.a === p || combat.b === p)) finirCombat();
+      if (fete?.p === p) fete = null;
+      scene.remove(p.groupe); p.tex.dispose(); pirates.delete(k); etiquettes.get(k)?.remove(); etiquettes.delete(k);
     }
-    if (!s && suspense) focusJusqua = horloge + 5; // on garde le résultat à l'écran quelques secondes
+    // la marée monte : une grande vague part de l'île
+    if (niveauCible > dernierNiveau && anime) { anneau(0, 0, new THREE.Color(0.55, 0.8, 1), R * 1.9, 2.6, niveauCible + 0.5); son("maree"); }
+    dernierNiveau = niveauCible;
+    // le suspense du duel : les deux pirates se font face, la caméra va vers eux
+    const s = mode === "direct" && d.suspense && pirates.get(d.suspense.a) && pirates.get(d.suspense.b) ? d.suspense : null;
+    if (s && (!suspense || suspense.a !== s.a || suspense.b !== s.b)) {
+      commencerCombat(pirates.get(s.a), pirates.get(s.b));
+      son("suspense");
+    }
+    let vedette = false;
+    if (!s && suspense) {
+      // le résultat : le choc, si c'est bien ce duel-là qu'on attendait
+      const du = dr?.duel;
+      if (combat && anime && !reduit && du && ((du.a === combat.a.k && du.b === combat.b.k) || (du.a === combat.b.k && du.b === combat.a.k))) {
+        vedette = true;
+        combat.phase = "choc";
+        combat.t0 = horloge;
+        combat.res = du;
+        combat.tag = (dr.fil || []).find((l) => l.type === "duel" && l.a === du.gagnant && l.b === du.perdant)?.tag || "";
+      } else finirCombat();
+      focusJusqua = horloge + 5.5; // on garde le résultat à l'écran quelques secondes
+    }
     suspense = s;
-    // le résultat du round : ce qui s'envole au-dessus des pirates
-    const dr = d.dernier;
-    if (dr && dr.round !== dernierRound) {
-      if (dernierRound >= 0) for (const l of dr.fil || []) {
-        const qui = pirates.get(l.type === "rhum" ? l.a : l.a ?? l.b);
-        if (!qui || !l.tag) continue;
-        const pos = new THREE.Vector3(qui.pos.x, sol(qui.pos.x, qui.pos.z) + 9, qui.pos.z);
-        if (/฿/.test(l.tag) && l.a != null) flotter(l.tag, pos, "or");
-        else if (l.tag === "+1 VIE") flotter("🍺 +1 VIE", pos, "vert");
-        else if (l.tag === "+1 FORCE") flotter("💰 +1 FORCE", pos, "or");
-        else if (l.tag === "TIENT BON" || l.tag === "ESQUIVE") flotter(l.tag, new THREE.Vector3(pirates.get(l.b)?.pos.x ?? qui.pos.x, pos.y, pirates.get(l.b)?.pos.z ?? qui.pos.z), "bleu");
-      }
-      if (dr.duel && dernierRound >= 0 && !focusCible) {
-        const a = pirates.get(dr.duel.a), b = pirates.get(dr.duel.b);
-        if (a && b) { focusCible = viser(a, b); focusJusqua = horloge + 6; }
-      }
+    if (nouveau) {
+      if (anime && !reduit) programmer(dr, vedette, d.rythme || 7);
+      else solder();
       dernierRound = dr.round;
     }
-    if (mode !== "direct") { suspense = null; }
+    // la fête du survivant
+    const f = d.fete != null ? pirates.get(d.fete) : null;
+    if (f && fete?.p !== f) {
+      fete = { p: f, prochain: horloge + 0.4 };
+      focusCible = viser(f);
+      focusCible.distance = 74;
+      focusCible.angle = 0.1; // presque à sa hauteur : le ciel et les feux d'artifice derrière lui
+      focusCible.haut = 15;
+      focusJusqua = Infinity;
+      son("victoire");
+    }
+    if (!f && fete) { fete = null; faisceau.visible = false; focusJusqua = horloge + 1; }
   }
   function poserTombe(p) {
     p.tete.visible = false;
     p.groupe.children[0].visible = false;
     p.tombe.visible = true;
   }
+  function relever(p) {
+    p.etat = "debout"; p.fige = false; p.anim = null; p.aTomber = null; p.vite = 0; p.arene = null;
+    p.tete.visible = true;
+    p.groupe.children[0].visible = true;
+    p.tombe.visible = false;
+    p.groupe.rotation.set(0, 0, 0);
+    p.tete.rotation.set(0, 0, 0);
+    const m = versMonde(p.d.x, p.d.y);
+    p.pos = { ...m }; p.cible = { ...m };
+  }
   // chacun tombe à sa façon
   function tomber(p, cause) {
+    if (p.etat !== "debout") return;
     p.etat = "tombe";
+    p.aTomber = null;
+    p.fige = true;
     p.anim = { cause, t0: horloge };
-    const pos = new THREE.Vector3(p.pos.x, sol(p.pos.x, p.pos.z) + 5, p.pos.z);
+    redessiner(p); // l'affiche devient grise et barrée
+    p.couronne.visible = false;
+    const pos = new THREE.Vector3(p.groupe.position.x, sol(p.pos.x, p.pos.z) + 5, p.groupe.position.z);
     if (cause === "duel" || cause === "trahison") gerbe(pos, new THREE.Color(1, 0.95, 0.8), 30, 11);
     else if (cause === "bete" || cause === "maree") gerbe(pos.setY(niveau + 1), new THREE.Color(0.55, 0.85, 1), 40, 13, 22);
-    else if (cause === "piege") gerbe(pos.setY(sol(p.pos.x, p.pos.z) + 1), new THREE.Color(0.85, 0.7, 0.5), 30, 7, 10);
+    else if (cause === "piege") gerbe(pos.setY(sol(p.pos.x, p.pos.z) + 1), TERRE, 30, 7, 10);
     else gerbe(pos, new THREE.Color(0.8, 0.6, 1), 22, 8);
+    son(cause === "bete" || cause === "maree" ? "plouf" : cause === "absurde" ? "envol" : "tombe");
   }
 
   // ---------- la caméra : elle tourne doucement autour de l'île ; on peut la faire tourner en glissant ----------
@@ -665,14 +1280,16 @@ void main(){
       if (p) surPirate(p.k);
     }
   });
+  canvas.addEventListener("pointercancel", () => { glisse = null; });
   // vers où regarder un ou deux pirates : de côté (les deux affiches côte à côte), depuis la mer
   function viser(a, b) {
-    const x = b ? (a.cible.x + b.cible.x) / 2 : a.cible.x, z = b ? (a.cible.z + b.cible.z) / 2 : a.cible.z;
+    const A = a.arene || a.cible, B = b ? b.arene || b.cible : null;
+    const x = B ? (A.x + B.x) / 2 : A.x, z = B ? (A.z + B.z) / 2 : A.z;
     let ox = x - VOLCAN.x, oz = z - VOLCAN.z;
     const lo = Math.hypot(ox, oz) || 1; ox /= lo; oz /= lo;
     let dx = ox, dz = oz, ecart = 0;
-    if (b) {
-      const ax = b.cible.x - a.cible.x, az = b.cible.z - a.cible.z;
+    if (B) {
+      const ax = B.x - A.x, az = B.z - A.z;
       ecart = Math.hypot(ax, az);
       if (ecart > 0.5) { dx = -az / ecart; dz = ax / ecart; if (dx * ox + dz * oz < 0) { dx = -dx; dz = -dz; } }
       // un peu de la direction « depuis la mer » pour garder le volcan derrière
@@ -686,7 +1303,7 @@ void main(){
   }
   function focus(k) {
     const p = pirates.get(k);
-    if (!p) return;
+    if (!p || fete || combat) return;
     focusCible = viser(p);
     focusJusqua = horloge + 6;
   }
@@ -694,6 +1311,18 @@ void main(){
   // ---------- l'animation ----------
   let horloge = 0, raf = 0, enPause = true, arrete = false, l = 1, h = 1, hauteurLisse = 30;
   const v3 = new THREE.Vector3();
+  function placerMouettes(t) {
+    for (const m of mouettes) {
+      const a = m.ph + t * m.v, sens = m.v < 0 ? -1 : 1;
+      m.g.position.set(m.cx + Math.cos(a) * m.r, Math.max(m.h, niveau + 16) + Math.sin(t * 0.7 + m.ph) * 2.2, m.cz + Math.sin(a) * m.r);
+      m.g.rotation.set(0, Math.atan2(-Math.sin(a) * sens, Math.cos(a) * sens), -sens * 0.22, "YXZ");
+      const bat = Math.sin(t * 6.5 + m.ph) * (0.22 + 0.36 * (0.5 + 0.5 * Math.sin(t * 0.37 + m.ph * 3)));
+      m.ad.rotation.z = bat;
+      m.ag.rotation.z = -bat;
+      m.g.visible = m.g.position.distanceToSquared(camera.position) > 34 * 34;
+    }
+  }
+  placerMouettes(0);
   function animer(dt) {
     const t = horloge;
     uCiel.uT.value = t;
@@ -729,19 +1358,69 @@ void main(){
     lueurVolcan.intensity = 900 * (0.85 + 0.15 * Math.sin(t * 3.7) * Math.sin(t * 1.3));
     if (!reduit) { texLave.offset.x = -t * 0.18; matLac.map.offset.set(Math.sin(t * 0.21) * 0.3, t * 0.04); }
     halo.material.opacity = 0.75 + 0.15 * Math.sin(t * 2.2);
+    // la vie autour : les mouettes, les navires qui tanguent, les torches, les lucioles
+    if (!reduit) placerMouettes(t);
+    for (const n of navires) {
+      n.g.position.y = niveau - 0.9 * n.taille + (reduit ? 0 : Math.sin(t * 0.9 + n.ph) * 0.25);
+      if (!reduit) { n.g.rotation.z = Math.sin(t * 0.7 + n.ph) * 0.04; n.g.rotation.x = Math.sin(t * 0.5 + n.ph * 2) * 0.03; }
+      n.lanterne.scale.setScalar(3.4 * (0.9 + (reduit ? 0 : 0.12 * Math.sin(t * 9 + n.ph))));
+    }
+    for (const tr of torches) {
+      const allumee = tr.y > niveau + 0.5;
+      tr.flamme.visible = tr.lueurSol.visible = allumee;
+      tr.poteau.visible = tr.y > niveau - 1.6;
+      if (!allumee) continue;
+      const f = reduit ? 1 : 0.85 + 0.2 * Math.sin(t * 11 + tr.ph) * Math.sin(t * 7.3 + tr.ph * 2);
+      tr.flamme.scale.set(1.5 * f, 2.2 * f, 1);
+      tr.lueurSol.material.opacity = 0.5 * f;
+    }
+    if (!reduit) {
+      const pl = geoLucioles.attributes.position.array;
+      for (let k = 0; k < NL; k++) {
+        const bx = baseLucioles[k * 4], by = baseLucioles[k * 4 + 1], bz = baseLucioles[k * 4 + 2], ph = baseLucioles[k * 4 + 3];
+        const noyee = by < niveau + 0.5;
+        pl[k * 3] = bx + Math.sin(t * 0.6 + ph) * 1.3;
+        pl[k * 3 + 1] = noyee ? -50 : by + 2 + Math.sin(t * 0.9 + ph * 2) * 0.9;
+        pl[k * 3 + 2] = bz + Math.cos(t * 0.5 + ph * 1.7) * 1.3;
+      }
+      geoLucioles.attributes.position.needsUpdate = true;
+      lucioles.material.opacity = 0.7 + 0.3 * Math.sin(t * 3.1);
+    }
+    // les événements du round, l'un après l'autre ; puis ceux qui devaient tomber sans événement à eux
+    while (file.length && file[0].t0 <= horloge) jouer(file.shift().l);
+    if (!file.length && !(combat && combat.phase === "choc" && combat.etapes < 2)) {
+      for (const p of pirates.values()) if (p.aTomber && p.etat === "debout") tomber(p, p.aTomber);
+    }
+    for (let k = effets.length - 1; k >= 0; k--) {
+      const e = effets[k];
+      const u = (horloge - e.t0) / e.duree;
+      if (u < 0) continue;
+      e.maj(Math.min(1, u));
+      if (u >= 1) { e.fin?.(); effets.splice(k, 1); }
+    }
+    if (combat) animerCombat();
+    // la fête
+    if (fete) {
+      const p = fete.p;
+      if (!reduit && horloge >= fete.prochain) { fete.prochain = horloge + 0.45 + Math.random() * 0.75; feu(); }
+      faisceau.visible = p.etat === "debout";
+      faisceau.position.set(p.groupe.position.x, p.groupe.position.y + 42, p.groupe.position.z);
+      faisceau.material.opacity = 0.13 + 0.05 * Math.sin(t * 2.4);
+      faisceau.rotation.y = t * 0.3;
+    }
     // la caméra
-    if (!glisse && !reduit && !(focusCible && horloge < focusJusqua)) azimutCible += dt * 0.045;
-    azimut += (azimutCible - azimut) * Math.min(1, dt * 3);
     const enFocus = focusCible && horloge < focusJusqua;
+    if (!glisse && !reduit && (!enFocus || fete)) azimutCible += dt * (fete ? 0.09 : 0.045);
+    azimut += (azimutCible - azimut) * Math.min(1, dt * 3);
     if (!enFocus && focusCible && horloge >= focusJusqua) focusCible = null;
     const cx = enFocus ? focusCible.x : 0, cz = enFocus ? focusCible.z : 0;
     // en portrait (téléphone) on recule pour garder l'île entière
     const recul = l / h < 1.2 ? Math.min(1.8, Math.pow(1.25 / Math.max(0.45, l / h), 0.9)) : 1;
     distanceCible = (enFocus ? focusCible.distance : 100) * recul;
     distance += (distanceCible - distance) * Math.min(1, dt * 1.6);
-    vise.set(cx, enFocus ? sol(cx, cz) + 10 : 10, cz);
+    vise.set(cx, enFocus ? sol(cx, cz) + (focusCible.haut ?? 10) : 10, cz);
     visee.lerp(vise, Math.min(1, dt * 1.8));
-    angleCam += ((enFocus ? 0.5 : 0.3) - angleCam) * Math.min(1, dt * 2);
+    angleCam += ((enFocus ? focusCible.angle ?? 0.5 : 0.3) - angleCam) * Math.min(1, dt * 2);
     camera.position.set(visee.x + Math.cos(azimut) * distance, visee.y + angleCam * distance, visee.z + Math.sin(azimut) * distance);
     // la caméra ne passe jamais à travers l'île : on la remonte si la vue est bouchée
     {
@@ -755,31 +1434,60 @@ void main(){
       hauteurLisse += (y - hauteurLisse) * Math.min(1, dt * 4);
       camera.position.y = Math.max(y - 0.001, hauteurLisse);
     }
+    // le choc d'un duel secoue la caméra
+    if (tremblement > 0) {
+      camera.position.x += (Math.random() - 0.5) * tremblement * 2.2;
+      camera.position.y += (Math.random() - 0.5) * tremblement * 2.2;
+      tremblement = Math.max(0, tremblement - dt * 1.3);
+    }
     camera.lookAt(visee);
     ciel.position.copy(camera.position);
     uMer.uCam.value.copy(camera.position);
-    // les pirates : ils glissent vers leur place, l'affiche regarde la caméra, ceux du duel grandissent
+    // les pirates : ils vont vers leur place (en sautant), l'affiche regarde la caméra, ceux du duel grandissent
     const r = canvas.getBoundingClientRect();
     for (const p of pirates.values()) {
-      p.pos.x += (p.cible.x - p.pos.x) * Math.min(1, dt * 2);
-      p.pos.z += (p.cible.z - p.pos.z) * Math.min(1, dt * 2);
+      const but = p.arene || p.cible;
+      const vitesse = Math.min(1, dt * (p.vite || (p.arene ? 3.2 : 2)));
+      p.pos.x += (but.x - p.pos.x) * vitesse;
+      p.pos.z += (but.z - p.pos.z) * vitesse;
       const y = sol(p.pos.x, p.pos.z);
-      p.groupe.position.set(p.pos.x, y, p.pos.z);
-      p.tete.rotation.y = Math.atan2(camera.position.x - p.pos.x, camera.position.z - p.pos.z);
-      const enDuel = suspense && (suspense.a === p.k || suspense.b === p.k);
-      const cible = (enDuel ? 1.7 : p.d.top && p.d.vivant ? 1.3 : 1) * 1.35;
+      let ox = 0, oy = 0, oz = 0;
+      if (p.saut !== null) {
+        const sv = (horloge - p.saut) / 0.45;
+        if (sv >= 1) p.saut = null;
+        else if (sv > 0) oy += Math.sin(sv * Math.PI) * 1.6;
+      }
+      if (p.trajet > 0) {
+        const reste = Math.hypot(but.x - p.pos.x, but.z - p.pos.z);
+        if (reste < 0.3) p.trajet = 0;
+        else if (!reduit) oy += Math.sin(Math.PI * Math.min(1, reste / p.trajet)) * Math.min(4, p.trajet * 0.18);
+      }
+      if (p.elan) {
+        const se = (horloge - p.elan.t0) / 0.5;
+        if (se >= 1) p.elan = null;
+        else { const ke = Math.sin(se * Math.PI) * 0.6; ox += (p.elan.x - p.pos.x) * ke; oz += (p.elan.z - p.pos.z) * ke; }
+      }
+      const enDuel = Boolean(combat && (combat.a === p || combat.b === p));
+      if (enDuel) { const o = decalageCombat(p); ox += o.x; oy += o.y; oz += o.z; }
+      p.groupe.position.set(p.pos.x + ox, y + oy, p.pos.z + oz);
+      p.tete.rotation.y = Math.atan2(camera.position.x - p.groupe.position.x, camera.position.z - p.groupe.position.z);
+      const enFete = fete?.p === p;
+      const cible = (enFete ? 2.1 : enDuel ? 1.7 : p.d.top && p.d.vivant ? 1.3 : 1) * 1.35;
       p.echelle += (cible - p.echelle) * Math.min(1, dt * 4);
       if (p.etat === "debout") {
         p.groupe.scale.setScalar(p.echelle);
-        p.tete.rotation.z = reduit ? 0 : Math.sin(t * 1.8 + p.phase) * 0.04 * (enDuel ? 2.5 : 1);
-        p.aura.material.map = enDuel ? (suspense.a === p.k ? texHaloBleu : texHaloRouge) : texHaloOr;
-        p.aura.material.opacity += ((enDuel ? 0.95 : p.d.top ? 0.6 : 0) - p.aura.material.opacity) * Math.min(1, dt * 4);
+        // pendant le suspense, les deux affiches tremblent et se penchent l'une vers l'autre
+        const tension = enDuel && combat.phase === "face" ? Math.min(1, (horloge - combat.t0) / 6) : 0;
+        const penche = enDuel ? (combat.a === p ? -1 : 1) * 0.07 : 0;
+        p.tete.rotation.z = reduit ? 0 : Math.sin(t * 1.8 + p.phase) * 0.04 * (enDuel ? 2.2 : 1) + penche + Math.sin(t * 37 + p.phase) * 0.03 * tension;
+        p.aura.material.map = enDuel ? (combat.a === p ? texHaloBleu : texHaloRouge) : texHaloOr;
+        p.aura.material.opacity += ((enDuel || enFete ? 0.95 : p.d.top ? 0.6 : 0) - p.aura.material.opacity) * Math.min(1, dt * 4);
       }
       // la chute
       if (p.anim) {
         const u = (horloge - p.anim.t0) / 1.4;
         const c = p.anim.cause;
-        if (u >= 1) { p.anim = null; poserTombe(p); p.groupe.rotation.set(0, 0, 0); p.groupe.position.y = y; p.groupe.scale.setScalar(1); }
+        if (u >= 1) { p.anim = null; p.vite = 0; poserTombe(p); p.groupe.rotation.set(0, 0, 0); p.tete.rotation.set(0, 0, 0); p.groupe.position.y = y; p.groupe.scale.setScalar(1); }
         else if (c === "absurde") { p.groupe.position.y = y + u * u * 30; p.groupe.rotation.y = u * 20; p.groupe.scale.setScalar(p.echelle * (1 - u)); }
         else if (c === "bete" || c === "maree" || c === "piege") { p.groupe.position.y = y - u * u * 9; p.groupe.rotation.z = u * 0.6; }
         else {
@@ -790,20 +1498,19 @@ void main(){
           p.tete.rotation.y = 0;
           p.groupe.rotation.x = -k * 1.45;
           p.groupe.rotation.z = Math.sin(u * 14) * 0.06 * (1 - u);
-          if (k >= 1 && !p.anim.boum) { p.anim.boum = true; gerbe(new THREE.Vector3(p.pos.x, y + 0.6, p.pos.z), new THREE.Color(0.85, 0.72, 0.55), 18, 6, 12); }
+          if (k >= 1 && !p.anim.boum) { p.anim.boum = true; gerbe(new THREE.Vector3(p.groupe.position.x, y + 0.6, p.groupe.position.z), TERRE, 18, 6, 12); }
         }
       }
       if (p.etat === "tombe" && !p.anim) {
         // les tombes du bord partent avec la marée
         p.tombe.visible = hauteur(p.pos.x, p.pos.z) > niveau + 0.2;
       }
-      // le nom : seulement pour la tête de liste, ceux du duel et ceux qu'on montre
-      // (pendant le duel, les cartes du face-à-face donnent déjà les noms)
-      const montrer = p.etat === "debout" && !enDuel && p.d.top && p.d.vivant;
+      // le nom : seulement pour la tête de liste et le survivant (pendant le duel, le face-à-face donne déjà les noms)
+      const montrer = p.etat === "debout" && !enDuel && ((p.d.top && p.d.vivant) || enFete);
       const e = etiquettes.get(p.k);
       if (montrer) {
-        v3.set(p.pos.x, y + 3.6 * p.echelle + 5.4 * p.echelle, p.pos.z).project(camera);
-        const el = etiquette(p.k, `${p.d.nom} · ${court(p.d.prime)} ฿`, enDuel ? (suspense.a === p.k ? "bleu" : "rouge") : "or");
+        v3.set(p.groupe.position.x, p.groupe.position.y + 9 * p.echelle, p.groupe.position.z).project(camera);
+        const el = etiquette(p.k, `${p.d.nom} · ${court(p.d.prime)} ฿`, "or");
         if (el) { el.style.transform = `translate(${((v3.x + 1) / 2) * r.width}px, ${((1 - v3.y) / 2) * r.height}px) translate(-50%, -100%)`; el.hidden = v3.z > 1; }
       } else if (e) e.hidden = true;
     }
@@ -826,9 +1533,11 @@ void main(){
       if (u.vie > u.max) { scene.remove(s); s.material.dispose(); eclats.splice(k, 1); }
     }
   }
+  let facteur = 1; // la vitesse du temps sur l'île (la rediff peut passer en ×2)
   function dessiner(dt) {
+    dt *= facteur;
     horloge += dt;
-    animer(Math.min(dt, 0.05));
+    animer(Math.min(dt, 0.05 * facteur));
     rendu.render(scene, camera);
   }
   let avant = performance.now();
@@ -858,6 +1567,7 @@ void main(){
   redimensionner();
   return {
     etat, focus, pause, redimensionner,
+    vitesse(v) { facteur = Math.max(0.25, Math.min(4, Number(v) || 1)); },
     avancer(dt, rendre = true) { horloge += dt; animer(Math.min(dt, 0.05)); if (rendre) rendu.render(scene, camera); },
     arreter() {
       arrete = true;
@@ -865,6 +1575,8 @@ void main(){
       ro?.disconnect();
       for (const e of etiquettes.values()) e.remove();
       for (const f of flottants) f.e.remove();
+      file.length = 0;
+      effets.length = 0;
       rendu.dispose();
     },
   };
